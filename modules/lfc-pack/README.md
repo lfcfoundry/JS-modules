@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.6.0 · API 0**
+**Version 0.6.1 · API 0**
 
-**Tested in:** Firefox 158, Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node 22: all lfc-pack checks plus 5 warm() checks; first save and open timed in Chromium 155, Firefox 158 and WebKitGTK 2.52.6 with a fresh browser per run
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -142,6 +142,24 @@ Speed: 300,000 rows of 8 keys (a 33 MB JSON array, a 46 KB `.json.lfc` file). `J
 | | open + read all 8 fields | 275 | 61 | 86 | 81 |
 
 All three modes return the same values as `JSON.parse` in each browser. Use `'lazycols'` when a page reads a few fields of big files. Keep plain rows when it reads every field, or when rows go to `postMessage` or spread.
+
+## Warm up when the page is idle (opt-in, since 0.6.1)
+
+The first save and the first open in a fresh page pay for starting the WebAssembly and warming up the JavaScript. Call `LfcPack.warm()` once when the page is idle, and the first real call skips most of that:
+
+```js
+LfcPack.warm();   // returns a promise: true when done, false if it could not run; calling it again returns the same promise
+```
+
+It starts the WebAssembly, then packs and opens one made-up table set (400 rows and 1,200 links), each step in a task of its own, so the page stays responsive. In Chromium 155, warm() itself takes 44 to 52 ms of wall time, with no task over 50 ms. Nothing changes unless a page calls it, and the bytes written are the same. The decoder-only build has no writer, so its warm() resolves false.
+
+First call after warm(), compared with no warm-up (fresh browser per run, medians; lower is better):
+
+| Browser | First save, 20,000 nodes | First open, 20,000 nodes | First save, 3,000 nodes | First open, 3,000 nodes |
+|---|---|---|---|---|
+| Chromium 155 | 0.85 | 0.90 | 0.53 | 0.73 |
+| Firefox 158 | 0.97 | 0.70 | 0.67 | 0.85 |
+| WebKitGTK 2.52.6 | 0.66 | 0.67 | 0.46 | 0.43 |
 
 ## How the file is laid out
 - **Nested blocks** (any JSON): each row is split into a *shape* (its keys, nesting and value kinds) and its values. Rows with the same shape share one entry. Strings of the block go into one dictionary (each distinct string once, rows hold small codes); numbers and booleans go into one column per path (`.actor.id`, `.payload.commits[].sha`), stored at the narrowest width that holds every value (8, 16, 32 bits or a 64-bit float). A WebAssembly tokenizer does the splitting and the dictionary.

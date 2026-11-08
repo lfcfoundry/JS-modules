@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.1 · API 0 · 2026-11-07
+
+### Quick
+LfcPack.warm(): init plus a made-up 400-row pack and open in separate tasks, cached promise. First 20k-node save 0.85x Chromium, 0.97x Firefox, 0.66x WebKitGTK; first open 0.67-0.90x; 3k-node save 0.46-0.67x, open 0.43-0.85x. warm() itself 44-52 ms wall, no long task. Same bytes.
+
+### Details
+warm() returns one cached promise (true, or false if it cannot run; the decoder-only build resolves false). Each step runs in its own setTimeout task. Nothing changes unless a page calls it. Requested by the owner.
+
+### Deep
+Opt-in warm() for a faster first save and open.
+
 ## 0.6.0 · API 0 · 2026-11-07
 
 ### Quick
