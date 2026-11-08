@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.15.0 · API 2 · 2026-11-08
+- pack(list, { mode: 'fast', chunks: true }) makes the first view().get() on a list of 400,000 rows or more about four times shorter.
+
 ## 2.14.1 · API 2 · 2026-11-08
 - Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
 
