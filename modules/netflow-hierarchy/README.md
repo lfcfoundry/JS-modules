@@ -8,6 +8,8 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 
 ## What it is and how it works
 
+**Load order:** `netflow-scene.js`, then `netflow-hierarchy.js` (this module draws through [netflow-scene](../netflow-scene/README.md)).
+
 The nested views of Netflow Map as an add-on for [netflow-engine](../netflow-engine/README.md): Treemap, Sunburst, Icicle, Circle pack and Tree.
 
 - `layout(view, G, options)` finds one parent for each item (from the links, or a box for each group) and lays the tree out.

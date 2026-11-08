@@ -10,6 +10,8 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 
 Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or SVG can all draw the same way.
 
+**Want a chart from a table?** Start with a chart module instead; each draws in one call on top of this one: [netflow-plot](../netflow-plot/README.md) (bar, line, scatter and 19 more), [netflow-hierarchy](../netflow-hierarchy/README.md) (treemap, sunburst) and [netflow-circular](../netflow-circular/README.md) (chord). Load `netflow-scene.js` before any of them. For flows, [netflow-sankey](../netflow-sankey/README.md) draws a Sankey on its own, with no other script.
+
 - It decides colors, widths, dashes, arrows and which labels fit.
 - It works out what a click would hit, without touching the page.
 - Big maps keep links in typed lists, and a rebuild after moving items reuses each link's look.
