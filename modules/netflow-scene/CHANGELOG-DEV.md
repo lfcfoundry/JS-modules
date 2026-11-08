@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.13.0 · API 1 · 2026-11-08
+
+### Quick
+A run of touching band pieces under a line is written as one outline (at most 128 pieces each). The SVG is 2.7x smaller on 20,000 rows. Look change: the faint seams between pieces are gone and dense areas show the true fill color instead of a paler one.
+
+### Details
+Area chart, 20,000 rows, set the SVG, lay it out, paint two frames and a timer, new vs old, paired, fresh page: ungoogled Chromium 156.0.8078.79-1 0.15 (129 to 19 ms), Firefox 158.0 0.13 (192 to 32 ms), WebKitGTK 2.52.6 0.20 (385 to 78 ms). 2,000 rows: 0.85, 0.85, 0.49. SVG text 2.10 MB to 0.75 MB at 20,000 rows. Pixels: sparse areas (60 rows) differ on 3% of pixels by up to 22 of 255 levels; areas with more than about 1 row per pixel differ on 30% of pixels (the whole fill) by 17 to 64 levels, because the old pieces overlapped at the edges and stacked their see-through fill. No API change.
+
+### Deep
+1.13.0: S.polys runs of four-corner pieces that touch (next starts on the right edge of the previous), same fill, see-through stroke and dimming are written as one outline, capped at 128 pieces since one long outline paints about 5x slower in WebKitGTK (research 11.07, aesthetics-usability/poly-text-2026.11.07). Gate runs 11.08 on current main (1.12.1): 20,000-row area page time new/old Chromium 156.0.8078.79-1 0.15 (11 pairs), Firefox 158.0 0.13 (9 pairs), WebKitGTK 2.52.6 0.20 (7 pairs); 2,000 rows 0.85, 0.85, 0.49. 7 test charts compared in Chromium: sparse 0.968 of pixels identical, dense about 0.68 identical with the whole fill darker (the single-fill true color). LOOK CHANGE: needs the owner's look card; pictures in js-modules-research/aesthetics-usability/area-band-merge-2026.11.08/. Firefox and WebKit pictures not compared yet. Phone pending.
+
 ## 1.12.1 · API 1 · 2026-11-08
 
 ### Quick

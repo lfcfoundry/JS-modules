@@ -140,6 +140,17 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(svg.split('<g fill=').length === 2 && /<g fill="rgba\(255,0,0,1\)">\s*<circle cx="40"/.test(svg), 'a run of three keeps one group');
   console.log('ok   short dot runs carry their own look');
 }
+/* band pieces that touch (each starts on the right edge of the one before, same look, no outline) are one outline, at most 128 pieces each (since 1.13.0); a gap or a different look starts a new one */
+{
+  const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});
+  const A = [1, 0, 0, 0.85], B = [0, 0, 1, 0.85], N = [0, 0, 0, 0];
+  const quad = (i, f) => ({ pts: [i, 10 + i % 5, i + 1, 10 + (i + 1) % 5, i + 1, 90, i, 90], fill: f, stroke: N });
+  const paths = (n, mid) => { S.polys = []; for (let i = 0; i < n; i++) S.polys.push(quad(i, mid && i >= mid ? B : A)); return (SC.toSvg(S).match(/<path d="M[^"]*Z"/g) || []).length; };
+  ok(paths(5) === 1, 'five touching pieces are one outline');
+  ok(paths(300) === 3, '300 pieces are cut into outlines of at most 128 (128 + 128 + 44)');
+  ok(paths(10, 4) === 2, 'a change of fill starts a new outline');
+  console.log('ok   touching band pieces in one outline');
+}
 /* long lines in pieces (since 1.10.4): a solid line over 8,000 segments is written as overlapping pieces of 2048; the pieces join up to the same points, and shorter or dashed lines stay one path */
 {
   global.NetflowScene = SC; const P = require('../../netflow-plot/netflow-plot.js');
