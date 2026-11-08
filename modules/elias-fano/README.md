@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.1.0 · API 2**
+**Version 2.1.1 · API 2**
 
 **Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
@@ -105,10 +105,10 @@ roaring-wasm 1.1.0 (CRoaring in WebAssembly) and FastIntegerCompression 0.1.0 (v
 | Same, dense | 2.0 / 2.7 / 2.0 | 0.7 / 1.3 / 0.67 (`containsMany` 0.33 / 0.67 / 0.33) | `containsMany` 0.33 / 0.67 / 0.33 | 0.8 / 1.0 / 0.67 | no lookups |
 | Decode everything, sparse | 5.5 / 4.3 / 4.7 | 5.3 / 4.3 / 3.3 | 2.4 / 2.3 / 1.3 | 2.2 / 2.7 / 1.3 | 7.9 / 12 / 11 |
 | Same, dense | 3.7 / 5.0 / 3.7 | 2.8 / 3.0 / 2.0 | 2.8 / 3.3 / 2.0 | 3.2 / 3.3 / 2.0 | 5.6 / 8.3 / 7 |
-| Intersect, sparse | 7.3 / 6.7 / 6.7 | 4.8 / 8.0 / 5.7 | 2.7 / 4.3 / 3.3 | 2.4 / 3.0 / 3.0 | none |
-| Same, dense | 6.4 / 5.7 / 5.7 | 0.9 / 1.0 / 0.67 | 0.5 / 0.33 / 0.67 | 1.5 / 1.7 / 1.7 | none |
+| Intersect, sparse (since 2.1.1) | 8.2 / 8.7 / 7.3 | 4.2 / 4.7 / 4.7 | 1.4 / 1.3 / 2.3 | 3.4 / 4.0 / 3.3 | none |
+| Same, dense (since 2.1.1) | 6.2 / 5.7 / 5.7 | 0.97 / 1.0 / 1.0 | 0.47 / 0.67 / 0.33 | 1.5 / 2.0 / 1.3 | none |
 
-Where elias-fano wins: the smallest size on spread-out values (flat lists 0.66x roaring's, block lists 0.69x), "first value at or above x" (flat lists 7 to 60 times faster than roaring's `rank`), "is x present" (block lists, faster than roaring on both kinds; `containsMany` about twice as fast on dense values), and intersecting dense lists (block lists 1.5 to 2.5 times faster, `arrays: true` up to 5 times). Where roaring still wins: intersecting spread-out lists (2.4 to 3.0 ms against 2.7 to 4.3 for block lists with `arrays: true`, which then take roaring's size, or 4.8 to 8.0 at the smaller size), and decoding everything from flat or default block lists on spread-out values (about 2 times faster). Value number i: roaring's `select` gave wrong answers past about 68,000 values in this test (off by one), so it is not compared. Test: the repository's `tests/compare/elias-fano-compare-browser.js` (needs `LIBS=<folder with node_modules>`).
+Where elias-fano wins: the smallest size on spread-out values (flat lists 0.66x roaring's, block lists 0.69x), "first value at or above x" (flat lists 7 to 60 times faster than roaring's `rank`), "is x present" (block lists, faster than roaring on both kinds; `containsMany` about twice as fast on dense values), and intersecting (block lists with `arrays: true` 1.4 to 3 times faster than roaring on both kinds since 2.1.1; default block lists 1.3 to 2 times faster on dense values). Where roaring still wins: intersecting spread-out lists against default block lists (3.3 to 4.0 ms against 4.2 to 4.7, which keep the smaller size), and decoding everything from flat or default block lists on spread-out values (about 2 times faster). Value number i: roaring's `select` gave wrong answers past about 68,000 values in this test (off by one), so it is not compared. Test: the repository's `tests/compare/elias-fano-compare-browser.js` (needs `LIBS=<folder with node_modules>`).
 
 ## Partitioned lists (since 1.2.0)
 `buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.

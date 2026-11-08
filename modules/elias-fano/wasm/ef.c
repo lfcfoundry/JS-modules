@@ -415,9 +415,31 @@ void bl_contains_many(const u8 *b, const u32 *xs, u8 *out, u32 k) {
     out[q] = (lo < nb && t[4 * lo] == key) ? (u8)blkHas(blkAt(b, lo), x & 65535) : 0;
   }
 }
+#define SIMDR 8    // a at least 1/8 of b: SIMD 8-by-8 compare (ef-simd.wasm); shorter: galloping
+#define GALLOP 4   // plain build: gallop when a is under 1/4 of b, else a merge without branches
 static u32 andU16(const u16 *a, u32 na, const u16 *b, u32 nb, u32 hi, u32 *out) {   // a the shorter; out has one spare slot
   u32 i = 0, j = 0, o = 0;
-  if (na * 4 < nb) {   // much shorter: gallop through b
+#ifdef __wasm_simd128__
+  if (na * SIMDR >= nb) {   // 8 against 8: each value of a's 8 compared with every rotation of b's 8 at once; matches are rare in sparse blocks, so they are written one by one
+    while (i + 8 <= na && j + 8 <= nb) {
+      v128_t va = wasm_v128_load(a + i), vb = wasm_v128_load(b + j);
+      v128_t m = wasm_i16x8_eq(va, vb);
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 4,5,6,7,8,9,10,11,12,13,14,15,0,1,2,3)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 6,7,8,9,10,11,12,13,14,15,0,1,2,3,4,5)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 10,11,12,13,14,15,0,1,2,3,4,5,6,7,8,9)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 12,13,14,15,0,1,2,3,4,5,6,7,8,9,10,11)));
+      m = wasm_v128_or(m, wasm_i16x8_eq(va, wasm_i8x16_shuffle(vb, vb, 14,15,0,1,2,3,4,5,6,7,8,9,10,11,12,13)));
+      u32 bits = wasm_i16x8_bitmask(m);
+      while (bits) { u32 t = CTZ(bits); out[o++] = hi | a[i + t]; bits &= bits - 1; }
+      u16 am = a[i + 7], bm = b[j + 7]; i += am <= bm ? 8 : 0; j += bm <= am ? 8 : 0;
+    }
+    while (i < na && j < nb) { u16 x = a[i], y = b[j]; out[o] = hi | x; o += x == y; i += x <= y; j += y <= x; }
+    return o;
+  }
+#endif
+  if (na * GALLOP < nb) {   // much shorter: gallop through b
     for (; i < na; i++) { u16 x = a[i]; u32 step = 1, lo = j; while (lo + step < nb && b[lo + step] < x) { lo += step; step <<= 1; }
       u32 h = lo + step < nb ? lo + step : nb; while (lo < h) { u32 m = (lo + h) >> 1; if (b[m] < x) lo = m + 1; else h = m; }
       j = lo; if (j >= nb) break; out[o] = hi | x; o += b[j] == x; }
