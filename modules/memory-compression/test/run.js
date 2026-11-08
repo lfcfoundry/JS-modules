@@ -226,6 +226,39 @@ tAsync('chunks: packAsync leaves chunks off (same file as without the option) an
     same(rows[419999], J.view(r[0], opt()).get(419999), 'packAsync view');
   });
 });
+// chunks and decimal columns (since 2.16.0): a column of whole numbers over a power of ten (prices, weights) is packed in pieces and opened through the same windows
+function decRows(n) { var r = [], i; for (i = 0; i < n; i++) r.push({ id: i, price: (((i * 2654435761) >>> 0) % 1000003 % 100000) / 100, neg: ((i * 31) % 20001 - 10000) / 10, tiny: ((i * 13) % 9973) / 1e6, big: ((i * 17) % 99991) / 1e10, one: ((i * 5) % 4001) / 10 }); return r; }
+t('chunks, decimal columns: under 400,000 rows the same file, 400,000 and more read the same values (negative, scales 1 to 10)', function () {
+  var small = decRows(399999), a = J.pack(small, opt({ mode: 'fast' })), b = J.pack(small, opt({ mode: 'fast', chunks: true }));
+  assert.ok(Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0, 'under the minimum, chunks changes nothing');
+  var only = decRows(400000).map(function (x) { return { price: x.price }; });
+  assert.ok(Buffer.compare(Buffer.from(J.pack(only, opt({ mode: 'fast', chunks: true }))), Buffer.from(J.pack(only, opt({ mode: 'fast' })))) !== 0, 'a list of one decimal column is chunked');
+  [400000, 450000].forEach(function (n) {
+    var rows = decRows(n), p = J.pack(rows, opt({ mode: 'fast', chunks: true })), plain = J.pack(rows, opt({ mode: 'fast' })), ref = J.unpack(p, opt()), v = J.view(p, opt()), i, k, v2;
+    assert.ok(Buffer.compare(Buffer.from(p), Buffer.from(plain)) !== 0, n + ': chunks is on');
+    same(rows.slice(0, 3000), ref.slice(0, 3000), n + ' unpack head'); same(rows[n - 1], ref[n - 1], n + ' unpack tail'); same(rows[200001], ref[200001], n + ' unpack middle');
+    [0, 1, 65535, 65536, 262144, n >> 1, n - 1].forEach(function (x) { same(rows[x], v.get(x), n + ' get ' + x); });
+    ['price', 'neg', 'tiny', 'big', 'one'].forEach(function (key) { var c = v.column(key); assert.strictEqual(c.length, n); for (i = 0; i < n; i += 3571) assert.strictEqual(c[i], rows[i][key], n + ' column ' + key + ' ' + i); });
+    v2 = J.view(p, opt()); for (i = 0; i < n; i += 997) { k = v2.get(i); if (k.price !== rows[i].price || k.neg !== rows[i].neg || k.tiny !== rows[i].tiny) throw new Error(n + ' interleaved get ' + i); v2.get(n - 1 - i); }
+  });
+});
+tAsync('chunks, decimal columns: reads stay right during the background fill and after the column is a plain array; packAsync leaves chunks off', function () {
+  var n = 450000, rows = decRows(n), p = J.pack(rows, opt({ mode: 'fast', chunks: true })), v = J.view(p, opt()), i = 0;
+  same(rows[5], v.get(5), 'first read');
+  return new Promise(function (res, rej) {
+    function step() {
+      try {
+        var x, k;
+        for (k = 0; k < 40; k++) { x = (i * 104729) % n; i++; if (v.get(x).price !== rows[x].price || v.get(n - 1 - x).neg !== rows[n - 1 - x].neg) throw new Error('read wrong while filling at ' + x); }
+        if (i < 3000) setTimeout(step, 0); else res();
+      } catch (e) { rej(e); }
+    }
+    step();
+  }).then(function () { return new Promise(function (r) { setTimeout(r, 300); }); }).then(function () {
+    var k, x; for (k = 0; k < 2000; k++) { x = (k * 99991) % n; assert.strictEqual(v.get(x).tiny, rows[x].tiny, 'after settle ' + x); } same(rows[n - 1], v.get(n - 1), 'last row after settle');
+    return Promise.all([J.packAsync(rows.slice(0, 420000), opt({ mode: 'fast', chunks: true })), J.packAsync(rows.slice(0, 420000), opt({ mode: 'fast' }))]);
+  }).then(function (r) { assert.ok(Buffer.compare(Buffer.from(r[0]), Buffer.from(r[1])) === 0, 'packAsync: chunks changes nothing'); });
+});
 t('text patterns: strings that are text around numbers', function () {
   var padded = function (n, w) { return ('0000000000000000' + n).slice(-w); };
   var cols = {

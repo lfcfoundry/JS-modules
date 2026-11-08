@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.0 · API 2 · 2026-11-08
+- chunks: true now also covers decimal columns (prices, weights): a 1M-row list's first view().get() takes about a tenth to a third of the time.
+
 ## 2.15.0 · API 2 · 2026-11-08
 - pack(list, { mode: 'fast', chunks: true }) makes the first view().get() on a list of 400,000 rows or more about four times shorter.
 
