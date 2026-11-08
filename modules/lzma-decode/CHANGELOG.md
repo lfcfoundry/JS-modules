@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.4 · API 1 · 2026-11-07
+- First unpack about 8% faster in Chromium; same output.
+
 ## 1.6.3 · API 1 · 2026-11-07
 - Later unpacks in the same page are about twice as fast in Chromium and WebKit; same output.
 

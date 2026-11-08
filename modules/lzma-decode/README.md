@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.6.3 · API 1**
+**Version 1.6.4 · API 1**
 
-**Tested in:** node tests (355), lzma-pack tests (25); paired A/B in Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node tests (355); paired 2-way runs, new browser per sample, in Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 
