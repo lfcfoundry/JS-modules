@@ -41,7 +41,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.15.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.16.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -65,6 +65,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **netflow-scene** 1.13.0 · API 1: Area bands are drawn as one shape instead of one per step: area charts are 1.2 to 7.7 times as fast (15 to 87% less time) to show, and the fill looks a little darker on long data (the true fill color).
 - 2026-11-08 · **netflow-scene** 1.12.1 · API 1: SVG export: dots in short same-color runs no longer get a group each, so big scatters with mixed colors load 25-40% faster, same picture.
 - 2026-11-08 · **netflow-scene** 1.12.0 · API 1: Three groups get mauve, light green and orange (color-vision safe)
+- 2026-11-08 · **netflow-plot** 2.16.0 · API 2: New optional NetflowPlot.warm(): call it from an idle callback and the first charts are 18 to 45% faster to draw (7-13 ms of idle work).
 - 2026-11-08 · **netflow-plot** 2.15.0 · API 2: Three groups in mauve, light green and orange; keys name all of 3 or fewer groups
 - 2026-11-08 · **netflow-circular** 1.3.1 · API 1: Chord names never overlap on small rings; bigger arcs keep their names first.
 - 2026-11-08 · **memory-compression** 2.14.1 · API 2: Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.

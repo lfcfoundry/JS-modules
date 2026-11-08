@@ -308,5 +308,14 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(s.marks.length === 2 && values.join(',') === '1,10', 'NUL inside names: values 1 and 10 stay apart (' + values.join(',') + ')');
   ok(covered.length === 2 && new Set(covered).size === 2, 'each grouped bar keeps only its own source row');
 }
+/* warm() (since 2.16.0): runs four small made-up charts and changes nothing about later charts; false without NetflowScene */
+{
+  const rows = [{ x: 1, y: 2, g: 'a' }, { x: 2, y: 3, g: 'b' }, { x: 3, y: 5, g: 'a' }, { x: 4, y: 4, g: 'b' }];
+  const before = P.toSvg(rows, { type: 'scatter', x: 'x', y: 'y', color: 'g' }), a0 = JSON.stringify(P.auto(rows, {}).spec);
+  ok(P.warm() === true, 'warm() runs and returns true');
+  ok(P.toSvg(rows, { type: 'scatter', x: 'x', y: 'y', color: 'g' }) === before && JSON.stringify(P.auto(rows, {}).spec) === a0, 'charts are the same after warm()');
+  const keep = global.NetflowScene; delete global.NetflowScene; const off = P.warm(); global.NetflowScene = keep;
+  ok(off === false, 'warm() returns false when NetflowScene is missing');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);
