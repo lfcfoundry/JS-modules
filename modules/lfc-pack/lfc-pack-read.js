@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.2 (API 0)
+ * Version 0.7.0 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1852,8 +1852,9 @@
     if (opts.exact) throw new Error('LfcPack: packStream does not support exact mode yet');
     var st = opts.share ? sharedState() : null, mopts = st ? Object.assign({}, opts, { _st: st }) : opts;
     var bb = opts.blockBytes || BLOCK_BYTES, blocks = [], zone = [], off = 0, rows = 0, tail = true, done = false;
-    function cut(chunk) {   // one chunk of whole lines -> its block bytes, with the table entries moved to this file's offsets
-      var mini = packMany([{ name: null, bytes: chunk }], mopts), f = openFile(mini), out = [], i, b, e;
+    function cut(chunk) { return add(packMany([{ name: null, bytes: chunk }], mopts)); }   // one chunk of whole lines -> its block bytes
+    function add(mini) {   // a one-chunk file -> its block bytes, with the table entries moved to this file's offsets
+      var f = openFile(mini), out = [], i, b, e;
       for (i = 0; i < f.blocks.length; i++) {
         b = f.blocks[i]; e = mini.subarray(b[0], b[0] + b[1]);
         blocks.push([off].concat(b.slice(1, 5), 0, b.slice(6))); zone.push(f.zone[i] || []); off += b[1]; rows += b[3]; out.push(e);
@@ -1886,6 +1887,17 @@
         for (i = 0; i < parts.length; i++) if (parts[i].buffer === bytes.buffer) parts[i] = parts[i].slice();   /* only what waits is copied: the caller may reuse its buffer after push */
         return out;
       },
+      /* pushPacked(bytes): append a chunk that packBlock() packed (in a worker, say), in text order, instead of pushing its text. Chunks must be cut where
+         push would cut them: at the first line end at or after blockBytes (the last chunk may be shorter). Then the file is the same bytes as push gives (since 0.7.0) */
+      pushPacked: function (mini) {
+        if (done) throw new Error('LfcPack: packStream is finished');
+        if (st) throw new Error('LfcPack: pushPacked does not support share (each worker would build its own tables); pass share: false');
+        if (plen) throw new Error('LfcPack: pushPacked cannot follow text that push has not packed yet; push whole blocks or use one of the two');
+        var f = openFile(bytesOf(mini)), fl = jsonSec(f.footer.sec[SEC_FLAGS]) || {};
+        if (fl.exact || f.footer.sec[SEC_SHARED]) throw new Error('LfcPack: pushPacked needs a file from packBlock');
+        if (!f.blocks.length) return [];
+        tail = fl.tail !== false; return add(f.bytes);
+      },
       finish: function () {
         if (done) throw new Error('LfcPack: packStream is finished');
         done = true; var out = take(true);
@@ -1897,6 +1909,15 @@
         return out;
       }
     };
+  }
+  /* packBlock(chunk, opts): pack one chunk of whole lines on its own, for packStream().pushPacked() to append; the work can run in any worker, since the result
+     is plain bytes (a small file of the chunk's blocks). Use the options the stream uses; share and exact are not supported (since 0.7.0) */
+  function packBlock(chunk, opts) {
+    opts = packOpts(opts); need(true);
+    if (opts.exact) throw new Error('LfcPack: packBlock does not support exact mode');
+    if (opts.share) throw new Error('LfcPack: packBlock does not support share (each worker would build its own tables); pass share: false');
+    var o = {}, k; for (k in opts) if (k !== 'meta') o[k] = opts[k];
+    return packMany([{ name: null, bytes: bytesOf(chunk) }], o);
   }
   // hash(bytes, kind): 'crc32' (default; the number the file's checksums use) or 'xxh64' (16 lowercase hex digits); WebAssembly when init() has run, plain JavaScript for crc32 otherwise
   function hash(bytes, kind) {
@@ -1999,7 +2020,7 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, warm: warm, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.6.2', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.7.0', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

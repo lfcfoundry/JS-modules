@@ -26,6 +26,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('lazy rows (opt-in)', 'node', ['lazyrows.cjs']);
   step('helper workers', 'node', ['pool.cjs']);
   step('block-parallel pack', 'node', ['parallel.cjs']);
+  step('packBlock + pushPacked (workers)', 'node', ['packblock.cjs']);
   step('decoder-only build', 'node', ['readonly.cjs']);
   step('trim (fresh wasm memory)', 'node', ['trim.cjs']);
   step('many number paths', 'node', ['manypaths.cjs']);

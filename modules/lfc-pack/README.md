@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.6.2 · API 0**
+**Version 0.7.0 · API 0**
 
-**Tested in:** Node 22: all lfc-pack checks plus a reused-buffer push check (4 push sizes); early-stop A/B with a fresh page per run in Chromium 155, Firefox 158 and WebKitGTK 2.52.6, same bytes
+**Tested in:** Node 22 suite; Chromium 155, Firefox 158, WebKitGTK 2.52.6 (tests/lfc-pack-packblock-browser.js)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -102,6 +102,8 @@ LfcPack.unpackTables(file, { keys: ['id'] });
 Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blob:` only: no `eval`, no `new Function`, no remote scripts (the helper workers start from a blob made of this file).
 
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
+
+Workers: `LfcPack.packBlock(chunk, opts)` packs one chunk of whole lines on its own (run it in any worker; the result is plain bytes), and `packStream(opts).pushPacked(bytes)` appends those chunks in text order on the main thread. Cut the chunks where `push` would: at the first line end at or after `blockBytes` (the last chunk may be shorter). The file is byte for byte the one `push` gives. `share` and `exact` are not supported here. Two workers took 0.60-0.74x the time of `push` on the main thread for 33 MB (Chromium 155, Firefox 158, WebKitGTK 2.52.6); one worker is slower than `push`. Check: `tests/lfc-pack-packblock-browser.js`.
 
 Reading part of a file: `LfcPack.unpackRows(bytes, { from, count })` decodes only the blocks that hold those rows, `LfcPack.stats(bytes)` reads per-column facts from the footer, and `LfcPack.hash(bytes, kind)` gives `'crc32'` or `'xxh64'`.
 
