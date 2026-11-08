@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.1 · API 1 · 2026-11-08
+
+### Quick
+A look shared by one or two dots in a row now sits on the dots instead of in a group of its own. The picture is the same; the SVG has far fewer elements on big scatters whose colors are mixed.
+
+### Details
+20,000-dot scatter in 4 mixed colors: 40,000 elements became 20,000 and the SVG text 1.61 MB became 1.43 MB. Page time to set the SVG, lay it out and paint two frames, new vs old, paired, fresh page, ungoogled Chromium 156.0.8078.79-1 0.72 (15 pairs), WebKitGTK 2.52.6 0.62 (11 pairs). Screenshots of 43 changed test charts (scatter, sized scatter, network; 1, 3 and 12 colors; 40 to 20,000 dots; light and dark) were byte-identical PNGs in both browsers. No API change.
+
+### Deep
+1.12.1: groups of one or two plain circles carry fill and stroke on the circles. 63 test SVGs, 43 changed, all 43 identical PNGs in Chromium 156.0.8078.79-1 and WebKitGTK 2.52.6 (0 differing pixels). 20k scatter: elements 40,016 to 20,016; SVG 1,613,354 to 1,433,354 bytes; innerHTML+layout+2 frames new/old 0.72 Chromium (208 to 136 ms median, 15 pairs), 0.62 WebKit (411 to 251 ms, 11 pairs). Firefox 158 pending (puppeteer-core card). Phone pending.
+
 ## 1.12.0 · API 1 · 2026-11-08
 
 ### Quick

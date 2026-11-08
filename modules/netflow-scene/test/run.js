@@ -128,6 +128,18 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(svg.includes('d="M10 20L70 50C90 10 120 90 150 40"'), 'a straight piece is L, a bent one stays C');
   console.log('ok   straight curve pieces as L');
 }
+/* a look shared by one or two dots in a row sits on the dots, not in a group of its own (since 1.12.1); three or more still share a group, and the order of the dots never changes */
+{
+  const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});
+  const A = [1, 0, 0, 1], B = [0, 0, 1, 1], N = [0, 0, 0, 0];
+  const mk = (f, x) => ({ cx: x, cy: 10, r: 3, fill: f, stroke: N, sw: 0, kind: 1 });
+  S.dots = [mk(A, 10), mk(B, 20), mk(B, 30), mk(A, 40), mk(A, 50), mk(A, 60), mk(B, 70)];
+  const svg = SC.toSvg(S), xs = [...svg.matchAll(/<circle[^>]*? cx="(\d+)"/g)].map((m) => +m[1]);
+  ok(xs.join() === '10,20,30,40,50,60,70', 'dots keep their order');
+  ok(/<circle fill="rgba\(255,0,0,1\)" cx="10"/.test(svg) && /<circle fill="rgba\(0,0,255,1\)" cx="30"/.test(svg), 'a short run carries its fill on the circle');
+  ok(svg.split('<g fill=').length === 2 && /<g fill="rgba\(255,0,0,1\)">\s*<circle cx="40"/.test(svg), 'a run of three keeps one group');
+  console.log('ok   short dot runs carry their own look');
+}
 /* long lines in pieces (since 1.10.4): a solid line over 8,000 segments is written as overlapping pieces of 2048; the pieces join up to the same points, and shorter or dashed lines stay one path */
 {
   global.NetflowScene = SC; const P = require('../../netflow-plot/netflow-plot.js');
