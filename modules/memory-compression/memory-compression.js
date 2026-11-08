@@ -5382,7 +5382,11 @@
     function rows(j) { var out = [], i, o; for (i = 0; i < N; i++) { o = {}; o[names[j]] = make[j](i); out.push(o); } return out; }
     function step(j) {                                                                        // column j: a task to pack it, a task to open it
       var b;
-      return nextTask().then(function () { b = autoPack(rows(j), po); return nextTask(); }).then(function () { autoUnpack(b, wo); return j + 1 < names.length ? step(j + 1) : true; });
+      return nextTask().then(function () { b = autoPack(rows(j), po); return nextTask(); }).then(function () { autoUnpack(b, wo); return nextTask(); }).then(function () {
+        try { var vw = unified.view(b); vw.column(names[j]); vw.get(5); } catch (e) { /* not worth an error */ }                   // a small view and a pager too, in a task of their own, so their first real use starts warm
+        try { var pg = unified.pager(rows(j), { pageRows: 512, livePages: 2 }); pg.get(5); pg.get(700); } catch (e2) { /* same */ }
+        return j + 1 < names.length ? step(j + 1) : true;
+      });
     }
     return Promise.resolve(unified.ready ? unified.ready() : true).then(function () { return step(0); }).then(function () {
       var sm = Array.isArray(opts.sample) ? opts.sample.slice(0, 300) : null, b2;                                    // the app's own rows (up to 300): packed and opened twice, each in a task of its own
