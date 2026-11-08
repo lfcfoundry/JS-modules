@@ -34,9 +34,10 @@ Load `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js`
 ```js
 // netflow-scene.js, netflow-hierarchy.js, then netflow-circular.js
 svgElement.outerHTML = NetflowCircular.toSvg(links);                          // chord; { type: 'bundles' } for edge bundles
+containerDiv.innerHTML = NetflowCircular.toSvg(links);   // the same call into a <div> you already have
 ```
 
-Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+Amounts written as plain-number text (`'40'`) are read as numbers; write them without thousands commas (`'1200'`, not `'1,200'`). Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
 
 The steps below keep the layout and scene:
 
