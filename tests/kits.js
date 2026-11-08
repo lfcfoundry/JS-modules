@@ -54,6 +54,7 @@ var steps = [
   ['elias-fano', 'node', ['modules/elias-fano/test/run.js']],
   ['elias-fano random lists', 'node', ['modules/elias-fano/test/fuzz.js']],
   ['elias-fano partitioned', 'node', ['modules/elias-fano/test/partitioned.js']],
+  ['elias-fano blocks', 'node', ['modules/elias-fano/test/blocks.js']],
   ['elias-fano intersect', 'node', ['modules/elias-fano/test/intersect.js']],
   ['gif-writer filters', 'node', ['modules/gif-writer/test/fx.js']],
   ['gif-writer filters, WebAssembly twin', 'node', ['modules/gif-writer/test/fx-wasm.js']],

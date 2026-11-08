@@ -1,7 +1,7 @@
-/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.10.0 (API 1)
+/*! sprite-baker-wasm.js: an optional add-on for sprite-baker.js that fills the triangles in WebAssembly (built from wasm/tri.c). Copyright (c) 2026 LFC Foundry. MIT License. Version 1.11.0 (API 1)
  * Load sprite-baker.js first, then this file (in Node: require it; it loads sprite-baker.js itself and returns SpriteBaker). It adds three functions:
  *
- *   SpriteBaker.wasm([bytes])   returns { available, engine, Rast, drawMesh, setLight, features, stats }
+ *   SpriteBaker.wasm([bytes])   returns { available, engine, Rast, drawMesh, setLight, features, stats, release }
  *   SpriteBaker.wasmReady()     a promise: true once the wasm has compiled in the background (it starts when this file loads), false when it cannot
  *   SpriteBaker.wasmModule()    the compiled WebAssembly.Module once ready, else null; send it to a worker with postMessage so the worker does not compile it again
  *
@@ -37,7 +37,7 @@
 
   /* the result when nothing can be started: SpriteBaker's own functions */
   function plainEngine() {
-    return { available: false, engine: 'js', Rast: SB.Rast, drawMesh: SB.drawMesh, setLight: function (r, l) { return r.setLight(l); }, features: { texture: true, ridge: true } };
+    return { available: false, engine: 'js', Rast: SB.Rast, drawMesh: SB.drawMesh, setLight: function (r, l) { return r.setLight(l); }, features: { texture: true, ridge: true }, release: function () {} };
   }
 
   /* compile early: the engine compiles the wasm on another thread as soon as this file loads, so the page keeps running and SpriteBaker.wasm() then only starts it. Asked for before the compile
@@ -54,23 +54,34 @@
   }
 
   function make(bytes, compiled, isDefault) {
-    var inst, ex, mem, buf;
+    var mod, ex = null, mem, buf, f64, i32, u32, lutV, texV, vV;
+    /* start(): one Instance of the compiled module and the views into its memory; release() drops them (and the 16 MB of memory with them), and the next use starts them again */
+    function start() {
+      ex = new WebAssembly.Instance(mod, { env: { pow: Math.pow, cos: Math.cos } }).exports; mem = ex.memory; buf = mem.buffer;
+      f64 = new Float64Array(buf, JOB, 20); i32 = new Int32Array(buf, JOB + 160, 8); u32 = new Uint32Array(buf, JOB + 192, 4);
+      lutV = new Uint8Array(buf, LUT, 768); texV = new Uint8Array(buf, TEX, MAX_TEX_BYTES); vV = new Float64Array(buf, TRIS, MAX_NUMBERS);
+    }
+    function alive() { if (!ex) { try { start(); stats.starts++; } catch (e) { ex = null; } } return !!ex; }
     try {
       if (typeof WebAssembly !== 'object' || !WebAssembly || typeof WebAssembly.Instance !== 'function') return plainEngine();
-      inst = new WebAssembly.Instance(compiled || new WebAssembly.Module(bytes), { env: { pow: Math.pow, cos: Math.cos } });
-      ex = inst.exports; mem = ex.memory; buf = mem.buffer;
+      mod = compiled || new WebAssembly.Module(bytes);
+      start();
       if (typeof ex.fill_mesh !== 'function' || !buf || buf.byteLength < MEM) return plainEngine();
     } catch (e) { return plainEngine(); }
-    var feat = typeof ex.features === 'function' ? ex.features() : 3, hasTex = !!(feat & 1), hasRidge = !!(feat & 2);
-    var f64 = new Float64Array(buf, JOB, 20), i32 = new Int32Array(buf, JOB + 160, 8), u32 = new Uint32Array(buf, JOB + 192, 4);
-    var lutV = new Uint8Array(buf, LUT, 768), texV = new Uint8Array(buf, TEX, MAX_TEX_BYTES), vV = new Float64Array(buf, TRIS, MAX_NUMBERS);
-    var stats = { wasm: 0, js: 0 }, owner = null, materialCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+    var feat = typeof ex.features === 'function' ? ex.features() : 3, hasTex = !!(feat & 1), hasRidge = !!(feat & 2), hasOutline = typeof ex.outline === 'function';
+    var stats = { wasm: 0, js: 0, starts: 1 }, owner = null, materialCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+    /* release(): "done baking for now". Frees the wasm memory (16 MB) until the next drawMesh, Rast or outline, which starts a fresh Instance from the compiled module (since 1.11.0).
+       A Rast whose buffers sat in wasm memory keeps plain copies, so it stays correct. */
+    function release() {
+      if (owner) { owner.z = owner.z.slice(); owner.px = owner.px.slice(); owner = null; }
+      ex = mem = buf = f64 = i32 = u32 = lutV = texV = vV = null;
+    }
 
     /* Rast: same fields and methods as SpriteBaker.Rast; z and px are views into the wasm memory while this Rast is the newest one (or the one drawn into last) */
     function Rast(w, h) {
       if (!(this instanceof Rast)) return new Rast(w, h);
       w = w | 0; h = h | 0;
-      if (!(w >= 1 && h >= 1 && w * h <= MAX_PIXELS)) return new SB.Rast(w, h);
+      if (!(w >= 1 && h >= 1 && w * h <= MAX_PIXELS) || !alive()) return new SB.Rast(w, h);
       this.w = w; this.h = h; this.z = null; this.px = null;
       claim(this);
       this.z.fill(NO_DEPTH); this.px.fill(0);
@@ -138,8 +149,8 @@
     function drawMesh(rast, m, mat, view, opts) {
       mat = asMaterial(mat);
       var withUV = !!(mat && (mat.texture || mat.ridge)), st = withUV ? 8 : 6;
-      if (!mat || typeof mat !== 'object' || !fits(rast, m, mat, st)) {
-        if (rast instanceof Rast) claim(rast);
+      if (!mat || typeof mat !== 'object' || !fits(rast, m, mat, st) || !alive()) {
+        if (rast instanceof Rast && ex) claim(rast);
         stats.js++;
         return SB.drawMesh(rast, m, mat, view, opts);
       }
@@ -166,8 +177,9 @@
 
     /* outline(img, radius, color) in wasm: the same 24 offsets as SpriteBaker.outline (made here the same way), the same arithmetic in tri.c. Returns null for anything it will not take
        (no wasm outline in this build, odd arguments, a picture over 393,216 pixels), and the caller then uses the plain JavaScript, which also throws its own errors. */
-    var wOutline = typeof ex.outline === 'function' ? function (img, radius, color) {
+    var wOutline = hasOutline ? function (img, radius, color) {
       try {
+        if (!alive()) return null;
         var w = img.width, h = img.height, src = img.data, col = color || [0, 0, 0], seen = {}, offs = [], i, a, k, n;
         if (!(w >= 1 && h >= 1 && w === Math.floor(w) && h === Math.floor(h) && w * h <= MAX_OUT_PIXELS) || !src || src.length !== w * h * 4) return null;
         if (typeof radius !== 'number' || radius > MAX_OUT_RADIUS || radius < -MAX_OUT_RADIUS) return null;
@@ -187,7 +199,7 @@
     } : null;
     if (isDefault) defaultOutline = wOutline;
 
-    return { available: true, engine: 'wasm', Rast: Rast, drawMesh: drawMesh, setLight: function (r, l) { return r.setLight(l); }, features: { texture: hasTex, ridge: hasRidge }, stats: stats };
+    return { available: true, engine: 'wasm', Rast: Rast, drawMesh: drawMesh, setLight: function (r, l) { return r.setLight(l); }, features: { texture: hasTex, ridge: hasRidge }, stats: stats, release: release };
   }
 
   SB.wasm = function (bytes) {

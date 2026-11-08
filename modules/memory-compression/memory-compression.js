@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.12.1 (API 2)
+ * Version 2.13.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -5384,7 +5384,12 @@
       var b;
       return nextTask().then(function () { b = autoPack(rows(j), po); return nextTask(); }).then(function () { autoUnpack(b, wo); return j + 1 < names.length ? step(j + 1) : true; });
     }
-    return Promise.resolve(unified.ready ? unified.ready() : true).then(function () { return step(0); }).then(function () { return true; }, function () { return false; });   // a warm-up that fails is not worth an error: false
+    return Promise.resolve(unified.ready ? unified.ready() : true).then(function () { return step(0); }).then(function () {
+      var sm = Array.isArray(opts.sample) ? opts.sample.slice(0, 300) : null, b2;                                    // the app's own rows (up to 300): packed and opened twice, each in a task of its own
+      if (!sm || sm.length < 16) return true;
+      function rep(k) { return nextTask().then(function () { b2 = autoPack(sm, po); return nextTask(); }).then(function () { autoUnpack(b2, wo); return k < 1 ? rep(k + 1) : true; }); }
+      return rep(0);
+    }).then(function () { return true; }, function () { return false; });   // a warm-up that fails is not worth an error: false
   };
   unified.pool = makePool;
   unified.layerOf = layerOf;

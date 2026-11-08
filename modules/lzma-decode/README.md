@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.6.0 · API 1**
+**Version 1.6.2 · API 1**
 
-**Tested in:** node tests (355); Chromium 155, Firefox 158, WebKitGTK 2.52.6 A/B
+**Tested in:** Node 22: 355 module checks, lzma-pack 25; 744 streams give the same bytes or error as 1.6.1; first unpack with a new browser per run in Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

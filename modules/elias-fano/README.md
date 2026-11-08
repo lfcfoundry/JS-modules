@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 2.0.2 · API 2**
+**Version 2.1.2 · API 2**
 
-**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -67,6 +67,8 @@ set.get(2) === set.get(2);   // true since 2.0.0: get(i) keeps the array it made
 var lean = EliasFano.openLists(blob, { cache: false });   // no cache: every get(i) is a new array you may change; set.cache(false) turns it off later
 ```
 
+Block lists (bitmaps where values are dense, for fast intersections): `buildBlocks` and `openBlocks`, see [Block lists](#block-lists-since-210).
+
 `build` and `buildLists` give a `Uint8Array` you can store or send; `open` and `openLists` read it back. Lists made in JavaScript and in WebAssembly are byte for byte the same. Call `free()` on a list you are done with when WebAssembly is in use (it copies the bytes into its own memory on first use).
 
 That copy means two copies sit in memory while you read: the bytes you opened and the one inside WebAssembly. `list.compact()` (or `open(bytes, { compact: true })`, also for `openPartitioned` and `openLists`, after `await EliasFano.ready()`) lets go of the JavaScript copy, so memory in use halves: 1.69 MB instead of 3.38 MB for a list of 1,000,000 ids. Drop your own reference to the bytes too, or they stay in memory. Answers stay the same. Reading one list at a time from a compacted list set (`get(i)`) takes about 1.1 to 1.2 times as long; `getMany` and single values do not change. `getMany` refuses positions outside the list with a `RangeError` (before 1.6.0 such a position could hang the plain JavaScript reader).
@@ -89,6 +91,24 @@ Same page, alternating rounds, Firefox 158 / Chromium 155 / WebKitGTK 2.52.6 (de
 | Value number i, the same 20,000 reads in one `getMany` call (since 2.0.2) | 0.05 to 0.1 ms | 0.79 / 0.83 / 0.68 ms (Chromium / Firefox / WebKitGTK; 0.79x to 0.88x the time before 2.0.2; `nextGEQMany` 1.06 / 1.10 / 1.00 ms, 0.83x to 0.87x) |
 
 It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those. A list set read list by list keeps each list's array after its first read (the default since 2.0.0; `{ cache: false }` turns it off), and a repeat read then costs about what an array of arrays does, at 4 bytes a value again for the lists you touched. Since 1.10.0 `decodeAll` of 30,000 lists is 0.68 / 0.78 / 0.90 times the time it took (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, paired runs). Since 2.0.1, once a quarter of the values have been read one list at a time, the set decodes the rest in one go and hands out views (`subarray`) of one decoded array instead of a new array per list (repeat reads 0.8 to 0.9 times the time they took, first read of all lists 0.45 to 0.52 times, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6; a few reads stay separate arrays; the views share one buffer, so do not change them, as before). Plain arrays still win on a first read of a single list (they are already there) and the memory they take is about 2.2 times the packed size (498 KB against 223 KB for these lists); arrays of arrays also cost one object each (not measured here).
+
+### Against other libraries
+roaring-wasm 1.1.0 (CRoaring in WebAssembly) and FastIntegerCompression 0.1.0 (varint; given the gaps between values, its best case), 1,000,000 sorted values, one page per browser, median of 11 rounds, ms (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6). Lower is better in every column. Sparse: gaps 1 to 500; dense: gaps 1 to 3; intersect is with a 200,000-value list of the same kind. Block lists are new in 2.1.0 (see below). Libraries are only measured, never copied in.
+
+| Job | elias-fano (flat) | block lists | block lists, `arrays: true` | roaring-wasm | FastIntegerCompression |
+|---|---|---|---|---|---|
+| Size, sparse | 1,336,608 B | 1,398,768 B | 2,072,584 B | 2,030,536 B | 1,746,299 B |
+| Size, dense | 390,728 B | 188,848 B | 188,848 B | 188,608 B | 1,000,000 B |
+| First value at or above x, 20,000 lookups, sparse | 1.2 / 1.3 / 1.0 (`nextGEQMany`) | 4.3 / 7.3 / 4.7 | same as block lists | 52 / 50 / 47 (`rank`) | no lookups |
+| Same, dense | 0.77 / 1.0 / 0.67 | 1.7 / 3.3 / 3.0 | same as block lists | 8.2 / 7 / 8 | no lookups |
+| Is x present, 20,000 lookups, sparse | 2.3 / 2.7 / 2.0 | 2.6 / 3.0 / 2.7 (`containsMany` 2.2 / 2.7 / 2.7) | `containsMany` 1.9 / 2.3 / 2.3 | 3.6 / 4.3 / 4.3 | no lookups |
+| Same, dense | 2.0 / 2.7 / 2.0 | 0.7 / 1.3 / 0.67 (`containsMany` 0.33 / 0.67 / 0.33) | `containsMany` 0.33 / 0.67 / 0.33 | 0.8 / 1.0 / 0.67 | no lookups |
+| Decode everything, sparse (since 2.1.2) | 4.2 / 4.3 / 4.3 | 2.6 / 3.0 / 1.7 | 2.1 / 2.7 / 1.0 | 2.2 / 2.7 / 1.3 | 7.9 / 12 / 11 |
+| Same, dense | 3.7 / 5.0 / 3.7 | 2.8 / 3.0 / 2.0 | 2.8 / 3.3 / 2.0 | 3.2 / 3.3 / 2.0 | 5.6 / 8.3 / 7 |
+| Intersect, sparse (since 2.1.2) | 7.0 / 5.7 / 7.3 | 2.0 / 1.7 / 3.3 | 1.2 / 1.0 / 2.3 | 2.7 / 2.7 / 3.0 | none |
+| Same, dense (since 2.1.2) | 6.1 / 4.7 / 5.3 | 0.57 / 0.33 / 0.33 | 0.47 / 0.33 / 0.33 | 1.4 / 1.0 / 1.3 | none |
+
+Where elias-fano wins: the smallest size on spread-out values (flat lists 0.66x roaring's, block lists 0.69x), "first value at or above x" (flat lists 7 to 60 times faster than roaring's `rank`), "is x present" (block lists, faster than roaring on both kinds; `containsMany` about twice as fast on dense values), and intersecting (block lists with `arrays: true` 1.3 to 3 times faster than roaring on both kinds; since 2.1.2 default block lists too, which keep the smaller size: 1.4 to 1.6 times faster on spread-out values in Chromium and Firefox, 2.5 to 4 times on dense values). Where roaring still wins: intersecting spread-out default block lists in WebKitGTK (3.0 ms against 3.3; about even in the tester page), and decoding everything on spread-out values (flat lists about 2 times faster, default block lists 1.1 to 1.3 times). Value number i: roaring's `select` gave wrong answers past about 68,000 values in this test (off by one), so it is not compared. Test: the repository's `tests/compare/elias-fano-compare-browser.js` (needs `LIBS=<folder with node_modules>`).
 
 ## Partitioned lists (since 1.2.0)
 `buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.
@@ -126,6 +146,19 @@ Timings (1,000,000 ids in the big list; Firefox 158 / Chromium 155 / WebKitGTK 2
 | 3 lists (1M, 200k, 50k) | 11 / 16 / 5 | 7 / 4.9 / 3 | 2 / 2.5 / 2 | 3 / 2.6 / 2 |
 
 Elias-Fano intersection matches binary search on plain arrays when one list is small, and beats even a plain linear merge (by 1.4 to 2.5x) when the lists are of similar size, with the lists taking a sixth to a third of the memory.
+
+## Block lists (since 2.1.0)
+`buildBlocks` splits the values by their top 16 bits into blocks of 65,536 and stores each block the smallest way: as a bitmap (8,192 bytes, when the block is dense) or as Elias-Fano. With `{ arrays: true }` a block that is not a bitmap is a sorted array of 16-bit numbers instead: bigger on spread-out values, about twice as fast to intersect and decode. Intersecting two block lists goes block by block: two bitmaps are ANDed word by word, a bitmap and a short block test bits, and two short blocks are merged. A block list is a set: a value given twice is kept once.
+
+```js
+var blob = EliasFano.buildBlocks(sortedValues);            // or buildBlocks(sortedValues, { arrays: true })
+var a = EliasFano.openBlocks(blob), b = EliasFano.openBlocks(otherBlob);
+EliasFano.intersect([a, b]);              // values in both (block lists with block lists; mixed with other kinds it falls back to nextGEQ steps)
+a.contains(x); a.containsMany(xs);        // containsMany: a Uint8Array with 1 where xs[j] is present (one call into WebAssembly)
+a.get(i); a.nextGEQ(x); a.rank(x); a.toArray(); a.stats();   // stats: { blocks, eliasFano, bitmap, array, bytes, ... }
+```
+
+Choose block lists for "which ids are in all of these" and "is x present" on dense or mixed data, and flat lists for the smallest size on spread-out values and for "first value at or above x". `get(i)` and `nextGEQ(x)` on a block list are 2 to 7 times slower than on a flat list. `openBlocks` checks the header, the block table and that every block holds its count of values; a damaged block can give wrong values, never a read outside the blob. Block lists have no `compact()`; call `free()` when done, as with the other kinds.
 
 ## Limits
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.
