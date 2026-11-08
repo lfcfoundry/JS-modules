@@ -125,6 +125,21 @@ jobs.forEach((j, i) => {
       check('wasm add-on: lc + lp above 4 goes to the JS decoder and agrees', lzmaWasm.engine === 'js' && ((a.e !== undefined && a.e === b.e) || (a.v && b.v && same(a.v, b.v)))); }
     check('wasm add-on: zero-size result', lzmaWasm(raw, 0, o).length === 0);
   }
+  { /* one Instance kept between calls (since 1.6.0): A, B, A again give the same bytes; past 16 MB, and after a failed call, the next call starts a new one */
+    const js = jobs.map((j, i) => ({ j, raw: Uint8Array.from(Buffer.from(out[i].raw, 'hex')), o: { lc: j.p[0], lp: j.p[1], pb: j.p[2] } })).filter((x) => x.o.lc + x.o.lp <= 4 && x.j.n > 1000);
+    const A = js[0], B = js[js.length - 1], m0 = lzmaWasm._made;
+    const r1 = lzmaWasm(A.raw, A.j.n, A.o), r2 = lzmaWasm(B.raw, B.j.n, B.o), r3 = lzmaWasm(A.raw, A.j.n, A.o);
+    check('kept Instance: A, B, A give the same bytes', same(r1, A.j.data) && same(r2, B.j.data) && same(r3, A.j.data));
+    check('kept Instance: three small calls start at most one Instance', lzmaWasm._made - m0 <= 1, String(lzmaWasm._made - m0));
+    const big = JSON.parse(execFileSync('python3', ['-c', 'import lzma,sys; f=[{"id":lzma.FILTER_LZMA1,"dict_size":1<<20,"lc":4,"lp":0,"pb":0}]; z=lzma.compress(bytes(17<<20),format=lzma.FORMAT_RAW,filters=f); sys.stdout.write(\'"\'+z[1:].hex()+\'"\')'], { maxBuffer: 1 << 26 }).toString());
+    const bigRaw = Uint8Array.from(Buffer.from(big, 'hex')), rb = lzmaWasm(bigRaw, 17 << 20, { lc: 4, lp: 0, pb: 0 });
+    check('kept Instance: a 17 MB result decodes', rb.length === 17 << 20 && rb.every((v) => v === 0) && lzmaWasm.engine === 'wasm');
+    const m1 = lzmaWasm._made; lzmaWasm(A.raw, A.j.n, A.o); const m2 = lzmaWasm._made; lzmaWasm(A.raw, A.j.n, A.o);
+    check('kept Instance: after a call past 16 MB the next call starts a new one, then keeps it', m2 === m1 + 1 && lzmaWasm._made === m2, (m2 - m1) + '/' + (lzmaWasm._made - m2));
+    let msg = ''; try { lzmaWasm(A.raw.subarray(0, A.raw.length >> 1), A.j.n, A.o); } catch (e) { msg = e.message; }
+    const m3 = lzmaWasm._made, r4 = lzmaWasm(A.raw, A.j.n, A.o);
+    check('kept Instance: after a bad stream, the next good call gets a new Instance and the right bytes', msg && same(r4, A.j.data) && lzmaWasm._made === m3 + 1, msg + ' ' + (lzmaWasm._made - m3));
+  }
   // compile early: a fresh process each, because the compile starts when the file loads
   for (const [label, file] of [['lzma-decode-wasm.js', 'lzma-decode-wasm.js'], ['lzma-decode-with-wasm.js', 'lzma-decode-with-wasm.js']]) {
     const script = "var M = WebAssembly.Module, made = 0, out = {}; if (process.env.NOCOMPILE) delete WebAssembly.compile;\n" +

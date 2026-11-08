@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-11-07
+
+### Quick
+Repeat unpacks 0.86-0.96x; one Instance kept while its memory is 16 MB or less.
+
+### Details
+lzmaDecodeWasm keeps one WebAssembly Instance between calls instead of starting a fresh one each time. lzma_begin already resets all decoder state and tables, so results are the same bytes. When a call leaves the memory above 16 MB, or a call fails, the Instance is dropped and the next call starts a new one, so a big unpack never pins its memory. Repeat 400 KB unpack after a 3 MB one, early-stop A/B, fresh page per run: Chromium 155 0.95 (ok), Firefox 158 0.96 (ok), WebKitGTK 2.52.6 0.86 (faster). First unpack unchanged. Tests: A, B, A again give the same bytes with at most one Instance; a 17 MB result is followed by a fresh Instance; a bad stream is followed by a fresh Instance and the right bytes.
+
+### Deep
+Requested by the owner (card 'Yes, with a 16 MB limit', 2026.11.07).
+
 ## 1.5.1 · API 1 · 2026-11-07
 
 ### Quick
