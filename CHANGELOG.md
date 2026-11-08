@@ -17,7 +17,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [field-report](modules/field-report/README.md) | 1.1.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
-| [sprite-baker](modules/sprite-baker/README.md) | 1.10.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
+| [sprite-baker](modules/sprite-baker/README.md) | 1.11.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.1 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
@@ -62,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-07 · **zip-open** 1.20.2 · API 1: Big Excel sheets with mostly numbers open a little faster the first time (about 1 to 8%). Sheets with mostly text can open up to 9% slower the third time in a row in Firefox and WebKit-based browsers.
+- 2026-11-07 · **sprite-baker** 1.11.0 · API 1: Opt-in release() frees the wasm engine's 16 MB of memory between bakes
 - 2026-11-07 · **save-kit** 2.5.0 · API 2: New save-kit-small.min.js: create() only, the fastest page open.
 - 2026-11-07 · **save-kit** 2.4.1 · API 2: New save-kit.min.js, the same code minified, opens faster than localForage.
 - 2026-11-07 · **save-kit** 2.4.0 · API 2: Big saves of many same-shape records are faster in Chrome and Edge too; older copies cannot read those saves.
