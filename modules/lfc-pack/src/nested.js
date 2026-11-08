@@ -368,6 +368,33 @@
       if (t === 9) { c = p.c; return JSON.parse(c.a[c.i++]); }
       var sb = p.subs, m = sb.length, arr = new Array(m); for (i = 0; i < m; i++) arr[i] = build(sb[i]); return arr;
     }
+    // keys option: advance the streams past a value without making it
+    function skipP(p) {
+      var t = p.t, c, i;
+      if (t === 7) { var kind = p.kind, cc = p.cc, subs = p.subs, n = p.n; for (i = 0; i < n; i++) { switch (kind[i]) { case 1: TI++; break; case 8: case 2: case 3: cc[i].i++; break; case 4: break; default: skipP(subs[i]); } } return; }
+      if (t === 1 || t === 5) { TI++; return; }
+      if (t === 2 || t === 3 || t === 8 || t === 9) { p.c.i++; return; }
+      if (t === 4) return;
+      var sb = p.subs; for (i = 0; i < sb.length; i++) skipP(sb[i]);
+    }
+    // a top-level object row with only the wanted keys, in the order of the keys option (what projectRows gives); a nested value of a wanted key is built whole
+    function buildW(p, want) {
+      if (p.t !== 7) return null;
+      var wi = p.wi;
+      if (!wi || p.wk !== want) {
+        wi = []; for (var k in want) { var ix = p.keys.indexOf(k); if (ix >= 0) wi.push(ix); }
+        var mask = new Uint8Array(p.n); for (var q = 0; q < wi.length; q++) mask[wi[q]] = 1;
+        p.wi = wi; p.wm = mask; p.wk = want;
+      }
+      var keys = p.keys, kind = p.kind, cc = p.cc, subs = p.subs, n = p.n, mask = p.wm, i, c, v, vals = [], o = {};
+      for (i = 0; i < n; i++) {
+        if (mask[i] === 0) { switch (kind[i]) { case 1: TI++; break; case 8: case 2: case 3: cc[i].i++; break; case 4: break; default: skipP(subs[i]); } continue; }
+        switch (kind[i]) { case 1: v = STRS[TI++]; break; case 8: c = cc[i]; v = c.a[c.i++]; break; case 2: c = cc[i]; v = c.a[c.i++]; break; case 3: c = cc[i]; v = c.a[c.i++] === 1; break; case 4: v = null; break; default: v = build(subs[i]); }
+        vals[i] = v;
+      }
+      for (i = 0; i < wi.length; i++) setKey(o, keys[wi[i]], vals[wi[i]]);
+      return o;
+    }
     // assemble one block from its decompressed frames (nestedFrames): the dictionary strings and column arrays the row builder reads
     function openBlock(F) {
       var dt = tlat.decode(F.dict), D, sd = F.side, i, cols = new Map(), g = F.g === 1;
@@ -381,7 +408,7 @@
       if (g && skl.length !== F.kc) throw new Error('damaged block: shape count');
       return { n: F.n, g: g, sp: F.sp || null, L: g ? F.count : 0, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: skl, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
-    function rowsOf(b) {
+    function rowsOf(b, want) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i, c;
       if (b.g) { var L = b.L, GS = tables.s; for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); } }
       else for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
@@ -397,11 +424,12 @@
         for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.a !== null) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; ends[i] = c; }
       }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
-      if (b.g) for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); }
+      if (b.g) { for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); } if (want) out = projectRows(out, want); }   /* grouped blocks build whole rows, then keep the wanted keys */
+      else if (want) { for (i = 0; i < b.n; i++) { id = fnById[ids[i]]; out[i] = buildW(id, want); if (out[i] === null) { out[i] = projectRows([build(id)], want)[0]; } } }
       else for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
       if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
       return out;
     }
     openBlock = guard(openBlock); rowsOf = guard(rowsOf);
-    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes) { return rowsOf(openBlock(nestedFrames(zs, bytes))); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
+    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes, want) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
   }

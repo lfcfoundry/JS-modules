@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.8.0 · API 0**
+**Version 0.8.1 · API 0**
 
-**Tested in:** Node 22 suite; Chromium 156, Firefox 158, WebKitGTK 2.52.6 (tests/lfc-pack-stream-browser.js)
+**Tested in:** the lfc-pack node suite, 480-case fuzz against 0.8.0 (identical JSON), paired fresh-page runs on ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
