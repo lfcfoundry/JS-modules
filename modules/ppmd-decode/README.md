@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** node tests (142), fz.js 900 damaged streams byte-identical to 1.5.1 incl. model reuse; paired 2-way runs, new browser per sample, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node tests (142), fz.js 900 damaged streams byte-identical to 1.5.1; paired 2-way runs, new browser per sample, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

@@ -24,7 +24,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.6.4 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.6.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.6.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-08 · **ppmd-decode** 1.6.1 · API 1: First decode a little faster in Chromium; same output.
 - 2026-11-07 · **zip-open** 1.20.2 · API 1: Big Excel sheets with mostly numbers open a little faster the first time (about 1 to 8%). Sheets with mostly text can open up to 9% slower the third time in a row in Firefox and WebKit-based browsers.
 - 2026-11-07 · **sprite-baker** 1.11.0 · API 1: Opt-in release() frees the wasm engine's 16 MB of memory between bakes
 - 2026-11-07 · **save-kit** 2.5.0 · API 2: New save-kit-small.min.js: create() only, the fastest page open.
