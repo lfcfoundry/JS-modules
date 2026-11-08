@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.10.1 (API 1)
+ * Version 1.10.3 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1471,7 +1471,7 @@ var NFMScene = (function () {
 
   /**
    * Title block (the owner's cards, 2026.11.01 and 2026.11.05): o.title (bold, left), o.subtitle (lighter, under it) and o.source (small, under the picture) are text and appear only when given.
-   * o.frame: true (or theme 'editorial') adds the Economist frame: a small red tag top-left and a thin dark rule under the picture, with the source under the rule (opt-in, owner's card 2026.11.05).
+   * o.frame: true (or theme 'editorial') adds the Economist frame: a small red tag top-left, with the source under the picture and no rule above it (opt-in, owner's cards 2026.11.05 and 2026.11.07).
    * With no text and no frame, S stays as it was. The block is added above (and the rule and source below) the picture, so nothing in it moves.
    * Sizes grow with very wide pictures so they keep their size in an SVG drawn at most 3,000 wide.
    */
@@ -1490,13 +1490,11 @@ var NFMScene = (function () {
     var head = list.length || frame ? y + pad * 0.6 : 0, x = S.x0 + pad, top = S.y0 - head, foot = 0;
     list.forEach(function (l) { l.x = x; l.y = top + l.y; });
     var bottom = S.y0 + S.h;
-    if (frame) { foot = 8 * u; S.rects.push({ x: x, y: bottom + 2 * u, w: 0, h: 1.2 * u, r: 0, fill: T.fg, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1, frame: 'rule' }); }
-    if (o.source) { var lc = add(o.source, 11 * u, src, false); lc.x = x; lc.y = bottom + (frame ? 21 : 15) * u; list.push(lc); foot = (frame ? 28 : 24) * u; }
+    if (o.source) { var lc = add(o.source, 11 * u, src, false); lc.x = x; lc.y = bottom + 15 * u; list.push(lc); foot = 24 * u; }   /* the frame has no rule above the source: the chart's own baseline is the one line (owner's card, 2026.11.07) */
     S.y0 -= head; S.h += head + foot;
     if (wMax + 2 * pad > S.w) S.w = wMax + 2 * pad;
     if (frame) {
       S.rects.push({ x: x, y: top + tagY, w: 46 * u, h: 10 * u, r: 0, fill: TAG_RED, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1, frame: 'tag' });
-      S.rects.forEach(function (r) { if (r.frame === 'rule') r.w = S.x0 + S.w - pad - x; });   /* the rule runs across the whole picture */
       S.frame = true;
     }
     for (var i = list.length - 1; i >= 0; i--) S.labels.unshift(list[i]);   /* first in the list, so the export's 2,500-name limit never drops them */
