@@ -75,7 +75,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.7.2 (API 0)
+ * Version 0.8.0 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -2094,7 +2094,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.7.2', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.8.0', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
@@ -2224,6 +2224,74 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     });
   }
   var idleHelpers = [], idleTimer = null, trimTimer = null, HELPER_TRIM_MS = -1, packUrl = null;
+  // packParallelStream(opts): block-parallel pack for text that arrives in pieces (a parser, a download). push(bytes) any number of times; finish() -> Promise of the file, the same bytes pack() writes.
+  // A block is cut where pack cuts it (first line end at or after blockBytes), sent to a helper at once, and packed while later text is still being read; finish() joins the blocks behind one footer.
+  // opts as packParallel (workers, blockBytes, level, meta, ...); exact and share are not supported (one table built block after block). push copies what it keeps, so the caller may reuse its buffer.
+  function packParallelStream(opts) {
+    opts = packOpts(opts);
+    if (opts.exact) throw new Error('LfcPack: packParallelStream does not support exact mode');
+    if (opts.share) throw new Error('LfcPack: packParallelStream does not support share (each helper would build its own tables); pass share: false');
+    var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+    var bb = opts.blockBytes || BLOCK_BYTES, maxW = Math.max(1, Math.min(opts.workers || hc, 8)), jopts = {}, k;
+    for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
+    var acc = new Uint8Array(0), plen = 0, scan = 0, total = 0, queue = [], results = [], jobs = 0, left = 0, helpers = [], free = [], failed = null, done = false, finishing = null, resolveFn = null, rejectFn = null;
+    function release(ok) {
+      if (!ok) { helpers.forEach(function (x) { x.kill(); }); helpers = []; free = []; }
+      else { free.forEach(function (x) { idleHelpers.push(x); }); free = []; helpers = []; armIdle(3000); }
+    }
+    function fail(err) {
+      if (failed) return; failed = err instanceof Error ? err : new Error(String(err && err.message || err)); release(false); queue = [];
+      if (rejectFn) rejectFn(failed);
+    }
+    function give(w, i, chunk) {
+      w.listen(function (m) {
+        if (m.started) return;
+        if (m.error) { fail(new Error(m.error)); return; }
+        results[i] = m; left--;
+        if (failed) return;
+        if (queue.length) { var q = queue.shift(); give(w, q[0], q[1]); } else free.push(w);
+        if (done && left === 0 && resolveFn) finishUp();
+      }, fail);
+      w.post({ id: i, kind: 'p', buf: chunk, opts: jopts }, [chunk.buffer]);   // chunk: a view of a buffer nothing else uses
+    }
+    function send(chunk) {
+      var i = jobs++; left++; total += chunk.length;
+      if (free.length) give(free.pop(), i, chunk);
+      else if (helpers.length < maxW) { var w = takeHelper(); helpers.push(w); give(w, i, chunk); }
+      else queue.push([i, chunk]);
+    }
+    function finishUp() {
+      try { var out = stitch(results, total, jopts); release(true); resolveFn(out); } catch (e) { fail(e); }
+    }
+    return {
+      push: function (bytes) {
+        if (done) throw new Error('LfcPack: packParallelStream is finished');
+        if (failed) throw failed;
+        var b = bytesOf(bytes); if (!b.length) return;
+        var need = plen + b.length;
+        if (need > acc.length) { var g = new Uint8Array(Math.max(need, Math.min(bb + (bb >> 2) + 65536, Math.max(acc.length * 2, 65536)))); g.set(acc.subarray(0, plen)); acc = g; }   // grows to about one block; the text is copied once, here
+        acc.set(b, plen); plen = need;
+        while (plen >= bb) {
+          var nl = acc.indexOf(10, Math.max(bb, scan));
+          if (nl < 0 || nl >= plen) { scan = plen; return; }     // no line end yet: keep waiting, and do not look at these bytes again
+          var cut = nl + 1, rest = plen - cut, next = new Uint8Array(Math.max(rest, 0) + 65536);
+          next.set(acc.subarray(cut, plen));
+          send(acc.subarray(0, cut));                           // the whole buffer goes to the helper (transferred, not copied again)
+          acc = next; plen = rest; scan = 0;
+        }
+      },
+      finish: function () {
+        if (done) throw new Error('LfcPack: packParallelStream is finished');
+        done = true;
+        if (failed) return Promise.reject(failed);
+        if (plen) { send(acc.subarray(0, plen)); acc = new Uint8Array(0); plen = 0; }
+        if (!jobs) { done = true; return init().then(function () { return pack(new Uint8Array(0), opts); }); }
+        return init().then(function () {
+          return new Promise(function (resolve, reject) { resolveFn = resolve; rejectFn = reject; if (failed) reject(failed); else if (left === 0) finishUp(); });
+        });
+      }
+    };
+  }
   // warmPack(n, { keepMs }): start n pack helpers now (default: as many as packParallel would use, at most 8) and keep them keepMs (default 10,000) for the next packParallel call, which then skips the helper start-up
   function warmPack(n, o) {
     return init().then(function () {
