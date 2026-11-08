@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-07
+
+### Quick
+SVG with 1,000 or more plain dots in one look opens much faster in the browser.
+
+### Details
+toSvg wrote one <circle> per dot, and a browser spends most of a big scatter's time reading and laying out those elements (about 150 ms for 20,000). From 1,000 plain dots in a row with one look, the dots now go in a few <path> layers (about 30 for 20,000), and no two dots in a layer touch, so each dot is blended as its own circle would be. Whole page draw, 20,000 dots: Chromium 173 to 83 ms, Firefox 183 to 83 ms, WebKitGTK 209 to 83 ms; 2,000 dots Chromium 32.5 to 25.7 ms, Firefox 38 to 19 ms, WebKitGTK 26 to 21 ms. The layers are found on a flat grid of typed arrays (20,000 dots: about 19 ms of SVG writing, against 12 ms for the old circles). Pixels: 87 to 99 percent identical at 2,000 to 20,000 dots (differences sit on dot edges; WebKitGTK lowest); 999 dots or fewer are byte-identical. The SVG text is about 30 percent longer.
+
+### Deep
+look kept, speed
+
 ## 1.10.6 · API 1 · 2026-11-07
 
 ### Quick

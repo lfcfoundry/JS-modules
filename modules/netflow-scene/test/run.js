@@ -107,6 +107,18 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(S2.labels.some((l) => l.note && l.t === 'Salary \u2192 Rent, $1,800 | Salary, $3,000'), '{top} is the biggest flow and {topbox} the biggest box, each with its amount');
   console.log('ok   sankey value labels and notes');
 }
+/* big runs of plain dots go in layers whose dots never touch (since 1.11.0); 999 or fewer stay circles */
+{
+  const dot = (cx, cy) => ({ cx, cy, r: 3.6, fill: [176, 122, 161, 0.85], stroke: [0, 0, 0, 0], sw: 0 });
+  const mk = (n) => { const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 400, height: 300 }, {}); S.dots = []; for (let i = 0; i < n; i++) S.dots.push(dot(20 + (i * 37) % 360, 20 + (i * 53) % 260)); return S; };
+  const small = SC.toSvg(mk(999)), big = SC.toSvg(mk(3000));
+  ok((small.match(/<circle /g) || []).length === 999 && !/<path d="M[\d.]+ [\d.]+a/.test(small), '999 dots: one circle each, as before');
+  ok(!/<circle /.test(big), '3,000 dots: no circles');
+  const layers = [...big.matchAll(/<path d="(M[^"]*a[^"]*)"\/>/g)].map((m) => [...m[1].matchAll(/M([-\d.]+) ([-\d.]+)a/g)].map((q) => [+q[1] + 3.6, +q[2]]));
+  ok(layers.reduce((a, l) => a + l.length, 0) === 3000, 'every dot is in one layer');
+  ok(layers.every((l) => l.every((p, i) => l.every((q, j) => j <= i || (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 >= 7.2 * 7.2))), 'no two dots in a layer touch');
+  console.log('ok   big dot runs: layers that never touch');
+}
 /* straight curve pieces (handles at a third and two thirds) are written as L; real curves stay C (since 1.10.6) */
 {
   const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});

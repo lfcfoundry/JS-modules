@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.10.6 (API 1)
+ * Version 1.11.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1508,6 +1508,61 @@ var NFMScene = (function () {
   /* the same number as +n.toFixed(2), about 20 times faster in Chromium (toFixed was most of a 20,000-dot scatter's SVG time): a rounding that lands
      within 0.0001 of a half, or a number too big for exact hundredths, goes through toFixed itself (since 1.10.1) */
   function fix2(n) { var m = n * 100, r = Math.round(m), d = m - r; if (d > 0.4999 || d < -0.4999 || !(m < 1e15 && m > -1e15)) return +n.toFixed(2); r /= 100; return r === 0 ? 0 : r; }
+  /* Plain round dots in one look, written for toSvg. Up to 999 in a row stay one <circle> each. From 1,000 on (since 1.11.0) they go in a few
+     <path> layers, and no two dots in a layer touch, so every dot is drawn and blended just as its own circle would be. A browser reads and lays
+     out 20,000 circles in about 150 ms; about 30 layers take about 30 ms. */
+  function flushRun(run, out, f) {
+    var n = run.length, i;
+    if (!n) return;
+    if (n < 1000) { for (i = 0; i < n; i++) { var c = run[i]; out.push('<circle cx="' + f(c.cx) + '" cy="' + f(c.cy) + '" r="' + f(c.r) + '"/>'); } run.length = 0; return; }
+    var mr = 0, X = new Float64Array(n), Y = new Float64Array(n), Rr = new Float64Array(n), fin = true;
+    for (i = 0; i < n; i++) { var dd = run[i]; X[i] = dd.cx; Y[i] = dd.cy; Rr[i] = dd.r; if (dd.r > mr) mr = dd.r; if (!(isFinite(dd.cx) && isFinite(dd.cy) && isFinite(dd.r))) fin = false; }
+    var cs = 2 * mr + 1, GX = new Int32Array(n), GY = new Int32Array(n), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    if (fin) for (i = 0; i < n; i++) { var gx = Math.floor(X[i] / cs), gy = Math.floor(Y[i] / cs); GX[i] = gx; GY[i] = gy; if (gx < x0) x0 = gx; if (gx > x1) x1 = gx; if (gy < y0) y0 = gy; if (gy > y1) y1 = gy; }
+    var nx = x1 - x0 + 3, ny = y1 - y0 + 3;
+    if (!fin || nx * ny > 4194304) { flushRunMap(run, out, f); return; }   /* far-flung or broken numbers: the plain way */
+    /* dots by grid cell (a border of empty cells all round), each cell's dots in their own order */
+    var cells = nx * ny, start = new Int32Array(cells + 1), ord = new Int32Array(n), cellOf = new Int32Array(n), lay = new Int32Array(n), seen = new Int32Array(n + 1), L = [], arc = {};
+    for (i = 0; i < n; i++) { cellOf[i] = (GX[i] - x0 + 1) * ny + (GY[i] - y0 + 1); start[cellOf[i] + 1]++; }
+    for (i = 0; i < cells; i++) start[i + 1] += start[i];
+    var fill = start.slice(0, cells);
+    for (i = 0; i < n; i++) ord[fill[cellOf[i]]++] = i;
+    for (i = 0; i < n; i++) {
+      var ci = cellOf[i], a, b, q, j, k, xi = X[i], yi = Y[i], ri = Rr[i];
+      for (a = -1; a <= 1; a++) for (b = -1; b <= 1; b++) {
+        var cc = ci + a * ny + b, qe = start[cc + 1];
+        for (q = start[cc]; q < qe; q++) { j = ord[q]; if (j >= i) break; var dx = X[j] - xi, dy = Y[j] - yi, m = Rr[j] + ri + 1; if (dx * dx + dy * dy < m * m) seen[lay[j]] = i + 1; }
+      }
+      for (k = 0; seen[k] === i + 1; k++);
+      lay[i] = k;
+      var tail = arc[ri]; if (tail === undefined) { var R = f(ri), D = f(2 * ri); tail = arc[ri] = 'a' + R + ' ' + R + ' 0 1 0 ' + D + ' 0a' + R + ' ' + R + ' 0 1 0 -' + D + ' 0'; }
+      (L[k] || (L[k] = [])).push('M' + f(xi - ri) + ' ' + f(yi) + tail);
+    }
+    for (k = 0; k < L.length; k++) out.push('<path d="' + L[k].join('') + '"/>');
+    run.length = 0;
+  }
+  function flushRunMap(run, out, f) {
+    var n = run.length, i;
+    if (!n) return;
+    if (n < 1000) { for (i = 0; i < n; i++) { var c = run[i]; out.push('<circle cx="' + f(c.cx) + '" cy="' + f(c.cy) + '" r="' + f(c.r) + '"/>'); } run.length = 0; return; }
+    var mr = 0; for (i = 0; i < n; i++) if (run[i].r > mr) mr = run[i].r;
+    var cs = 2 * mr + 1, grid = new Map(), lay = new Int32Array(n), seen = [], L = [];
+    for (i = 0; i < n; i++) {
+      var d = run[i], gx = Math.floor(d.cx / cs), gy = Math.floor(d.cy / cs), a, b, j, k;
+      for (a = -1; a <= 1; a++) for (b = -1; b <= 1; b++) {
+        var cell = grid.get((gx + a) * 1048576 + (gy + b));
+        if (cell) for (k = 0; k < cell.length; k++) { j = cell[k]; var e = run[j], dx = e.cx - d.cx, dy = e.cy - d.cy, m = e.r + d.r + 1; if (dx * dx + dy * dy < m * m) seen[lay[j]] = i + 1; }
+      }
+      for (k = 0; seen[k] === i + 1; k++);
+      lay[i] = k;
+      var R = f(d.r), D = f(2 * d.r);
+      L[k] = (L[k] || '') + 'M' + f(d.cx - d.r) + ' ' + f(d.cy) + 'a' + R + ' ' + R + ' 0 1 0 ' + D + ' 0a' + R + ' ' + R + ' 0 1 0 -' + D + ' 0';
+      var key = gx * 1048576 + gy, own = grid.get(key);
+      if (own) own.push(i); else grid.set(key, [i]);
+    }
+    for (k = 0; k < L.length; k++) out.push('<path d="' + L[k] + '"/>');
+    run.length = 0;
+  }
   function toSvg(S, title) {
     var T = S.theme, f = fix2, out = [];
     var op = function (o) { return o.a !== undefined && o.a < 1 ? ' opacity="' + f(Math.max(0, o.a)) + '"' : ''; };   /* dimmed things (a < 1) are exported dimmed, like the canvas draws them */
@@ -1547,18 +1602,21 @@ var NFMScene = (function () {
     S.rects.filter(function (r) { return r.layer === 1; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });
     /* dots in a row that share fill, stroke and width go in one <g> that carries the look (the same picture, much shorter text on big
        scatters); dimming stays on each dot, since opacity on a group would blend overlapping dots differently */
-    var lf = null, ls = null, lw, open = false;
+    var lf = null, ls = null, lw, open = false, run = [];
     S.dots.forEach(function (d) {
       var k = d.kind === undefined ? 1 : d.kind, F0 = d.fill, S0 = d.stroke, attrs = op(d);
       if (!(lf && F0[0] === lf[0] && F0[1] === lf[1] && F0[2] === lf[2] && F0[3] === lf[3] && S0[0] === ls[0] && S0[1] === ls[1] && S0[2] === ls[2] && S0[3] === ls[3] && d.sw === lw)) {
-        if (open) out.push('</g>');
+        if (open) { flushRun(run, out, f); out.push('</g>'); }
         out.push('<g fill="' + css(F0) + '"' + (d.sw > 0 && S0[3] > 0 ? ' stroke="' + css(S0) + '" stroke-width="' + f(d.sw) + '"' : '') + '>'); open = true;
         lf = F0.slice(); ls = S0.slice(); lw = d.sw;
       }
+      if (k === 1 && !attrs) { run.push(d); return; }
+      flushRun(run, out, f);
       if (k === 1) out.push('<circle cx="' + f(d.cx) + '" cy="' + f(d.cy) + '" r="' + f(d.r) + '"' + attrs + '/>');
       else if (k === 0) out.push('<rect x="' + f(d.cx - d.r) + '" y="' + f(d.cy - d.r) + '" width="' + f(2 * d.r) + '" height="' + f(2 * d.r) + '" rx="3"' + attrs + '/>');
       else { var p = shapePts(k, d.cx, d.cy, d.r), dd = 'M'; for (var i = 0; i < p.length; i += 2) dd += (i ? 'L' : '') + f(p[i]) + ' ' + f(p[i + 1]); out.push('<path d="' + dd + 'Z"' + attrs + ' stroke-linejoin="round"/>'); }
     });
+    flushRun(run, out, f);
     if (open) out.push('</g>');
     S.icons.forEach(function (ic) {
       if (ic.img) out.push('<image x="' + f(ic.cx - ic.r) + '" y="' + f(ic.cy - ic.r) + '" width="' + f(2 * ic.r) + '" height="' + f(2 * ic.r) + '" xlink:href="' + esc(ic.img) + '" preserveAspectRatio="xMidYMid meet"' + op(ic) + '/>');
