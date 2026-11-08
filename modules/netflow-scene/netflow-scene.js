@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.12.0 (API 1)
+ * Version 1.12.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1610,11 +1610,21 @@ var NFMScene = (function () {
     S.rects.filter(function (r) { return r.layer === 1; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });
     /* dots in a row that share fill, stroke and width go in one <g> that carries the look (the same picture, much shorter text on big
        scatters); dimming stays on each dot, since opacity on a group would blend overlapping dots differently */
-    var lf = null, ls = null, lw, open = false, run = [];
+    var lf = null, ls = null, lw, open = false, run = [], gi = 0;
+    /* a group of one or two plain circles carries its look on the circles themselves (the same picture, fewer elements for the browser to parse and lay out: random-order colors made one group per dot) */
+    var closeGroup = function () {
+      flushRun(run, out, f);
+      var m = out.length - gi - 1, j, hd = out[gi];
+      if (m > 0 && m <= 2) { for (j = 1; j <= m; j++) if (out[gi + j].slice(0, 8) !== '<circle ') { m = 0; break; } }
+      else m = 0;
+      if (m) { for (j = 1; j <= m; j++) out[gi + j] = '<circle ' + hd.slice(3, -1) + out[gi + j].slice(7); out.splice(gi, 1); }
+      else out.push('</g>');
+    };
     S.dots.forEach(function (d) {
       var k = d.kind === undefined ? 1 : d.kind, F0 = d.fill, S0 = d.stroke, attrs = op(d);
       if (!(lf && F0[0] === lf[0] && F0[1] === lf[1] && F0[2] === lf[2] && F0[3] === lf[3] && S0[0] === ls[0] && S0[1] === ls[1] && S0[2] === ls[2] && S0[3] === ls[3] && d.sw === lw)) {
-        if (open) { flushRun(run, out, f); out.push('</g>'); }
+        if (open) closeGroup();
+        gi = out.length;
         out.push('<g fill="' + css(F0) + '"' + (d.sw > 0 && S0[3] > 0 ? ' stroke="' + css(S0) + '" stroke-width="' + f(d.sw) + '"' : '') + '>'); open = true;
         lf = F0.slice(); ls = S0.slice(); lw = d.sw;
       }
@@ -1624,8 +1634,7 @@ var NFMScene = (function () {
       else if (k === 0) out.push('<rect x="' + f(d.cx - d.r) + '" y="' + f(d.cy - d.r) + '" width="' + f(2 * d.r) + '" height="' + f(2 * d.r) + '" rx="3"' + attrs + '/>');
       else { var p = shapePts(k, d.cx, d.cy, d.r), dd = 'M'; for (var i = 0; i < p.length; i += 2) dd += (i ? 'L' : '') + f(p[i]) + ' ' + f(p[i + 1]); out.push('<path d="' + dd + 'Z"' + attrs + ' stroke-linejoin="round"/>'); }
     });
-    flushRun(run, out, f);
-    if (open) out.push('</g>');
+    if (open) closeGroup(); else flushRun(run, out, f);
     S.icons.forEach(function (ic) {
       if (ic.img) out.push('<image x="' + f(ic.cx - ic.r) + '" y="' + f(ic.cy - ic.r) + '" width="' + f(2 * ic.r) + '" height="' + f(2 * ic.r) + '" xlink:href="' + esc(ic.img) + '" preserveAspectRatio="xMidYMid meet"' + op(ic) + '/>');
       else if (ICONS[ic.icon]) { var sc = ic.r * 2 / 24; out.push('<path transform="translate(' + f(ic.cx - ic.r) + ' ' + f(ic.cy - ic.r) + ') scale(' + f(sc) + ')" d="' + ICONS[ic.icon] + '" fill="none" stroke="' + css(ic.color) + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' + op(ic) + '/>'); }
