@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.6.2 · API 0 · 2026-11-07
+
+### Quick
+packStream.push no longer copies all the waiting text on every push: pieces are kept as pushed and joined once per block. 33 MB of JSON lines pushed in 16 KB pieces with 1 MB blocks: Chromium 0.35x, Firefox 0.62x, WebKitGTK 0.58x. 1 MB pushes: level (0.98-1.00). Same bytes.
+
+### Details
+push keeps a list of pieces; the line end past blockBytes is found by walking the pieces from where the last search stopped; only text that is still waiting after a push is copied, so a caller may reuse its buffer. Before, every push copied buf + bytes into a new array, which costs O(block size) per push (4 KB pushes with 2 MB blocks: 6x slower in Node).
+
+### Deep
+Faster packStream with small pushes.
+
 ## 0.6.1 · API 0 · 2026-11-07
 
 ### Quick
