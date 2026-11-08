@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.7 (API 2)
+ * Version 2.14.8 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -465,6 +465,7 @@ var NetflowPlot = (function () {
       else if (s.list.length > 1 && pts.length && !F.keyRow) F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, clip(l.name || '(blank)', 16), 11, col, { align: 'l' });
     });
     if (tags.length) {   /* names at the line ends, moved apart (14 px since 2.14.0, was 13) so they never overlap, and kept inside the chart */
+      var tx = 0; tags.forEach(function (g) { if (g.x > tx) tx = g.x; }); tags.forEach(function (g) { g.x = tx; });   /* one column of names after the last line end, so a name never sits on a line that runs on past where its own line stopped (since 2.14.8) */
       tags.sort(function (a, b) { return a.y - b.y; });
       var i, lo = F.Tp + 8, hi = F.B - 1;   /* (since 2.14.0: F.B - 1, was F.B + 4, so the lowest name stays clear of the year under the corner) */
       for (i = 0; i < tags.length; i++) tags[i].y = Math.max(tags[i].y, i ? tags[i - 1].y + 14 : lo);
