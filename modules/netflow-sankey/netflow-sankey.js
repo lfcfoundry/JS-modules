@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.12.0 (API 2)
+ * Version 2.13.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -784,6 +784,26 @@
     return s + (head ? '</g>' : '') + '</svg>';
   }
 
+  /* warm(): opt-in (since 2.13.0). Call it once when the page is idle. It waits for the WebAssembly helper, then lays out a made-up 30-item
+     Sankey (five columns, a link that skips a column, a loop back) in one task and draws it as SVG in the next, and throws both away. The first
+     real Sankey then skips most of the cold start (code not yet compiled). Nothing is kept: later pictures are exactly the same. */
+  var warmP = null;
+  function warm() {
+    if (warmP) return warmP;
+    var later = function (fn) { return new Promise(function (res) { setTimeout(function () { var ok = false; try { ok = fn(); } catch (e) { ok = false; } res(ok); }, 0); }); };
+    var R = null;
+    warmP = compileEarly().then(function () {
+      return later(function () {
+        var links = [], c, i, j;
+        for (c = 0; c < 4; c++) for (i = 0; i < 6; i++) for (j = 0; j < 2; j++) links.push({ from: 'w' + c + '.' + i, to: 'w' + (c + 1) + '.' + ((i * 3 + j * 2 + c) % 6), value: 1 + ((i * 7 + j * 3 + c) % 9) });
+        links.push({ from: 'w0.1', to: 'w2.4', value: 3 }, { from: 'w4.2', to: 'w1.3', value: 2 });
+        R = layoutFlows({ links: links });
+        return true;
+      });
+    }).then(function (ok) { return ok ? later(function () { return toSvg(R).length > 0; }) : false; }).then(function (ok) { R = null; return ok; });
+    return warmP;
+  }
+
   compileEarly();
-  return { wasmAvailable: function () { return !!wasmInstance(); }, wasmReady: function () { return compileEarly(); }, wasmModule: function () { return WM || null; }, layoutFlows: layoutFlows, toSvg: toSvg, fromLinks: fromLinks, layout: layout, apply: apply, options: options, layering: layering, crossWeight: crossWeight, roundPath: roundPath, toBezier: toBezier };
+  return { warm: warm, wasmAvailable: function () { return !!wasmInstance(); }, wasmReady: function () { return compileEarly(); }, wasmModule: function () { return WM || null; }, layoutFlows: layoutFlows, toSvg: toSvg, fromLinks: fromLinks, layout: layout, apply: apply, options: options, layering: layering, crossWeight: crossWeight, roundPath: roundPath, toBezier: toBezier };
 }));

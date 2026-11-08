@@ -107,3 +107,35 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(S2.labels.some((l) => l.note && l.t === 'Salary \u2192 Rent, $1,800 | Salary, $3,000'), '{top} is the biggest flow and {topbox} the biggest box, each with its amount');
   console.log('ok   sankey value labels and notes');
 }
+/* big runs of plain dots go in layers whose dots never touch (since 1.11.0); 999 or fewer stay circles */
+{
+  const dot = (cx, cy) => ({ cx, cy, r: 3.6, fill: [176, 122, 161, 0.85], stroke: [0, 0, 0, 0], sw: 0 });
+  const mk = (n) => { const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 400, height: 300 }, {}); S.dots = []; for (let i = 0; i < n; i++) S.dots.push(dot(20 + (i * 37) % 360, 20 + (i * 53) % 260)); return S; };
+  const small = SC.toSvg(mk(999)), big = SC.toSvg(mk(3000));
+  ok((small.match(/<circle /g) || []).length === 999 && !/<path d="M[\d.]+ [\d.]+a/.test(small), '999 dots: one circle each, as before');
+  ok(!/<circle /.test(big), '3,000 dots: no circles');
+  const layers = [...big.matchAll(/<path d="(M[^"]*a[^"]*)"\/>/g)].map((m) => [...m[1].matchAll(/M([-\d.]+) ([-\d.]+)a/g)].map((q) => [+q[1] + 3.6, +q[2]]));
+  ok(layers.reduce((a, l) => a + l.length, 0) === 3000, 'every dot is in one layer');
+  ok(layers.every((l) => l.every((p, i) => l.every((q, j) => j <= i || (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 >= 7.2 * 7.2))), 'no two dots in a layer touch');
+  console.log('ok   big dot runs: layers that never touch');
+}
+/* straight curve pieces (handles at a third and two thirds) are written as L; real curves stay C (since 1.10.6) */
+{
+  const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});
+  const ax = 10, ay = 20, bx = 70, by = 50;
+  S.curves = [{ P: [ax, ay, ax + (bx - ax) / 3, ay + (by - ay) / 3, ax + 2 * (bx - ax) / 3, ay + 2 * (by - ay) / 3, bx, by, 90, 10, 120, 90, 150, 40], w: 2, color: [0, 0, 0, 1] }];
+  const svg = SC.toSvg(S);
+  ok(svg.includes('d="M10 20L70 50C90 10 120 90 150 40"'), 'a straight piece is L, a bent one stays C');
+  console.log('ok   straight curve pieces as L');
+}
+/* long lines in pieces (since 1.10.4): a solid line over 8,000 segments is written as overlapping pieces of 2048; the pieces join up to the same points, and shorter or dashed lines stay one path */
+{
+  global.NetflowScene = SC; const P = require('../../netflow-plot/netflow-plot.js');
+  const line = (n, o) => { const r = []; for (let i = 0; i < n; i++) r.push({ x: i, y: Math.sin(i / 50) * 40 + (i % 7) }); return SC.toSvg(P.make(r, Object.assign({ type: 'line', x: 'x', y: 'y' }, o), {}, SC)); };
+  const strokes = (s) => (s.match(/<path d="M[^"]*" fill="none" stroke="[^"]*" stroke-width/g) || []);
+  const big = strokes(line(20000)), small = strokes(line(8000)), C = (a) => a.reduce((n, d) => n + (d.match(/[CL]/g) || []).length, 0);
+  ok(big.length - small.length === 9, 'a 20,000-point line is 10 pieces where an 8,000-point line is one path (' + big.length + ' vs ' + small.length + ' stroked paths)');
+  const other = C(small) - 7999;   /* curves that are not the line (the same in both pictures) */
+  ok(C(big) - (big.length - small.length) === 19999 + other, 'the pieces hold every segment once, plus one shared segment per join (' + C(big) + ')');
+  console.log('ok   long lines in pieces of 2048 above 8,000 segments');
+}

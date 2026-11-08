@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.13.0 · API 2 · 2026-11-07
+
+### Quick
+New warm(): call it when the page is idle and the first Sankey opens faster.
+
+### Details
+warm() waits for the wasm, lays out a made-up 30-item Sankey (five columns, a skipped column, a loop back) in one task and draws it as SVG in the next, keeps nothing. First 100-item Sankey on a fresh page (layoutFlows plus toSvg), early-stop A/B: Chromium 19.8 to 11.5 ms (0.90), Firefox 12 to 10 ms (0.82), WebKitGTK 14 to 11 ms (0.67); 400 items Chromium 0.76, Firefox 0.94, WebKitGTK 0.71. Idea from the Netflow Map thread's idle Sankey warm-up (its PR 171).
+
+### Deep
+opt-in, off unless called
+
 ## 2.12.0 · API 2 · 2026-11-06
 
 ### Quick

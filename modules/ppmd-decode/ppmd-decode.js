@@ -1,5 +1,5 @@
 /* ppmd-decode: a PPMd (variant H, "PPMd7" as 7-Zip writes it) decoder. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
-   Version 1.5.0 (API 1)
+   Version 1.5.1 (API 1)
 
    Decodes a raw PPMd7 stream (the range-coder bytes 7-Zip stores inside a .7z archive; no header) into a Uint8Array.
 
@@ -511,16 +511,16 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
    */
   function decodeAll() {
     var u8 = U8, u16 = U16, u32 = U32, mask = charMask, psl = ps;
-    var rng = 0xFFFFFFFF, cd = ((src[1] << 24) | (src[2] << 16) | (src[3] << 8) | src[4]) >>> 0;
+    var rng = -1, cd = (src[1] << 24) | (src[2] << 16) | (src[3] << 8) | src[4];   // 32-bit integers; unsigned where it matters (>>> 0, top-bit flip)
     var sp = 5, n, mc, ns, s, i, count, hiCnt, sf, sym, f, prob, idx, bound;
     var numMasked, num, k, see, freqSum, pp;
-    if (cd === 0xFFFFFFFF) throw new Error('PPMd: bad stream header');
+    if (cd === -1) throw new Error('PPMd: bad stream header');
     for (n = 0; n < outSize; n++) {
       sym = -1;
-      while (rng < 16777216) {
+      while (!(rng >>> 24)) {
         if (sp >= srcLen) throw new Error('PPMd: the compressed data ended early');
-        cd = ((cd << 8) | src[sp++]) >>> 0;
-        rng = (rng << 8) >>> 0;
+        cd = (cd << 8) | src[sp++];
+        rng <<= 8;
       }
       mc = minContext;
       ns = u16[mc >> 1];
@@ -529,11 +529,11 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
           /* context with several symbols: pick by cumulative frequency */
           s = u32[(mc >> 2) + 1];
           sf = u16[(mc >> 1) + 1];
-          rng = (rng / sf) >>> 0;
-          count = (cd / rng) >>> 0;
+          rng = ((rng >>> 0) / sf) | 0;
+          count = ((cd >>> 0) / (rng >>> 0)) >>> 0;
           hiCnt = u8[s + 1];
           if (count < hiCnt) {
-            rng = (rng * hiCnt) >>> 0;
+            rng = Math.imul(rng, hiCnt);
             foundState = s;
             sym = u8[s];
             update1_0();
@@ -546,8 +546,8 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
             f = u8[s + 1];
             hiCnt += f;
             if (hiCnt > count) {
-              cd = (cd - (hiCnt - f) * rng) >>> 0;
-              rng = (rng * f) >>> 0;
+              cd = (cd - Math.imul(hiCnt - f, rng)) | 0;
+              rng = Math.imul(rng, f);
               foundState = s;
               sym = u8[s];
               update1();
@@ -556,8 +556,8 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
           } while (--i);
           if (count >= sf) { sym = -2; break decode; }
           hiBitsFlag = hb2Flag[u8[foundState]];
-          cd = (cd - hiCnt * rng) >>> 0;
-          rng = (rng * (sf - hiCnt)) >>> 0;
+          cd = (cd - Math.imul(hiCnt, rng)) | 0;
+          rng = Math.imul(rng, sf - hiCnt);
           mask.fill(-1);
           mask[u8[s]] = 0;
           i = ns - 1;
@@ -569,8 +569,8 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
             ns2bsIndx[u16[u32[(mc >> 2) + 2] >> 1] - 1] + hiBitsFlag +
             2 * hb2Flag[u8[mc + 2]] + ((runLength >> 26) & 0x20);
           prob = binSumm[idx];
-          bound = (rng >>> 14) * prob;
-          if (cd < bound) {
+          bound = Math.imul(rng >>> 14, prob);
+          if ((cd ^ -2147483648) < (bound ^ -2147483648)) {
             rng = bound;
             binSumm[idx] = prob + 128 - ((prob + 32) >> 7);
             foundState = mc + 2;
@@ -578,8 +578,8 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
             updateBin();
             break decode;
           }
-          cd = (cd - bound) >>> 0;
-          rng = (rng - bound) >>> 0;
+          cd = (cd - bound) | 0;
+          rng = (rng - bound) | 0;
           prob = prob - ((prob + 32) >> 7);
           binSumm[idx] = prob;
           initEsc = expEscape[prob >> 10];
@@ -589,10 +589,10 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
         }
         /* escape: walk down to shorter contexts, skipping already-seen symbols */
         for (;;) {
-          while (rng < 16777216) {
+          while (!(rng >>> 24)) {
             if (sp >= srcLen) throw new Error('PPMd: the compressed data ended early');
-            cd = ((cd << 8) | src[sp++]) >>> 0;
-            rng = (rng << 8) >>> 0;
+            cd = (cd << 8) | src[sp++];
+            rng <<= 8;
           }
           numMasked = u16[minContext >> 1];
           do {
@@ -614,16 +614,16 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
           } while (i !== num);
           see = makeEscFreq(numMasked);
           freqSum = escFreqOut + hiCnt;
-          rng = (rng / freqSum) >>> 0;
-          count = (cd / rng) >>> 0;
+          rng = ((rng >>> 0) / freqSum) | 0;
+          count = ((cd >>> 0) / (rng >>> 0)) >>> 0;
           if (count < hiCnt) {
             pp = 0;
             hiCnt = 0;
             while ((hiCnt += u8[psl[pp] + 1]) <= count) { pp++; }
             s = psl[pp];
             f = u8[s + 1];
-            cd = (cd - (hiCnt - f) * rng) >>> 0;
-            rng = (rng * f) >>> 0;
+            cd = (cd - Math.imul(hiCnt - f, rng)) | 0;
+            rng = Math.imul(rng, f);
             if (seeShift[see] < 7) {
               k = (seeCount[see] - 1) & 255;
               seeCount[see] = k;
@@ -639,8 +639,8 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
             break decode;
           }
           if (count >= freqSum) { sym = -2; break decode; }
-          cd = (cd - hiCnt * rng) >>> 0;
-          rng = (rng * (freqSum - hiCnt)) >>> 0;
+          cd = (cd - Math.imul(hiCnt, rng)) | 0;
+          rng = Math.imul(rng, freqSum - hiCnt);
           seeSumm[see] += freqSum;
           do { mask[u8[psl[--i]]] = 0; } while (i !== 0);
         }

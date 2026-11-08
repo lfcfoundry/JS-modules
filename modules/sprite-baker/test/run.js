@@ -364,6 +364,22 @@ require('./fancy-scenes.js')(SB, SB, check);
   check('wasm fill: ' + r.randomScenes + ' random scenes (random vertices, odd normals, far-out picture coordinates, six ramps, picture and ridge on and off, culled or not) give the same bytes', r.randomDiffering === 0 && r.randomScenes === 800, r.names.join('; '));
   Object.keys(r.extra).forEach(function (k) { check('wasm fill: ' + k, r.extra[k] === true); });
   check('wasm fill: only the two over-the-limit calls went to the plain code; every other drawMesh was filled by the wasm', W.stats.js === 2 && W.stats.wasm > 3000, JSON.stringify(W.stats));
+  /* release() (since 1.11.0): frees the wasm memory; the next drawMesh, Rast or outline starts a fresh Instance and gives the same bytes; a Rast made before stays correct */
+  (function () {
+    var mesh = SB.mesh(SB.sphere(14), 12, 16), starts0 = W.stats.starts;
+    var a = new W.Rast(40, 40); W.drawMesh(a, mesh, WARM, { ox: 20, oy: 20 }); var a1 = a.px.slice(), az = a.z.slice();
+    W.release();
+    check('release(): a Rast drawn before it keeps its pixels and depth', Buffer.compare(Buffer.from(a.px), Buffer.from(a1)) === 0 && a.z.every(function (v, i) { return v === az[i]; }));
+    var b = new W.Rast(40, 40); W.drawMesh(b, mesh, WARM, { ox: 20, oy: 20 });
+    var p = new SB.Rast(40, 40); SB.drawMesh(p, mesh, WARM, { ox: 20, oy: 20 });
+    check('release(): the next Rast and drawMesh start one fresh Instance and give the plain bytes', W.stats.starts === starts0 + 1 && Buffer.compare(Buffer.from(b.px), Buffer.from(p.px)) === 0, JSON.stringify(W.stats));
+    W.drawMesh(a, mesh, WARM, { ox: 10, oy: 10 }); var q = new SB.Rast(40, 40); q.px.set(a1); q.z.set(az); SB.drawMesh(q, mesh, WARM, { ox: 10, oy: 10 });
+    check('release(): drawing again into a Rast made before it gives the plain bytes', Buffer.compare(Buffer.from(a.px), Buffer.from(q.px)) === 0);
+    W.release(); W.release();
+    var img = { width: 30, height: 30, data: new Uint8ClampedArray(30 * 30 * 4) }; for (var i = 0; i < 100; i++) img.data[(i * 9 + 200) * 4 + 3] = 255;
+    var o1 = SB.outline(img, 3, [0, 0, 0]), o2 = PLAIN_OUTLINE(img, 3, [0, 0, 0]);
+    check('release(): twice is fine, and the outline after it gives the plain bytes', Buffer.compare(Buffer.from(o1.data), Buffer.from(o2.data)) === 0 && W.stats.starts === starts0 + 2);
+  })();
   /* no WebAssembly, or a policy that refuses it: the result is SpriteBaker's own Rast and drawMesh */
   (function () {
     var saved = globalThis.WebAssembly, off;

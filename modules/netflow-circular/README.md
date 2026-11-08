@@ -1,12 +1,14 @@
 # netflow-circular
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node 22: 947 hierarchy and circular checks, including chords at 400x300, 900x300 and 640x480 with 6 city names; pictures checked in Chromium 155
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
 ## What it is and how it works
+
+**Load order:** `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js` (this module draws through [netflow-scene](../netflow-scene/README.md)).
 
 The circular views of Netflow Map as an add-on for [netflow-engine](../netflow-engine/README.md): Chord and Bundles.
 
@@ -32,9 +34,10 @@ Load `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js`
 ```js
 // netflow-scene.js, netflow-hierarchy.js, then netflow-circular.js
 svgElement.outerHTML = NetflowCircular.toSvg(links);                          // chord; { type: 'bundles' } for edge bundles
+containerDiv.innerHTML = NetflowCircular.toSvg(links);   // the same call into a <div> you already have
 ```
 
-Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+Amounts written as plain-number text (`'40'`) are read as numbers; write them without thousands commas (`'1200'`, not `'1,200'`). Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
 
 The steps below keep the layout and scene:
 

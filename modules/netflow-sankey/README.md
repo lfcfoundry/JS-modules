@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.12.0 · API 2**
+**Version 2.13.0 · API 2**
 
-**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 
@@ -31,6 +31,7 @@ A flow chart is read through its thick bands, so a crossing between two big flow
 Load `netflow-sankey.js` (nothing else needed). One call, data only:
 ```js
 svgElement.outerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);
+containerDiv.innerHTML = NetflowSankey.toSvg([{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }]);   // the same call into a <div> you already have
 ```
 `value`, `weight` or `count` names the amount. Options (the same words in every chart module) go in a second argument: `NetflowSankey.toSvg(links, { title: "Where the wages go", height: 360 })`. The two steps below give you the layout to draw yourself.
 
@@ -112,6 +113,7 @@ Chromium and Firefox rows are the median of 3 passes of 5 rounds; WebKitGTK's ch
 **Use.**
 - Add `'wasm-unsafe-eval'` to `script-src` if your page has a Content Security Policy. Without it, or if anything goes wrong at the start, the JavaScript code runs and gives the same layout. A chart with a flow that is negative, not a number or above 1e100 also uses the JavaScript code.
 - The wasm compiles in the background when the file loads; a layout asked for before that is done compiles it on the spot. `NetflowSankey.wasmReady()` is a promise (true or false) and `NetflowSankey.wasmModule()` gives the compiled module once ready (else null). Nothing is stored in the browser.
+- **`warm()`** (opt-in, 2.13.0) returns a promise (true, or false if the warm-up could not run). Call it once when the page is idle, after the first screen. It waits for the wasm, then lays out a made-up 30-item Sankey in one short task and draws it as SVG in the next, and throws both away. The first real Sankey then skips most of the cold start: a fresh page's first 100-item Sankey (layout plus SVG) took 0.67 to 0.90 of the time in Chromium 155, Firefox 158 and WebKitGTK 2.52.6, and 400 items 0.71 to 0.94. It moves work rather than removing it (about 6 ms in two tasks in Node). Nothing is kept, and later pictures are exactly the same.
 - All layouts on a page share one WebAssembly memory, which grows as needed and is not freed.
 - Source `wasm/order.c`, rebuild `wasm/build.sh`, embed `wasm/embed.py`; both have `--check` to prove the committed files match.
 
