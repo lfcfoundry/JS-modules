@@ -2233,8 +2233,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     if (opts.share) throw new Error('LfcPack: packParallelStream does not support share (each helper would build its own tables); pass share: false');
     var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
     var bb = opts.blockBytes || BLOCK_BYTES, maxW = Math.max(1, Math.min(opts.workers || hc, 8)), jopts = {}, k;
-    for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
-    var acc = new Uint8Array(0), plen = 0, scan = 0, total = 0, queue = [], results = [], jobs = 0, left = 0, helpers = [], free = [], failed = null, done = false, finishing = null, resolveFn = null, rejectFn = null;
+    for (k in opts) if (k !== 'workers' && k !== 'timing' && k !== 'onPart') jopts[k] = opts[k];
+    var onPart = typeof opts.onPart === 'function' ? opts.onPart : null, emitted = 0, acc = new Uint8Array(0), plen = 0, scan = 0, total = 0, queue = [], results = [], jobs = 0, left = 0, helpers = [], free = [], failed = null, done = false, finishing = null, resolveFn = null, rejectFn = null;
     function release(ok) {
       if (!ok) { helpers.forEach(function (x) { x.kill(); }); helpers = []; free = []; }
       else { free.forEach(function (x) { idleHelpers.push(x); }); free = []; helpers = []; armIdle(3000); }
@@ -2249,6 +2249,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
         if (m.error) { fail(new Error(m.error)); return; }
         results[i] = m; left--;
         if (failed) return;
+        if (onPart) { try { while (results[emitted]) { var rr = results[emitted]; onPart(rr.bytes.subarray(0, rr.bodyEnd)); rr.bytes = null; emitted++; } } catch (e) { fail(e); return; } }   // finished blocks go out in file order while later blocks are still packing
         if (queue.length) { var q = queue.shift(); give(w, q[0], q[1]); } else free.push(w);
         if (done && left === 0 && resolveFn) finishUp();
       }, fail);
@@ -2261,7 +2262,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       else queue.push([i, chunk]);
     }
     function finishUp() {
-      try { var out = stitch(results, total, jopts); release(true); resolveFn(out); } catch (e) { fail(e); }
+      try { var out = stitch(results, total, jopts, !!onPart); release(true); resolveFn(out); } catch (e) { fail(e); }
     }
     return {
       push: function (bytes) {
@@ -2325,10 +2326,10 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     }
     return w;
   }
-  function stitch(results, inLen, jopts) {   // join the packed runs, renumber the block table, write the footer as pack does
+  function stitch(results, inLen, jopts, footerOnly) {   // footerOnly: the block bytes were already handed out (onPart); return the footer alone   // join the packed runs, renumber the block table, write the footer as pack does
     var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl;
     for (i = 0; i < results.length; i++) {
-      r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd));
+      r = results[i]; if (!footerOnly) parts.push(r.bytes.subarray(0, r.bodyEnd));
       for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off].concat(bl.slice(1))); rows += bl[3]; zone.push(r.zone[j]); }
       off += r.bodyEnd;
     }

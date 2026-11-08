@@ -31,5 +31,15 @@ const same = (a, b) => a.length === b.length && Buffer.compare(Buffer.from(a), B
   assert.throws(() => JF.packParallelStream({ share: true }), /share/); assert.throws(() => JF.packParallelStream({ exact: true }), /exact/);
   { const s = JF.packParallelStream({ workers: 2 }); s.push(Buffer.from('{"a":1}\n')); await s.finish(); assert.throws(() => s.push(Buffer.from('x')), /finished/); assert.throws(() => s.finish(), /finished/); }
   console.log('packParallelStream refusals and finished stream, ok');
+  { // onPart: blocks come out in file order while packing; parts + the returned footer are the file pack() writes
+    for (const [text, bb0, piece, w] of [[gen.logs(30000), 200000, 16384, 3], [gen.events(3000), 30000, 997, 2], [gen.logs(100), 21 << 20, 1000, 2], ['', 1000, 10, 2]]) {
+      const b = Buffer.from(text), o = { blockBytes: bb0 }, want = JF.pack(b, o), parts = [];
+      const s = JF.packParallelStream({ workers: w, blockBytes: bb0, onPart: (u) => { parts.push(Buffer.from(u)); } });
+      for (let p = 0; p < b.length; p += piece) s.push(b.subarray(p, Math.min(b.length, p + piece)));
+      const foot = await s.finish(); parts.push(Buffer.from(foot));
+      assert.ok(same(Buffer.concat(parts), want), 'onPart: parts + footer differ from pack'); if (b.length > bb0) assert.ok(parts.length > 2, 'onPart: blocks were not handed out before finish');
+    }
+    console.log('onPart: parts + footer are the pack() bytes, ok');
+  }
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
