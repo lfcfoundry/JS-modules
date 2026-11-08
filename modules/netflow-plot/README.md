@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.15.0 · API 2**
+**Version 2.16.0 · API 2**
 
-**Tested in:** Node suite (434 checks); tests/netflow-plot-labels-browser.js in Chromium 155, Firefox 158, WebKitGTK 2.52.6: 36 charts, no touching labels
+**Tested in:** ungoogled Chromium 156.0.8078.79-1, Firefox 158.0, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -108,6 +108,7 @@ var hit = NetflowPlot.markAt(S, x, y);   // { rows, t } or null
 - Clean look (on by default): bar and box charts write their values on the bars (and inside stacked parts that have room) and the median over each box, with no number axis or gridlines, in a calm blue-first color set. When the values would not fit, the number axis comes back on its own. Line charts (since 2.7.0) have no number axis or gridlines either: each line's first value sits at its left end and its last value after its name at the right end; a single line also gets its high and low. `clean: false` keeps the number axis and gridlines.
 - Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `options` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - `highlight` (optional): a series name from the `color` column (or, with no color column, one bar) keeps its color and is drawn on top; the rest turn one gray. Works on every type that colors by a column. A name that is not there changes nothing, and a highlighted name is never folded into Other.
+- `NetflowPlot.warm()` (optional, since 2.16.0): call it from an idle callback, after `netflow-scene.js` has loaded. It draws four small made-up charts once and throws them away, so the engine has already optimized the drawing code when your first real chart comes. 7 to 13 ms of work; the first four charts then took 0.55 (ungoogled Chromium 156), 0.82 (Firefox 158) and 0.64 (WebKitGTK 2.52.6) of the time without it. Returns `true`, or `false` when `NetflowScene` is missing. Charts are the same with or without it.
 - `NetflowPlot.NEEDS` lists which columns each type needs (a number, a category, text, or any).
 - Helpers: `ticks`, `timeTicks`, `kde`, `normInv`, `voronoiCells`, `quant`, `fmtNum`.
 

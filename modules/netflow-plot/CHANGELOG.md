@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.0 · API 2 · 2026-11-08
+- New optional NetflowPlot.warm(): call it from an idle callback and the first charts are 18 to 45% faster to draw (7-13 ms of idle work).
+
 ## 2.15.0 · API 2 · 2026-11-08
 - Three groups in mauve, light green and orange; keys name all of 3 or fewer groups
 

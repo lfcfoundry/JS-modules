@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.16.0 · API 2 · 2026-11-08
+
+### Quick
+Adds NetflowPlot.warm(), opt-in, never automatic: it draws four small made-up charts once so the engine has optimized the drawing code before your first real chart. Charts come out the same with or without it.
+
+### Details
+First four charts (auto, bar, scatter, line; 300 rows) on a fresh page after 300 ms idle, warm-up vs none, paired, 11 pairs: ungoogled Chromium 156.0.8078.79-1 22.8 ms, 0.55x (11 of 11 faster, idle cost 12.9 ms); Firefox 158.0 12.0 ms, 0.82x (10 of 11, 9.0 ms); WebKitGTK 2.52.6 13.0 ms, 0.64x (10 of 11, 7.0 ms). Needs netflow-scene.js loaded first; returns false without it. No change for existing calls.
+
+### Deep
+2.16.0: NetflowPlot.warm() (opt-in). Owner approved on the card 'Add an opt-in NetflowPlot.warm() for faster first charts?' (11.08 6:21 AM Eastern). Gate runs 11.08: fresh page per sample, 11 pairs, first auto+bar+scatter+line on 300 rows after 300 ms idle: Chromium 156.0.8078.79-1 none 22.8 ms, warm/none 0.55, 11/11, idle 12.9 ms; Firefox 158.0 none 12.0 ms, 0.82, 10/11, idle 9.0 ms; WebKitGTK 2.52.6 none 13.0 ms, 0.64, 10/11, idle 7.0 ms. Earlier prototype run (same-shape warm-up): 0.53 / 0.67 / 0.73. Plot tests 437 passed (3 new). Phone pending.
+
 ## 2.15.0 · API 2 · 2026-11-08
 
 ### Quick
