@@ -8,6 +8,8 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 
 ## What it is and how it works
 
+**Load order:** `netflow-scene.js`, then `netflow-plot.js` (this module draws through [netflow-scene](../netflow-scene/README.md)).
+
 Plain charts from a table's columns: 22 chart types, drawn as the same drawing lists a [netflow-scene](../netflow-scene/README.md) map picture uses (rects, dots, curves, polys, labels).
 
 - `make(rows, spec, options, NetflowScene)` reads the columns named in `spec` and returns a scene.

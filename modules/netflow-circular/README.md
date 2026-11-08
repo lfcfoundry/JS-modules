@@ -8,6 +8,8 @@ Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Found
 
 ## What it is and how it works
 
+**Load order:** `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js` (this module draws through [netflow-scene](../netflow-scene/README.md)).
+
 The circular views of Netflow Map as an add-on for [netflow-engine](../netflow-engine/README.md): Chord and Bundles.
 
 - **Chord:** arcs around a circle, one per item or per group, and bands as wide as what each link carries. The order around the circle can be searched for fewer crossing bands.
