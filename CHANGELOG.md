@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.15.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.16.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.8.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -72,6 +72,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **netflow-hierarchy** 1.6.0 · API 1: New optional NetflowHierarchy.warm() makes the first treemap or sunburst draw much sooner.
 - 2026-11-08 · **netflow-circular** 1.4.0 · API 1: New optional NetflowCircular.warm() makes the first chord or bundles draw much sooner.
 - 2026-11-08 · **netflow-circular** 1.3.1 · API 1: Chord names never overlap on small rings; bigger arcs keep their names first.
+- 2026-11-08 · **memory-compression** 2.16.0 · API 2: chunks: true now also covers decimal columns (prices, weights): a 1M-row list's first view().get() takes about a tenth to a third of the time.
 - 2026-11-08 · **memory-compression** 2.15.0 · API 2: pack(list, { mode: 'fast', chunks: true }) makes the first view().get() on a list of 400,000 rows or more about four times shorter.
 - 2026-11-08 · **memory-compression** 2.14.1 · API 2: Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
 - 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.

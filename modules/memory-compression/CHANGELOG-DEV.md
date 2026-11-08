@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.0 · API 2 · 2026-11-08
+
+### Quick
+chunks: true also chunks decimal columns (stored as whole numbers over a scale); same format, off by default.
+
+### Details
+Decimal columns of 400,000 rows or more are packed in 64 KB pieces with chunks: true; view() opens one piece on the first read. Cloud 1M rows x 3 decimal columns, first read chunks/plain: Chromium 0.09-0.18, Firefox 0.11, WebKitGTK 0.29. Bytes +0.2 to +1.8%. Plain (no chunks) first read in Chromium 1.07x of 2.15.0.
+
+### Deep
+memory-compression 2.16.0: chunks: true now also covers decimal columns (owner approved 11.08). Same format, off by default; lists under 400,000 rows are byte-identical. Cloud, 1M x 3 decimal columns, first read chunks/plain: Chromium 156 0.09-0.18, Firefox 158 0.11, WebKitGTK 0.29; scan chunks/plain Chromium 0.94-1.24 (noisy), Firefox 1.25, WebKitGTK 1.11; unpack 0.77/1.03/1.06; pack 1.00/1.02/0.98. Plain (no chunks) vs 2.15.0 first read: Chromium 1.07 (15 pairs), Firefox 0.94, WebKitGTK 1.00. Phone not confirmed (earlier run: prices 1M first read 1.08, scan 1.16, unpack 1.29, noisy).
+
 ## 2.15.0 · API 2 · 2026-11-08
 
 ### Quick

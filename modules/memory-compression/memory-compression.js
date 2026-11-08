@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.15.0 (API 2)
+ * Version 2.16.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2290,7 +2290,7 @@
       }
       c.u8(tag); if (tag === CT_DEC) c.u8(e);
     }
-    c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre, this.chunkInts && tag === CT_INT && n >= CHUNK_MIN && !this.defer ? 65536 : 0);
+    c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre, this.chunkInts && (tag === CT_INT || tag === CT_DEC) && n >= CHUNK_MIN && !this.defer ? 65536 : 0);
     if (this.defer) this.deferEnd();
   };
   // A number column stored by the number picker: src is a Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
@@ -3322,22 +3322,23 @@
     if (BG.length) setTimeout(bgRun, 0); else bgOn = false;
   }
   function bgAdd(f) { BG.push(f); if (!bgOn) { bgOn = true; setTimeout(bgRun, 0); } }
-  Dec.prototype.blobWindows = function (Ctor, n, base) {           // a packed blob of several pieces (MC.view) opened without decoding: the reader of a number column as the picker's windows (block(b), all()); null: one piece or not packed
+  Dec.prototype.blobWindows = function (Ctor, n, base, scale) {           // a packed blob of several pieces (MC.view) opened without decoding: the reader of a number column as the picker's windows (block(b), all()); null: one piece or not packed
     var b = this.bl, p0 = b.p, kind, len, u, mv, per, out, done, i, self = this;
     if (b.u8() !== 1) { b.p = p0; return null; }
     len = b.varint(); u = b.take(len);
     try { mv = MC.view(u, { maxSize: n * Ctor.BYTES_PER_ELEMENT + 64, wasm: this.wasm }); } catch (err) { jfail('a packed column is damaged'); }
     if (mv.chunks < 2 || mv.chunkBytes > 131072 || mv.size !== n * Ctor.BYTES_PER_ELEMENT || mv.chunkBytes % Ctor.BYTES_PER_ELEMENT) { b.p = p0; return null; }
     per = mv.chunkBytes / Ctor.BYTES_PER_ELEMENT; done = new Uint8Array(mv.chunks);
-    if (base === 0) out = new Ctor(n);                                                                 // no base to add: each piece is unpacked straight into place
+    if (scale) out = new Float64Array(n);                                                              // decimals: each value is the whole number over the scale
+    else if (base === 0) out = new Ctor(n);                                                            // no base to add: each piece is unpacked straight into place
     else out = Ctor !== Uint32Array && base >= -2147483648 && base + 65535 <= 2147483647 ? new Int32Array(n) : new Float64Array(n);
     function dec(k) {
       var c2 = Math.min(per, n - k * per), t, j, o = k * per, bpe = Ctor.BYTES_PER_ELEMENT;
-      if (base === 0) { mv.read(k, new Uint8Array(out.buffer, out.byteOffset + o * bpe, c2 * bpe)); done[k] = 1; return; }
+      if (base === 0 && !scale) { mv.read(k, new Uint8Array(out.buffer, out.byteOffset + o * bpe, c2 * bpe)); done[k] = 1; return; }
       t = mv.read(k);
       if (t.length !== c2 * bpe) jfail('a packed column has the wrong size');
       t = new Ctor(t.buffer, t.byteOffset, c2);
-      for (j = 0; j < c2; j++) out[o + j] = t[j] + base;
+      if (scale) for (j = 0; j < c2; j++) out[o + j] = (t[j] + base) / scale; else for (j = 0; j < c2; j++) out[o + j] = t[j] + base;
       done[k] = 1;
     }
     var kicked = false, nextBg = 0;
@@ -3529,7 +3530,8 @@
       case CT_INT: return this.intCol(n, true);
       case CT_DEC:
         e = c.u8(); if (e > 10) jfail('bad scale'); p = P10[e];
-        col = this.intCol(n); a = col.a; t = new Float64Array(n);
+        col = this.intCol(n, true, p); if (col.mode === 11) return col;
+        a = col.a; t = new Float64Array(n);
         if (col.mode === 3) { for (i = 0; i < n; i++) t[i] = col.d / p; } else if (a instanceof Int32Array) for (i = 0; i < n; i++) t[i] = a[i] / p;
         else if (a instanceof Float64Array) for (i = 0; i < n; i++) t[i] = a[i] / p;
         else for (i = 0; i < n; i++) t[i] = a[i] / p;
@@ -4033,11 +4035,11 @@
   function addU8(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
   function addU16(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
   function addU32(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
-  Dec.prototype.intCol = function (n, canWin) {
+  Dec.prototype.intCol = function (n, canWin, scale) {
     var c = this.c, w = c.u8(), base, t, i, a, Ctor, col;
     if (w !== 1 && w !== 2 && w !== 4) jfail('bad int width');
     base = c.zigzag(); Ctor = w === 1 ? Uint8Array : w === 2 ? Uint16Array : Uint32Array;
-    if (canWin && this.win && (this.depth === 1 || this.depth === this.winAt) && n >= WIN_MIN && (t = this.blobWindows(Ctor, n, base))) {
+    if (canWin && this.win && (this.depth === 1 || this.depth === this.winAt) && n >= WIN_MIN && (t = this.blobWindows(Ctor, n, base, scale))) {
       col = new Col(n, 11, winRow(t, 0, null), null); col.a.col = col; t.setReader(col.a); return col;
     }
     t = this.blob(Ctor, n);
