@@ -12,7 +12,7 @@
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.4 (API 1)
+ * Version 1.7.0 (API 1)
  */
 
 (function (root, factory) {
@@ -99,6 +99,7 @@
   };
 
   Object.defineProperty(decode, '_made', { get: function () { return made; } });     // test hook: how many Instances decode has started
+  decode.warm = jsDecode.warm;     // warms the JavaScript decoder only (the WebAssembly one needs no warm-up)
   decode.plain = jsDecode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
   Object.defineProperty(decode, 'available', { get: function () { return !!ensure(); }, enumerable: true });
   decode.ready = function () { return early.then(function () { return !!mod; }); };     // a promise: true once the early compile worked, false when WebAssembly cannot be used here
