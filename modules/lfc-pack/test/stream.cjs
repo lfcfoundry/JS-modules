@@ -16,4 +16,14 @@ const JF = require('../lfc-pack.js'), assert = require('assert'), gen = require(
     console.log(name, 'blocks', JF.info(want).blocks, 'same bytes for 3 push sizes, ok');
   }
   assert.throws(() => JF.packStream({ exact: true }), /exact/);
+  { // since 0.6.2 the waiting text is kept as pushed pieces: a caller that reuses one buffer for every push must still get the same file, for tiny and big pushes
+    const lines = []; for (let i = 0; i < 30000; i++) lines.push(JSON.stringify({ id: i, name: 'n' + (i % 700), v: (i * 13) % 1000 / 10 }));
+    const text = Buffer.from(lines.join('\n') + '\n');
+    const once = (chunk, reuse) => { const s = JF.packStream({ blockBytes: 65536, share: true }), out = [], scratch = new Uint8Array(chunk);
+      for (let o = 0; o < text.length; o += chunk) { const piece = text.subarray(o, o + chunk); let b = piece; if (reuse) { scratch.set(piece); b = scratch.subarray(0, piece.length); } out.push(...s.push(b)); if (reuse) scratch.fill(0); }
+      out.push(...s.finish()); return Buffer.concat(out.map((x) => Buffer.from(x))); };
+    const want = once(1 << 22, false);
+    for (const chunk of [7, 4096, 65536, 200000]) assert.ok(once(chunk, true).equals(want), 'reused buffer, pushes of ' + chunk + ' bytes: same file');
+    console.log('reused push buffer: same file for 4 push sizes, ok');
+  }
 })().catch((e) => { console.error(e); process.exit(1); });
