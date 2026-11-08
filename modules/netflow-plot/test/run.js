@@ -284,6 +284,7 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const dr = []; for (let i = 0; i < 20; i++) dr.push({ name: 'n' + i, v: 47.658 + i * 0.0005 });
   const Sd = P.make(dr, { type: 'dotplot', x: 'name', y: 'v' }, { width: 300, height: 200 }, global.NetflowScene), nm = Sd.labels.filter((l) => /^n\d+$/.test(l.t)).sort((a, b) => a.y - b.y);
   ok(nm.length < 20 && nm.every((l, i) => !i || l.y - nm[i - 1].y >= 13), 'a thin dot plot writes names 13 px apart at least (' + nm.length + ' of 20)');
+}
 /* from an earlier repair branch (2026.11.01), adapted to main's choice: a real Other is folded into the rest, so there is one Other and no value is lost */
 {
   const rows = [{ attrs: { cat: 'Other', v: 100 } }];
