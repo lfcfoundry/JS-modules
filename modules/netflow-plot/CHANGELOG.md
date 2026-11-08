@@ -2,6 +2,12 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.14.8 · API 2 · 2026-11-07
+- Line-end names stand in one column after the last line end.
+
+## 2.14.7 · API 2 · 2026-11-07
+- Dot plots sort by value and carry their values, clean look.
+
 ## 2.14.6 · API 2 · 2026-11-07
 - Grouped charts never mix two name pairs, even names that hold the separator
 

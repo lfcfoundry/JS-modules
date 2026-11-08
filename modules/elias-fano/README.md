@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 2.1.1 · API 2**
+**Version 2.1.2 · API 2**
 
-**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -103,12 +103,12 @@ roaring-wasm 1.1.0 (CRoaring in WebAssembly) and FastIntegerCompression 0.1.0 (v
 | Same, dense | 0.77 / 1.0 / 0.67 | 1.7 / 3.3 / 3.0 | same as block lists | 8.2 / 7 / 8 | no lookups |
 | Is x present, 20,000 lookups, sparse | 2.3 / 2.7 / 2.0 | 2.6 / 3.0 / 2.7 (`containsMany` 2.2 / 2.7 / 2.7) | `containsMany` 1.9 / 2.3 / 2.3 | 3.6 / 4.3 / 4.3 | no lookups |
 | Same, dense | 2.0 / 2.7 / 2.0 | 0.7 / 1.3 / 0.67 (`containsMany` 0.33 / 0.67 / 0.33) | `containsMany` 0.33 / 0.67 / 0.33 | 0.8 / 1.0 / 0.67 | no lookups |
-| Decode everything, sparse | 5.5 / 4.3 / 4.7 | 5.3 / 4.3 / 3.3 | 2.4 / 2.3 / 1.3 | 2.2 / 2.7 / 1.3 | 7.9 / 12 / 11 |
+| Decode everything, sparse (since 2.1.2) | 4.2 / 4.3 / 4.3 | 2.6 / 3.0 / 1.7 | 2.1 / 2.7 / 1.0 | 2.2 / 2.7 / 1.3 | 7.9 / 12 / 11 |
 | Same, dense | 3.7 / 5.0 / 3.7 | 2.8 / 3.0 / 2.0 | 2.8 / 3.3 / 2.0 | 3.2 / 3.3 / 2.0 | 5.6 / 8.3 / 7 |
-| Intersect, sparse (since 2.1.1) | 8.2 / 8.7 / 7.3 | 4.2 / 4.7 / 4.7 | 1.4 / 1.3 / 2.3 | 3.4 / 4.0 / 3.3 | none |
-| Same, dense (since 2.1.1) | 6.2 / 5.7 / 5.7 | 0.97 / 1.0 / 1.0 | 0.47 / 0.67 / 0.33 | 1.5 / 2.0 / 1.3 | none |
+| Intersect, sparse (since 2.1.2) | 7.0 / 5.7 / 7.3 | 2.0 / 1.7 / 3.3 | 1.2 / 1.0 / 2.3 | 2.7 / 2.7 / 3.0 | none |
+| Same, dense (since 2.1.2) | 6.1 / 4.7 / 5.3 | 0.57 / 0.33 / 0.33 | 0.47 / 0.33 / 0.33 | 1.4 / 1.0 / 1.3 | none |
 
-Where elias-fano wins: the smallest size on spread-out values (flat lists 0.66x roaring's, block lists 0.69x), "first value at or above x" (flat lists 7 to 60 times faster than roaring's `rank`), "is x present" (block lists, faster than roaring on both kinds; `containsMany` about twice as fast on dense values), and intersecting (block lists with `arrays: true` 1.4 to 3 times faster than roaring on both kinds since 2.1.1; default block lists 1.3 to 2 times faster on dense values). Where roaring still wins: intersecting spread-out lists against default block lists (3.3 to 4.0 ms against 4.2 to 4.7, which keep the smaller size), and decoding everything from flat or default block lists on spread-out values (about 2 times faster). Value number i: roaring's `select` gave wrong answers past about 68,000 values in this test (off by one), so it is not compared. Test: the repository's `tests/compare/elias-fano-compare-browser.js` (needs `LIBS=<folder with node_modules>`).
+Where elias-fano wins: the smallest size on spread-out values (flat lists 0.66x roaring's, block lists 0.69x), "first value at or above x" (flat lists 7 to 60 times faster than roaring's `rank`), "is x present" (block lists, faster than roaring on both kinds; `containsMany` about twice as fast on dense values), and intersecting (block lists with `arrays: true` 1.3 to 3 times faster than roaring on both kinds; since 2.1.2 default block lists too, which keep the smaller size: 1.4 to 1.6 times faster on spread-out values in Chromium and Firefox, 2.5 to 4 times on dense values). Where roaring still wins: intersecting spread-out default block lists in WebKitGTK (3.0 ms against 3.3; about even in the tester page), and decoding everything on spread-out values (flat lists about 2 times faster, default block lists 1.1 to 1.3 times). Value number i: roaring's `select` gave wrong answers past about 68,000 values in this test (off by one), so it is not compared. Test: the repository's `tests/compare/elias-fano-compare-browser.js` (needs `LIBS=<folder with node_modules>`).
 
 ## Partitioned lists (since 1.2.0)
 `buildPartitioned` cuts the list into chunks of 128 values (or 32, 64, 256, 512, 1024) and stores each chunk the cheapest way: as a plain run (no bits at all, when the numbers are consecutive), as a bitmap (when more than about a third of the numbers in its range are present) or as Elias-Fano. It wins where a list has dense stretches, such as the document ids of a common word, and costs about the same as the flat form elsewhere. It has the same questions as a single list (`get`, `nextGEQ`, `rank`, `contains`, `count`, `slice`, `toArray`, the batches, `free`) and one more, `stats()`, which says how many chunks took each form.

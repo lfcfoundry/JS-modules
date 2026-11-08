@@ -378,22 +378,65 @@ static inline Blk blkAt(const u8 *b, u32 k) {
 }
 static inline u32 efBlkLowB(u32 c, u32 l) { return ((((c * l + 31) >> 5) + 2) * 4 + 7) & ~7u; }
 static inline u32 efLowBits(const u8 *low, u32 l, u32 q) { return (u32)lowAt(low, l, q); }
-// block values as u16 into out (EF and array blocks); returns the count
+#ifdef __wasm_simd128__
+static u8 QT[256][8], Q8[256]; static u32 qtOk;   // for each byte value: where its set bits are, each minus its rank, and how many there are
+static void qtInit(void) { for (u32 x = 0; x < 256; x++) { u32 n = 0; for (u32 b = 0; b < 8; b++) if (x >> b & 1) { QT[x][n] = (u8)(b - n); n++; } Q8[x] = (u8)n; } qtOk = 1; }
+#endif
+// block values as u16 into out (EF and array blocks); returns the count. out needs 8 spare slots after the count.
 static u32 blkU16(Blk B, u16 *out) {
   if (B.kind == 2) { const u16 *a = (const u16 *)B.d; for (u32 q = 0; q < B.c; q++) out[q] = a[q]; return B.c; }
-  const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 i = 0, l = B.l;
-  for (u32 w = 0; i < B.c; w++) { u64 x = H[w]; while (x && i < B.c) { u32 bit = CTZ(x); out[i] = (u16)((((w * 64 + bit) - i) << l) | efLowBits(low, l, i)); i++; x &= x - 1; } }
-  return B.c;
+  const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 i = 0, l = B.l, c = B.c;
+#ifdef __wasm_simd128__
+  // high parts, one byte of high bits at a time: the table gives 8 candidate values at once and the byte's bit count says how many to keep
+  if (!qtOk) qtInit();
+  const u8 *Hb = (const u8 *)H;
+  for (u32 k = 0; i < c; k++) { u32 x = Hb[k]; wasm_v128_store(out + i, wasm_i16x8_add(wasm_u16x8_load8x8(QT[x]), wasm_i16x8_splat((short)(k * 8 - i)))); i += Q8[x]; }
+  if (l <= 8) {   // low parts, 8 values (l bytes) at a time: each lane takes the 2 bytes holding its bits, a multiply lines them up, a shift and a mask cut them out
+    u8 sw[16]; u16 mu[8];
+    for (u32 t = 0; t < 8; t++) { u32 bo = t * l; sw[2 * t] = (u8)(bo >> 3); sw[2 * t + 1] = (u8)((bo >> 3) + 1); mu[t] = (u16)(1u << (8 - (bo & 7))); }
+    v128_t SW = wasm_v128_load(sw), MU = wasm_v128_load(mu), MK = wasm_i16x8_splat((short)mask(l));
+    for (u32 g = 0; g < c; g += 8) {
+      v128_t f = wasm_i8x16_swizzle(wasm_v128_load64_zero(low + (g >> 3) * l), SW);
+      f = wasm_v128_and(wasm_u16x8_shr(wasm_i16x8_mul(f, MU), 8), MK);
+      wasm_v128_store(out + g, wasm_v128_or(wasm_i16x8_shl(wasm_v128_load(out + g), l), f));
+    }
+    return c;
+  }
+  if (l <= 16) {   // 9 to 16 low bits: 8 values are 9 to 16 bytes, read as two 8-byte halves; each lane takes 4 bytes
+    u8 sw[32]; u32 mu[8]; u32 h2 = (4 * l) >> 3;
+    for (u32 t = 0; t < 8; t++) { u32 bo = t * l, base = t < 4 ? 0 : h2, by = (bo >> 3) - base + (t < 4 ? 0 : 8); for (u32 z = 0; z < 4; z++) sw[4 * t + z] = (u8)(by + z); mu[t] = 1u << (16 - (bo & 7)); }
+    v128_t S0 = wasm_v128_load(sw), S1 = wasm_v128_load(sw + 16), M0 = wasm_v128_load(mu), M1 = wasm_v128_load(mu + 4), MK = wasm_i32x4_splat((int)mask(l));
+    for (u32 g = 0; g < c; g += 8) {
+      const u8 *p = low + (g >> 3) * l; v128_t v = wasm_v128_load64_lane(p + h2, wasm_v128_load64_zero(p), 1);
+      v128_t f0 = wasm_v128_and(wasm_u32x4_shr(wasm_i32x4_mul(wasm_i8x16_swizzle(v, S0), M0), 16), MK);
+      v128_t f1 = wasm_v128_and(wasm_u32x4_shr(wasm_i32x4_mul(wasm_i8x16_swizzle(v, S1), M1), 16), MK);
+      wasm_v128_store(out + g, wasm_v128_or(wasm_i16x8_shl(wasm_v128_load(out + g), l), wasm_u16x8_narrow_i32x4(f0, f1)));
+    }
+    return c;
+  }
+  for (u32 q = 0; q < c; q++) out[q] = (u16)(((u32)out[q] << l) | efLowBits(low, l, q));
+#else
+  for (u32 w = 0; i < c; w++) { u64 x = H[w]; while (x && i < c) { u32 bit = CTZ(x); out[i] = (u16)((((w * 64 + bit) - i) << l) | efLowBits(low, l, i)); i++; x &= x - 1; } }
+#endif
+  return c;
 }
-void bl_decode(const u8 *b, u32 *out) {
+static __attribute__((noinline)) u32 bmpDecode(const u64 *M, u32 hi, u32 *out) { u32 o = 0; for (u32 w = 0; w < 1024; w++) { u64 x = M[w]; while (x) { out[o++] = hi | (w * 64 + CTZ(x)); x &= x - 1; } } return o; }
+void bl_decode(const u8 *b, u32 *out) {   // out needs 32 spare bytes
   u32 nb = rd32(b, 8), o = 0;
   for (u32 k = 0; k < nb; k++) {
     Blk B = blkAt(b, k); u32 hi = B.key << 16;
-    if (B.kind == 1) { const u64 *M = (const u64 *)B.d; for (u32 w = 0; w < 1024; w++) { u64 x = M[w]; while (x) { out[o++] = hi | (w * 64 + CTZ(x)); x &= x - 1; } } }
+    if (B.kind == 1) o += bmpDecode((const u64 *)B.d, hi, out + o);
     else if (B.kind == 2) { const u16 *a = (const u16 *)B.d; for (u32 q = 0; q < B.c; q++) out[o + q] = hi | a[q]; o += B.c; }
+#ifdef __wasm_simd128__
+    else {   // decode as u16 into the back half of this block's output, then widen forward 8 at a time (writes never pass the values still to be read)
+      u16 *t = (u16 *)(out + o) + B.c; blkU16(B, t); v128_t vh = wasm_i32x4_splat((int)hi);
+      for (u32 q = 0; q < B.c; q += 8) { v128_t v = wasm_v128_load(t + q); wasm_v128_store(out + o + q, wasm_v128_or(wasm_u32x4_extend_low_u16x8(v), vh)); wasm_v128_store(out + o + q + 4, wasm_v128_or(wasm_u32x4_extend_high_u16x8(v), vh)); }
+      o += B.c; }
+#else
     else { const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 i = 0, l = B.l;
       for (u32 w = 0; i < B.c; w++) { u64 x = H[w]; while (x && i < B.c) { u32 bit = CTZ(x); out[o + i] = hi | ((((w * 64 + bit) - i) << l) | efLowBits(low, l, i)); i++; x &= x - 1; } }
       o += B.c; }
+#endif
   }
 }
 static u32 blkHas(Blk B, u32 v) {

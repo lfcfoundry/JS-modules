@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.13.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.1.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.6.2 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -41,7 +41,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.11.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.14.6 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.14.8 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -72,11 +72,14 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **save-kit** 2.1.0 · API 2: New warm(): start the load early so it is ready when the game asks. Big saves are faster to open; older copies cannot read big saves written by this one.
 - 2026-11-07 · **ppmd-decode** 1.5.1 · API 1: The plain JavaScript decoder is faster on its first file.
 - 2026-11-07 · **netflow-scene** 1.11.0 · API 1: Big scatters draw 1.3 to 2.9 times faster on the page; dots look the same
+- 2026-11-07 · **netflow-scene** 1.10.6 · API 1: Line charts draw 1.1 to 1.7 times faster; straight pieces written as L
 - 2026-11-07 · **netflow-scene** 1.10.5 · API 1: Area, hexbin and density charts write less SVG text and draw faster.
 - 2026-11-07 · **netflow-scene** 1.10.4 · API 1: Long line charts draw faster in WebKit.
 - 2026-11-07 · **netflow-scene** 1.10.3 · API 1: frame: true no longer draws a rule above the source line; the chart's own baseline is the one line.
 - 2026-11-07 · **netflow-scene** 1.10.1 · API 1: toSvg rounds numbers about 1.4 to 2.7 times faster; same SVG
 - 2026-11-07 · **netflow-plot** 2.9.0 · API 2: toSvg(rows) picks the chart; auto() says why; opt-in takeaway
+- 2026-11-07 · **netflow-plot** 2.14.8 · API 2: Line-end names stand in one column after the last line end.
+- 2026-11-07 · **netflow-plot** 2.14.7 · API 2: Dot plots sort by value and carry their values, clean look.
 - 2026-11-07 · **netflow-plot** 2.14.6 · API 2: Grouped charts never mix two name pairs, even names that hold the separator
 - 2026-11-07 · **netflow-plot** 2.14.5 · API 2: Line and area charts build faster; same picture
 - 2026-11-07 · **netflow-plot** 2.14.4 · API 2: Averages that sit close together show as dots, with ticks that differ.
@@ -107,6 +110,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **lfc-pack** 0.5.8 · API 0: Firefox: faster first reads of IP-address columns
 - 2026-11-07 · **gpu-blur** 1.4.2 · API 1: Small drawn pictures pick the faster way on a phone, and Firefox keeps big drawn results in memory
 - 2026-11-07 · **gpu-blur** 1.4.1 · API 1: Auto uses the helpers for big bytes-out pictures: cloud 2048 x 2048 first call 80 to 61 ms in Chromium
+- 2026-11-07 · **elias-fano** 2.1.2 · API 2: Default block lists intersect 1.6 to 1.8 times faster and now beat roaring-wasm on spread-out values in Chromium and Firefox; decoding block lists up to 2 times faster.
 - 2026-11-07 · **elias-fano** 2.1.1 · API 2: Block lists: intersecting is 2 to 3 times faster with arrays: true, now faster than roaring-wasm on spread-out lists too.
 - 2026-11-07 · **elias-fano** 2.1.0 · API 2: New block lists (buildBlocks, openBlocks): bitmaps where values are dense, so intersecting and lookups beat roaring-wasm on dense data.
 - 2026-11-07 · **elias-fano** 2.0.2 · API 2: getMany and nextGEQMany (batches) take 0.79x to 0.88x the time; same answers.
