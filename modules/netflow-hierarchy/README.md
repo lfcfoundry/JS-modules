@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
-**Tested in:** Node 22: 947 hierarchy and circular checks, including treemaps at 400x300, 900x300 and 640x480; pictures checked in Chromium 155
+**Tested in:** Node 22: 949 hierarchy and circular checks, including 2 new text-amount checks
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
