@@ -45,6 +45,8 @@ Sankey names in a middle column sit on their own outgoing bands, so since 1.7.0 
 
 **Notes (since 1.9.0).** `notes: [{ text, x, y, anchor, size, color, bold, align }]` in the options (or `L.notes`) puts plain text on the picture. `x` and `y` are 0 to 1 across and down it. `anchor` (optional) is an item's id or name, or a flow written `"from>to"`, and gets a thin leader line from the note, with no box, in the Economist style. The text may hold live words: `{total}`, `{value:id}`, `{share:id}`, `{flow:from>to}` `{top}` (the biggest flow: its two names with an arrow between, then its amount, since 1.10.0) and `{topbox}` (since 1.10.0: the biggest item's name and amount). An unknown word stays as typed. Notes are `S.labels` with `note: true` and their lines are `S.curves` with `note: true`, so every drawing backend and `toSvg` draw them with no new code.
 
+**Title, source and the Economist frame (opt-in).** `title` (bold, left), `subtitle` (lighter, under it) and `source` (small, under the picture) are text in the options and appear only when given. `frame: true` (or `theme: 'editorial'`, since 1.8.0) adds a small red tag at the top left of the picture and puts the source under it; since 1.10.3 there is no second rule above the source line, because the chart's own baseline is the one line. Without these options the picture is unchanged.
+
 `addTitles(S, { title, subtitle, source })` adds an optional title block to any picture: a bold title and a lighter subtitle above it and a small source line under it, outside the picture so nothing moves. netflow-plot, netflow-hierarchy and netflow-circular call it for you when their options carry these words. Text read at 4.5:1 or better on both themes.
 
 ## Reusing link looks (`lookPlan`)
