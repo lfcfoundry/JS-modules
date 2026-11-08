@@ -1,9 +1,9 @@
 /*! ppmd-decode-with-wasm.js: ppmd-decode.js and ppmd-decode-wasm.js in one file. ppmd7Decode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder
  * when WebAssembly is not usable (the page policy lacks 'wasm-unsafe-eval', or an old browser), so it always works and gives the same bytes. ppmd7Decode.plain is the JavaScript decoder alone;
  * ppmd7DecodeWasm is another name for ppmd7Decode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.5.1 (API 1) */
+ * Version 1.6.0 (API 1) */
 /* ppmd-decode: a PPMd (variant H, "PPMd7" as 7-Zip writes it) decoder. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
-   Version 1.5.1 (API 1)
+   Version 1.6.0 (API 1)
 
    Decodes a raw PPMd7 stream (the range-coder bytes 7-Zip stores inside a .7z archive; no header) into a Uint8Array.
 
@@ -694,7 +694,7 @@ ppmd7Decode.fromProps = function (src, outSize, props, opts) {
  * ppmd7DecodeWasm.ready() is a promise: true once the wasm has compiled in the background (it starts when this file loads), false when it cannot be used;
  * ppmd7DecodeWasm.module() is the compiled WebAssembly.Module once ready, else null (send it to a worker with postMessage so the worker does not compile it again).
  * ppmd7DecodeWasm.async(src, outSize, order, memSize, opts) is the same decode as a promise that hands the page back about every 8 ms, so a big decode does not freeze the page.
- * Version 1.5.1 (API 1)
+ * Version 1.6.0 (API 1)
  */
 
 (function (root, factory) {

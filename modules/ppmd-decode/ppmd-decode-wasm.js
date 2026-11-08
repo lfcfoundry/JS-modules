@@ -12,7 +12,7 @@
  * ppmd7DecodeWasm.ready() is a promise: true once the wasm has compiled in the background (it starts when this file loads), false when it cannot be used;
  * ppmd7DecodeWasm.module() is the compiled WebAssembly.Module once ready, else null (send it to a worker with postMessage so the worker does not compile it again).
  * ppmd7DecodeWasm.async(src, outSize, order, memSize, opts) is the same decode as a promise that hands the page back about every 8 ms, so a big decode does not freeze the page.
- * Version 1.5.1 (API 1)
+ * Version 1.6.0 (API 1)
  */
 
 (function (root, factory) {

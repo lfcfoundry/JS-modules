@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-11-07
+- A second decode in the same page is 1.2 to 1.7 times faster; the last model, up to 16 MB, is kept for the next call.
+
 ## 1.5.1 · API 1 · 2026-11-07
 - The plain JavaScript decoder is faster on its first file.
 
