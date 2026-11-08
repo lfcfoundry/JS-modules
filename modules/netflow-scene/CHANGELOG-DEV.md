@@ -2,7 +2,7 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
-## 1.10.2 · API 1 · 2026-11-07
+## 1.10.4 · API 1 · 2026-11-07
 
 ### Quick
 SVG line charts are about a third the text and open faster.
@@ -11,7 +11,18 @@ SVG line charts are about a third the text and open faster.
 Line charts (and gridlines) reach toSvg as curve pieces whose two handles sit a third and two thirds of the way along, which is a straight line. toSvg now writes those pieces as L instead of C: the same line in a third of the text. Whole page draw of a 20,000-point line: Chromium 73.9 to 52.2 ms, Firefox 63 to 38 ms, WebKitGTK 76 to 47 ms; 2,000 points 1.1 to 1.3 times faster. Pixels on the 24 label-check charts plus the 20,000-point line: 99.1 to 100 percent identical in all three browsers (antialiasing on line edges); text 825 KB to 276 KB for the big line.
 
 ### Deep
-speed, same lines
+speed, same lines (was 1.10.2 before 1.10.3 merged first)
+
+## 1.10.3 · API 1 · 2026-11-07
+
+### Quick
+frame: no rule above the source
+
+### Details
+With frame: true (or theme 'editorial'), the thin dark rule under the picture is gone and the source sits where it sits without a frame (15 units under the picture). The red tag stays. Pictures without a frame are unchanged.
+
+### Deep
+Requested by the owner (Economist frame card, 2026.11.07).
 
 ## 1.10.1 · API 1 · 2026-11-07
 

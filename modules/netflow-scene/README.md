@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.10.2 · API 1**
+**Version 1.10.4 · API 1**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 pictures
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 

@@ -34,7 +34,7 @@ for (const [n, seed] of [[0, 1], [1, 2], [7, 3], [2000, 4]]) {
     let S = null; try { S = P.make(rows, spec, { width: 900, height: 560 }, global.NetflowScene); } catch (e) { ok(false, t + ' at ' + n + ' rows threw ' + e.message); continue; }
     const bad = finite(S); ok(!bad.length, t + ' at ' + n + ' rows: ' + bad.slice(0, 3).join(', '));
     ok(S.w === 920 && S.h === 580 && !S.frame, t + ' frame');
-    if (n === 7) { const F1 = P.make(rows, spec, { width: 900, height: 560, frame: true }, global.NetflowScene); ok(F1.w === 920 && F1.h > 580 && F1.frame && F1.rects.filter((r) => r.frame).length === 2, t + ' frame: true adds the red tag and the rule'); }
+    if (n === 7) { const F1 = P.make(rows, spec, { width: 900, height: 560, frame: true }, global.NetflowScene); ok(F1.w === 920 && F1.h > 580 && F1.frame && F1.rects.filter((r) => r.frame).length === 1 && F1.rects.some((r) => r.frame === 'tag'), t + ' frame: true adds the red tag and no rule above the source'); }
     if (n >= 7 && t !== 'words') ok(S.rects.length + S.dots.length + S.polys.length + (S.curves || []).length > 0, t + ' at ' + n + ' rows draws shapes');
     /* a missing or wrong column draws a note, not a crash */
     try { const S2 = P.make(rows, Object.assign({}, spec, { x: 'nope', y: 'blank', color: 'nope2' }), { width: 400, height: 300 }, global.NetflowScene); ok(!finite(S2).length, t + ' with missing columns'); } catch (e) { ok(false, t + ' with missing columns threw ' + e.message); }
