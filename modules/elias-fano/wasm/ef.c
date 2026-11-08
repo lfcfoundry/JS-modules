@@ -78,8 +78,41 @@ static inline u32 nextOneV(const u8 *b, u32 x, u32 *val) {
 }
 u32 ef_get(const u8 *b, u32 i) { return getOne(b, i); }
 u32 ef_next(const u8 *b, u32 x) { return nextOne(b, x); }
-void ef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = getOne(b, idx[j]); }
-void ef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) { for (u32 j = 0; j < k; j++) out[j] = nextOne(b, xs[j]); }
+void ef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) {
+  // B at a time, each step done for all B before the next, so the memory reads overlap instead of waiting in turn
+  OPEN(b)
+  u32 j = 0, I[8], P[8]; u64 C[8], LO[8];
+  for (; j + 8 <= k; j += 8) {
+    for (u32 q = 0; q < 8; q++) I[q] = idx[j + q];
+    for (u32 q = 0; q < 8; q++) P[q] = s1[I[q] >> s];
+    for (u32 q = 0; q < 8; q++) { C[q] = H[P[q] >> 6]; LO[q] = lowAt(low, l, I[q]); }
+    for (u32 q = 0; q < 8; q++) { u32 i = I[q], p = P[q], rem = i - ((i >> s) << s), w = p >> 6, c; u64 cur = C[q] & (~0ULL << (p & 63));
+      while (rem >= (c = POP(cur))) { rem -= c; cur = H[++w]; } out[j + q] = (u32)(((u64)(w * 64 + sel64(cur, rem) - i) << l) | LO[q]); }
+  }
+  for (; j < k; j++) out[j] = getOne(b, idx[j]);
+}
+void ef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) {
+  // 8 at a time like ef_get_many: the sample reads and the first word reads of all 8 overlap
+  OPEN(b)
+  u32 j = 0, X[8], P[8]; u64 C[8];
+  if (n > 0) for (; j + 8 <= k; j += 8) {
+    for (u32 q = 0; q < 8; q++) X[q] = xs[j + q];
+    for (u32 q = 0; q < 8; q++) { u32 h = (u32)((u64)X[q] >> l); P[q] = (h == 0 || X[q] > maxv) ? 0 : s0[(h - 1) >> s]; }
+    for (u32 q = 0; q < 8; q++) C[q] = ~H[P[q] >> 6];
+    for (u32 q = 0; q < 8; q++) {
+      u32 x = X[q], h = (u32)((u64)x >> l), i, sp;
+      if (x > maxv) { out[j + q] = n; continue; }
+      u64 xl = (u64)x & mask(l);
+      if (h == 0) { i = 0; sp = 0; }
+      else { u32 jj = h - 1, p = P[q], rem = jj - ((jj >> s) << s), w = p >> 6, c; u64 cur = C[q] & (~0ULL << (p & 63));
+        while (rem >= (c = POP(cur))) { rem -= c; cur = ~H[++w]; }
+        u32 pz = w * 64 + sel64(cur, rem); i = pz - (h - 1); sp = pz + 1; }
+      while (i < n) { if (!((H[sp >> 6] >> (sp & 63)) & 1)) break; if (lowAt(low, l, i) >= xl) break; i++; sp++; }
+      out[j + q] = i;
+    }
+  }
+  for (; j < k; j++) out[j] = nextOne(b, xs[j]);
+}
 
 // every value, in order, into out[n]
 void ef_decode(const u8 *b, u32 *out) {

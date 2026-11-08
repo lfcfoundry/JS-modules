@@ -117,7 +117,7 @@ Node rows were measured in Node 22, not in a browser: use them only to compare r
 
 A 95% range misses about 1 end in 20 by design.
 
-**1,000,000 walkers on the same kind of network, version 2.1.0** (ms, lower is better): Node 22 80, ungoogled Chromium 155 102, Firefox 158 115, WebKitGTK 2.52.6 62 53. Version 2.1.0 is 2.4 times faster than 2.0.0 in Node (192 ms); same counts for the same seed.
+**1,000,000 walkers on the same kind of network** (ms, lower is better): ungoogled Chromium 155 102, Firefox 158 115, WebKitGTK 2.52.6 62 and 53; same counts for the same seed.
 
 **Worker threads** (2,000,000 walkers, ms, lower is better; 4-core cloud machine; includes starting the workers and adding up; counts identical to one thread): ungoogled Chromium 155 474 on one thread, 246 on 2 workers, 219 on 4; Firefox 158 589, 346, 207; WebKitGTK 2.52.6 244, 151, 178.
 
@@ -165,4 +165,4 @@ No other code from others; the ideas above are theirs.
 
 ## Full research notes
 
-The long version of this page (the history of versions 1.0.0 and 2.0.0 against 2.1.0, the earlier per-browser timings, and the longer write-ups of the loop solver and the what-if tools) is kept in the project's private knowledge base.
+The long version of this page (the earlier per-browser timings, and the longer write-ups of the loop solver and the what-if tools) is kept in the project's private knowledge base.

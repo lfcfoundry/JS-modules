@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.2 · API 2 · 2026-11-07
+
+### Quick
+getMany and nextGEQMany on a single list take 0.79x to 0.88x the time they took (20,000 random positions or values in a list of 1,000,000; median of 2 runs x 15 rounds; getMany Chromium 155 0.89 to 0.79 ms, Firefox 158 0.95 to 0.83, WebKit…
+
+### Deep
+getMany and nextGEQMany on a single list take 0.79x to 0.88x the time they took (20,000 random positions or values in a list of 1,000,000; median of 2 runs x 15 rounds; getMany Chromium 155 0.89 to 0.79 ms, Firefox 158 0.95 to 0.83, WebKitGTK 2.52.6 0.85 to 0.68; nextGEQMany 1.22 to 1.06, 1.30 to 1.10, 1.20 to 1.00). Same answers. In WebAssembly the batch now does 8 queries at a time, each step for all 8 before the next, so the memory reads of the 8 overlap instead of waiting one after another. Single get(i) and nextGEQ(x) are unchanged. Checks: all 9 elias-fano test files, plus 116,542 random batch queries against plain arrays (lists of 0 to 3,000 values, gaps up to 100,000, values at 0 and 4,294,967,295). The wasm files grow by about 0.9 KB each.
+
 ## 2.0.1 · API 2 · 2026-11-06
 
 ### Quick

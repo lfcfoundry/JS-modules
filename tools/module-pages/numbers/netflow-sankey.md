@@ -65,3 +65,28 @@ That is 3 to 26% less time. Charts under 64 bars keep the JavaScript.
 | 5,000 | 93.6 ms, 1,133,257 | 15.7 ms, 462,760 | 89.6 ms, 935,756 |
 
 In Node, d3-sankey is faster than the default at these sizes, and the default draws more crossings than d3-sankey at 5,000 items. With `stopCap: 500` this module is faster than d3-sankey and draws fewer crossings at both sizes. Browser runs of `stopCap`: not yet.
+
+**Against d3-sankey: tidiness, three made-up charts.**
+
+Compared: netflow-sankey against d3-sankey 0.12.3 (weighted crossings, lower is tidier; for every pair of links that cross, the two flows multiplied together).
+
+<!-- title: netflow-sankey leaves about half the weighted crossings of d3-sankey on three test charts, 47% to 58% of them -->
+| way | 64 links | 118 links | 222 links |
+|---|---:|---:|---:|
+| netflow-sankey | 2147 | 10840 | 35454 |
+| d3-sankey | 4608 | 22131 | 61492 |
+
+Counted in Node, so the numbers do not depend on the browser. The two tools place the columns differently, so this is one yardstick on three charts, not a proof for every chart. d3-sankey throws "circular link" when the data has a loop; netflow-sankey draws it.
+
+**Against d3-sankey: speed on a 100-item chart, cloud-browser runs.**
+
+Compared: netflow-sankey against d3-sankey (6 columns, 100 items, made-up flows, laid out warm, ms per chart, median of 40 charts, lower is faster).
+
+<!-- title: With quick mode netflow-sankey lays out a 100-item chart in 0.50 to 0.60 ms against d3-sankey's 0.72 to 1.00, but the default setting takes about 2 ms and is slower -->
+| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| netflow-sankey, quick: true | 0.50 | 0.60 | 0.60 |
+| d3-sankey | 0.72 | 1.00 | 0.80 |
+| netflow-sankey, default | 2.00 | 2.20 | 2.20 |
+
+Cloud-browser runs (shared machine, not the laptop). Quick mode keeps 74 to 78% of d3-sankey's weighted crossings and is tidier or equal on 35 to 39 of every 40 charts; the default keeps 68 to 73% but takes about four times as long as d3-sankey on small charts. On a real laptop in Firefox 160 the default was 3.7 to 5.5 times as fast as d3-sankey at 200 and 500 nodes, and about twice as slow at 72 nodes.
