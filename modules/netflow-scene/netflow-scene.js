@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.11.0 (API 1)
+ * Version 1.12.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -103,9 +103,13 @@ var NFMScene = (function () {
     var T = THEMES[name] || THEMES.light, P = { name: name };
     Object.keys(T).forEach(function (k) { if (k !== 'groups') P[k] = hex(T[k]); });
     var list = pal && PALETTES[pal] ? PALETTES[pal] : T.groups;
-    P.hex = T; P.groups = list.map(function (g) { return hex(g); });
+    P.hex = T; P.groups = list.map(function (g) { return hex(g); }); P.std = list === T.groups;
     return P;
   }
+  /* exactly three groups on the built-in set: mauve, light green and orange (places 0, 8 and 11), the three most apart for every kind of color vision
+     (worst color-vision gap 32.1 light, 28.1 dark, against 18.8 and 17.4 for the first three; owner's card, 11.08); the rest keep their order after them */
+  var THREE = [0, 8, 11];
+  function threeGroups(groups) { return THREE.map(function (i) { return groups[i]; }).concat(groups.filter(function (g, i) { return THREE.indexOf(i) < 0; })); }
 
   /* ---------------------------------------------------------------- icons: small outline pictures in a 24 x 24 box */
   var ICONS = {
@@ -318,11 +322,15 @@ var NFMScene = (function () {
       }
       gs.forEach(function (g, i) { groupIdx.set(g, i); });
       var famC = familyColors(gs.filter(function (g) { return g !== '(none)'; }), T, o.families);
+      var real = gs.filter(function (g) { return g !== '(none)'; }), G3 = null;
+      if (T.std && real.length === 3) { var t3 = threeGroups(T.groups); G3 = new Map(real.map(function (g, k) { return [g, t3[k]]; })); }
     }
     var gcol = function (g) {
       if (g !== undefined && Object.prototype.hasOwnProperty.call(gOver, g) && gOver[g]) return hex(gOver[g]);
       if (famC && famC.has(g || '')) return famC.get(g || '');
-      var i = groupIdx.get(g || '') || 0; return g === '(none)' ? T.neutral : T.groups[i % T.groups.length];
+      var i = groupIdx.get(g || '') || 0; if (g === '(none)') return T.neutral;
+      if (G3 && G3.has(g || '')) return G3.get(g || '');
+      return T.groups[i % T.groups.length];
     };
     var maxVisits = 0, maxTraffic = 0.0001;
     (L.nodes || []).forEach(function (n) { if (n.visits > maxVisits) maxVisits = n.visits; if (n.traffic > maxTraffic) maxTraffic = n.traffic; });
@@ -1661,7 +1669,7 @@ var NFMScene = (function () {
   }
 
   return {
-    make: make, addTitles: addTitles, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, familyColors: familyColors, THEMES: THEMES,
+    make: make, addTitles: addTitles, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, threeGroups: threeGroups, familyColors: familyColors, THEMES: THEMES,
     PALETTES: PALETTES, RAMPS: RAMPS, RAMP_NAMES: RAMP_NAMES, rampAt: rampAt, ICONS: ICONS, SHAPE_KIND: SHAPE_KIND, SHAPE_NAMES: SHAPE_NAMES, shapePts: shapePts,
     css: css, hex: hex, toHex: toHex, mix: mix, alpha: alpha, arrowTri: arrowTri, bez: bez, HEAD: HEAD, labelBox: labelBox
   };

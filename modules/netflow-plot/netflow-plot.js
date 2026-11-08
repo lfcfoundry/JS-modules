@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.14.9 (API 2)
+ * Version 2.15.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -173,6 +173,9 @@ var NetflowPlot = (function () {
       if (mark) { mark.x0 = cx - r1; mark.y0 = cy - r1; mark.x1 = cx + r1; mark.y1 = cy + r1; mark.wedge = [cx, cy, r0, r1, a0, a1]; S.marks.push(mark); }
     };
     F.color = function (i) { var c = T.groups[((i % T.groups.length) + T.groups.length) % T.groups.length]; return F.hiCi >= 0 && i !== F.hiCi ? (NS.mix ? NS.mix(c, T.bg, 0.6) : F.gray) : c; };   /* when one series is highlighted, the others keep their own color at about 40% strength (as if 0.4 opacity on the background, but solid, so values on them stay readable) */
+    /* exactly three color groups on the built-in set: mauve, light green and orange, the three most apart for every kind of color vision (scene's threeGroups, scene 1.12.0; plot 2.15.0) */
+    F.three = function (n) { if (n === 3 && T.std && NS.threeGroups && !F.t3) { T.groups = NS.threeGroups(T.groups); F.groups = T.groups; F.t3 = true; } };
+    F.cats3 = function (keys, vals, sort, cap) { var r = catsOf(keys, vals, sort, cap); F.three(r.list.length); return r; };
     F.gray = NS.mix ? NS.mix(T.muted, T.bg, 0.45) : T.muted;   /* the other series when one is highlighted */
     /** Axes: x and y are { kind: 'num' | 'time' | 'band', lo, hi, list, fmt, map(v) -> px, cats }. */
     F.axes = function (ax, ay, xName, yName, grid) {
@@ -219,11 +222,15 @@ var NetflowPlot = (function () {
     F.legend = function (title, names, colorOf) {
       title = title ? axisName(title) || String(title) : ''; S.legendTitle = title; names.slice(0, 24).forEach(function (n, i) { S.legend.push({ k: 'group', c: colorOf ? colorOf(n, i) : F.color(i), t: n === '' ? '(blank)' : String(n), key: 'p:' + n }); });
       if (!F.keyRow) return;   /* a row of swatches over the plot (room was made for it), so the picture and its SVG carry their own key */
-      var x = F.L, y = 14, cw = 6.6, more = 0;
-      if (title) { F.text(x, y + 4, clip(title, 24) + ':', 12, T.fg, { align: 'l', bold: true }); x += Math.min(24, String(title).length + 1) * cw * 1.05 + 10; }
-      var ws = S.legend.map(function (l) { return 16 + Math.min(18, l.t.length) * cw + 14; }), end = x; ws.forEach(function (w) { end += w; });
+      var x = F.L, y = 14, cw = 6.6, more = 0, nl = 18;
+      var tw = title ? Math.min(24, String(title).length + 1) * cw * 1.05 + 10 : 0, sum = function (m) { var e = 0; S.legend.forEach(function (l) { e += 16 + Math.min(m, l.t.length) * cw + 14; }); return e - 14; };
+      if (S.legend.length <= 3 && x + tw + sum(nl) > F.R) {   /* three names or fewer are always all shown (since 2.15.0): start at the left edge, then leave out the key's title, then shorten the names */
+        x = 8; if (x + tw + sum(nl) > F.R) { title = ''; tw = 0; } while (nl > 4 && x + sum(nl) > F.R) nl--;
+      }
+      if (title) { F.text(x, y + 4, clip(title, 24) + ':', 12, T.fg, { align: 'l', bold: true }); x += tw; }
+      var ws = S.legend.map(function (l) { return 16 + Math.min(nl, l.t.length) * cw + 14; }), end = x; ws.forEach(function (w) { end += w; });
       var lim = end - 14 > F.R ? F.R - 64 : F.R;   /* when not every name fits, room is kept for "+N more" so it never sits on the last name */
-      S.legend.forEach(function (l, i) { var w = ws[i]; if (more || x + w - 14 > lim) { more++; return; } F.rect(x, y - 5, 11, 11, l.c); F.text(x + 16, y + 4, clip(l.t, 18), 12, T.fg, { align: 'l' }); x += w; });
+      S.legend.forEach(function (l, i) { var w = ws[i]; if (more || x + w - 14 > lim) { more++; return; } F.rect(x, y - 5, 11, 11, l.c); F.text(x + 16, y + 4, clip(l.t, nl), 12, T.fg, { align: 'l' }); x += w; });
       if (more) F.text(x, y + 4, '+' + more + ' more', 12, T.muted, { align: 'l' });
     };
     return F;
@@ -333,7 +340,7 @@ var NetflowPlot = (function () {
   var CH = {};
   CH.bar = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color && sp.color !== sp.x ? R.cat(sp.color) : null;
-    var xc = catsOf(xk, v, sp.top > 0 ? 'value' : sp.sort || 'value', sp.top > 0 ? Math.floor(sp.top) + 1 : sp.horizontal ? 60 : 50), cc = ck ? catsOf(ck, v, 'value', 12) : { list: [''], other: null };
+    var xc = catsOf(xk, v, sp.top > 0 ? 'value' : sp.sort || 'value', sp.top > 0 ? Math.floor(sp.top) + 1 : sp.horizontal ? 60 : 50), cc = ck ? F.cats3(ck, v, 'value', 12) : { list: [''], other: null };
     var cell = cross(xk, ck, v, how, xc, cc), mode = ck ? (sp.stack || 'stack') : 'none', horiz = !!sp.horizontal;
     if (sp.top > 0 && xc.other && v && how === 'sum' && !G_ADD.test(sp.y)) {   /* top: the rest is one bar; a value that does not add up (a rate, a score) shows the average of the rest, named so */
       var OA = 'Others, average'; xc.list = xc.list.map(function (x) { return x === 'Other' ? OA : x; });
@@ -388,7 +395,7 @@ var NetflowPlot = (function () {
   };
   CH.dotplot = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color ? R.cat(sp.color) : null;
-    var xc = catsOf(xk, v, sp.sort || 'value', 60), cc = ck ? catsOf(ck, v, 'value', 8) : { list: [''], other: null }, cell = cross(xk, ck, v, how, xc, cc), all = [];
+    var xc = catsOf(xk, v, sp.sort || 'value', 60), cc = ck ? F.cats3(ck, v, 'value', 8) : { list: [''], other: null }, cell = cross(xk, ck, v, how, xc, cc), all = [];
     cell.forEach(function (e) { all.push(e.v); });
     if (!ck && !sp.sort) { var cv = function (x) { var e = cell.get(gk(x, '')); return e && e.v === e.v ? e.v : -Infinity; }; xc.list = xc.list.slice().sort(function (p, q) { return cv(q) - cv(p); }); }   /* one dot per name: biggest first by the drawn value (an average sorts by the average, not the total; since 2.14.7) */
     F.L = Math.min(220, 20 + 7 * Math.min(28, Math.max.apply(null, xc.list.map(function (s) { return String(s).length; }).concat([4]))));
@@ -411,7 +418,7 @@ var NetflowPlot = (function () {
   /** Rows sorted along x, one line per color category; smooth = moving average, index = each line from 100 at its first value. */
   function series(F, R, sp) {
     var x = R.num(sp.x), y = sp.y ? R.num(sp.y) : null, ck = sp.color ? R.cat(sp.color) : null, how = sp.agg || 'sum';
-    var cc = ck ? catsOf(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map(), distinct = 0;
+    var cc = ck ? F.cats3(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map(), distinct = 0;
     /* each x of a line keeps its first row and value as plain numbers; a list is made only when a second row lands on the same x (most lines
        have one row per x, so 20,000 rows no longer make 40,000 small lists; since 2.14.5). The values and rows come out the same. */
     for (var i = 0; i < x.length; i++) {
@@ -517,7 +524,7 @@ var NetflowPlot = (function () {
     var x = R.num(sp.x), y = R.num(sp.y), sz = sp.size ? R.num(sp.size) : null, ck = sp.color ? R.cat(sp.color) : null, n = x.length;
     var ax = axisFor(x, !!x.time, F.L, F.R, false), ay = axisFor(y, !!y.time, F.B, F.Tp, false);
     F.axes(ax, ay, sp.x, sp.y);
-    var cc = ck ? catsOf(ck, null, 'value', 12) : null, ci = cc ? new Map(cc.list.map(function (c, i) { return [c, i]; })) : null;
+    var cc = ck ? F.cats3(ck, null, 'value', 12) : null, ci = cc ? new Map(cc.list.map(function (c, i) { return [c, i]; })) : null;
     var smax = 0; if (sz) for (var i = 0; i < n; i++) if (sz[i] > smax) smax = sz[i];
     var base = n > 20000 ? 1.6 : n > 2000 ? 2.4 : 3.6, op = n > 20000 ? 0.45 : n > 2000 ? 0.65 : 0.85, pts = [];
     for (i = 0; i < n; i++) {
@@ -540,7 +547,7 @@ var NetflowPlot = (function () {
     cells.forEach(function (poly) { if (!poly || poly.length < 6) return; for (var q = 0; q < poly.length; q += 2) F.line([poly[q], poly[q + 1], poly[(q + 2) % poly.length], poly[(q + 3) % poly.length]], 0.8, F.alpha(F.T.muted, 0.6)); });
   };
   CH.beeswarm = function (F, R, sp) {
-    var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? catsOf(ck, null, 'value', 12) : null, ax = axisFor(x, !!x.time, F.L, F.R, false), n = x.length;
+    var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? F.cats3(ck, null, 'value', 12) : null, ax = axisFor(x, !!x.time, F.L, F.R, false), n = x.length;
     F.axes(ax, null, sp.x, ''); var r = n > 3000 ? 2 : n > 800 ? 3 : 4.5, mid = (F.Tp + F.B) / 2;
     var ord = []; for (var i = 0; i < n; i++) if (x[i] === x[i]) ord.push(i);
     ord.sort(function (a, b) { return x[a] - x[b]; });
@@ -561,7 +568,7 @@ var NetflowPlot = (function () {
     if (ck) F.legend(sp.color, cc.list);
   };
   CH.hist = function (F, R, sp) {
-    var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? catsOf(ck, null, 'value', 8) : { list: [''], other: null };
+    var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? F.cats3(ck, null, 'value', 8) : { list: [''], other: null };
     var t = axisFor(x, !!x.time, F.L, F.R, false, Math.min(60, sp.bins || Math.max(8, Math.round(Math.sqrt(x.length))))), lo = t.lo, hi = t.hi, nb = Math.max(1, Math.min(200, sp.bins || Math.ceil(Math.log2(Math.max(2, x.length)) + 1) * 2)), w = (hi - lo) / nb || 1;
     var cnt = cc.list.map(function () { return new Float64Array(nb); }), rows = [];
     for (var b = 0; b < nb; b++) rows.push([]);
@@ -607,7 +614,7 @@ var NetflowPlot = (function () {
     });
   };
   function densityLines(F, R, sp, ridge) {
-    var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? catsOf(ck, null, ridge ? 'name' : 'value', ridge ? 30 : 8) : { list: [''], other: null }, by = new Map();
+    var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? F.cats3(ck, null, ridge ? 'name' : 'value', ridge ? 30 : 8) : { list: [''], other: null }, by = new Map();
     for (var i = 0; i < x.length; i++) { if (x[i] !== x[i]) continue; var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(x[i]); }
     var ax = axisFor(x, !!x.time, F.L, F.R, false, 8), m = 160, curves = [], top = 0;
     cc.list.forEach(function (c, ci) { var l = by.get(c); if (!l || l.length < 2) return; var bw = silverman(l), d = kde(l, ax.lo, ax.hi, m, bw); for (var j = 0; j < m; j++) top = Math.max(top, d[j]); curves.push({ c: c, ci: ci, d: d, n: l.length }); });
@@ -678,6 +685,7 @@ var NetflowPlot = (function () {
   function donutCore(F, R, sp, hole) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', xc = catsOf(xk, v, 'value', 12), cell = cross(xk, null, v, how, xc, { other: null }), tot = 0, parts = [];
     xc.list.forEach(function (x) { var e = cell.get(gk(x, '')); if (e && e.v > 0) { parts.push({ x: x, v: e.v, rows: e.rows }); tot += e.v; } });
+    F.three(parts.length);
     var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, r1 = Math.min(F.W, F.B - F.Tp) / 2 - 30, r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
     parts.forEach(function (p, i) {
       var span = p.v / tot * TAU; F.wedge(cx, cy, r0, r1, a + pad / 2, a + span - pad / 2, F.color(i), { rows: p.rows, t: (p.x || '(blank)') + ': ' + fmtNum(p.v) + ' (' + (p.v / tot * 100).toFixed(1) + '%)' });
@@ -691,7 +699,7 @@ var NetflowPlot = (function () {
   CH.donut = function (F, R, sp) { donutCore(F, R, sp, true); };
   CH.radialbar = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color ? R.cat(sp.color) : null;
-    var xc = catsOf(xk, v, sp.sort || 'none', 60), cc = ck ? catsOf(ck, v, 'value', 10) : { list: [''], other: null }, cell = cross(xk, ck, v, how, xc, cc), top = 0;
+    var xc = catsOf(xk, v, sp.sort || 'none', 60), cc = ck ? F.cats3(ck, v, 'value', 10) : { list: [''], other: null }, cell = cross(xk, ck, v, how, xc, cc), top = 0;
     xc.list.forEach(function (x) { var s = 0; cc.list.forEach(function (c) { var e = cell.get(gk(x, c)); if (e && e.v > 0) s += e.v; }); top = Math.max(top, s); });
     var cx = F.W / 2, cy = (F.Tp + F.B) / 2 + 8, R1 = Math.min(F.W, F.B - F.Tp) / 2 - 40, R0 = R1 * 0.3, n = xc.list.length, step = TAU / Math.max(1, n), rs = function (t) { return Math.sqrt(R0 * R0 + (R1 * R1 - R0 * R0) * t / (top || 1)); };
     xc.list.forEach(function (x, i) {
@@ -704,7 +712,7 @@ var NetflowPlot = (function () {
   CH.parallel = function (F, R, sp) {
     var cols = (sp.cols || []).slice(0, 12); if (cols.length < 2) { F.text(F.W / 2, F.H / 2, 'Pick two or more number columns.', 14, F.T.muted); return; }
     var data = cols.map(function (k) { return R.num(k); }), axes = cols.map(function (k, j) { return axisFor(data[j], !!data[j].time, F.B, F.Tp, false, 5); }), step = (F.R - F.L) / (cols.length - 1);
-    var ck = sp.color ? R.cat(sp.color) : null, cc = ck ? catsOf(ck, null, 'value', 10) : null, n = R.n, op = n > 5000 ? 0.08 : n > 500 ? 0.25 : 0.6;
+    var ck = sp.color ? R.cat(sp.color) : null, cc = ck ? F.cats3(ck, null, 'value', 10) : null, n = R.n, op = n > 5000 ? 0.08 : n > 500 ? 0.25 : 0.6;
     for (var i = 0; i < n && i < 50000; i++) {
       var pts = []; for (var j = 0; j < cols.length; j++) { var v = data[j][i]; if (v !== v) { pts = null; break; } pts.push(F.L + j * step, axes[j].map(v)); }
       if (pts) F.line(pts, 1, F.alpha(F.color(ck ? Math.max(0, cc.list.indexOf(cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i])) : 0), op));
@@ -714,7 +722,7 @@ var NetflowPlot = (function () {
   };
   CH.splom = function (F, R, sp) {
     var cols = (sp.cols || []).slice(0, 6); if (cols.length < 2) { F.text(F.W / 2, F.H / 2, 'Pick two or more number columns.', 14, F.T.muted); return; }
-    var k = cols.length, size = Math.min((F.R - F.L) / k, (F.B - F.Tp) / k), data = cols.map(function (c) { return R.num(c); }), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? catsOf(ck, null, 'value', 10) : null;
+    var k = cols.length, size = Math.min((F.R - F.L) / k, (F.B - F.Tp) / k), data = cols.map(function (c) { return R.num(c); }), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? F.cats3(ck, null, 'value', 10) : null;
     var n = R.n, r = n > 5000 ? 1 : n > 500 ? 1.6 : 2.4;
     for (var a = 0; a < k; a++) for (var b = 0; b < k; b++) {
       var x0 = F.L + b * size, y0 = F.Tp + a * size, pad = 6, ax = axisFor(data[b], false, x0 + pad, x0 + size - pad, false, 3), ay = axisFor(data[a], false, y0 + size - pad, y0 + pad, false, 3);
@@ -737,7 +745,7 @@ var NetflowPlot = (function () {
   CH.slope = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = R.cat(sp.color || sp.x);
     var xc = catsOf(xk, null, 'name', 0); if (xc.list.length < 2) { F.text(F.W / 2, F.H / 2, 'The x column needs two or more values.', 14, F.T.muted); return; }
-    var A = xc.list[0], B = xc.list[xc.list.length - 1], cc = catsOf(ck, v, 'value', 20), cell = cross(xk, ck, v, how, { list: xc.list, other: null }, cc), all = [];
+    var A = xc.list[0], B = xc.list[xc.list.length - 1], cc = F.cats3(ck, v, 'value', 20), cell = cross(xk, ck, v, how, { list: xc.list, other: null }, cc), all = [];
     cc.list.forEach(function (c) { [A, B].forEach(function (x) { var e = cell.get(gk(x, c)); if (e) all.push(e.v); }); });
     F.L = 200; F.R = F.W - 200; var ay = axisFor(all, false, F.B, F.Tp, false);
     F.line([F.L, F.Tp, F.L, F.B], 1.2, F.T.muted); F.line([F.R, F.Tp, F.R, F.B], 1.2, F.T.muted); F.text(F.L, F.B + 18, A, 12, F.T.fg, { bold: true }); F.text(F.R, F.B + 18, B, 12, F.T.fg, { bold: true });
@@ -750,7 +758,7 @@ var NetflowPlot = (function () {
   };
   CH.marimekko = function (F, R, sp) {
     var xk = R.cat(sp.x), ck = R.cat(sp.color || sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? 'sum' : 'count';
-    var xc = catsOf(xk, v, 'value', 20), cc = catsOf(ck, v, 'value', 10), cell = cross(xk, ck, v, how, xc, cc), tot = 0, colT = new Map();
+    var xc = catsOf(xk, v, 'value', 20), cc = F.cats3(ck, v, 'value', 10), cell = cross(xk, ck, v, how, xc, cc), tot = 0, colT = new Map();
     xc.list.forEach(function (x) { var s = 0; cc.list.forEach(function (c) { var e = cell.get(gk(x, c)); if (e && e.v > 0) s += e.v; }); colT.set(x, s); tot += s; });
     var at = F.L, W = F.R - F.L, Hh = F.B - F.Tp;
     xc.list.forEach(function (x) {

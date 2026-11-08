@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.14.9 · API 2**
+**Version 2.15.0 · API 2**
 
-**Tested in:** node tests; label browser check in Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Node suite (434 checks); tests/netflow-plot-labels-browser.js in Chromium 155, Firefox 158, WebKitGTK 2.52.6: 36 charts, no touching labels
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
