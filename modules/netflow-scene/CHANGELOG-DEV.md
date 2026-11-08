@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.3 · API 1 · 2026-11-07
+
+### Quick
+frame: no rule above the source
+
+### Details
+With frame: true (or theme 'editorial'), the thin dark rule under the picture is gone and the source sits where it sits without a frame (15 units under the picture). The red tag stays. Pictures without a frame are unchanged.
+
+### Deep
+Requested by the owner (Economist frame card, 2026.11.07).
+
 ## 1.10.1 · API 1 · 2026-11-07
 
 ### Quick
