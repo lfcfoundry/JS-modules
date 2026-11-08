@@ -176,5 +176,13 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   ok(small.length > 3 && small.length < 41 && close(small) === 0, 'chord at 300 wide: ' + small.length + ' names, none closer than one line (' + close(small) + ' too close)');
   ok(big.length === 41 && close(big) === 0, 'chord at 900 wide: all 41 names (' + big.length + ')');
 }
+/* warm() (since 1.6.0 / circular 1.4.0): draws small made-up pictures and changes nothing about later ones */
+{
+  const HY = require('../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
+  const rows = [{ from: 'a', to: 'b', value: 3 }, { from: 'a', to: 'c', value: 5 }, { from: 'b', to: 'd', value: 2 }, { from: 'c', to: 'e', value: 4 }];
+  const h0 = HY.toSvg(rows), s0 = HY.toSvg(rows, { type: 'sunburst' }), c0 = CI.toSvg(rows), b0 = CI.toSvg(rows, { type: 'bundles' });
+  ok(HY.warm() === true && CI.warm() === true, 'warm() runs and returns true in both modules');
+  ok(HY.toSvg(rows) === h0 && HY.toSvg(rows, { type: 'sunburst' }) === s0 && CI.toSvg(rows) === c0 && CI.toSvg(rows, { type: 'bundles' }) === b0, 'pictures are the same after warm()');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

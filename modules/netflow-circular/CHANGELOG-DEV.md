@@ -1,5 +1,16 @@
 # netflow-circular developer changelog
 
+## 1.4.0 · API 1 · 2026-11-08
+
+### Quick
+New opt-in NetflowCircular.warm(): draws two small made-up pictures in an idle callback; the first real chord/bundles (120 links) then takes 0.46 (Chromium 156), 0.69 (Firefox 158) and 0.58 (WebKitGTK 2.52.6) of the time. Idle work 7-14 ms. Nothing changes unless you call it.
+
+### Details
+New API, opt-in, no change to existing calls. Returns true when it ran, false when NetflowScene is missing. 11 paired fresh pages per browser: 0.46 (11/11), 0.69 (11/11), 0.58 (10/11). Owner approved the card ('Yes, add both').
+
+### Deep
+netflow-circular 1.4.0: opt-in warm(). First chord+bundles of 120 links after an idle warm(): Chromium 156 0.46 (22.9 ms base, idle 14.3 ms), Firefox 158 0.69, WebKitGTK 2.52.6 0.58 (idle 7, 7 ms). 11 pairs.
+
 ## 1.3.1 · API 1 · 2026-11-08
 
 ### Quick

@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.5.1 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Node 22: 949 hierarchy and circular checks, including 2 new text-amount checks
+**Tested in:** node tests (953); first-picture paired runs, fresh page per sample, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -58,6 +58,7 @@ svgElement.outerHTML = NetflowScene.toSvg(S, 'Treemap');
 - Options: `nest` (`auto`, `links` or `groups`), `sized` (box sizes from `sizeV`), `treeShape` (`tidy`, the default, `cluster`, `radial`, `radialCluster` or `indented`).
 - Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `scene()` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - Helpers: `hierarchy`, `sums`, `packSiblings`, `enclose`, `linkValue`, `itemValue`, `sector`, `pushSector`.
+- `NetflowHierarchy.warm()` (optional, since 1.6.0): call it from an idle callback, after `netflow-scene.js` has loaded. It draws a small made-up treemap and sunburst once and throws them away, so the engine has already optimized the drawing code when your first real picture comes. 6 to 11 ms of work; the first treemap and sunburst of 250 items then took 0.50 (ungoogled Chromium 156), 0.82 (Firefox 158) and 0.60 (WebKitGTK 2.52.6) of the time without it. Returns `true`, or `false` when `NetflowScene` is missing. Pictures are the same with or without it.
 
 Use with netflow-engine: load the files as page scripts (or keep the folders side by side in Node) and the views join `NetflowEngine.VIEWS`; or hand them over with `NetflowEngine.use('hierarchy', NetflowHierarchy)`. Then `NetflowEngine.build(graph, { view: 'treemap' })` lays the map out and `NetflowHierarchy.scene(L, options, NetflowScene)` draws it.
 
