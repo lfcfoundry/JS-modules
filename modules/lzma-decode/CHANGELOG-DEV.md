@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-11-07
+
+### Quick
+Refill reads src[ip++] (past the end reads as 0, as before); long matches far enough back use copyWithin. Decode of 3 MB text plus 1.3 MB HTML vs 1.6.0: Chromium 1.00 (level), Firefox 0.85, WebKitGTK 0.96. Same output.
+
+### Details
+Two edits in lzmaDecode: the range coder refill drops the bounds check (a typed array read past the end gives undefined, which | turns into 0, the same as the old check), and matches longer than 24 bytes whose distance is at least the length are copied with copyWithin, clamped to the output size. Requested by the owner.
+
+### Deep
+Faster plain-JavaScript decode in Firefox and WebKit; same output.
+
 ## 1.6.0 · API 1 · 2026-11-07
 
 ### Quick

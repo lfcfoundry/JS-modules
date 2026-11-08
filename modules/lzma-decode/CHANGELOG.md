@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.1 · API 1 · 2026-11-07
+- The plain JavaScript decoder is faster in Firefox and WebKit.
+
 ## 1.6.0 · API 1 · 2026-11-07
 - Repeat unpacks are faster: one WebAssembly Instance is kept between calls, up to 16 MB of memory
 
