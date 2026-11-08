@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.6 · API 1 · 2026-11-07
+- Line charts draw 1.1 to 1.7 times faster; straight pieces written as L
+
 ## 1.10.5 · API 1 · 2026-11-07
 - Area, hexbin and density charts write less SVG text and draw faster.
 

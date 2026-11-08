@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.10.6 · API 1 · 2026-11-07
+
+### Quick
+SVG line charts are about a third the text and open faster.
+
+### Details
+Line charts (and gridlines) reach toSvg as curve pieces whose two handles sit a third and two thirds of the way along, which is a straight line. toSvg now writes those pieces as L instead of C: the same line in a third of the text. Whole page draw of a 20,000-point line: Chromium 73.9 to 52.2 ms, Firefox 63 to 38 ms, WebKitGTK 76 to 47 ms; 2,000 points 1.1 to 1.3 times faster. Pixels on the 24 label-check charts plus the 20,000-point line: 99.1 to 100 percent identical in all three browsers (antialiasing on line edges); text 825 KB to 276 KB for the big line.
+
+### Deep
+speed, same lines (was 1.10.2 before 1.10.3 merged first)
+
 ## 1.10.5 · API 1 · 2026-11-07
 
 ### Quick

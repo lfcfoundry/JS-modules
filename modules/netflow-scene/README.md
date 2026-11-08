@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.10.5 · API 1**
+**Version 1.10.6 · API 1**
 
-**Tested in:** Node 22: scene, plot and hierarchy checks; pixels compared in Chromium 155, Firefox 158 and WebKitGTK 2.52.6 (hexbin, density, area): 0 channels differ
+**Tested in:** node tests; label browser check in Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
