@@ -104,6 +104,7 @@ roaring-wasm 1.1.0 (CRoaring in WebAssembly) and FastIntegerCompression 0.1.0 (v
 | Is x present, 20,000 lookups, sparse | 2.3 / 2.7 / 2.0 | 2.6 / 3.0 / 2.7 (`containsMany` 2.2 / 2.7 / 2.7) | `containsMany` 1.9 / 2.3 / 2.3 | 3.6 / 4.3 / 4.3 | no lookups |
 | Same, dense | 2.0 / 2.7 / 2.0 | 0.7 / 1.3 / 0.67 (`containsMany` 0.33 / 0.67 / 0.33) | `containsMany` 0.33 / 0.67 / 0.33 | 0.8 / 1.0 / 0.67 | no lookups |
 | Decode everything, sparse (since 2.1.2) | 4.2 / 4.3 / 4.3 | 2.6 / 3.0 / 1.7 | 2.1 / 2.7 / 1.0 | 2.2 / 2.7 / 1.3 | 7.9 / 12 / 11 |
+| Same, into a reused array (`toArray(out)`; roaring `toUint32Array(out)`) | 2.7 / 2.7 / 3.0 | 1.0 / 1.0 / 1.3 | 0.53 / 0.67 / 0.67 | 0.6 / 1.0 / 0.67 | no such option |
 | Same, dense | 3.7 / 5.0 / 3.7 | 2.8 / 3.0 / 2.0 | 2.8 / 3.3 / 2.0 | 3.2 / 3.3 / 2.0 | 5.6 / 8.3 / 7 |
 | Intersect, sparse (since 2.1.2) | 7.0 / 5.7 / 7.3 | 2.0 / 1.7 / 3.0 | 1.2 / 1.0 / 2.0 | 2.7 / 2.7 / 3.3 | none |
 | Same, dense (since 2.1.2) | 6.1 / 4.7 / 5.3 | 0.57 / 0.33 / 0.33 | 0.47 / 0.33 / 0.33 | 1.4 / 1.0 / 1.3 | none |
