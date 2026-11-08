@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.16.0 · API 2**
+**Version 2.16.1 · API 2**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79-1, Firefox 158.0, WebKitGTK 2.52.6
+**Tested in:** node tests; area make() paired fresh-page runs, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

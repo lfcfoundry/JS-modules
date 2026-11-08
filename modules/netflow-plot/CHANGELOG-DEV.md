@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.16.1 · API 2 · 2026-11-08
+
+### Quick
+Area charts no longer build the pointing text of every column up front; it is made when you point at a column. Same text and pictures. make() of a 20,000-row, 3-series area chart, first open: Chromium 156 0.89, Firefox 158 0.91, WebKitGTK 2.52.6 0.89 (lower is better); no change at 2,000 rows.
+
+### Details
+Each column's mark gets a getter for its text (same string as before). Owner approved ('Yes, ship it'). 11 paired fresh pages per browser, make() only: 20,000 rows 0.89 / 0.91 / 0.89 (10, 10, 9 of 11 faster), 2,000 rows 1.07 / 1.06 / 0.82 (noise). Anything that copies a mark by value still gets the same text.
+
+### Deep
+netflow-plot 2.16.1: lazy area pointing text (H43). 20,000 rows, 3 series, make() first open, 11 pairs: Chromium 156 0.89 (23.7 to 87.6 ms base), Firefox 158 0.91, WebKitGTK 2.52.6 0.89; 2,000 rows 1.07 / 1.06 / 0.82 noise. Same SVG and text. Source: aesthetics-usability/area-hover-lazy-2026.11.08/FINDINGS.md
+
 ## 2.16.0 · API 2 · 2026-11-08
 
 ### Quick

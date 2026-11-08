@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.16.0 (API 2)
+ * Version 2.16.1 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -517,7 +517,9 @@ var NetflowPlot = (function () {
       F.band(px, top, bot, F.alpha(col, mode === 'none' ? 0.35 : 0.85));
       var pts = []; for (j = 0; j < M; j++) pts.push(px[j], top[j]); F.line(pts, 1.2, col);
     }
-    for (j = 0; j < M; j++) { var parts = []; for (k = 0; k < K; k++) if (Y[k][j]) parts.push((s.list[k].name || 'value') + ' ' + fmtNum(Y[k][j])); F.S.marks.push({ x0: px[j] - 3, x1: px[j] + 3, y0: F.Tp, y1: F.B, t: (s.time ? dayText(X[j]) : fmtNum(X[j])) + ': ' + parts.join(', ') }); }
+    var nm = s.list.map(function (l) { return l.name || 'value'; });   /* the tooltip text of a column is built when it is asked for (a getter), not for every column up front (since 2.16.1) */
+    function colMark(j) { return { x0: px[j] - 3, x1: px[j] + 3, y0: F.Tp, y1: F.B, get t() { var parts = [], q; for (q = 0; q < K; q++) if (Y[q][j]) parts.push(nm[q] + ' ' + fmtNum(Y[q][j])); return (s.time ? dayText(X[j]) : fmtNum(X[j])) + ': ' + parts.join(', '); } }; }
+    for (j = 0; j < M; j++) F.S.marks.push(colMark(j));
     if (K > 1) F.legend(sp.color, s.cats);
   };
   function scatterCore(F, R, sp, join) {
