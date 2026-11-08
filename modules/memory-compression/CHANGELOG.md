@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.14.1 · API 2 · 2026-11-08
+- Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
+
 ## 2.14.0 · API 2 · 2026-11-08
 - warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
 
