@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.12.1 (API 1)
+ * Version 1.13.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1578,7 +1578,22 @@ var NFMScene = (function () {
     if (title) out.push('<title>' + esc(title) + '</title>');
     out.push('<rect x="' + f(S.x0) + '" y="' + f(S.y0) + '" width="' + f(S.w) + '" height="' + f(S.h) + '" fill="' + css(T.bg) + '"/>');
     S.rects.filter(function (r) { return r.layer === 0; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });
-    S.polys.forEach(function (p) { var d = 'M'; for (var i = 0; i < p.pts.length; i += 2) d += (i ? 'L' : '') + f(p.pts[i]) + ' ' + f(p.pts[i + 1]); out.push('<path d="' + d + 'Z" fill="' + css(p.fill) + '"' + (p.stroke && !(p.stroke[3] <= 0) ? ' stroke="' + css(p.stroke) + '" stroke-width="1.5"' : '') + op(p) + '/>'); });   /* a fully see-through outline is left out (since 1.10.5): same pixels, less text */
+    /* a run of four-corner pieces where each starts on the right edge of the one before, with the same look (a band under a line, cut in steps for the canvas) is written as one outline:
+       top edge along, bottom edge back (since 1.13.0; the faint seams between pieces go away). At most 128 pieces an outline, since WebKit paints one long outline about 5x slower. A fully see-through outline is left out (since 1.10.5): same pixels, less text */
+    var CAPQ = 128, PL = S.polys, pi = 0, same = function (p, q) { var a = p.fill, b = q.fill, c = p.stroke || [0, 0, 0, 0], e = q.stroke || [0, 0, 0, 0]; return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3] && c[0] === e[0] && c[1] === e[1] && c[2] === e[2] && c[3] === e[3] && p.a === q.a; };
+    var tail = function (p) { return '" fill="' + css(p.fill) + '"' + (p.stroke && !(p.stroke[3] <= 0) ? ' stroke="' + css(p.stroke) + '" stroke-width="1.5"' : '') + op(p) + '/>'; };
+    while (pi < PL.length) {
+      var p = PL[pi], pj = pi;
+      if (p.pts.length === 8 && !(p.stroke && p.stroke[3] > 0)) while (pj + 1 < PL.length && pj - pi + 1 < CAPQ) { var q = PL[pj + 1], r = PL[pj].pts; if (q.pts.length === 8 && q.pts[0] === r[2] && q.pts[1] === r[3] && q.pts[6] === r[4] && q.pts[7] === r[5] && same(p, q)) pj++; else break; }
+      if (pj > pi) {
+        var d = 'M' + f(p.pts[0]) + ' ' + f(p.pts[1]), k;
+        for (k = pi; k <= pj; k++) d += 'L' + f(PL[k].pts[2]) + ' ' + f(PL[k].pts[3]);
+        for (k = pj; k >= pi; k--) d += 'L' + f(PL[k].pts[4]) + ' ' + f(PL[k].pts[5]);
+        d += 'L' + f(p.pts[6]) + ' ' + f(p.pts[7]);
+        out.push('<path d="' + d + 'Z' + tail(p)); pi = pj + 1; continue;
+      }
+      var d1 = 'M'; for (var i = 0; i < p.pts.length; i += 2) d1 += (i ? 'L' : '') + f(p.pts[i]) + ' ' + f(p.pts[i + 1]); out.push('<path d="' + d1 + 'Z' + tail(p)); pi++;
+    }
     var defs = [];
     S.ribbons.forEach(function (r, ri) { var fill = css(r.color); if (r.color2) { defs.push('<linearGradient id="rg' + ri + '" gradientUnits="userSpaceOnUse" x1="' + f(r.x0) + '" y1="0" x2="' + f(r.x1) + '" y2="0"><stop offset="0" stop-color="' + css([r.color[0], r.color[1], r.color[2], 1]) + '"/><stop offset="1" stop-color="' + css([r.color2[0], r.color2[1], r.color2[2], 1]) + '"/></linearGradient>'); fill = 'url(#rg' + ri + ')'; } out.push('<path d="M' + f(r.x0) + ' ' + f(r.y0a) + 'C' + f(r.xm) + ' ' + f(r.y0a) + ' ' + f(r.xm) + ' ' + f(r.y1a) + ' ' + f(r.x1) + ' ' + f(r.y1a) + 'L' + f(r.x1) + ' ' + f(r.y1b) + 'C' + f(r.xm) + ' ' + f(r.y1b) + ' ' + f(r.xm) + ' ' + f(r.y0b) + ' ' + f(r.x0) + ' ' + f(r.y0b) + 'Z" fill="' + fill + '"' + (r.color2 ? ' fill-opacity="' + f(r.color[3]) + '"' : '') + op(r) + '/>'); });
     if (defs.length) out.splice(out.length - S.ribbons.length, 0, '<defs>' + defs.join('') + '</defs>');
