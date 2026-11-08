@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.14.1 · API 2**
+**Version 2.15.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79-1, Firefox 158.0, WebKitGTK 2.52.6
+**Tested in:** Chromium 156, Firefox 160 and 158, WebKitGTK 2.52.6, Android Chrome 156; node tests (89, also no-wasm and no-eval)
 
 ## What it is and how it works
 
@@ -116,6 +116,7 @@ Since 2.5.0 a view keeps each top-level text column whole until a row is read (p
 | `layer` | `'core'` (bytes and typed arrays only) or `'objects'` (everything) | by what you pass |
 | `width` | bytes per record: 1 to 255, or `'auto'` | element size |
 | `chunk` | bytes per piece for typed arrays | 1048576 |
+| `chunks` | since 2.15.0, `'fast'` mode only: `true` packs each whole-number column of 400,000 rows or more in 64 KB pieces, so the first `view().get()` opens one piece instead of the whole column (1M rows: 6-9 ms instead of 25-37 ms, about a quarter of the time). Files stay format 2 and older modules read them; lists under 400,000 rows are byte for byte the plain fast file; `packAsync` ignores it. Pack and full unpack stay at plain speed on laptops. On a phone, a 1M-row scan right after the first read was 1.13 to 1.54x in two runs; the first read plus the first reads total the same (38 vs 40 ms), and the cost is each later read being 0.5 to 3 ms slower per 20,000 gets, so a phone may read each row slightly slower. That is an open item. Highly repetitive integer columns can come out larger (one synthetic list of two such columns grew 14%; real-style lists 0 to 1%). Does nothing for Netflow map files, which have text ids. | off |
 | `level` | deflate effort 0 to 9 in small mode | 4 |
 | `refs` | `true` keeps shared objects shared and allows cycles | off |
 | `check` | `true` adds a checksum that `unpack()` verifies | off |

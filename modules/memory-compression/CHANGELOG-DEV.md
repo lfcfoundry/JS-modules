@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.15.0 · API 2 · 2026-11-08
+
+### Quick
+New opt-in chunks: true (fast mode): each whole-number column of 400,000 rows or more is packed in 64 KB pieces; the first view().get() opens one piece, a background step opens the rest. 1M rows first read vs plain fast: Chromium 156 0.15-0.19, Firefox 158 0.08, WebKitGTK 2.52.6 0.23-0.26; laptop Firefox 160 0.20, laptop Chromium 156 0.20, phone Chrome 156 0.24-0.25. No format change; plain fast is unchanged. Open: on the phone a 1M scan right after the first read was 1.13-1.54x in two runs; first read plus first reads total parity (38 vs 40 ms), later reads 0.5-3 ms slower per 20,000 gets; WebKitGTK build 5 1M scan 1.00x, unpack 0.91x (research thread).
+
+### Details
+Option chunks: true; CHUNK_MIN 400,000 rows (below it lists are byte-identical to plain fast, since phones paid a few ms more in pack and unpack). view() opens a column through the picker's window reader; a shared timer (3 ms of work per turn) opens the remaining pieces, then the column becomes a plain array. packAsync ignores the option. Bytes 0 to 1% on real-style lists; a synthetic list of two highly repetitive integer columns grew 14%. Cloud 1M x 3 cols, chunks/plain: Chromium pack 0.86-1.05, scan 0.89-1.08, unpack 0.78-0.82; Firefox pack 0.99-1.05, scan 1.07, unpack 0.94-1.00; WebKitGTK pack 0.86, scan 1.05, unpack 1.13 (1M x 12: 0.92, 0.80, 0.84). Plain fast on the new build vs main: no gap beyond run noise (0.82 to 1.10).
+
+### Deep
+memory-compression 2.15.0: opt-in chunks: true for fast mode (owner tapped 'Ship opt-in build 5' 11.08). Cloud, 1M rows x 3 cols, first read chunks/plain: Chromium 156 0.15 (25.0 to 3.8 ms, 9 runs) and 0.19, Firefox 158 0.08 (24 to 2 ms), WebKitGTK 2.52.6 0.26 (27 to 7 ms; 1M x 12: 0.23, 106 to 24 ms). Laptop Firefox 160 0.20, laptop Chromium 156 0.20, phone Chrome 156 0.24/0.25 (brief). Pack/unpack/scan in the 0.8-1.1 band except WebKitGTK unpack 1.13 (7 runs, 1M x 3) and phone scan 1.13-1.54 (open item). Plain/main with no option: bytes 1.00, nothing outside noise. Tests: 89 checks incl. below/at/above 400,000, reads during fill, settle, packAsync, no-wasm, no-eval. Source: js-modules-research/memory-compression-jso/leads-2026.11.08/.
+
 ## 2.14.1 · API 2 · 2026-11-08
 
 ### Quick

@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.14.1 (API 2)
+ * Version 2.15.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2063,6 +2063,7 @@
     this.picker = opts && opts.mode === 'balanced' ? opts.picker !== false : this.mode === 'small' ? !(opts && opts.picker === false) : !!(opts && opts.picker);     // fast: off unless asked; balanced and small: on
     this.level = opts && opts.level;
     this.refs = !!(opts && opts.refs);
+    this.chunkInts = !!(opts && opts.chunks);                          // opt-in: long whole-number columns are packed in pieces of 64 KB, so view() can open one piece at a time (same format, older readers read these files)
     this.front = !(opts && opts.front === false);                       // text columns that share long starts with the row before (sorted words, paths) may be stored as 'start length + new end'
     this.fsst = !!(opts && opts.fsst);                                  // opt-in: text columns may be stored as FSST codes (any one string readable alone); costs training time
     this.patterns = !(opts && opts.patterns === false);                 // text patterns on by default; off saves time on text-heavy data at the cost of size
@@ -2079,11 +2080,11 @@
     this.blobBytes = 0;
     this.defer = opts && opts.defer || null;                          // packAsync: the picker runs later (on workers); the plain form is written now and its place in the streams is noted
   }
-  Enc.prototype.blob = function (t, name, pre) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
+  Enc.prototype.blob = function (t, name, pre, ck) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
     var o = this.blobs, raw = t.length * t.BYTES_PER_ELEMENT, packed, start = o.pos();
     if (raw < RAW_LIMIT) { o.u8(0); rawPut(o, t); }
     else {
-      packed = pre || MC.pack(t, this.mcOpts);
+      packed = pre || MC.pack(t, ck ? Object.assign({}, this.mcOpts, { chunk: ck }) : this.mcOpts);
       if (packed.length < raw) { o.u8(1); o.varint(packed.length); o.bytes(packed); }
       else { o.u8(2); rawPut(o, t); }
     }
@@ -2289,7 +2290,7 @@
       }
       c.u8(tag); if (tag === CT_DEC) c.u8(e);
     }
-    c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre);
+    c.u8(w); c.zigzag(min); this.blob(t, 'ints', pre, this.chunkInts && tag === CT_INT && n >= CHUNK_MIN && !this.defer ? 65536 : 0);
     if (this.defer) this.deferEnd();
   };
   // A number column stored by the number picker: src is a Float64Array of n whole numbers (or doubles). Written only when smaller than plainLen. False writes nothing.
@@ -3314,6 +3315,42 @@
     if (!(t instanceof Ctor) || t.length !== n) jfail('a packed column has the wrong size');
     return t;
   };
+  var BG = [], bgOn = false;                                       // pieces still to open behind the reads of all windowed columns: one timer, 3 ms of work per turn, columns in turn
+  function bgRun() {
+    var t0 = performance.now(), i = 0, more;
+    while (BG.length && performance.now() - t0 < 3) { i = i % BG.length; more = BG[i](); if (more) i++; else BG.splice(i, 1); }
+    if (BG.length) setTimeout(bgRun, 0); else bgOn = false;
+  }
+  function bgAdd(f) { BG.push(f); if (!bgOn) { bgOn = true; setTimeout(bgRun, 0); } }
+  Dec.prototype.blobWindows = function (Ctor, n, base) {           // a packed blob of several pieces (MC.view) opened without decoding: the reader of a number column as the picker's windows (block(b), all()); null: one piece or not packed
+    var b = this.bl, p0 = b.p, kind, len, u, mv, per, out, done, i, self = this;
+    if (b.u8() !== 1) { b.p = p0; return null; }
+    len = b.varint(); u = b.take(len);
+    try { mv = MC.view(u, { maxSize: n * Ctor.BYTES_PER_ELEMENT + 64, wasm: this.wasm }); } catch (err) { jfail('a packed column is damaged'); }
+    if (mv.chunks < 2 || mv.chunkBytes > 131072 || mv.size !== n * Ctor.BYTES_PER_ELEMENT || mv.chunkBytes % Ctor.BYTES_PER_ELEMENT) { b.p = p0; return null; }
+    per = mv.chunkBytes / Ctor.BYTES_PER_ELEMENT; done = new Uint8Array(mv.chunks);
+    if (base === 0) out = new Ctor(n);                                                                 // no base to add: each piece is unpacked straight into place
+    else out = Ctor !== Uint32Array && base >= -2147483648 && base + 65535 <= 2147483647 ? new Int32Array(n) : new Float64Array(n);
+    function dec(k) {
+      var c2 = Math.min(per, n - k * per), t, j, o = k * per, bpe = Ctor.BYTES_PER_ELEMENT;
+      if (base === 0) { mv.read(k, new Uint8Array(out.buffer, out.byteOffset + o * bpe, c2 * bpe)); done[k] = 1; return; }
+      t = mv.read(k);
+      if (t.length !== c2 * bpe) jfail('a packed column has the wrong size');
+      t = new Ctor(t.buffer, t.byteOffset, c2);
+      for (j = 0; j < c2; j++) out[o + j] = t[j] + base;
+      done[k] = 1;
+    }
+    var kicked = false, nextBg = 0;
+    function stepBg() {
+      if (nextBg < mv.chunks) { if (!done[nextBg]) dec(nextBg); nextBg++; }
+      if (nextBg >= mv.chunks) { if (wr && wr.settle) wr.settle(); return false; }                              // every piece is open: the column becomes a plain array, as one read whole is
+      return true;
+    }       // one piece; false when no more
+    var wr = null;
+    return { n: n, c: per, out: out, setReader: function (r) { wr = r; },
+      block: function (k) { if (!done[k]) dec(k); if (!kicked && typeof setTimeout === 'function') { kicked = true; bgAdd(stepBg); } },
+      all: function () { var k; for (k = 0; k < mv.chunks; k++) if (!done[k]) dec(k); return out; } };
+  };
   Dec.prototype.str16 = function () {
     var n = this.c.varint(), u;
     this.spend(n); u = this.blob(Uint16Array, n);
@@ -3404,6 +3441,7 @@
   // Modes 7 to 10 are for a nested column of a view (lazyNow): 7 records (an object made per row from its columns), 8 arrays (row ends plus one flat column), 9 tuples (an array made per row), 10 date-times (text made per row from the numbers);
   // a.row(i) makes the value. They are never turned into plain arrays (that would hold every object), so each read makes its own value.
   // full() gives a plain array of the values.
+  var CHUNK_MIN = 400000;                            // opt-in chunks only for columns this long: below it the first read saves little and phones pay a few ms more in pack and unpack
   var WIN_MIN = 16384;                               // a column of fewer rows is just decoded whole
   function winRow(w, p, d) {                           // the reader of a number column (p: divisor, 0 for none) or dictionary column (d: the table) that decodes 8,192 numbers at a time
     var out = w.out, c = w.c, m = d ? d.length : 0, scaled = false, hits = 0, lim = w.n >> 9, r;
@@ -3429,6 +3467,7 @@
         for (q = 0; q < n; q++) { k = out[q]; if (!(k >= 0 && k < m)) jfail('dictionary index out of range'); cd[q] = k; }
         return cd;
       },
+      settle: function () { var x = r.col; if (x && !d && !p && x.mode === 11) { x.a = r.all(); x.d = null; x.mode = 0; x.t = 0; } },
       bytes: function () { return 64 + out.byteLength; }
     };
     return r;
@@ -3487,7 +3526,7 @@
     var c = this.c, ct = c.u8(), i, j, m, k, w, e, p, base, t, a, b, o, big, d, u, out, col, lens, flat, kinds, inner;
     switch (ct) {
       case CT_CONST: return new Col(n, 3, null, this.value());
-      case CT_INT: return this.intCol(n);
+      case CT_INT: return this.intCol(n, true);
       case CT_DEC:
         e = c.u8(); if (e > 10) jfail('bad scale'); p = P10[e];
         col = this.intCol(n); a = col.a; t = new Float64Array(n);
@@ -3994,10 +4033,13 @@
   function addU8(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
   function addU16(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
   function addU32(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
-  Dec.prototype.intCol = function (n) {
-    var c = this.c, w = c.u8(), base, t, i, a, Ctor;
+  Dec.prototype.intCol = function (n, canWin) {
+    var c = this.c, w = c.u8(), base, t, i, a, Ctor, col;
     if (w !== 1 && w !== 2 && w !== 4) jfail('bad int width');
     base = c.zigzag(); Ctor = w === 1 ? Uint8Array : w === 2 ? Uint16Array : Uint32Array;
+    if (canWin && this.win && (this.depth === 1 || this.depth === this.winAt) && n >= WIN_MIN && (t = this.blobWindows(Ctor, n, base))) {
+      col = new Col(n, 11, winRow(t, 0, null), null); col.a.col = col; t.setReader(col.a); return col;
+    }
     t = this.blob(Ctor, n);
     if (base === 0) return new Col(n, 0, t, null);
     a = (base >= -2147483648 && base + (w === 4 ? 4294967295 : 65535) <= 2147483647 && w !== 4) ? new Int32Array(n) : new Float64Array(n);

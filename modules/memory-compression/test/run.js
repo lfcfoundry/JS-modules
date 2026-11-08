@@ -185,6 +185,47 @@ t('view(): a long list opens its number and dictionary columns block by block an
     v.memory(); v.loaded();
   });
 });
+// chunks: true (fast mode, whole-number columns of 400,000 rows or more): same format, the first view() read opens one piece, a background step opens the rest and swaps the column to a plain array
+function chunkRows(n) { var r = [], i; for (i = 0; i < n; i++) r.push({ id: i, g: (i * 7919) % 1009, w: (i * 31) % 60000, tag: i % 3 ? 'a' : 'b' }); return r; }
+t('chunks: lists under 400,000 rows are byte for byte the plain fast file; 400,000 and more read the same', function () {
+  var small = chunkRows(399999), a = J.pack(small, opt({ mode: 'fast' })), b = J.pack(small, opt({ mode: 'fast', chunks: true }));
+  assert.ok(Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0, 'under the minimum, chunks changes nothing');
+  [400000, 450000].forEach(function (n) {
+    var rows = chunkRows(n), p = J.pack(rows, opt({ mode: 'fast', chunks: true })), plain = J.pack(rows, opt({ mode: 'fast' })), ref = J.unpack(p, opt()), v = J.view(p, opt()), q, i, k, v2;
+    assert.ok(Buffer.compare(Buffer.from(p), Buffer.from(plain)) !== 0, n + ': chunks is on at the minimum (the file has 64 KB pieces)');
+    same(rows.slice(0, 2000), ref.slice(0, 2000), n + ' unpack head'); same(rows[n - 1], ref[n - 1], n + ' unpack tail');
+    same(Array.from(J.unpack(plain, opt()).slice(1000, 1100)), Array.from(ref.slice(1000, 1100)), n + ' same values as plain fast');
+    [0, 1, 65535, 65536, 65537, 262143, 262144, n >> 1, n - 1].forEach(function (x) { same(rows[x], v.get(x), n + ' get ' + x); });
+    assert.strictEqual(v.field(300001, 'w'), rows[300001].w, 'field');
+    ['id', 'g', 'w'].forEach(function (key) { var c = v.column(key); assert.strictEqual(c.length, n); for (i = 0; i < n; i += 4099) assert.strictEqual(c[i], rows[i][key], n + ' column ' + key + ' ' + i); });
+    same(rows.slice(399990, 400005), J.view(p, opt()).slice(399990, 400005), n + ' slice across the minimum');
+    v2 = J.view(p, opt()); for (i = 0; i < n; i += 997) { k = v2.get(i); if (k.id !== i || k.w !== rows[i].w) throw new Error(n + ' interleaved get ' + i); v2.get(n - 1 - i); }
+  });
+});
+tAsync('chunks: reads stay right while the background step opens the pieces and after the column becomes a plain array', function () {
+  var n = 450000, rows = chunkRows(n), p = J.pack(rows, opt({ mode: 'fast', chunks: true })), v = J.view(p, opt()), i = 0;
+  same(rows[5], v.get(5), 'first read');
+  return new Promise(function (res, rej) {
+    function step() {
+      try {
+        var x, k;
+        for (k = 0; k < 40; k++) { x = (i * 104729) % n; i++; if (v.get(x).g !== rows[x].g || v.get(n - 1 - x).w !== rows[n - 1 - x].w) throw new Error('read wrong while filling at ' + x); }
+        if (i < 3000) setTimeout(step, 0); else res();
+      } catch (e) { rej(e); }
+    }
+    step();
+  }).then(function () { return new Promise(function (r) { setTimeout(r, 300); }); }).then(function () {
+    var k, x; for (k = 0; k < 2000; k++) { x = (k * 99991) % n; assert.strictEqual(v.get(x).w, rows[x].w, 'after settle ' + x); } same(rows[n - 1], v.get(n - 1), 'last row after settle');
+    var c = v.column('w'); assert.strictEqual(c.length, n); assert.strictEqual(c[n - 1], rows[n - 1].w);
+  });
+});
+tAsync('chunks: packAsync leaves chunks off (same file as without the option) and the list reads the same', function () {
+  var rows = chunkRows(420000);
+  return Promise.all([J.packAsync(rows, opt({ mode: 'fast', chunks: true })), J.packAsync(rows, opt({ mode: 'fast' }))]).then(function (r) {
+    assert.ok(Buffer.compare(Buffer.from(r[0]), Buffer.from(r[1])) === 0, 'packAsync: chunks changes nothing');
+    same(rows[419999], J.view(r[0], opt()).get(419999), 'packAsync view');
+  });
+});
 t('text patterns: strings that are text around numbers', function () {
   var padded = function (n, w) { return ('0000000000000000' + n).slice(-w); };
   var cols = {
