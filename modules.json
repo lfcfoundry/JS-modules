@@ -266,7 +266,7 @@
     },
     {
       "id": "ppmd-decode",
-      "version": "1.5.1",
+      "version": "1.6.0",
       "api": 1,
       "global": "ppmd7Decode",
       "summary": "A PPMd (7-Zip PPMd7) decoder that uses WebAssembly first (about 1.4 to 1.8 times faster to open a page in Chromium 155, Firefox 158, WebKitGTK 2.52.6, and 1.8 to 1.9 times on a laptop in Firefox 160 and Chromium 156) and falls back to one ES5 JavaScript function, about 6.6 KB packed. It unpacks web-page data about 10% smaller than LZMA, but slower. PPMd is by Dmitry Shkarin; the public-domain code it follows is Igor Pavlov's, from 7-Zip.",

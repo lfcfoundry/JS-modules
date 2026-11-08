@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-11-07
+
+### Quick
+The decoder's helpers are made once instead of on every call, and the last model (16 MB or less) is kept and cleared for the next call. Second 400 KB decode vs 1.5.1: Chromium 0.58, Firefox 0.80, WebKitGTK 0.60. First decode: Chromium 1.01 (400 KB) and 0.95 (3 MB), Firefox 1.01 and 0.98, WebKitGTK 0.91 and 1.03. Same output.
+
+### Details
+New behavior: up to 16 MB of model memory stays allocated between calls (same rule as lzma-decode 1.6.0); a larger model is made fresh each call. ppmd7Decode is still the one global, with the same checks and errors. Requested by the owner.
+
+### Deep
+1.5.1 declared about 30 helpers inside ppmd7Decode, so each call made new closures and ran cold; the second decode in a page was slower than the first. Brief: js-modules-research/ppmd-decode/hoist-2026.11.07/BRIEF-apply-p19.md.
+
 ## 1.5.1 · API 1 · 2026-11-07
 
 ### Quick

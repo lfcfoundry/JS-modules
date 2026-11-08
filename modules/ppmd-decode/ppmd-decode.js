@@ -1,5 +1,5 @@
 /* ppmd-decode: a PPMd (variant H, "PPMd7" as 7-Zip writes it) decoder. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
-   Version 1.5.1 (API 1)
+   Version 1.6.0 (API 1)
 
    Decodes a raw PPMd7 stream (the range-coder bytes 7-Zip stores inside a .7z archive; no header) into a Uint8Array.
 
@@ -35,18 +35,10 @@
    everything above into every packed page, so the decoder must stay ONE function with nothing else at the top level. The packer also drops
    lines that end in the marker comment "lean-cut" (checks meant for input you did not pack yourself) and turns every `throw new Error('...')`
    into a bare throw, so keep each such line self-contained. Keep it plain ASCII (the packed page is read as windows-1252). */
-function ppmd7Decode(src, outSize, order, memSize, opts) {
+var ppmd7Decode = (function () {
+function factory(memSize) {   // one model per memory size: the helpers below are made once and stay optimized for later calls
   "use strict";
   var MAX_FREQ = 124, NUM_INDEXES = 38;
-  var srcLen = src.length, out, buf;
-
-  if (!(order >= 2 && order <= 64 && order === (order | 0) && memSize >= 2048 && memSize <= 2147483616 && memSize === (memSize | 0))) throw new Error('PPMd: order must be 2-64 and memSize 2048-2147483616 (whole numbers)');   // lean-cut
-  if (!(outSize >= 0 && outSize === Math.floor(outSize))) throw new Error('PPMd: outSize must be a whole number of bytes');   // lean-cut
-  if (opts && opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('PPMd: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);   // lean-cut
-  if (new Uint8Array(new Uint32Array([1]).buffer)[0] !== 1) throw new Error('PPMd: this decoder needs a little-endian machine');   // lean-cut
-  if (outSize === 0) { return new Uint8Array(0); }   // lean-cut
-  if (srcLen < 5 || src[0] !== 0) throw new Error('PPMd: bad stream header');   // lean-cut
-
   /* ---- static tables (Ppmd7_Construct) ---- */
   var indx2Units = new Uint8Array(NUM_INDEXES);
   var units2Indx = new Uint8Array(128);
@@ -71,7 +63,7 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
   /* ---- model memory ---- */
   var alignOffset = 4 - (memSize & 3);          /* so that alignOffset+size is a multiple of 4 */
   var head = alignOffset + memSize;             /* the 12 spare bytes at the end: list head for glue, 6-byte scratch state otherwise */
-  try { out = new Uint8Array(outSize); buf = new ArrayBuffer(alignOffset + memSize + 12); /* +12: list head node used by glue */ } catch (e) { throw new Error('PPMd: cannot allocate ' + outSize + ' result bytes and ' + memSize + ' model bytes'); }
+  var buf; try { buf = new ArrayBuffer(alignOffset + memSize + 12); /* +12: list head node used by glue */ } catch (e) { throw new Error('PPMd: cannot allocate ' + memSize + ' model bytes'); }
   var U8 = new Uint8Array(buf), U16 = new Uint16Array(buf), U32 = new Uint32Array(buf);
   var freeList = new Int32Array(NUM_INDEXES);
   var binSumm = new Uint16Array(128 * 64);
@@ -87,7 +79,6 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
   var runLength = 0, initRL = 0, glueCount = 0;
   var loUnit = 0, hiUnit = 0, text = 0, unitsStart = 0;
   var escFreqOut = 0;                            /* second result of makeEscFreq */
-
   /* ---- small accessors ---- */
   function getSucc(s) { return U16[(s >> 1) + 1] | (U16[(s >> 1) + 2] << 16); }
   function setSucc(s, v) { U16[(s >> 1) + 1] = v & 0xFFFF; U16[(s >> 1) + 2] = v >>> 16; }
@@ -509,7 +500,7 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
    * right before Range and Code are needed next; this consumes exactly the
    * same bytes in the same order as the reference decoder.
    */
-  function decodeAll() {
+  function decodeAll(src, out, outSize, srcLen) {
     var u8 = U8, u16 = U16, u32 = U32, mask = charMask, psl = ps;
     var rng = -1, cd = (src[1] << 24) | (src[2] << 16) | (src[3] << 8) | src[4];   // 32-bit integers; unsigned where it matters (>>> 0, top-bit flip)
     var sp = 5, n, mc, ns, s, i, count, hiCnt, sf, sym, f, prob, idx, bound;
@@ -650,15 +641,34 @@ function ppmd7Decode(src, outSize, order, memSize, opts) {
     }
   }
 
-  /* ---- start ---- */
-  restartModel();
-  seeShift[DUMMY_SEE] = 7;
-  seeSumm[DUMMY_SEE] = 0;
-  seeCount[DUMMY_SEE] = 64;
-  decodeAll();
-  return out;
+  var order = 0, used = false;
+  return function (src, outSize, ord) {
+    order = ord;
+    var out; try { out = new Uint8Array(outSize); } catch (e) { throw new Error('PPMd: cannot allocate ' + outSize + ' result bytes'); }
+    if (used) { U8.fill(0); charMask.fill(0); ps.fill(0); seeSumm.fill(0); seeShift.fill(0); seeCount.fill(0); }
+    used = true;
+    restartModel();
+    seeShift[DUMMY_SEE] = 7;
+    seeSumm[DUMMY_SEE] = 0;
+    seeCount[DUMMY_SEE] = 64;
+    decodeAll(src, out, outSize, src.length);
+    return out;
+  };
 }
-
+var model = null, modelSize = 0;   // the last model is kept for the next call when it is 16 MB or less
+return function ppmd7Decode(src, outSize, order, memSize, opts) {
+  var srcLen = src.length, d;
+  if (!(order >= 2 && order <= 64 && order === (order | 0) && memSize >= 2048 && memSize <= 2147483616 && memSize === (memSize | 0))) throw new Error('PPMd: order must be 2-64 and memSize 2048-2147483616 (whole numbers)');   // lean-cut
+  if (!(outSize >= 0 && outSize === Math.floor(outSize))) throw new Error('PPMd: outSize must be a whole number of bytes');   // lean-cut
+  if (opts && opts.maxSize !== undefined && !(outSize <= opts.maxSize)) throw new Error('PPMd: the result would be ' + outSize + ' bytes, more than the allowed maxSize of ' + opts.maxSize);   // lean-cut
+  if (new Uint8Array(new Uint32Array([1]).buffer)[0] !== 1) throw new Error('PPMd: this decoder needs a little-endian machine');   // lean-cut
+  if (outSize === 0) { return new Uint8Array(0); }   // lean-cut
+  if (srcLen < 5 || src[0] !== 0) throw new Error('PPMd: bad stream header');   // lean-cut
+  if (memSize > 16777216) d = factory(memSize);
+  else { if (modelSize !== memSize) { model = null; model = factory(memSize); modelSize = memSize; } d = model; }
+  return d(src, outSize, order);
+};
+})();
 if (typeof module !== 'undefined' && module.exports) module.exports = ppmd7Decode; else (typeof globalThis !== 'undefined' ? globalThis : this).ppmd7Decode = ppmd7Decode;
 // Not pasted into packed pages (they stop above the export line): decode with the 5-byte coder properties a .7z archive stores for PPMd.
 ppmd7Decode.fromProps = function (src, outSize, props, opts) {
