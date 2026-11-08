@@ -167,5 +167,14 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   const g = HY.asGraph([{ s: 'a', t: 'b', amt: '1,200' }, { s: 'b', t: 'c', amt: '40' }]).edges.map((e) => [e.from, e.to, e.weight]);
   ok(JSON.stringify(g) === '[["a","b",1200],["b","c",40]]', 'a column of comma amounts is found as the amount column (' + JSON.stringify(g) + ')');
 }
+{ // chord names never touch (circular 1.3.1): a small ring keeps the names of bigger arcs that have room; a big ring keeps them all
+  const CI = require('../../netflow-circular/netflow-circular.js'), f = [];
+  for (let i = 0; i < 40; i++) f.push({ from: 'Hub', to: 'Town' + i, value: i < 3 ? 400 : 1 + (i % 4) });
+  const names = (w) => [...CI.toSvg(f, { width: w, height: w }).matchAll(/<text x="([-\d.]+)" y="([-\d.]+)" font-size="([\d.]+)"[^>]*rotate/g)].map((m) => [+m[1], +m[2], +m[3]]);
+  const close = (t) => { let c = 0; for (let i = 0; i < t.length; i++) for (let j = i + 1; j < t.length; j++) if (Math.hypot(t[i][0] - t[j][0], t[i][1] - t[j][1]) < t[i][2]) c++; return c; };
+  const small = names(300), big = names(900);
+  ok(small.length > 3 && small.length < 41 && close(small) === 0, 'chord at 300 wide: ' + small.length + ' names, none closer than one line (' + close(small) + ' too close)');
+  ok(big.length === 41 && close(big) === 0, 'chord at 900 wide: all 41 names (' + big.length + ')');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

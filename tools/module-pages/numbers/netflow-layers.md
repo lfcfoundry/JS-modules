@@ -12,11 +12,11 @@ Compared: netflow-layers against dagre (ms).
 dagre was not run at 1000 items because it grows far faster than linearly.
 
 
-**Crossings against dagre and ELK.** Random maps with no loops (Netflow Map's test data), row crossings in the default settings, lower is tidier.
+**Crossings against dagre and ELK.** Random maps with no loops, row crossings with the module's default options (since 1.8.0: `deep` and `rows` left out), lower is tidier. This is the module on its own, not Netflow Map's Auto layout, which is measured separately.
 
 Compared: netflow-layers against dagre 0.8.5 and ELK 0.12.1 (row crossings, lower is tidier).
 
-<!-- title: netflow-layers' default draws 4 to 12% fewer row crossings than dagre and ELK on random maps -->
+<!-- title: netflow-layers' default options draw 4 to 12% fewer row crossings than dagre and ELK on random maps with no loops -->
 | way | 400 items | 1,000 items |
 |---|---:|---:|
 | netflow-layers | 5103 | 21166 |
