@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.3 · API 1 · 2026-11-07
+
+### Quick
+The match step is now one top-level function instead of a new inner function on every call, so later unpacks in a page reuse its optimized code. 500 KB unpack after a 2.5 MB one vs 1.6.2: Chromium 0.54, WebKitGTK 0.58, Firefox 0.92. First unpack: Chromium 1.07 (0.999-1.16, noisy), WebKitGTK 1.04, Firefox 0.98. Same output.
+
+### Details
+lzmaDecode calls lzmaMatchStep(P, src, out, S, posState, outSize), declared just above it, with the probability table offsets written as numbers. No API change. Requested by the owner.
+
+### Deep
+A function declared inside lzmaDecode is a new closure on every call, and engines did not reuse its optimized code, so every later unpack ran the match code cold. Brief: js-modules-research/lzma-decode/kernel-2026.11.07/BRIEF-apply-js-j15.md.
+
 ## 1.6.2 · API 1 · 2026-11-07
 
 ### Quick
