@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.0 · API 1 · 2026-11-08
+- Three groups get mauve, light green and orange (color-vision safe)
+
 ## 1.11.0 · API 1 · 2026-11-07
 - Big scatters draw 1.3 to 2.9 times faster on the page; dots look the same
 

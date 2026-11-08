@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // netflow-plot labels in a real browser. Copyright (c) 2026 LFC Foundry. MIT License.
 // Draws a fixed set of charts (long bar names, many lines with names at the ends, years before 1800, a single line with its high and low,
-// a scatter with a key, sideways top-10 bars, a 20-name dot plot also at 300 x 200, light and dark, two sizes) and fails when any two flat labels touch: the browser's own text width, and 1.2 times the font size
+// a scatter with a key, sideways top-10 bars, a 20-name dot plot also at 300 x 200, a three-name key at 300 x 220, light and dark, two sizes) and fails when any two flat labels touch: the browser's own text width, and 1.2 times the font size
 // as the height. Tilted labels are left out (their boxes are not tilted, so they would give false hits). Also checks that each SVG is the same text as in Node.
 // Run one browser at a time: CHROMIUM=/path/to/chrome node tests/netflow-plot-labels-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK)
 // Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js and tools/webkit-driver. Exit 2 (skipped) when nothing can run.
@@ -29,7 +29,8 @@ function charts(P) {
       var o = { theme: th, width: sz[0], height: sz[1] };
       list.push(P.auto(bars, o).svg, P.toSvg(lines, Object.assign({ type: 'line', x: 'year', y: 'count', color: 'series' }, o)), P.toSvg(wheat, Object.assign({ type: 'line', x: 'year', y: 'wheat' }, o)),
         P.toSvg(one, Object.assign({ type: 'line', x: 'date', y: 'precipitation' }, o)), P.toSvg(pts, Object.assign({ type: 'scatter', x: 'Total_Receipts', y: 'Total_Disbursements', color: 'Incumbent_Challenger_Status' }, o)), P.auto(states, o).svg,
-        P.toSvg(dots, Object.assign({ type: 'dotplot', x: 'type', y: 'lat' }, o)), P.toSvg(dots, Object.assign({ type: 'dotplot', x: 'type', y: 'lat' }, o, { width: 300, height: 200 })));
+        P.toSvg(dots, Object.assign({ type: 'dotplot', x: 'type', y: 'lat' }, o)), P.toSvg(dots, Object.assign({ type: 'dotplot', x: 'type', y: 'lat' }, o, { width: 300, height: 200 })),
+        P.toSvg(pts.map(function (r, i) { return { a: r.Total_Receipts, b: r.Total_Disbursements, Species: ['Adelie', 'Chinstrap', 'Gentoo'][i % 3] }; }), Object.assign({ type: 'scatter', x: 'a', y: 'b', color: 'Species' }, o, { width: 300, height: 220 })));   /* three names, all in the key (plot 2.15.0) */
     });
   });
   return list;

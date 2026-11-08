@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.15.0 · API 2 · 2026-11-08
+- Three groups in mauve, light green and orange; keys name all of 3 or fewer groups
+
 ## 2.14.9 · API 2 · 2026-11-07
 - Long line names wrap onto two lines instead of being cut off; a dot plot with thin rows shows every k-th name, smaller dots and spaced numbers.
 

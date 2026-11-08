@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.12.0 · API 1 · 2026-11-08
+
+### Quick
+Charts and maps with exactly three groups now color them mauve, light green and orange, the set easiest to tell apart for every kind of color vision.
+
+### Details
+With exactly three groups and the built-in colors, groups take places 0, 8 and 11 of the set: mauve, light green and orange (dark: #c797bb, #a3d6a3, #f6a04d). Worst simulated color-vision gap (CIELAB, deuteranopia, protanopia, tritanopia and normal) 32.1 light and 28.1 dark, against 18.8 and 17.4 for the first three. Four or more groups and chosen palettes keep their order. New threeGroups(groups) export. Test: test/run.js three-groups case.
+
+### Deep
+Requested by the owner.
+
 ## 1.11.0 · API 1 · 2026-11-07
 
 ### Quick

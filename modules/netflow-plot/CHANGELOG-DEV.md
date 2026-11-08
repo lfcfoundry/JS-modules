@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.15.0 · API 2 · 2026-11-08
+
+### Quick
+Charts with three color groups use mauve, light green and orange, and the key always names every group when there are three or fewer.
+
+### Details
+Exactly three color groups on the built-in colors use scene 1.12.0's threeGroups set (mauve, light green, orange; light and dark). A key row with three names or fewer never folds them into +N more: it starts at the left edge, then leaves out its title, then shortens the names. A 300-wide penguins scatter now shows Adelie, Gentoo and Chinstrap instead of Adelie +2 more. Node timing unchanged (0.95-0.99x old).
+
+### Deep
+Requested by the owner.
+
 ## 2.14.9 · API 2 · 2026-11-07
 
 ### Quick

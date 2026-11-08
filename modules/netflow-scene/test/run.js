@@ -139,3 +139,27 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(C(big) - (big.length - small.length) === 19999 + other, 'the pieces hold every segment once, plus one shared segment per join (' + C(big) + ')');
   console.log('ok   long lines in pieces of 2048 above 8,000 segments');
 }
+/* three groups (since 1.12.0): mauve, light green and orange, the set most apart for every kind of color vision; checked in normal vision and three simulated
+   color-vision types (Machado 2009 matrices, CIELAB distance), in light and dark; four groups keep the usual order; a plot key shows all three names */
+{
+  const M = { deut: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]], prot: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]], trit: [[1.255528, -0.076749, -0.178779], [-0.078411, 0.930809, 0.147602], [0.004733, 0.691367, 0.303900]] };
+  const lin = (c) => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const sim = (c, k) => { const l = c.slice(0, 3).map((v) => lin(v > 1 ? v / 255 : v)); return k ? M[k].map((r) => Math.min(1, Math.max(0, r[0] * l[0] + r[1] * l[1] + r[2] * l[2]))) : l; };
+  const lab = ([r, g, b]) => { const f = (t) => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116, X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047, Y = 0.2126 * r + 0.7152 * g + 0.0722 * b, Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883; return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))]; };
+  const worst = (set) => { let m = 1e9; for (const k of [null, 'deut', 'prot', 'trit']) for (let i = 0; i < set.length; i++) for (let j = i + 1; j < set.length; j++) { const A = lab(sim(set[i], k)), B = lab(sim(set[j], k)); m = Math.min(m, Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2])); } return m; };
+  const gaps = [], gaps0 = [];
+  for (const th of ['light', 'dark']) {
+    const g = SC.palette(th).groups, t3 = SC.threeGroups(g).slice(0, 3), w3 = worst(t3), w0 = worst(g.slice(0, 3)); gaps.push(w3.toFixed(1)); gaps0.push(w0.toFixed(1));
+    ok(w3 >= 25 && w3 > w0 * 1.5, th + ': the three-group set is at least 25 apart in every color vision and well past the first three (' + w3.toFixed(1) + ' vs ' + w0.toFixed(1) + ')');
+    const graph = (n) => { const nodes = [], edges = []; for (let i = 0; i < n * 3; i++) { nodes.push({ id: 'n' + i, group: 'g' + (i % n) }); if (i) edges.push({ from: 'n' + (i - 1), to: 'n' + i }); } return E.build({ nodes, edges }, { view: 'network', colorBy: 'group' }); };
+    const key = (S) => S.legend.filter((l) => l.k === 'swatch').map((l) => String(l.c.slice(0, 3)));
+    ok(JSON.stringify(key(SC.make(graph(3), { colorBy: 'group', theme: th }))) === JSON.stringify(t3.map((c) => String(c.slice(0, 3)))), th + ': a three-group graph uses mauve, light green and orange');
+    ok(JSON.stringify(key(SC.make(graph(4), { colorBy: 'group', theme: th }))) === JSON.stringify(g.slice(0, 4).map((c) => String(c.slice(0, 3)))), th + ': four groups keep the usual order');
+    ok(JSON.stringify(key(SC.make(graph(3), { colorBy: 'group', theme: th, palette: 'vivid' }))) === JSON.stringify(SC.palette(th, 'vivid').groups.slice(0, 3).map((c) => String(c.slice(0, 3)))), th + ': a chosen palette keeps its own order');
+  }
+  global.NetflowScene = SC; const P = require('../../netflow-plot/netflow-plot.js'), rows = [];
+  for (let i = 0; i < 60; i++) rows.push({ a: i % 17, b: (i * 7) % 23, s: ['Adelie', 'Chinstrap', 'Gentoo'][i % 3] });
+  const svg = P.toSvg(rows, { type: 'scatter', x: 'a', y: 'b', color: 's', width: 300, height: 220 });
+  ok(['Adelie', 'Chinstrap', 'Gentoo'].every((n) => svg.includes('>' + n + '<')) && !svg.includes(' more<'), 'a 300-wide scatter key names all three groups');
+  console.log('ok   three groups: worst color-vision gap ' + gaps.join(' and ') + ' (light, dark; today ' + gaps0.join(' and ') + '), four keep their order, all three names in the key');
+}
