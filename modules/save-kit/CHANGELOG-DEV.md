@@ -198,3 +198,10 @@ First labeled version. Nothing in the code changed.
 
 ### Deep
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
+
+## Version-to-version numbers moved from the README (2026-11-08)
+
+- 20 KB, ours/theirs against localForage's localStorage driver, Chromium 155: save 1.25 to 0.81 (now faster), load 1.39 to 1.05 (about even).
+- Since 1.6.3, a 20 KB load against localForage's localStorage driver (which checks nothing) went from 1.78 to 1.41x of its time in Chromium 155, 1.45 to 1.22 in Firefox 158 and 2.03 to 1.41 in WebKitGTK 2.52.6 (early-stop rule; `JSON.parse` alone is about two thirds of the load). It is still slower there; the rest is the per-key checks.
+- Since 1.6.1 (13 MB of text: 8.5 to 10 ms down to 2.2 to 3 ms)
+- Since 1.6.1: 16 MB load, new over old, paired runs: Chromium 0.72 (noisy), Firefox 0.95, WebKitGTK 0.88.

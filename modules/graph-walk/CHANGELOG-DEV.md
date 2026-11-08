@@ -143,3 +143,7 @@ First version: breadth-first distances and depth-first loop marking over a links
 
 ### Deep
 R2b helper under placeholder name graph-walk. 30,000 items / 93,211 links, container unguarded: bfs 1.3 to 1.6 ms, loops 2.1 to 3.3 ms, equal or faster than the inline copies.
+
+## Version-to-version numbers moved from the README (2026-11-08)
+
+-  On 4 cores, first call and a new graph on a warm pool, 20,000 to 200,000 items, against 0.7.1: Chromium 155 0.98 to 1.14x faster, Firefox 158 1.45 to 1.9x, WebKitGTK 2.52.6 1.2 to 1.4x; repeat calls on one graph are within noise (0.96 to 1.13x).
