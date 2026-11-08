@@ -2,7 +2,7 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
-## 1.10.5 · API 1 · 2026-11-07
+## 1.10.6 · API 1 · 2026-11-07
 
 ### Quick
 SVG line charts are about a third the text and open faster.
@@ -12,6 +12,17 @@ Line charts (and gridlines) reach toSvg as curve pieces whose two handles sit a 
 
 ### Deep
 speed, same lines (was 1.10.2 before 1.10.3 merged first)
+
+## 1.10.5 · API 1 · 2026-11-07
+
+### Quick
+Shapes whose outline is fully see-through no longer write stroke and stroke-width. Same pixels in 3 browsers. Text: hexbin 85 to 61 KB, density 31 to 24 KB, 20k-row area 353 to 269 KB. 20k-row area page time 0.82 Chromium, 0.85 Firefox; others level.
+
+### Details
+toSvg polys: stroke attributes only when the stroke's alpha is above 0 (no stroke is the SVG default). No API change.
+
+### Deep
+Less SVG text for shapes with no visible outline.
 
 ## 1.10.4 · API 1 · 2026-11-07
 

@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.10.5 (API 1)
+ * Version 1.10.6 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1515,14 +1515,14 @@ var NFMScene = (function () {
     if (title) out.push('<title>' + esc(title) + '</title>');
     out.push('<rect x="' + f(S.x0) + '" y="' + f(S.y0) + '" width="' + f(S.w) + '" height="' + f(S.h) + '" fill="' + css(T.bg) + '"/>');
     S.rects.filter(function (r) { return r.layer === 0; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });
-    S.polys.forEach(function (p) { var d = 'M'; for (var i = 0; i < p.pts.length; i += 2) d += (i ? 'L' : '') + f(p.pts[i]) + ' ' + f(p.pts[i + 1]); out.push('<path d="' + d + 'Z" fill="' + css(p.fill) + '" stroke="' + css(p.stroke) + '" stroke-width="1.5"' + op(p) + '/>'); });
+    S.polys.forEach(function (p) { var d = 'M'; for (var i = 0; i < p.pts.length; i += 2) d += (i ? 'L' : '') + f(p.pts[i]) + ' ' + f(p.pts[i + 1]); out.push('<path d="' + d + 'Z" fill="' + css(p.fill) + '"' + (p.stroke && !(p.stroke[3] <= 0) ? ' stroke="' + css(p.stroke) + '" stroke-width="1.5"' : '') + op(p) + '/>'); });   /* a fully see-through outline is left out (since 1.10.5): same pixels, less text */
     var defs = [];
     S.ribbons.forEach(function (r, ri) { var fill = css(r.color); if (r.color2) { defs.push('<linearGradient id="rg' + ri + '" gradientUnits="userSpaceOnUse" x1="' + f(r.x0) + '" y1="0" x2="' + f(r.x1) + '" y2="0"><stop offset="0" stop-color="' + css([r.color[0], r.color[1], r.color[2], 1]) + '"/><stop offset="1" stop-color="' + css([r.color2[0], r.color2[1], r.color2[2], 1]) + '"/></linearGradient>'); fill = 'url(#rg' + ri + ')'; } out.push('<path d="M' + f(r.x0) + ' ' + f(r.y0a) + 'C' + f(r.xm) + ' ' + f(r.y0a) + ' ' + f(r.xm) + ' ' + f(r.y1a) + ' ' + f(r.x1) + ' ' + f(r.y1a) + 'L' + f(r.x1) + ' ' + f(r.y1b) + 'C' + f(r.xm) + ' ' + f(r.y1b) + ' ' + f(r.xm) + ' ' + f(r.y0b) + ' ' + f(r.x0) + ' ' + f(r.y0b) + 'Z" fill="' + fill + '"' + (r.color2 ? ' fill-opacity="' + f(r.color[3]) + '"' : '') + op(r) + '/>'); });
     if (defs.length) out.splice(out.length - S.ribbons.length, 0, '<defs>' + defs.join('') + '</defs>');
     S.curves.forEach(function (c) {
       var P = c.P;
       /* a piece whose two handles sit a third and two thirds of the way along it is a straight line: written as L, the same line in shorter
-         text (line charts draw every step this way; since 1.10.5) */
+         text (line charts draw every step this way; since 1.10.6) */
       var seg = function (i) {
         var ax = P[i - 2], ay = P[i - 1], bx = P[i + 4], by = P[i + 5];
         if (P[i] === ax + (bx - ax) / 3 && P[i + 1] === ay + (by - ay) / 3 && P[i + 2] === ax + 2 * (bx - ax) / 3 && P[i + 3] === ay + 2 * (by - ay) / 3) return 'L' + f(bx) + ' ' + f(by);

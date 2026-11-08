@@ -107,7 +107,7 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(S2.labels.some((l) => l.note && l.t === 'Salary \u2192 Rent, $1,800 | Salary, $3,000'), '{top} is the biggest flow and {topbox} the biggest box, each with its amount');
   console.log('ok   sankey value labels and notes');
 }
-/* straight curve pieces (handles at a third and two thirds) are written as L; real curves stay C (since 1.10.5) */
+/* straight curve pieces (handles at a third and two thirds) are written as L; real curves stay C (since 1.10.6) */
 {
   const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});
   const ax = 10, ay = 20, bx = 70, by = 50;

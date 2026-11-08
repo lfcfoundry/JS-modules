@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.6.1 · API 0**
+**Version 0.6.2 · API 0**
 
-**Tested in:** Node 22: all lfc-pack checks plus 5 warm() checks; first save and open timed in Chromium 155, Firefox 158 and WebKitGTK 2.52.6 with a fresh browser per run
+**Tested in:** Node 22: all lfc-pack checks plus a reused-buffer push check (4 push sizes); early-stop A/B with a fresh page per run in Chromium 155, Firefox 158 and WebKitGTK 2.52.6, same bytes
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 

@@ -1,6 +1,6 @@
 # netflow-scene
 
-**Version 1.10.5 · API 1**
+**Version 1.10.6 · API 1**
 
 **Tested in:** node tests; label browser check in Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
