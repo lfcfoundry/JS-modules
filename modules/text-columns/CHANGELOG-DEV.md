@@ -139,3 +139,17 @@ First version: reads CSV and TSV into Float64Array number columns and text colum
 
 ### Deep
 Importer built from round 1 queue item (placeholder fast-text-split, name chosen by the owner: text-columns). 200k rows x 6 columns 7.4 MB, container, unguarded: columns out 48/38/39 ms (Firefox/Chromium/WebKitGTK), d3-dsv 213/192/234, Papa Parse 339/440/382.
+
+## Version-to-version numbers moved from the README (2026-11-07)
+
+The README compares against other products only; these old-version measurements are kept here.
+
+- 32 MB with accented text, 4 helpers, against 0.5.1: Chromium 155 1,027 to 216 ms (4.8x), WebKitGTK 2.52.6 359 to 168 ms (2.1x), Firefox 158 even (253 to 248 ms; more of the work now happens on the page there).
+
+- A picked file, 4 helpers, against 0.5.2 (reading the file on the page first): numbers 45 MB Chromium 155 1.11x, Firefox 158 1.25x, WebKitGTK 2.52.6 1.68x faster; mixed text 32 MB 1.17x, 1.27x, 1.75x; accented text 32 MB 1.21x, 1.01x, 1.63x. The page's own work falls to 17 to 142 ms (was 108 to 240 ms).
+
+- A picked file, 4 helpers, against 0.6.0: numbers 45 MB Chromium 155 1.17x faster (longest page stall 42 to 7 ms), Firefox 158 1.13 to 1.17x (37 to 8 ms), WebKitGTK 2.52.6 0.96 to 0.99x (22 to 16 ms); mixed text 32 MB Chromium 1.41x (132 to 69 ms), Firefox 1.00x, WebKitGTK 0.94 to 0.96x; accented 32 MB Chromium 1.18x (96 to 48 ms), Firefox 0.97 to 0.98x, WebKitGTK 0.94 to 0.96x.
+
+- : after a 45 MB number file the page holds 10.5 MB instead of 161 MB, and 4 helpers 45 MB instead of 120 MB, with times within noise
+
+- A picked file, 4 helpers, longest page stall against 0.6.1: mixed text 32 MB Chromium 72-78 to 21-23 ms, Firefox 102-189 to 15-19 ms, WebKitGTK 65-73 to 16-17 ms; accented 32 MB Chromium 42 to 14-17 ms, Firefox 150-209 to 14-18 ms, WebKitGTK 50-55 to 16-19 ms.

@@ -13,6 +13,17 @@ toSvg wrote one <circle> per dot, and a browser spends most of a big scatter's t
 ### Deep
 look kept, speed
 
+## 1.10.3 · API 1 · 2026-11-07
+
+### Quick
+frame: no rule above the source
+
+### Details
+With frame: true (or theme 'editorial'), the thin dark rule under the picture is gone and the source sits where it sits without a frame (15 units under the picture). The red tag stays. Pictures without a frame are unchanged.
+
+### Deep
+Requested by the owner (Economist frame card, 2026.11.07).
+
 ## 1.10.1 · API 1 · 2026-11-07
 
 ### Quick
