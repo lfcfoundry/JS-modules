@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.13.0 · API 2**
+**Version 2.14.0 · API 2**
 
-**Tested in:** Node 22: 86 module checks including warm({ sample }); first unpack timed in Chromium 155, Firefox 158 and WebKitGTK 2.52.6 with early-stop A/B, fresh page per run
+**Tested in:** node tests (86); paired runs, new browser per sample, 15 pairs each, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.14.0 · API 2 · 2026-11-08
+
+### Quick
+warm() now also opens a small view and pager per column, in a task of its own. After warm(), first pager read on 50,000 rows: Chromium 1.5 to 0.3 ms, Firefox 1 to 0 ms, WebKitGTK 4 to 0 ms; first view open: 2.0 to 1.3, 2 to 2, 4 to 2 ms. warm() itself runs 15 to 22 ms longer in idle tasks (Chromium 60 to 78, Firefox 34 to 49, WebKitGTK 51 to 73 ms); the longest task is unchanged (12-18 ms).
+
+### Details
+No API change; warm() keeps its promise and its false-on-failure rule. Both extra steps are in try/catch. Requested by the owner, who accepted the longer idle warm-up.
+
+### Deep
+Brief: js-modules-research/memory-compression-jso/profile-2026.11.07/BRIEF-apply-warm-view-pager.md. The view and pager steps run in their own nextTask() so no task gets longer.
+
 ## 2.13.0 · API 2 · 2026-11-07
 
 ### Quick
