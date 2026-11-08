@@ -304,6 +304,19 @@ check('the fixtures include memory that is not a multiple of 4', cases.some((c) 
   check('async: bad arguments are a rejected promise with the same Error text' + (badList ? ' (differ:' + badList + ')' : ''), sameText);
   const fp = await settle(W.async(new Uint8Array(0), 0, 12, 1 << 20));
   check('async: a result size of 0 resolves to an empty result through the JavaScript decoder', fp.ok && fp.value.length === 0 && W.engine === 'js');
+  { // warm(): opt-in, needs { order, memSize }, never changes later output
+    const P = require('../ppmd-decode.js'), cs = ['js-5000', 'page-30k-o6', 'page-30k-o12', 'html-100'].map(byName);
+    let allSame = true, ran = true;
+    for (const c of cs) {
+      const want = attempt(() => P(c.src, c.m.size, c.m.order, c.m.mem));
+      for (const [o, m] of [[c.m.order, c.m.mem], [12, 65536], [6, 1 << 20], [12, 2048], [64, 1 << 25]]) { try { ran = ran && P.warm({ order: o, memSize: m }) === true; } catch (e) { ran = false; } }
+      const got = attempt(() => P(c.src, c.m.size, c.m.order, c.m.mem));
+      if (!(want.ok && got.ok && same(want.value, got.value))) allSame = false;
+    }
+    check('warm: any order and memory size runs, and later decodes give the same bytes', ran && allSame);
+    check('warm: without { order, memSize } it throws', attempt(() => P.warm()).ok === false && attempt(() => P.warm({ order: 12 })).ok === false && attempt(() => P.warm({ order: 1, memSize: 65536 })).ok === false);
+    check('warm: the combined file has it and warms the JavaScript decoder', typeof W.warm === 'function' && W.warm({ order: 12, memSize: 65536 }) === true);
+  }
   console.log(`ppmd-decode: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

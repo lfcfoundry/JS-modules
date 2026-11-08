@@ -1,9 +1,9 @@
 /*! ppmd-decode-with-wasm.js: ppmd-decode.js and ppmd-decode-wasm.js in one file. ppmd7Decode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder
  * when WebAssembly is not usable (the page policy lacks 'wasm-unsafe-eval', or an old browser), so it always works and gives the same bytes. ppmd7Decode.plain is the JavaScript decoder alone;
  * ppmd7DecodeWasm is another name for ppmd7Decode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.6.1 (API 1) */
+ * Version 1.7.0 (API 1) */
 /* ppmd-decode: a PPMd (variant H, "PPMd7" as 7-Zip writes it) decoder. Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules
-   Version 1.6.1 (API 1)
+   Version 1.7.0 (API 1)
 
    Decodes a raw PPMd7 stream (the range-coder bytes 7-Zip stores inside a .7z archive; no header) into a Uint8Array.
 
@@ -681,6 +681,21 @@ ppmd7Decode.fromProps = function (src, outSize, props, opts) {
   return ppmd7Decode(src, outSize, props[0], (props[1] | (props[2] << 8) | (props[3] << 16)) + props[4] * 16777216, opts);
 };
 
+// Not pasted into packed pages. ppmd7Decode.warm({ order, memSize }): optional, never called for you. Decodes a built-in sample of real text (JavaScript and HTML from our own MIT repositories;
+// 5,000 bytes in a 1.7 KB stream when memSize is 128 KB or more, 2,000 bytes in a 0.8 KB stream below that) once, so the browser's JavaScript engine has already optimized the decoder when your
+// real first decode runs. Call it in an idle moment (about 15-30 ms of work) with the SAME order and memSize as that decode: the decoder is made once per memory size, so warming with another
+// memSize makes the first real decode slower (1.14 to 1.35 times), not faster. The result is thrown away; calling it twice does nothing more. Returns true when it ran. Plain JavaScript decoder only (the WebAssembly one needs no warm-up).
+ppmd7Decode.warm = (function (plain) {
+  var A = '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', B = 'ACBTzXD2QMiXMsbwOG391gVN8Pgs8H20Km5goTBfbjVbe120mPBn9zO9rk3k/ZFRX18S4kEuXLuRUvbjGmOxj9wCQf7PREL7+CpisdAvFGI4WnbqQwXc1Cmy7QieOsv+4vReKATTf+X0D+jwHqAJtI24jgp05oba0LtB30BL4JA4AVMDVpDBIcpZlX520caDK7I1aIAsKopFFS4QzkPyI+2y4CeOpL9anG9b/aAghAskonbCVz3UV+ZtL3VGU6hKsfdl3GehD6ZyNA6C11UTTASFlw8zf7DfVkOR8ecjTStnbcfkGROYCsBwR3v7o9vBw9kJi2nLLxtbYQlhAaLKDN7ixtjL8HuqEljRY0AjkT8FVeniOB8z+gdfGPZxkSzoi8p73b5cIl5htZG1Zjo11yg1DBfSrnJL3ZCS0HfCFcVF6ef81zE+r7byZmEvGXpHDyBi0ewADNyFX/pDpRFgXMvVgklsLgBUSECMQOKPAR+DdqdpgXULREALz01jl4kFE3vA/zonTony2JJEq1xpjDMdK2pOzH2KlwRaSjpnj+q9bTAce6vZAOJUIxLs5ktzHsm5PI3R3qRi2qzZSGn5W/cvH4SYCrm+aw5nhmXrxGKzvLMw72oU/sWTtK97i2bm9mVRC0t10m90Og153LR3ssU0WW+3vFjax5Zop9CBVDqTbzGiSX8H5gc26K+3PXzKgMYYwbNELA7V0zV0zXVq85bOJWkJLlMk1LAFRnG2Tnnx6JjrIaVEN+GLn0ZJSDAbGKB7HAhDZIwtm+sLl4vw32Fv58otwTmMh3mcnsNQ3x9JwijIPWCje/mRVKWEqjZ2jJkYijsMVSfnbhPIkbPOo7mfUDJSZYWlgiTdnRBySm6PyW9AvdmyiCsUbBdduPRMMF+Yy7eptc3cDOROqpA6oBYaqhs7/E3j3cIUIXurFxkrYjiFuxRFKhEbTtdMWVTmro7p5s9Tev6zVz/A/c2+/ekqKstYxdX4C2+8c6ErWOG0j0h7n2eqN/CVh/3zTG1+d61e8JtwxHuQ4pnSltch6KZlkpNSapA=';
+  return function (o) {
+  if (!o || !(o.order >= 2 && o.order <= 64 && o.order === (o.order | 0) && o.memSize >= 2048 && o.memSize <= 2147483616 && o.memSize === (o.memSize | 0))) throw new Error('PPMd: warm needs { order, memSize }: the same two numbers the later decode uses');
+  var big = o.memSize >= 131072, t = atob(big ? A : B), b = new Uint8Array(t.length), i;
+  for (i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+  try { plain(b, big ? 5000 : 2000, o.order, o.memSize); } catch (e) { if (o.memSize >= 65536 && o.order === 12) throw new Error('PPMd: the warm-up sample did not decode: ' + e.message); }   // another order or a tiny memory reads the sample as other data: a stream error there is expected, the work has been done
+  return true;
+};
+})(ppmd7Decode);
+
 /*!
  * ppmd-decode-wasm.js: an optional faster PPMd decoder written in WebAssembly (about 9.3 KB, built from wasm/ppmd7.c with wasm/build.sh).
  * Load ppmd-decode.js first, then this file; it adds one function, ppmd7DecodeWasm, that takes the same arguments as ppmd7Decode and gives the same bytes,
@@ -695,7 +710,7 @@ ppmd7Decode.fromProps = function (src, outSize, props, opts) {
  * ppmd7DecodeWasm.ready() is a promise: true once the wasm has compiled in the background (it starts when this file loads), false when it cannot be used;
  * ppmd7DecodeWasm.module() is the compiled WebAssembly.Module once ready, else null (send it to a worker with postMessage so the worker does not compile it again).
  * ppmd7DecodeWasm.async(src, outSize, order, memSize, opts) is the same decode as a promise that hands the page back about every 8 ms, so a big decode does not freeze the page.
- * Version 1.6.1 (API 1)
+ * Version 1.7.0 (API 1)
  */
 
 (function (root, factory) {
@@ -788,6 +803,7 @@ ppmd7Decode.fromProps = function (src, outSize, props, opts) {
       })();
     });
   };
+  ppmd7DecodeWasm.warm = ppmd7Decode.warm;     // warms the JavaScript decoder (the fallback); the WebAssembly one needs none
   ppmd7DecodeWasm.plain = ppmd7Decode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
   Object.defineProperty(ppmd7DecodeWasm, 'wasm', { get: function () { return ensure() !== null; }, enumerable: true });     // asking before the early compile is done compiles on the spot
   Object.defineProperty(ppmd7DecodeWasm, 'engine', { get: function () { return engineNow || (ensure() !== null ? 'wasm' : 'js'); }, set: function (v) { engineNow = v; }, enumerable: true });

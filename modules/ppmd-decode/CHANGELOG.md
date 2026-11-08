@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-08
+- New optional ppmd7Decode.warm({ order, memSize }) makes the first plain-JavaScript decode about 0.6 to 0.75 times as long.
+
 ## 1.6.1 · API 1 · 2026-11-08
 - First decode a little faster in Chromium; same output.
 
