@@ -173,7 +173,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.4 (API 1)
+ * Version 1.7.0 (API 1)
  */
 
 (function (root, factory) {
