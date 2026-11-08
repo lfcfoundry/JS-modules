@@ -162,19 +162,11 @@
    ]
   },
   {
-   "label": "elias-fano default block lists vs roaring-wasm, spread-out intersect (Chromium, Firefox)",
-   "x": 1.4,
+   "label": "elias-fano default block lists vs roaring-wasm, spread-out intersect",
+   "x": 1.1,
    "module": "elias-fano",
    "proof": [
-    "1.4 to 1.6 times faster than roaring-wasm in Chromium and Firefox"
-   ]
-  },
-  {
-   "label": "elias-fano default block lists vs roaring-wasm, spread-out intersect, WebKitGTK",
-   "x": 0.91,
-   "module": "elias-fano",
-   "proof": [
-    "in WebKitGTK (3.3 ms against 3.0"
+    "1.1 to 1.6 times faster than roaring-wasm in all three browsers"
    ]
   },
   {
