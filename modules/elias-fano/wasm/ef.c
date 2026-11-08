@@ -368,3 +368,81 @@ u32 ef_intersect(const u32 *h, u32 k, u32 *out) {
   }
   return leapfrog(h, k, out);
 }
+
+// ---- block lists (format in the module's .js, buildBlocks): blocks of 65,536 values, each Elias-Fano, a bitmap or a sorted u16 array ----
+#define BHDR 64
+typedef struct { u32 key, kind, l, c; const u8 *d; } Blk;
+static inline Blk blkAt(const u8 *b, u32 k) {
+  const u32 *t = (const u32 *)(b + BHDR) + 4 * k; u32 n = rd32(b, 4), nb = rd32(b, 8);
+  Blk r; r.key = t[0]; r.kind = t[1] & 255; r.l = t[1] >> 8; r.c = (k + 1 < nb ? t[6] : n) - t[2]; r.d = b + t[3]; return r;
+}
+static inline u32 efBlkLowB(u32 c, u32 l) { return ((((c * l + 31) >> 5) + 2) * 4 + 7) & ~7u; }
+static inline u32 efLowBits(const u8 *low, u32 l, u32 q) { return (u32)lowAt(low, l, q); }
+// block values as u16 into out (EF and array blocks); returns the count
+static u32 blkU16(Blk B, u16 *out) {
+  if (B.kind == 2) { const u16 *a = (const u16 *)B.d; for (u32 q = 0; q < B.c; q++) out[q] = a[q]; return B.c; }
+  const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 i = 0, l = B.l;
+  for (u32 w = 0; i < B.c; w++) { u64 x = H[w]; while (x && i < B.c) { u32 bit = CTZ(x); out[i] = (u16)((((w * 64 + bit) - i) << l) | efLowBits(low, l, i)); i++; x &= x - 1; } }
+  return B.c;
+}
+void bl_decode(const u8 *b, u32 *out) {
+  u32 nb = rd32(b, 8), o = 0;
+  for (u32 k = 0; k < nb; k++) {
+    Blk B = blkAt(b, k); u32 hi = B.key << 16;
+    if (B.kind == 1) { const u64 *M = (const u64 *)B.d; for (u32 w = 0; w < 1024; w++) { u64 x = M[w]; while (x) { out[o++] = hi | (w * 64 + CTZ(x)); x &= x - 1; } } }
+    else if (B.kind == 2) { const u16 *a = (const u16 *)B.d; for (u32 q = 0; q < B.c; q++) out[o + q] = hi | a[q]; o += B.c; }
+    else { const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 i = 0, l = B.l;
+      for (u32 w = 0; i < B.c; w++) { u64 x = H[w]; while (x && i < B.c) { u32 bit = CTZ(x); out[o + i] = hi | ((((w * 64 + bit) - i) << l) | efLowBits(low, l, i)); i++; x &= x - 1; } }
+      o += B.c; }
+  }
+}
+static u32 blkHas(Blk B, u32 v) {
+  if (B.kind == 1) return (u32)((((const u64 *)B.d)[v >> 6] >> (v & 63)) & 1);
+  if (B.kind == 2) { const u16 *a = (const u16 *)B.d; u32 lo = 0, h = B.c; while (lo < h) { u32 m = (lo + h) >> 1; if (a[m] < v) lo = m + 1; else h = m; } return lo < B.c && a[lo] == v; }
+  const u8 *low = B.d; const u64 *H = (const u64 *)(B.d + efBlkLowB(B.c, B.l)); u32 l = B.l, hb = v >> l, vl = v & (u32)mask(l), sp = 0, i = 0;
+  if (hb) {   // start of bucket hb: after the hb-th zero
+    u32 need = hb, w = 0;
+    for (;; w++) { u64 z = ~H[w]; u32 c = POP(z); if (c < need) { need -= c; continue; } u32 pos = w * 64 + sel64(z, need - 1); sp = pos + 1; i = sp - hb; break; }
+  }
+  while (i < B.c && ((H[sp >> 6] >> (sp & 63)) & 1)) { u32 lo = efLowBits(low, l, i); if (lo >= vl) return lo == vl; i++; sp++; }
+  return 0;
+}
+void bl_contains_many(const u8 *b, const u32 *xs, u8 *out, u32 k) {
+  u32 nb = rd32(b, 8); const u32 *t = (const u32 *)(b + BHDR);
+  for (u32 q = 0; q < k; q++) {
+    u32 x = xs[q], key = x >> 16, lo = 0, h = nb;
+    while (lo < h) { u32 m = (lo + h) >> 1; if (t[4 * m] < key) lo = m + 1; else h = m; }
+    out[q] = (lo < nb && t[4 * lo] == key) ? (u8)blkHas(blkAt(b, lo), x & 65535) : 0;
+  }
+}
+static u32 andU16(const u16 *a, u32 na, const u16 *b, u32 nb, u32 hi, u32 *out) {   // a the shorter; out has one spare slot
+  u32 i = 0, j = 0, o = 0;
+  if (na * 4 < nb) {   // much shorter: gallop through b
+    for (; i < na; i++) { u16 x = a[i]; u32 step = 1, lo = j; while (lo + step < nb && b[lo + step] < x) { lo += step; step <<= 1; }
+      u32 h = lo + step < nb ? lo + step : nb; while (lo < h) { u32 m = (lo + h) >> 1; if (b[m] < x) lo = m + 1; else h = m; }
+      j = lo; if (j >= nb) break; out[o] = hi | x; o += b[j] == x; }
+    return o;
+  }
+  while (i < na && j < nb) { u16 x = a[i], y = b[j]; out[o] = hi | x; o += x == y; i += x <= y; j += y <= x; }
+  return o;
+}
+static u32 andU16Bmp(const u16 *a, u32 na, const u64 *M, u32 hi, u32 *out) { u32 o = 0; for (u32 i = 0; i < na; i++) { u16 x = a[i]; out[o] = hi | x; o += (u32)((M[x >> 6] >> (x & 63)) & 1); } return o; }
+u32 bl_and(const u8 *a, const u8 *b, u32 *out, u16 *BUFA) {   // BUFA: scratch of 2 x 65,536 u16 from the caller
+  u16 *BUFB = BUFA + 65536;
+  u32 na = rd32(a, 8), nb = rd32(b, 8), i = 0, j = 0, o = 0; const u32 *ta = (const u32 *)(a + BHDR), *tb = (const u32 *)(b + BHDR);
+  while (i < na && j < nb) {
+    u32 ka = ta[4 * i], kb = tb[4 * j];
+    if (ka < kb) { i++; continue; } if (kb < ka) { j++; continue; }
+    Blk A = blkAt(a, i), B = blkAt(b, j); u32 hi = ka << 16;
+    if (A.kind == 1 && B.kind == 1) { const u64 *X = (const u64 *)A.d, *Y = (const u64 *)B.d; for (u32 w = 0; w < 1024; w++) { u64 x = X[w] & Y[w]; while (x) { out[o++] = hi | (w * 64 + CTZ(x)); x &= x - 1; } } }
+    else if (A.kind == 1 || B.kind == 1) { Blk S = A.kind == 1 ? B : A, M = A.kind == 1 ? A : B; const u16 *s = S.kind == 2 ? (const u16 *)S.d : BUFA; if (S.kind != 2) blkU16(S, BUFA); o += andU16Bmp(s, S.c, (const u64 *)M.d, hi, out + o); }
+    else {
+      const u16 *x = A.kind == 2 ? (const u16 *)A.d : BUFA, *y = B.kind == 2 ? (const u16 *)B.d : BUFB;
+      if (A.kind != 2) blkU16(A, BUFA); if (B.kind != 2) blkU16(B, BUFB);
+      o += A.c <= B.c ? andU16(x, A.c, y, B.c, hi, out + o) : andU16(y, B.c, x, A.c, hi, out + o);
+    }
+    i++; j++;
+  }
+  return o;
+}
+u32 bl_contains(const u8 *b, u32 x) { u8 r; bl_contains_many(b, &x, &r, 1); return r; }

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.0 · API 2 · 2026-11-07
+
+### Quick
+New list type, block lists: EliasFano.buildBlocks(values, { arrays }) and EliasFano.openBlocks(bytes).
+
+### Deep
+New list type, block lists: EliasFano.buildBlocks(values, { arrays }) and EliasFano.openBlocks(bytes). Values are split by their top 16 bits into blocks of 65,536, each stored as a bitmap or Elias-Fano (the smaller), or with arrays: true as a bitmap or a sorted u16 array. Methods: get, nextGEQ, rank, contains, containsMany (new, Uint8Array), nextValue, count, toArray, slice, stats, free; EliasFano.intersect takes block lists (block by block in WebAssembly: bitmap AND, bit tests, merges; mixed with other kinds it uses nextGEQ steps). A set: duplicates kept once. Against roaring-wasm 1.1.0 (1,000,000 values, ms, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6): dense intersect 0.9 / 1.0 / 0.67 vs 1.5 / 1.7 / 1.7 (arrays 0.5 / 0.33 / 0.67); dense containsMany 0.33 / 0.67 / 0.33 vs contains 0.8 / 1.0 / 0.67; sparse size 1,398,768 B vs 2,030,536 B; sparse intersect still slower (4.8 / 8.0 / 5.7, arrays 2.7 / 4.3 / 3.3, vs 2.4 / 3.0 / 3.0). Existing list kinds unchanged; the file grows from 88,175 to about 115,000 bytes (WebAssembly about 4.5 KB more each). Checks: new test/blocks.js (25 lists, 64,100 queries vs a plain set in JavaScript and WebAssembly, 3,000 damaged blobs: 2,314 refused at open, the rest answer without an error), all other elias-fano tests, plus 631,200 random checks during development.
+
 ## 2.0.2 · API 2 · 2026-11-07
 
 ### Quick
