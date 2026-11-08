@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-07
+- Opt-in release() frees the wasm engine's 16 MB of memory between bakes
+
 ## 1.10.0 · API 1 · 2026-11-06
 - Faster fast: true: one shade a pixel inside a bake (a 12-frame roll 0.47x to 0.58x of the default time); the default fill tests only the columns a triangle can cover (same pixels).
 

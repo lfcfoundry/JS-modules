@@ -1,8 +1,8 @@
 # sprite-baker
 
-**Version 1.10.0 · API 1**
+**Version 1.11.0 · API 1**
 
-**Tested in:** Node: 155 checks, 15 lean builds, 40,000 random triangles same bytes; speed in ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node tests (159, with 4 new release() checks); same bytes as the plain drawMesh
 
 ## What it is and how it works
 
@@ -155,6 +155,10 @@ Plain reading: Chromium and Firefox bake 1.1 to 1.4 times as fast in the cloud. 
 **Rebuild.** `sh modules/sprite-baker/wasm/build.sh` needs clang 18 or newer with the wasm32 target (no other tool); `build.sh --check` says whether `wasm/tri.wasm` is byte for byte what `tri.c` builds, and `python3 modules/sprite-baker/wasm/embed.py` puts the file into `sprite-baker-wasm.js` (`--check` compares). The `fmod` inside `tri.c` is from musl libc (MIT license), used so `%` on decimals matches JavaScript bit for bit.
 
 Tests: `node modules/sprite-baker/test/run.js` (the add-on section runs in Node); in a real browser, one at a time: `node tests/sprite-baker-wasm-browser.js chromium|firefox|webkit`.
+
+## Free the memory between bakes (since 1.11.0)
+
+The wasm engine holds 16 MB of WebAssembly memory for as long as the page keeps it. When the pictures are baked, call `E.release()` (E is what `SpriteBaker.wasm()` returned) to let that memory go. Nothing else changes: the next `Rast`, `drawMesh` or outline starts a fresh Instance from the already compiled module (about 0.6-0.8 ms in Node 22, on top of the bake) and gives the same bytes. A `Rast` drawn before `release()` keeps plain copies of its pixels and depth, so it stays correct and can be drawn into again. Calling it twice, or on the plain engine, is harmless. `E.stats.starts` counts the Instances started.
 
 ## Compile early (since 1.7.0)
 

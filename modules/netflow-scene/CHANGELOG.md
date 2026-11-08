@@ -5,6 +5,9 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 1.11.0 · API 1 · 2026-11-07
 - Big scatters draw 1.3 to 2.9 times faster on the page; dots look the same
 
+## 1.10.4 · API 1 · 2026-11-07
+- Long line charts draw faster in WebKit.
+
 ## 1.10.3 · API 1 · 2026-11-07
 - frame: true no longer draws a rule above the source line; the chart's own baseline is the one line.
 

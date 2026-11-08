@@ -119,3 +119,14 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(layers.every((l) => l.every((p, i) => l.every((q, j) => j <= i || (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 >= 7.2 * 7.2))), 'no two dots in a layer touch');
   console.log('ok   big dot runs: layers that never touch');
 }
+/* long lines in pieces (since 1.10.4): a solid line over 8,000 segments is written as overlapping pieces of 2048; the pieces join up to the same points, and shorter or dashed lines stay one path */
+{
+  global.NetflowScene = SC; const P = require('../../netflow-plot/netflow-plot.js');
+  const line = (n, o) => { const r = []; for (let i = 0; i < n; i++) r.push({ x: i, y: Math.sin(i / 50) * 40 + (i % 7) }); return SC.toSvg(P.make(r, Object.assign({ type: 'line', x: 'x', y: 'y' }, o), {}, SC)); };
+  const strokes = (s) => (s.match(/<path d="M[^"]*" fill="none" stroke="[^"]*" stroke-width/g) || []);
+  const big = strokes(line(20000)), small = strokes(line(8000)), C = (a) => a.reduce((n, d) => n + (d.match(/C/g) || []).length, 0);
+  ok(big.length - small.length === 9, 'a 20,000-point line is 10 pieces where an 8,000-point line is one path (' + big.length + ' vs ' + small.length + ' stroked paths)');
+  const other = C(small) - 7999;   /* curves that are not the line (the same in both pictures) */
+  ok(C(big) - (big.length - small.length) === 19999 + other, 'the pieces hold every segment once, plus one shared segment per join (' + C(big) + ')');
+  console.log('ok   long lines in pieces of 2048 above 8,000 segments');
+}

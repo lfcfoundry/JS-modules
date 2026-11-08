@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.14.6 · API 2 · 2026-11-07
+
+### Quick
+Collision-safe keys for (x, color) cells; same pictures.
+
+### Details
+Cells of grouped charts (bars, dot plots, heatmaps, donuts, mosaics, slopes) were keyed by x + NUL + color, so a name holding NUL could merge two cells. Keys now put the first name's length in front, which no two pairs can share. Rows are grouped in two maps (x, then color) and the key is made once a cell, so make() is no slower (Node 22, 50,000-row grouped bar: 11.1-19.3 ms to 9.8-11.3 ms). 1,203 charts on the vega-datasets tables draw the same SVG bytes. Two tests ported from an earlier repair branch (2026.11.01): NUL inside names keeps 1 and 10 apart; the donut cap keeps every value with one folded Other (the current choice, kept).
+
+### Deep
+Requested by the owner (review card: port the ideas, close the old branches).
+
 ## 2.14.5 · API 2 · 2026-11-07
 
 ### Quick

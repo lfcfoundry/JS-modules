@@ -13,6 +13,17 @@ toSvg wrote one <circle> per dot, and a browser spends most of a big scatter's t
 ### Deep
 look kept, speed
 
+## 1.10.4 · API 1 · 2026-11-07
+
+### Quick
+Solid opaque lines over 8,000 segments are written as pieces of 2048 that overlap by one segment, without building the full path text. 20k-point line: WebKitGTK 0.63, Firefox 0.88, Chromium 1.01; 10k: 0.86, 0.91, 0.93. At or below 8,000 segments nothing changes. Pixels: 99.6% the same for a 3-series 20k line, 98.3-98.7% for a dense self-crossing zigzag (edge pixels only).
+
+### Details
+toSvg curves: the piece path is chosen before the full d string is built (building both was what made an earlier 128-piece try 1.12-1.17x slower in Chromium and Firefox). WebKitGTK pays a fixed cost per path, so 512-piece splits made 5k-10k lines slower; 2048 above 8,000 segments is faster or level at every size tried. Approved by the owner on a card.
+
+### Deep
+Faster long line charts in WebKit.
+
 ## 1.10.3 · API 1 · 2026-11-07
 
 ### Quick

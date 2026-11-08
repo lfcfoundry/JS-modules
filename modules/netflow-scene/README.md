@@ -2,13 +2,15 @@
 
 **Version 1.11.0 · API 1**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node tests; label browser check in Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
 ## What it is and how it works
 
 Turns a map laid out by [netflow-engine](../netflow-engine/README.md) into plain drawing lists (dots, links, labels, shapes, a legend) that Canvas 2D, WebGL2, WebGPU or SVG can all draw the same way.
+
+**Want a chart from a table?** Start with a chart module instead; each draws in one call on top of this one: [netflow-plot](../netflow-plot/README.md) (bar, line, scatter and 19 more), [netflow-hierarchy](../netflow-hierarchy/README.md) (treemap, sunburst) and [netflow-circular](../netflow-circular/README.md) (chord). Load `netflow-scene.js` before any of them. For flows, [netflow-sankey](../netflow-sankey/README.md) draws a Sankey on its own, with no other script.
 
 - It decides colors, widths, dashes, arrows and which labels fit.
 - It works out what a click would hit, without touching the page.
@@ -44,6 +46,8 @@ Sankey names in a middle column sit on their own outgoing bands, so since 1.7.0 
 **Amounts and shares next to the names (since 1.9.0).** `sk.valueLabel` picks what goes with each name: `'none'` (the default), `'under'` (the amount on a second line, what `sk.nodeValues: true` did before and still does), `'inline'` (on the same line, "Rent 1,800"), `'percent'` (the share on the second line), or `'both'` ("1,800 (55%)"). `sk.unit` adds a unit. A money sign, or any unit without letters or digits, goes before the number ("$1,800"); a word goes after ("1,800 GWh"); `sk.unitAt: 'before'` or `'after'` decides it instead. `sk.percentOf` is `'total'` (the default: what leaves the items nothing flows into) or `'column'` (the item's own column). A `labelText` from `nodeStyle` still replaces the name, and the amount follows it.
 
 **Notes (since 1.9.0).** `notes: [{ text, x, y, anchor, size, color, bold, align }]` in the options (or `L.notes`) puts plain text on the picture. `x` and `y` are 0 to 1 across and down it. `anchor` (optional) is an item's id or name, or a flow written `"from>to"`, and gets a thin leader line from the note, with no box, in the Economist style. The text may hold live words: `{total}`, `{value:id}`, `{share:id}`, `{flow:from>to}` `{top}` (the biggest flow: its two names with an arrow between, then its amount, since 1.10.0) and `{topbox}` (since 1.10.0: the biggest item's name and amount). An unknown word stays as typed. Notes are `S.labels` with `note: true` and their lines are `S.curves` with `note: true`, so every drawing backend and `toSvg` draw them with no new code.
+
+**Title, source and the Economist frame (opt-in).** `title` (bold, left), `subtitle` (lighter, under it) and `source` (small, under the picture) are text in the options and appear only when given. `frame: true` (or `theme: 'editorial'`, since 1.8.0) adds a small red tag at the top left of the picture and puts the source under it; since 1.10.3 there is no second rule above the source line, because the chart's own baseline is the one line. Without these options the picture is unchanged.
 
 `addTitles(S, { title, subtitle, source })` adds an optional title block to any picture: a bold title and a lighter subtitle above it and a small source line under it, outside the picture so nothing moves. netflow-plot, netflow-hierarchy and netflow-circular call it for you when their options carry these words. Text read at 4.5:1 or better on both themes.
 

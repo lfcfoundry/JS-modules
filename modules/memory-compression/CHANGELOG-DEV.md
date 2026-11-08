@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.13.0 · API 2 · 2026-11-07
+
+### Quick
+warm({ sample: rows }) also packs and opens up to 300 of the page's rows twice, each in its own task. First unpack of 40,000 rows vs plain warm(): tuples 0.61 Chromium, 0.91 Firefox, 0.78 WebKitGTK; nested 0.79, 0.94, 0.75. Never slower. No change without the option.
+
+### Details
+unified.warm: after the built-in column warm-up, a sample of 16 or more rows (first 300 kept) is packed and opened twice, each step in a task of its own. Fewer than 16 rows or a non-list adds nothing. Same bytes. Requested by the owner.
+
+### Deep
+warm() takes an optional sample of the page's rows.
+
 ## 2.12.1 · API 2 · 2026-11-06
 
 ### Quick
