@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.0 · API 0 · 2026-11-08
+
+### Quick
+Pack big files in several workers: packBlock(chunk) in each worker, pushPacked() on the main thread, same bytes as packStream.
+
+### Details
+New LfcPack.packBlock(chunk, opts) packs one chunk of whole lines on its own (any worker can run it; the result is plain bytes), and packStream().pushPacked(bytes) appends those chunks in text order. Chunks must be cut where push would cut them: at the first line end at or after blockBytes. The file is byte for byte the one push gives. share and exact are not supported for these calls (they throw). 33 MB, ms per pass, 2 workers vs push on the main thread: Chromium 182 vs 248, Firefox 170 vs 262, WebKitGTK 150 vs 248. One worker is slower than push (1.11-1.32x: copying and messages). Node, 83 MB: 2 workers 415 ms vs 650 ms.
+
+### Deep
+Requested by the owner for Workbench parallel pack workers.
+
 ## 0.6.2 · API 0 · 2026-11-07
 
 ### Quick
