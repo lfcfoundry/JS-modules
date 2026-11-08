@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.5.1 · API 1**
+**Version 1.6.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud)
+**Tested in:** node tests (355); Chromium 155, Firefox 158, WebKitGTK 2.52.6 A/B
 
 ## What it is and how it works
 
@@ -89,6 +89,12 @@ The same default file loaded on a page whose policy forbids WebAssembly decoded 
 **What.** lzma-decode-wasm.js and lzma-decode-with-wasm.js start compiling the WebAssembly in the background as soon as the file loads, so the first decode only has to start it. lzmaDecodeWasm.ready() is a promise that says (true or false) whether that worked, and lzmaDecodeWasm.module() gives the compiled `WebAssembly.Module` once it is ready (else null) so a worker can be sent it with `postMessage` instead of compiling it again. Asked for before the compile is done, the code compiles on the spot as it always did, so nothing waits and the answers are the same.
 
 **Why, and how much.** Compiling the 4,087-byte program (the size in 1.3.0) on the page costs 0.5 ms in Chromium 155, under 1 ms in Firefox 158 and WebKitGTK 2.52.6 (median of 9 fresh pages, smaller is better; Firefox and WebKit report whole milliseconds), so for this size the saving is at most that. Loading the file plus the first use, old against new, in ms (median of 11 fresh pages, taking turns): within about 1 ms in Chromium, Firefox and WebKitGTK; the differences go both ways, so treat it as no change you can measure. It matters more for the large programs (pcodec-js) and for handing the module to workers. Nothing is stored in the browser.
+
+## Repeat unpacks (since 1.6.0)
+
+**What.** The WebAssembly decoder keeps one Instance between calls. It keeps up to 16 MB between calls for faster repeat unpacks, and more is released after the call: when a result needs more than 16 MB of WebAssembly memory, or a call fails, the Instance is dropped and the next call starts a fresh one. Results are the same bytes.
+
+**How much.** A repeat 400 KB unpack after a 3 MB one, early-stop A/B with a fresh page per run (lower is better): Chromium 155 0.95, Firefox 158 0.96, WebKitGTK 2.52.6 0.86. The first unpack is unchanged.
 
 ## How it compares
 
