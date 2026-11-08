@@ -67,7 +67,7 @@ The browser race of Netflow Map against D3 measured the app's own flow engine, n
 
 **Where it loses**
 - Bigger than d3-sankey.
-- Speed against d3-sankey is measured in one browser only (laptop Firefox 160), and d3-sankey is faster on small charts with the default settings (with `quick: true` this module is faster there and still tidier; see Limits). Version 2.0.0 is faster than 1.0.0: a 12,600-link chart lays out in 168 ms against 666 ms in ungoogled Chromium 155.0.8059.39-1 (smaller is better).
+- Speed against d3-sankey is measured in one browser only (laptop Firefox 160), and d3-sankey is faster on small charts with the default settings (with `quick: true` this module is faster there and still tidier; see Limits).
 - The crossing result is one yardstick on three charts, not a proof for every chart.
 - d3-sankey is the standard: use it if you already use D3 and your data has no loops.
 

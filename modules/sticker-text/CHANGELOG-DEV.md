@@ -25,3 +25,7 @@ First labeled version. Nothing in the code changed.
 
 ### Deep
 First labeled version. Nothing in the code changed; everything under "Before version labels" is already in it.
+
+## Moved from the README (2026-11-07)
+
+- With `st-flat` about 40% less in Chromium and 37% less in Firefox than 1.0.0.

@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.14.8 · API 2**
+**Version 2.14.9 · API 2**
 
-**Tested in:** node tests; Chromium 155, Firefox 158, WebKitGTK 2.52.6 picture check
+**Tested in:** node tests; label browser check in Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
