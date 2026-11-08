@@ -1726,9 +1726,9 @@
         if (k === 2) {
           var c0 = cols[0], c1 = cols[1], x0 = c0.mode === 0 ? c0.a : null, x1 = c1.mode === 0 ? c1.a : null;
           if (x0 instanceof Float64Array && x1 instanceof Float64Array) for (i = 0; i < n; i++) out[i] = [x0[i], x1[i]];                      // the usual coordinate pair: both columns are plain decimals, read straight from their arrays
-          else for (i = 0; i < n; i++) out[i] = [c0.get(i), c1.get(i)];
+          else { var y0 = x0 || c0.full(), y1 = x1 || c1.full(); for (i = 0; i < n; i++) out[i] = [y0[i], y1[i]]; }      // plain arrays first: no get() call per item
         }
-        else for (i = 0; i < n; i++) { var r = new Array(k); for (j = 0; j < k; j++) r[j] = cols[j].get(i); out[i] = r; }
+        else { var pa = new Array(k); for (j = 0; j < k; j++) pa[j] = cols[j].mode === 0 ? cols[j].a : cols[j].full(); for (i = 0; i < n; i++) { var r = new Array(k); for (j = 0; j < k; j++) r[j] = pa[j][i]; out[i] = r; } }
         return new Col(n, 0, out, null);
       case CT_ARRAYS:
         m = c.varint(); this.spend(m + n);

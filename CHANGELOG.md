@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.14.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.14.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.7.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **netflow-scene** 1.12.0 · API 1: Three groups get mauve, light green and orange (color-vision safe)
 - 2026-11-08 · **netflow-plot** 2.15.0 · API 2: Three groups in mauve, light green and orange; keys name all of 3 or fewer groups
 - 2026-11-08 · **netflow-circular** 1.3.1 · API 1: Chord names never overlap on small rings; bigger arcs keep their names first.
+- 2026-11-08 · **memory-compression** 2.14.1 · API 2: Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
 - 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
 - 2026-11-08 · **lzma-decode** 1.7.0 · API 1: New optional lzmaDecode.warm(): call it from an idle callback and the first plain-JavaScript unpack is 4-9% faster (6-8 ms of idle work).
 - 2026-11-08 · **lfc-pack** 0.7.0 · API 0: packBlock() and packStream().pushPacked(): pack chunks in workers, same file bytes

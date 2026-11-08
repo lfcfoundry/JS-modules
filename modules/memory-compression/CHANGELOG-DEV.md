@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.14.1 · API 2 · 2026-11-08
+
+### Quick
+Rows of small tuples (up to 8 items) are built from each column's plain array directly instead of one call per item. Same bytes, same rows.
+
+### Details
+First unpack of 40,000 tuple-heavy records, fresh page, paired, new vs main: Firefox 158.0 0.91 (31 pairs, q1 0.79, q3 0.96); ungoogled Chromium 156.0.8078.79-1 1.03 (41 pairs, noise level); WebKitGTK 2.52.6 1.00 (41 pairs). No format change, no new setting.
+
+### Deep
+2.14.1: Dec.columnBody CT_TUPLE reads plain column arrays first (src/jso-layer.js, from the 11.07 retest diff). Gate runs 11.08, tup_ab.js, first unpack of 40,000 tuple-heavy records, fresh page per sample, alternating order: Firefox 158.0 median new/main 0.905 over 31 pairs; Chromium 156.0.8078.79-1 1.03 over 41 pairs (21-pair run 1.10, q1-q3 0.92-1.16); WebKitGTK 2.52.6 1.00 over 41 pairs (q1-q3 0.87-1.13). Module tests 86 passed. Owner approved on the card 'Ship tuple plain arrays as memory-compression 2.14.1?'. Phone pending.
+
 ## 2.14.0 · API 2 · 2026-11-08
 
 ### Quick
