@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.0.2 · API 2 · 2026-11-07
+- getMany and nextGEQMany (batches) take 0.79x to 0.88x the time; same answers.
+
 ## 2.0.1 · API 2 · 2026-11-06
 - Reading all lists one at a time with get(i) is about half the time (0.45x to 0.52x of the first-read time in Chromium, Firefox and WebKitGTK; repeat reads 0.8x to 0.9x).
 

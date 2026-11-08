@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 2.0.1 · API 2**
+**Version 2.0.2 · API 2**
 
-**Tested in:** Node: all elias-fano checks pass (2 new for the bulk views). First-read speed in ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, paired runs. Not run: a phone.
+**Tested in:** ungoogled Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -86,6 +86,7 @@ Same page, alternating rounds, Firefox 158 / Chromium 155 / WebKitGTK 2.52.6 (de
 | Read all 94,597 links of 30,000 lists, ms (Chromium / Firefox / WebKitGTK) | arrays of arrays 1.38 / 3.2 (noisy, best 2.1) / 1.5 | decode all in WebAssembly 1.46 / 1.3 / 1.2; `cache(true)`, lists already read once, 1.22 / 1.1 / 0.6 |
 | One list at a time, all 30,000, first read (`get(i)`, no cache) | already there, nothing to decode | default (cache on, since 2.0.1): 3.9 / 5.6 / 4.1 ms, against 7.9 / 12.6 / 7.9 ms before 2.0.1 (about 0.5 times); `{ cache: false }`: 7.3 / 12.8 / 9.0 ms (each list is cut out and made into a new array). Still about 3 to 5 times a first read of plain arrays (1.1 / 1.25 / 0.75 ms), which are already there |
 | Value number i, 20,000 random reads | 0.05 to 0.1 ms | 1.0 to 3.2 ms (14 to 40x slower) |
+| Value number i, the same 20,000 reads in one `getMany` call (since 2.0.2) | 0.05 to 0.1 ms | 0.79 / 0.83 / 0.68 ms (Chromium / Firefox / WebKitGTK; 0.79x to 0.88x the time before 2.0.2; `nextGEQMany` 1.06 / 1.10 / 1.00 ms, 0.83x to 0.87x) |
 
 It is for lists you search or scan, not for hammering single reads: keep a decoded copy (`toArray`, `decodeAll`) when you need those. A list set read list by list keeps each list's array after its first read (the default since 2.0.0; `{ cache: false }` turns it off), and a repeat read then costs about what an array of arrays does, at 4 bytes a value again for the lists you touched. Since 1.10.0 `decodeAll` of 30,000 lists is 0.68 / 0.78 / 0.90 times the time it took (Chromium 155 / Firefox 158 / WebKitGTK 2.52.6, paired runs). Since 2.0.1, once a quarter of the values have been read one list at a time, the set decodes the rest in one go and hands out views (`subarray`) of one decoded array instead of a new array per list (repeat reads 0.8 to 0.9 times the time they took, first read of all lists 0.45 to 0.52 times, Chromium 155 / Firefox 158 / WebKitGTK 2.52.6; a few reads stay separate arrays; the views share one buffer, so do not change them, as before). Plain arrays still win on a first read of a single list (they are already there) and the memory they take is about 2.2 times the packed size (498 KB against 223 KB for these lists); arrays of arrays also cost one object each (not measured here).
 
