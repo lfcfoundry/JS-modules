@@ -103,6 +103,7 @@ var v = MemoryCompression.view(packed);                            // opens in w
 v.get(4711);  v.field(4711, 'weight');  v.column('x1');            // one object, one value, one column
 var K = MemoryCompression.keeper({ budget: 600e6 });               // restores in slices; the page stays free
 K.hold('layout', layout);  K.restore('layout').then(function (layout) { /* ... */ });</code></pre>
+<p>A long list you read from with <code>view()</code> should be packed with mode <code>'balanced'</code>: its first read stays at 3 to 21 ms up to 1,000,000 rows, while a <code>'fast'</code>-mode list inflates all of its number columns at the first read (23 to 26 ms at 1,000,000 rows x 3 columns, 78 to 90 ms at x 12; ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6).</p>
 <pre><code>var P = MemoryCompression.pager(links, { pageRows: 2048, livePages: 4 });  // keeps the list packed in pages; your own array can be let go
 P.get(4711);                       // one object, 0.4 to 3 ms the first time (only its page opens), then under a microsecond
 P.range(1000, 1500);               // a run of rows
