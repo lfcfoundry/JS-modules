@@ -1,8 +1,8 @@
 # netflow-circular
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Node 22: 947 hierarchy and circular checks, including chords at 400x300, 900x300 and 640x480 with 6 city names; pictures checked in Chromium 155
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

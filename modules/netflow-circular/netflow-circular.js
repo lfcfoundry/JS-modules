@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  * netflow-circular.js: the circular views of Netflow Map (Chord, Bundles). layout(view, G, o) returns a plain layout; scene(L, o, NS) turns it
  * into drawing lists for netflow-scene. Built on netflow-hierarchy (its tree, values and drawing frame): load netflow-hierarchy.js first,
  * or keep it next to this folder in Node. No page, no DOM.
@@ -113,6 +113,7 @@ var NetflowCircular = (function () {
     }
     ord = bestOrd;
     var R = Math.max(220, Math.min(1400, 60 + K * 9)), th = Math.max(10, Math.min(26, R * 0.05)), pad = K > 1 ? Math.min(0.04, TAU * 0.25 / K) : 0;
+    if (o.width > 0 && o.height > 0) { R = Math.max(40, o._ringR > 0 ? o._ringR : Math.min(o.width, o.height) / 2 - 45); th = Math.max(6, Math.min(26, R * 0.05)); }   /* width and height given (since 1.3.0): the ring fits that box; toSvg() shrinks it once more if the names stick out */
     var span = TAU - pad * K, cx = R + 170, cy = R + 170;
     var arcs = new Array(K), a0 = -Math.PI / 2;
     ord.forEach(function (k) {
@@ -278,7 +279,14 @@ var NetflowCircular = (function () {
   /** One call to a picture: toSvg(data, options) returns SVG text (data: links as { from, to, value }, or { nodes, edges }); options.type is chord (the default) or bundles. */
   function toSvg(data, o) {
     o = o || {}; var NS = HY.sceneLib ? HY.sceneLib('netflow-circular') : NetflowScene, lo = {}; for (var k in o) lo[k] = o[k]; if (lo.chordBy === undefined) lo.chordBy = 'auto';
-    return NS.toSvg(scene(layout(o.type || 'chord', HY.asGraph(data, o), lo), o, NS), o.title);
+    var G = HY.asGraph(data, o), L = layout(o.type || 'chord', G, lo), svg = NS.toSvg(scene(L, o, NS), o.title), t, vb, over;
+    /* a chord with width and height: the names around the ring take room that depends on their length, so measure the picture and shrink the ring to fit (at most twice) */
+    for (t = 0; t < 2 && L.chart && L.chart.type === 'chord' && o.width > 0 && o.height > 0; t++) {
+      vb = /viewBox="([-\d.e]+) ([-\d.e]+) ([\d.e]+) ([\d.e]+)"/.exec(svg); if (!vb) break;
+      over = Math.max(+vb[3] - o.width, +vb[4] - o.height); if (!(over > 0.5)) break;
+      lo._ringR = L.chart.R - over / 2 - 1; L = layout('chord', G, lo); svg = NS.toSvg(scene(L, o, NS), o.title);
+    }
+    return svg;
   }
 
   return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, bsplineToBezier: bsplineToBezier };
