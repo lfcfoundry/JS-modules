@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.0 · API 0 · 2026-11-08
+
+### Quick
+New LfcPack.packParallelStream(opts): push(bytes) as text arrives, await finish() for the file; same bytes as pack(). Blocks go to helper workers while later text is still being read. 99 MB of rows, 3 workers, text already in memory: Chromium 156 0.82, Firefox 158 0.70, WebKitGTK 2.52.6 1.09 of pack() time. No change to existing calls.
+
+### Details
+Cuts a block where pack cuts it (first line end at or after blockBytes), sends it to a pack helper at once (the existing helper pool, same helper messages as packParallel), keeps results in block order and joins them behind one footer with the same stitch as packParallel. One copy of each byte on the main thread; the block buffer is transferred to the helper. exact and share are refused. The caller may reuse its buffer after push. It pays on big inputs only: 33 MB gave 1.14 (Chromium), 0.97 (Firefox), 1.66 (WebKitGTK); 99 MB, 3 paired runs: 0.82, 0.70, 1.09 (4-core cloud box, text already in memory, so no parser overlap is counted).
+
+### Deep
+Requested by the owner (card 'Add LfcPack.packParallelStream()', Yes, add it, 11.08). Tests: test/pstream.cjs (8 piece-size cases, buffer reuse, two streams plus packParallel at once, refusals) and tests/lfc-pack-stream-browser.js.
+
 ## 0.7.1 · API 0 · 2026-11-08
 
 ### Quick

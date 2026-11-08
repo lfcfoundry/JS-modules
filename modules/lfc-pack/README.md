@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.7.1 · API 0**
+**Version 0.8.0 · API 0**
 
-**Tested in:** Node 22 suite; Chromium 156, Firefox 158, WebKitGTK 2.52.6 (paired pack of 100,000 rows, same file bytes)
+**Tested in:** Node 22 suite; Chromium 156, Firefox 158, WebKitGTK 2.52.6 (tests/lfc-pack-stream-browser.js)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -104,6 +104,8 @@ Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blo
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 
 Workers: `LfcPack.packBlock(chunk, opts)` packs one chunk of whole lines on its own (run it in any worker; the result is plain bytes), and `packStream(opts).pushPacked(bytes)` appends those chunks in text order on the main thread. Cut the chunks where `push` would: at the first line end at or after `blockBytes` (the last chunk may be shorter). The file is byte for byte the one `push` gives. `share` and `exact` are not supported here. Two workers took 0.60-0.74x the time of `push` on the main thread for 33 MB (Chromium 155, Firefox 158, WebKitGTK 2.52.6); one worker is slower than `push`. Check: `tests/lfc-pack-packblock-browser.js`.
+
+Text that arrives in pieces (since 0.8.0): `const ps = LfcPack.packParallelStream({ workers: 3 })`, then `ps.push(bytes)` for each piece (a parser's output, a download chunk; you may reuse your buffer right after the call) and `const file = await ps.finish()`. Blocks are cut where `pack` cuts them and go to helper Web Workers at once, so packing runs while the rest of the text is still being read. The file is byte for byte the one `pack` writes. `share` and `exact` are not supported. It pays on big inputs: 99 MB of 5-column rows pushed in 64 KB pieces took 0.82 (Chromium 156), 0.70 (Firefox 158) and 1.09 (WebKitGTK 2.52.6) of the time `pack` takes on the main thread (3 workers, 4-core cloud machine, text already in memory, so no overlap with a parser is counted); for 33 MB it was no faster, so use `pack` for small inputs. Check: `tests/lfc-pack-stream-browser.js`.
 
 Reading part of a file: `LfcPack.unpackRows(bytes, { from, count })` decodes only the blocks that hold those rows, `LfcPack.stats(bytes)` reads per-column facts from the footer, and `LfcPack.hash(bytes, kind)` gives `'crc32'` or `'xxh64'`.
 
