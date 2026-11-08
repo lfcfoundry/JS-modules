@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.1 · API 1 · 2026-11-08
+- Chord names never overlap on small rings; bigger arcs keep their names first.
+
 ## 1.3.0 · API 1 · 2026-11-07
 - A chord ring fits the width and height you pass, names included.
 
