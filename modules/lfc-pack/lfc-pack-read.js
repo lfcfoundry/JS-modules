@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.0 (API 0)
+ * Version 0.6.1 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1973,7 +1973,22 @@
       return init(write ? undefined : { readOnly: true }).then(function () { return fn.apply(null, a); });
     };
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.6.0', apiVersion: 0 };
+  // warm(): opt-in, call once when the page is idle (since 0.6.1). Starts the WebAssembly, then packs and opens one made-up 400-row table set, each step in a task of
+  // its own, so the first real save and open skip most of the compile and warm-up cost. Returns the same promise every time: true, or false if it could not run.
+  var warmP = null;
+  function warm() {
+    if (warmP) return warmP;
+    var later = function (f) { return new Promise(function (res) { setTimeout(function () { try { res(f()); } catch (e) { res(false); } }, 0); }); };
+    var file = null;
+    warmP = init().then(function () { return later(function () {
+      var nodes = [], links = [], i;
+      for (i = 0; i < 400; i++) nodes.push({ id: 'n' + i, label: 'Item ' + (i % 97), group: 'g' + (i % 7), x: i * 1.25, y: (i * 7919) % 1000 / 10, size: i % 13, on: i % 3 === 0, tags: i % 5 ? ['a', 'b' + (i % 4)] : [], attrs: { kind: 'k' + (i % 3), score: i / 7 } });
+      for (i = 0; i < 1200; i++) links.push({ source: 'n' + (i % 400), target: 'n' + ((i * 31 + 7) % 400), value: (i % 17) + 0.5, label: i % 9 ? '' : 'link ' + i });
+      file = packTables({ meta: { name: 'warm', created: 1700000000000 }, nodes: nodes, links: links }); return true;
+    }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
+    return warmP;
+  }
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, warmPack: warmPack, warm: warm, packStream: packStream, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.6.1', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

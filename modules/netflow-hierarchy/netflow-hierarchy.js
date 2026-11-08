@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.4.2 (API 1)
+ * Version 1.5.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -154,6 +154,7 @@ var NetflowHierarchy = (function () {
   function treemap(G, o) {
     var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, R = new Float64Array(N * 4);
     var total = val[H.root] || 1, side = Math.max(600, Math.min(4000, Math.sqrt(H.N) * 70)), W = side * 1.5, Ht = side;
+    if (o.width > 0 && o.height > 0) { W = Math.max(160, o.width - 60); Ht = Math.max(120, o.height - 60); }   /* width and height given (since 1.5.0): lay the boxes out at that size; the picture keeps its 30-unit margin, so the SVG is exactly that size */
     R[H.root * 4] = 0; R[H.root * 4 + 1] = 0; R[H.root * 4 + 2] = W; R[H.root * 4 + 3] = Ht;
     var head = function (v) { return H.kids[v].length && (H.item[v] >= 0 || v !== H.root) && R[v * 4 + 3] - R[v * 4 + 1] > 60 && R[v * 4 + 2] - R[v * 4] > 40 ? 18 : 0; };   /* a box that holds others (a real item or a group box, not the top) keeps a strip for its name, so it never sits on its first tile's name */
     for (var i = 0; i < H.order.length; i++) {

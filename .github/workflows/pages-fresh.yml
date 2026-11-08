@@ -1,0 +1,19 @@
+# Fails a pull request when a generated module page is stale, a README drifted from the code or the files, or a page is not Latin-1 only.
+# Cost: about 30 seconds per push (the checks take under 5 seconds; the rest is runner start and checkout).
+name: pages-fresh
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 tools/module-pages/build.py --all --check
+      - run: python3 tools/docs-check/docs-check.py
+      - run: python3 tools/single-file-tools/test/run.py

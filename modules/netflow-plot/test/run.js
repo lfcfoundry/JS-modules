@@ -271,5 +271,28 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const more = Sk.labels.find((l) => /^\+\d+ more$/.test(l.t)), keys = Sk.labels.filter((l) => /^group_name/.test(l.t) && l.y === (more && more.y));
   ok(more && keys.length >= 1 && keys.every((k) => k.x + k.t.length * 6.6 < more.x), 'key row: "+N more" sits after the last name, never on it');
 }
+/* from an earlier repair branch (2026.11.01), adapted to main's choice: a real Other is folded into the rest, so there is one Other and no value is lost */
+{
+  const rows = [{ attrs: { cat: 'Other', v: 100 } }];
+  for (let i = 0; i < 12; i++) rows.push({ attrs: { cat: 'c' + i, v: 1 } });
+  const s = P.make(rows, { type: 'donut', x: 'cat', y: 'v' }, { width: 600, height: 600 }, global.NetflowScene);
+  const values = s.marks.map((m) => Number((/:\s*(-?\d+(?:\.\d+)?)/.exec(m.t) || [])[1]));
+  const covered = s.marks.flatMap((m) => m.rows || []);
+  ok(values.reduce((a, b) => a + b, 0) === 112, 'donut cap keeps all 112 of the category values');
+  ok(s.marks.filter((m) => /^Others?\b/.test(m.t)).length === 1, 'one Other wedge: a real Other is folded into the rest');
+  ok(covered.length === 13 && new Set(covered).size === 13, 'each donut row belongs to exactly one wedge');
+}
+/* from the same repair branch: names holding the key separator (NUL) stay separate grouped-bar cells (since 2.14.6) */
+{
+  const z = '\0', rows = [
+    { attrs: { x: 'a' + z + 'b', color: 'c', v: 1 } },
+    { attrs: { x: 'a', color: 'b' + z + 'c', v: 10 } }
+  ];
+  const s = P.make(rows, { type: 'bar', x: 'x', color: 'color', y: 'v', stack: 'group' }, { width: 600, height: 400 }, global.NetflowScene);
+  const values = s.marks.map((m) => Number((/: (-?\d+(?:\.\d+)?)$/.exec(m.t) || [])[1])).sort((a, b) => a - b);
+  const covered = s.marks.flatMap((m) => m.rows || []);
+  ok(s.marks.length === 2 && values.join(',') === '1,10', 'NUL inside names: values 1 and 10 stay apart (' + values.join(',') + ')');
+  ok(covered.length === 2 && new Set(covered).size === 2, 'each grouped bar keeps only its own source row');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

@@ -107,7 +107,7 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(S2.labels.some((l) => l.note && l.t === 'Salary \u2192 Rent, $1,800 | Salary, $3,000'), '{top} is the biggest flow and {topbox} the biggest box, each with its amount');
   console.log('ok   sankey value labels and notes');
 }
-/* straight curve pieces (handles at a third and two thirds) are written as L; real curves stay C (since 1.10.4) */
+/* straight curve pieces (handles at a third and two thirds) are written as L; real curves stay C (since 1.10.5) */
 {
   const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});
   const ax = 10, ay = 20, bx = 70, by = 50;
@@ -115,4 +115,15 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   const svg = SC.toSvg(S);
   ok(svg.includes('d="M10 20L70 50C90 10 120 90 150 40"'), 'a straight piece is L, a bent one stays C');
   console.log('ok   straight curve pieces as L');
+}
+/* long lines in pieces (since 1.10.4): a solid line over 8,000 segments is written as overlapping pieces of 2048; the pieces join up to the same points, and shorter or dashed lines stay one path */
+{
+  global.NetflowScene = SC; const P = require('../../netflow-plot/netflow-plot.js');
+  const line = (n, o) => { const r = []; for (let i = 0; i < n; i++) r.push({ x: i, y: Math.sin(i / 50) * 40 + (i % 7) }); return SC.toSvg(P.make(r, Object.assign({ type: 'line', x: 'x', y: 'y' }, o), {}, SC)); };
+  const strokes = (s) => (s.match(/<path d="M[^"]*" fill="none" stroke="[^"]*" stroke-width/g) || []);
+  const big = strokes(line(20000)), small = strokes(line(8000)), C = (a) => a.reduce((n, d) => n + (d.match(/[CL]/g) || []).length, 0);
+  ok(big.length - small.length === 9, 'a 20,000-point line is 10 pieces where an 8,000-point line is one path (' + big.length + ' vs ' + small.length + ' stroked paths)');
+  const other = C(small) - 7999;   /* curves that are not the line (the same in both pictures) */
+  ok(C(big) - (big.length - small.length) === 19999 + other, 'the pieces hold every segment once, plus one shared segment per join (' + C(big) + ')');
+  console.log('ok   long lines in pieces of 2048 above 8,000 segments');
 }
