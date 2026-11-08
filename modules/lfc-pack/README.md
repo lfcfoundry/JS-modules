@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.7.1 · API 0**
+**Version 0.7.2 · API 0**
 
-**Tested in:** Node 22 suite; Chromium 156, Firefox 158, WebKitGTK 2.52.6 (paired pack of 100,000 rows, same file bytes)
+**Tested in:** Node 22 suite (new non-ASCII and variable-length string checks); Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 

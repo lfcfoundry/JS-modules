@@ -159,7 +159,7 @@ EXPORT("count") u32 count(const u8*in,u32 len,u32*out){   // newlines, colons, c
     nl+=(u32)__builtin_popcountll(Z(w^0x0A0A0A0A0A0A0A0AULL)); co+=(u32)__builtin_popcountll(Z(w^0x3A3A3A3A3A3A3A3AULL)); cm+=(u32)__builtin_popcountll(Z(w^0x2C2C2C2C2C2C2C2CULL)); }
   #undef Z
   #undef LO7
-  hi=(H&0x8080808080808080ULL)!=0;
+  hi|=(H&0x8080808080808080ULL)!=0;
   for(;i<len;i++){ u8 c=in[i]; nl+=(c==10); co+=(c==':'); cm+=(c==','); hi|=(c>>7); }
   out[0]=nl; out[1]=co; out[2]=cm; out[3]=hi; return 0;
 }

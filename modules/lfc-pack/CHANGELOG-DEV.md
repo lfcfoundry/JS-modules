@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.2 · API 0 · 2026-11-08
+
+### Quick
+Fixes a bug in 0.7.1: the SIMD line counter dropped its 'non-ASCII bytes present' flag, so flat blocks with accents, emoji or other non-ASCII text could be written with wrong string offsets and then fail to read back (damaged block: not valid UTF-8). 0.7.0 and earlier were not affected. Upgrade from 0.7.1.
+
+### Details
+In flatscan.c count(), the SIMD loop set hi (a byte at or above 128 was seen), then the 8-byte loop that follows assigned hi again (hi = ...) and overwrote it. The caller then treated the input as ASCII and used byte offsets for strings. One character fix (hi |= ...). The no-SIMD build was not affected. New checks: test/nonascii.cjs (a non-ASCII character at every offset, SIMD and no-SIMD) and test/varlen-roundtrip.cjs (the Workbench probe).
+
+### Deep
+Bug found by the LFC Workbench thread with its variable-length string probe (repro-lfc-pack-0.7.1). Introduced by 0.7.1 (PR 642); I had checked output bytes on ASCII rows only. Lesson: run a non-ASCII round trip for any change to count() or the scanner.
+
 ## 0.7.1 · API 0 · 2026-11-08
 
 ### Quick
