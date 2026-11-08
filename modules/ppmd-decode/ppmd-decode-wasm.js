@@ -12,7 +12,7 @@
  * ppmd7DecodeWasm.ready() is a promise: true once the wasm has compiled in the background (it starts when this file loads), false when it cannot be used;
  * ppmd7DecodeWasm.module() is the compiled WebAssembly.Module once ready, else null (send it to a worker with postMessage so the worker does not compile it again).
  * ppmd7DecodeWasm.async(src, outSize, order, memSize, opts) is the same decode as a promise that hands the page back about every 8 ms, so a big decode does not freeze the page.
- * Version 1.6.1 (API 1)
+ * Version 1.7.0 (API 1)
  */
 
 (function (root, factory) {
@@ -105,6 +105,7 @@
       })();
     });
   };
+  ppmd7DecodeWasm.warm = ppmd7Decode.warm;     // warms the JavaScript decoder (the fallback); the WebAssembly one needs none
   ppmd7DecodeWasm.plain = ppmd7Decode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
   Object.defineProperty(ppmd7DecodeWasm, 'wasm', { get: function () { return ensure() !== null; }, enumerable: true });     // asking before the early compile is done compiles on the spot
   Object.defineProperty(ppmd7DecodeWasm, 'engine', { get: function () { return engineNow || (ensure() !== null ? 'wasm' : 'js'); }, set: function (v) { engineNow = v; }, enumerable: true });

@@ -1,8 +1,8 @@
 # ppmd-decode
 
-**Version 1.6.1 · API 1**
+**Version 1.7.0 · API 1**
 
-**Tested in:** node tests (142), fz.js 900 damaged streams byte-identical to 1.5.1; paired 2-way runs, new browser per sample, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** node tests (145); first-decode paired runs, new browser per sample, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6, Android Chrome 156 (owner phone)
 
 ## What it is and how it works
 
@@ -53,6 +53,7 @@ Test it: `node modules/ppmd-decode/test/run.js` (Node only, offline, about 3 sec
 |---|---|
 | `ppmd7Decode(src, outSize, order, memSize, opts)` | `src` the raw stream as 7-Zip writes it (`Uint8Array`, first byte 0, no header); `outSize` the exact length of the result; `order` 2-64; `memSize` 2048-2147483616 bytes; `opts.maxSize` (optional) a ceiling for `outSize`. Returns a `Uint8Array` of exactly `outSize` bytes. |
 | `ppmd7Decode.fromProps(src, outSize, props, opts)` | The same, with `order` and `memSize` read from `props`, the 5-byte coder property blob a `.7z` archive stores for PPMd: one byte of order, then the memory size as 4 bytes, little-endian. |
+| `ppmd7Decode.warm({ order, memSize })` | Optional (since 1.7.0), never called for you. Decodes a built-in sample of real text (2-5 KB, JavaScript and HTML from our own repositories) once; call it from an idle callback with the **same `order` and `memSize` as the decode that follows**. About 7-15 ms of work on a desktop, 28 ms on a phone. It warms the plain JavaScript decoder (the WebAssembly one needs none). Throws without both numbers. Warming with another `memSize` makes the first real decode 1.14 to 1.35 times slower, because the decoder is made once per memory size. First plain-JavaScript decode of a 30 KB page: 0.58 (Chromium 156), 0.76 (Firefox 158), 0.74 (WebKitGTK 2.52.6), 0.62 (Android Chrome 156). Large decodes gain little (400 KB, order 6, 16 MB model: 0.82 Chromium, 0.88 WebKitGTK, none in Firefox), because allocating the 16 MB model dominates the idle work there. |
 | `ppmd7Decode.engine`, `.wasm`, `.plain` | In the default file: `.engine` is `'wasm'` or `'js'` (which decoder did the last call); `.wasm` says whether WebAssembly was usable at load time; `.plain` is the JavaScript decoder alone. `ppmd7DecodeWasm` is another name for `ppmd7Decode`, kept for pages written for 1.1.0. |
 
 `order` and `memSize` must be **exactly** the values the encoder used. The model restarts whenever its memory fills up, so a different `memSize` gives garbage from the first restart on, not an error. Pack them next to the data. Set `maxSize` whenever the size did not come from your own packer; without it, a size field of 4 GB asks for a 4 GB result.

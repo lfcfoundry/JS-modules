@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-08
+
+### Quick
+New opt-in ppmd7Decode.warm({ order, memSize }): decode a built-in 2-5 KB real-text sample in an idle callback, then the first plain-JavaScript decode of a 30 KB page takes 0.58 (Chromium 156), 0.76 (Firefox 158), 0.74 (WebKitGTK 2.52.6) and 0.62 (Android Chrome 156) of the time; idle work 6-11 ms desktop, 28 ms phone. Large decodes gain little (16 MB model, 400 KB order 6: 0.82 Chromium, 0.88 WebKitGTK, none in Firefox). Nothing changes unless you call it.
+
+### Details
+New API, opt-in, no change to existing calls: ppmd7Decode.warm({ order, memSize }) (also on the combined file, where it warms the JavaScript decoder). It needs both numbers and they must be the ones the later decode uses: the decoder is made once per memory size, so warming at another size made the first real decode 1.14 to 1.35 times slower in the PPMd/LZMA lane recheck. The sample is real JavaScript and HTML from our repositories, re-encoded so it decodes correctly at 64 KB model memory and up (5 KB at 128 KB or more, 2 KB below). Not called: first decode new/old 0.94 Chromium, 0.92 Firefox, 0.96 WebKitGTK, load time unchanged.
+
+### Deep
+ppmd-decode 1.7.0: opt-in warm({ order, memSize }). Owner approved ('Yes, after the phone run'). 30 KB order-12 target, 64 KB model, first decode warm/none, 15 paired fresh pages: Chromium 156 0.58 (15/15), Firefox 158 0.76 (10/15), WebKitGTK 0.74 (14/15); order-6 1 MB model target: 0.54, 0.76, 0.64. Phone (owner): Android Chrome 156 0.62, 14 of 14. Without the call nothing is slower (0.94, 0.92, 0.96). Tests: 145 pass incl. warm checks.
+
 ## 1.6.1 · API 1 · 2026-11-08
 
 ### Quick

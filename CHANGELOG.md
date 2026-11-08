@@ -24,7 +24,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.7.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
-| [ppmd-decode](modules/ppmd-decode/README.md) | 1.6.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
+| [ppmd-decode](modules/ppmd-decode/README.md) | 1.7.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-08 · **ppmd-decode** 1.7.0 · API 1: New optional ppmd7Decode.warm({ order, memSize }) makes the first plain-JavaScript decode about 0.6 to 0.75 times as long.
 - 2026-11-08 · **ppmd-decode** 1.6.1 · API 1: First decode a little faster in Chromium; same output.
 - 2026-11-08 · **netflow-scene** 1.13.0 · API 1: Area bands are drawn as one shape instead of one per step: area charts are 1.2 to 7.7 times as fast (15 to 87% less time) to show, and the fill looks a little darker on long data (the true fill color).
 - 2026-11-08 · **netflow-scene** 1.12.1 · API 1: SVG export: dots in short same-color runs no longer get a group each, so big scatters with mixed colors load 25-40% faster, same picture.
