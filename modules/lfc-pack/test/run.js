@@ -28,6 +28,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('block-parallel pack', 'node', ['parallel.cjs']);
   step('packBlock + pushPacked (workers)', 'node', ['packblock.cjs']);
   step('packParallelStream', 'node', ['pstream.cjs']);
+  step('keys option on nested blocks', 'node', ['nestedkeys.cjs']);
   step('non-ASCII text in the flat path (SIMD and not)', 'node', ['nonascii.cjs']);
   step('variable-length string round trip (Workbench probe)', 'node', ['varlen-roundtrip.cjs']);
   step('decoder-only build', 'node', ['readonly.cjs']);

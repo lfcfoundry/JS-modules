@@ -75,7 +75,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.8.0 (API 0)
+ * Version 0.8.1 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -735,6 +735,33 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       if (t === 9) { c = p.c; return JSON.parse(c.a[c.i++]); }
       var sb = p.subs, m = sb.length, arr = new Array(m); for (i = 0; i < m; i++) arr[i] = build(sb[i]); return arr;
     }
+    // keys option: advance the streams past a value without making it
+    function skipP(p) {
+      var t = p.t, c, i;
+      if (t === 7) { var kind = p.kind, cc = p.cc, subs = p.subs, n = p.n; for (i = 0; i < n; i++) { switch (kind[i]) { case 1: TI++; break; case 8: case 2: case 3: cc[i].i++; break; case 4: break; default: skipP(subs[i]); } } return; }
+      if (t === 1 || t === 5) { TI++; return; }
+      if (t === 2 || t === 3 || t === 8 || t === 9) { p.c.i++; return; }
+      if (t === 4) return;
+      var sb = p.subs; for (i = 0; i < sb.length; i++) skipP(sb[i]);
+    }
+    // a top-level object row with only the wanted keys, in the order of the keys option (what projectRows gives); a nested value of a wanted key is built whole
+    function buildW(p, want) {
+      if (p.t !== 7) return null;
+      var wi = p.wi;
+      if (!wi || p.wk !== want) {
+        wi = []; for (var k in want) { var ix = p.keys.indexOf(k); if (ix >= 0) wi.push(ix); }
+        var mask = new Uint8Array(p.n); for (var q = 0; q < wi.length; q++) mask[wi[q]] = 1;
+        p.wi = wi; p.wm = mask; p.wk = want;
+      }
+      var keys = p.keys, kind = p.kind, cc = p.cc, subs = p.subs, n = p.n, mask = p.wm, i, c, v, vals = [], o = {};
+      for (i = 0; i < n; i++) {
+        if (mask[i] === 0) { switch (kind[i]) { case 1: TI++; break; case 8: case 2: case 3: cc[i].i++; break; case 4: break; default: skipP(subs[i]); } continue; }
+        switch (kind[i]) { case 1: v = STRS[TI++]; break; case 8: c = cc[i]; v = c.a[c.i++]; break; case 2: c = cc[i]; v = c.a[c.i++]; break; case 3: c = cc[i]; v = c.a[c.i++] === 1; break; case 4: v = null; break; default: v = build(subs[i]); }
+        vals[i] = v;
+      }
+      for (i = 0; i < wi.length; i++) setKey(o, keys[wi[i]], vals[wi[i]]);
+      return o;
+    }
     // assemble one block from its decompressed frames (nestedFrames): the dictionary strings and column arrays the row builder reads
     function openBlock(F) {
       var dt = tlat.decode(F.dict), D, sd = F.side, i, cols = new Map(), g = F.g === 1;
@@ -748,7 +775,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       if (g && skl.length !== F.kc) throw new Error('damaged block: shape count');
       return { n: F.n, g: g, sp: F.sp || null, L: g ? F.count : 0, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: skl, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
-    function rowsOf(b) {
+    function rowsOf(b, want) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i, c;
       if (b.g) { var L = b.L, GS = tables.s; for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); } }
       else for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
@@ -764,13 +791,14 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
         for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.a !== null) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; ends[i] = c; }
       }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
-      if (b.g) for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); }
+      if (b.g) { for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); } if (want) out = projectRows(out, want); }   /* grouped blocks build whole rows, then keep the wanted keys */
+      else if (want) { for (i = 0; i < b.n; i++) { id = fnById[ids[i]]; out[i] = buildW(id, want); if (out[i] === null) { out[i] = projectRows([build(id)], want)[0]; } } }
       else for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
       if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
       return out;
     }
     openBlock = guard(openBlock); rowsOf = guard(rowsOf);
-    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes) { return rowsOf(openBlock(nestedFrames(zs, bytes))); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
+    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes, want) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
@@ -1879,8 +1907,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
       if (!blockMayMatch(file, i, range)) continue;
       kd = file.blocks[i][4];
-      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') { var pbk = want ? partialBytes(file, i) : null; r = rf.readBlock(pbk || blockBytes(file, i), want, !!pbk); } else r = rn.readBlock(blockBytes(file, i));
-      if (want && kd !== 'f') r = projectRows(r, want);
+      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') { var pbk = want ? partialBytes(file, i) : null; r = rf.readBlock(pbk || blockBytes(file, i), want, !!pbk); } else r = rn.readBlock(blockBytes(file, i), want);
+      if (want && kd === 'r') r = projectRows(r, want);
       r = keepRows(r, range);
       if (opts.keys && range && opts.keys.indexOf(range.key) < 0) r = projectRows(r, (function () { var w = {}; opts.keys.forEach(function (k) { w[k] = 1; }); return w; })());
       for (j = 0; j < r.length; j++) out.push(r[j]);
@@ -2094,7 +2122,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.8.0', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.8.1', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.1 · API 0 · 2026-11-08
+
+### Quick
+unpack(bytes, { keys }) on nested blocks now builds only the keys you ask for (it used to build every row in full and then drop keys). Same output, no new option. 300,000 nested rows, keys: ['id'], first read: Chromium 156 190 to 131 ms (0.69), Firefox 158 178 to 93 ms (0.52), WebKitGTK 2.52.6 110 to 103 ms (0.94). A full unpack without keys is level (0.96, 0.99, 0.90 as the first call).
+
+### Details
+Nested reader gets the wanted keys: top-level object rows build only those keys, in the order of the keys option, and skip other values by advancing the streams. Non-object rows, grouped and raw blocks keep the old projection. Round 60 patch; owner tapped 'Fix the keys option for nested'. Second keys read: 0.59 Chromium, 0.50 Firefox, 0.74 WebKitGTK. Note: a full unpack that comes after a keys read in the same page is no longer warmed by it (Firefox 86 to 129 ms), but it is still faster than a cold full unpack (142 ms), and the pair's total is smaller.
+
+### Deep
+lfc-pack 0.8.1: keys option on nested blocks builds only wanted keys. 300k nested rows (ids, names, nested pos, tags, ok), 9 paired fresh pages, keys:['id'] first read new/old: Chromium 156 0.69 (190 to 131 ms), Firefox 158 0.52 (178 to 93), WebKitGTK 2.52.6 0.94 (110 to 103); second read 0.59 / 0.50 / 0.74. Full unpack as first call (9-11 pairs): 0.96 / 0.99 / 0.90. Full unpack after keys reads: Chromium 0.99, Firefox 1.50 (86 to 129 ms; the old keys path had warmed the full builder; cold full is 142 ms), WebKitGTK 0.91. Node V8 (research): 172 to 77 ms. Output identical to 0.8.0 on a 480-case fuzz (random shapes incl. 30-shape blocks, nested values, range option) and the new test nestedkeys.cjs (144 key sets). Source: breakthroughs-2026.10.31/round60-nested-keys/.
+
 ## 0.8.0 · API 0 · 2026-11-08
 
 ### Quick

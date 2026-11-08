@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.1 · API 0 · 2026-11-08
+- Reading only some keys of nested rows is up to 2 times faster; output unchanged.
+
 ## 0.8.0 · API 0 · 2026-11-08
 - New LfcPack.packParallelStream(): push text in pieces while it is read, workers pack the blocks, same file bytes as pack.
 
