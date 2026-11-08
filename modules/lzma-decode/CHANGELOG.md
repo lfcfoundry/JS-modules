@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-08
+- New optional lzmaDecode.warm(): call it from an idle callback and the first plain-JavaScript unpack is 4-9% faster (6-8 ms of idle work).
+
 ## 1.6.4 · API 1 · 2026-11-07
 - First unpack about 8% faster in Chromium; same output.
 

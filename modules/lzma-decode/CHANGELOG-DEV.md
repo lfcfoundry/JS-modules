@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-08
+
+### Quick
+Adds lzmaDecode.warm(), opt-in, never automatic: it decodes a built-in 16 KB sample so the engine has optimized the decoder before the real unpack.
+
+### Details
+lzmaDecode.warm() decodes a 6.8 KB packed made-up text once (about 6-12 ms). First plain-JavaScript unpack of a 730 KB stream, new browser per sample, paired: Chromium 156 0.84 (12 of 14 pairs), WebKitGTK 2.52.6 0.85 (10 of 10); research thread: Chromium 156 0.91, Firefox 158 0.96, WebKitGTK 0.94. Also on lzma-decode-with-wasm.js (warms the JavaScript decoder only). No change for existing calls.
+
+### Deep
+1.7.0: lzmaDecode.warm() (opt-in). Gate runs 11.08: paired fresh-browser, 730 KB first unpack, early stop at 85%: Chromium 156.0.8078.79-1 14 rounds 36.3 to 32.3 ms (0.84, 12/14, idle 12.0 ms); WebKitGTK 2.52.6 10 rounds 33.0 to 28.0 ms (0.85, 10/10, idle 8.0 ms). Firefox 158 (research thread, 24 rounds) 0.96, 15/24; not rerun here (puppeteer-core card open). Phone pending. Module tests 355 passed. Brief: js-modules-research/lzma-decode/warm-2026.11.08/BRIEF-apply-warm.md
+
 ## 1.6.4 · API 1 · 2026-11-07
 
 ### Quick
