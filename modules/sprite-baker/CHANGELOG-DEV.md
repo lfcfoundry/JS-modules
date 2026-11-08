@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-07
+
+### Quick
+E.release() frees the 16 MB of wasm memory; the next use starts a fresh Instance, same bytes.
+
+### Details
+SpriteBaker.wasm() results get release(). It copies the Rast whose buffers sit in wasm memory out into plain arrays and drops the Instance and its 16 MB of memory. The next Rast, drawMesh or outline starts a fresh Instance from the compiled module (Node 22: a bake after release() costs 0.72-0.93 ms against 0.13-0.15 ms kept). stats.starts counts the Instances. The plain engine has a release() that does nothing. Pages that never call it are unchanged.
+
+### Deep
+Asked for by Fancy Banana: the engine is used for about 270 triangle fills at load but kept 16 MB (about 7% of a 220 MB renderer) for the whole session.
+
 ## 1.10.0 · API 1 · 2026-11-06
 
 ### Quick
