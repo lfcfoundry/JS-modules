@@ -1,8 +1,8 @@
 # lzma-decode
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** node tests (355); Chromium 155, Firefox 158, WebKitGTK 2.52.6 A/B
+**Tested in:** Node 22: 355 module checks; 12 streams (4 data kinds, 3 lc/lp/pb settings) plus 732 damaged or cut streams give the same bytes or error as 1.6.0; early-stop A/B in Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 

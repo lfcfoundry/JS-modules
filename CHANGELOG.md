@@ -23,7 +23,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
-| [lzma-decode](modules/lzma-decode/README.md) | 1.6.0 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
+| [lzma-decode](modules/lzma-decode/README.md) | 1.6.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.5.1 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
@@ -88,6 +88,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **netflow-plot** 2.11.0 · API 2: Auto bar charts with more than 25 names show the 10 biggest plus one bar for the rest, sideways; fractions between 0 and 1 are written as percents.
 - 2026-11-07 · **netflow-plot** 2.10.1 · API 2: A bar chart given the number as x and the names as y now draws sideways bars instead of an empty chart.
 - 2026-11-07 · **netflow-plot** 2.10.0 · API 2: Busy flow tables where places both send and receive draw as a chord; small ones stay Sankeys. Line labels no longer collide and share one precision; date axes get round ticks and no redundant name. A scatter squashed by a few far values says so; the key's +N more no longer covers a name.
+- 2026-11-07 · **lzma-decode** 1.6.1 · API 1: The plain JavaScript decoder is faster in Firefox and WebKit.
 - 2026-11-07 · **lzma-decode** 1.6.0 · API 1: Repeat unpacks are faster: one WebAssembly Instance is kept between calls, up to 16 MB of memory
 - 2026-11-07 · **lzma-decode** 1.5.1 · API 1: The JavaScript decoder is faster again, now in WebKitGTK too: about a third faster on the first big file in every test browser.
 - 2026-11-07 · **lzma-decode** 1.5.0 · API 1: The JavaScript decoder (used when WebAssembly is blocked) unpacks about 1.5 to 2 times faster after the first file in Chromium and Firefox. The WebAssembly decoder unpacks about 15% faster in Chromium and Firefox.
