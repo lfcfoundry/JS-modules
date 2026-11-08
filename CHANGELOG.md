@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.14.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.7.2 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.8.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -72,6 +72,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
 - 2026-11-08 · **lzma-decode** 1.7.1 · API 1: The optional warm() makes the first plain-JavaScript unpack 11 to 27% faster.
 - 2026-11-08 · **lzma-decode** 1.7.0 · API 1: New optional lzmaDecode.warm(): call it from an idle callback and the first plain-JavaScript unpack is 4-9% faster (6-8 ms of idle work).
+- 2026-11-08 · **lfc-pack** 0.8.0 · API 0: New LfcPack.packParallelStream(): push text in pieces while it is read, workers pack the blocks, same file bytes as pack.
 - 2026-11-08 · **lfc-pack** 0.7.2 · API 0: Fixes a 0.7.1 bug where text with accents or emoji could fail to read back.
 - 2026-11-08 · **lfc-pack** 0.7.1 · API 0: Packing flat rows is 4 to 11% faster, same file bytes.
 - 2026-11-08 · **lfc-pack** 0.7.0 · API 0: packBlock() and packStream().pushPacked(): pack chunks in workers, same file bytes
