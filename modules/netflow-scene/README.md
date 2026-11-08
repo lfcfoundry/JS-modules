@@ -49,6 +49,8 @@ Sankey names in a middle column sit on their own outgoing bands, so since 1.7.0 
 
 **Title, source and the Economist frame (opt-in).** `title` (bold, left), `subtitle` (lighter, under it) and `source` (small, under the picture) are text in the options and appear only when given. `frame: true` (or `theme: 'editorial'`, since 1.8.0) adds a small red tag at the top left of the picture and puts the source under it; since 1.10.3 there is no second rule above the source line, because the chart's own baseline is the one line. Without these options the picture is unchanged.
 
+**Three groups (since 1.12.0).** When a picture has exactly three groups on the built-in colors, they are mauve, light green and orange, the three easiest to tell apart for every kind of color vision; any other number, and a palette you choose, keep their order. `NetflowScene.threeGroups(groups)` returns the group list in that color order, for code that draws its own key.
+
 `addTitles(S, { title, subtitle, source })` adds an optional title block to any picture: a bold title and a lighter subtitle above it and a small source line under it, outside the picture so nothing moves. netflow-plot, netflow-hierarchy and netflow-circular call it for you when their options carry these words. Text read at 4.5:1 or better on both themes.
 
 ## Reusing link looks (`lookPlan`)
