@@ -226,7 +226,8 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const near = []; for (let i = 0; i < 190; i++) near.push({ key: 'food ' + (i % 19), lat: 47.655 + ((i * 37) % 17) / 1000 });
   const ng = P.guess(near), ns = P.auto(near).svg;
   ok(ng.type === 'dotplot' && /close together/.test(ng.why), 'close averages: dots, not 19 equal bars');
-  const nt = (ns.match(/>47[.0-9]*</g) || []); ok(nt.length >= 3 && new Set(nt).size === nt.length, 'dot plot ticks all differ (' + nt.join(' ') + ')');
+  const nt = (ns.match(/>47\.[0-9]+</g) || []).map((t) => +t.slice(1, -1)); ok(nt.length === 19 && nt.every((v, i) => !i || v <= nt[i - 1]), 'dot plot (since 2.14.5): every dot carries its value, biggest first (' + nt.slice(0, 4).join(' ') + ' ...)');
+  ok(/scale starts at 47/.test(ns) && P.toSvg(near, { type: 'dotplot', x: 'key', y: 'lat', agg: 'mean', clean: false }).indexOf('scale starts') < 0, 'dot plot says when its scale does not start at zero; clean: false keeps the number axis');
   const at = P.auto(reg); ok(at.takeaway === tk(reg, at.spec) && at.alt.length > 10, 'auto returns the takeaway and the alt text');
   ok(P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total' }).indexOf('leads') < 0 && P.toSvg(reg, { type: 'bar', x: 'region', y: 'sales_total', title: 'auto' }).indexOf('>West leads sales total with 1,227, 14% more than East (1,080)</text>') > 0, "title: 'auto' draws the takeaway; nothing changes without it");
 }
