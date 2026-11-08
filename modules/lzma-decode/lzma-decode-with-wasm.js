@@ -1,8 +1,8 @@
 /*! lzma-decode-with-wasm.js: lzma-decode.js and lzma-decode-wasm.js in one file. lzmaDecode(...) here tries the WebAssembly decoder first and uses the JavaScript decoder
  * when WebAssembly is not usable (the page policy lacks 'wasm-unsafe-eval', or an old browser), so it always works and gives the same bytes. lzmaDecode.plain is the JavaScript decoder alone;
  * lzmaDecodeWasm is another name for lzmaDecode. Built by wasm/join.js from the two files named above: edit those, not this one. Copyright (c) 2026 LFC Foundry. MIT License.
- * Version 1.5.1 (API 1) */
-/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.5.1 (API 1) */
+ * Version 1.6.0 (API 1) */
+/* lzma-decode: a small LZMA1 decoder. MIT License, Copyright (c) 2026 LFC Foundry. https://github.com/lfcfoundry/JS-modules Version 1.6.0 (API 1) */
 
 /* Decodes a raw LZMA1 stream (no .lzma header) into a Uint8Array.
 
@@ -146,7 +146,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
  *
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.5.1 (API 1)
+ * Version 1.6.0 (API 1)
  */
 
 (function (root, factory) {
@@ -157,6 +157,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
   'use strict';
   if (!jsDecode) throw new Error('lzma-decode-wasm.js: load lzma-decode.js first');
   var mod = null, settled = false, early = null;
+  var inst = null;    // one Instance kept between calls while its memory stays at 16 MB or less (since 1.6.0): a repeat unpack skips starting a fresh one
+  var KEEP = 16777216, made = 0;
   var bin = null;     // the decoded program, kept only until it is compiled once
   function wasmBytes() {
     if (bin) return bin;
@@ -197,7 +199,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
         src.length >= 0x40000000 || (opts.maxSize !== undefined && !(outSize <= opts.maxSize))) return fallback(src, outSize, opts);
     var n = -3, mem, u8, at, outAt;
     try {
-      var ex = new WebAssembly.Instance(mod, {}).exports;
+      var ex = inst || (made++, inst = new WebAssembly.Instance(mod, {}).exports);     // lzma_begin resets every decoder state and table, so a kept Instance gives the same bytes
       mem = ex.memory;
       at = ex.__heap_base.value || ex.__heap_base;     // an exported global is a WebAssembly.Global; its .value is the address
       outAt = at + ((src.length + 15) & ~15);
@@ -212,9 +214,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
         n = 0;
       }
     } catch (e) { n = -3; }     // out of memory, for one
-    if (n !== outSize) return fallback(src, outSize, opts);
+    if (n !== outSize) { inst = null; return fallback(src, outSize, opts); }     // a failed call never keeps its Instance
     decode.engine = 'wasm';
-    return new Uint8Array(mem.buffer, outAt, outSize).slice();     // a copy, so the 2x memory of the run is freed and the result stands alone
+    var out = new Uint8Array(mem.buffer, outAt, outSize).slice();     // a copy, so the result stands alone
+    if (mem.buffer.byteLength > KEEP) inst = null;     // memory never shrinks: past 16 MB the Instance is dropped, and its memory with it
+    return out;
   }
 
   decode.file = function (bytes, size, opts) {     // same header handling as lzmaDecode.file in lzma-decode.js
@@ -228,6 +232,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = lzmaDecode
     return decode(bytes.subarray(14), size, { lc: lc, lp: lp, pb: pb, maxSize: opts && opts.maxSize });     // byte 13 is the always-zero first stream byte
   };
 
+  Object.defineProperty(decode, '_made', { get: function () { return made; } });     // test hook: how many Instances decode has started
   decode.plain = jsDecode;     // the JavaScript decoder itself, for a caller that wants no WebAssembly at all
   Object.defineProperty(decode, 'available', { get: function () { return !!ensure(); }, enumerable: true });
   decode.ready = function () { return early.then(function () { return !!mod; }); };     // a promise: true once the early compile worked, false when WebAssembly cannot be used here

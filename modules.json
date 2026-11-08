@@ -252,7 +252,7 @@
     },
     {
       "id": "lzma-decode",
-      "version": "1.5.1",
+      "version": "1.6.0",
       "api": 1,
       "global": "lzmaDecode",
       "summary": "LZMA1 decoder that uses WebAssembly first (14 to 30 times faster than the npm lzma package on 3 MB of text in Chromium 155, Firefox 158 and WebKitGTK 2.52.6; 4 to 19 times with its plain JavaScript fallback) and falls back to a small readable ES5 JavaScript decoder; tested against Python's lzma. Browsers can only unpack gzip and deflate natively.",
