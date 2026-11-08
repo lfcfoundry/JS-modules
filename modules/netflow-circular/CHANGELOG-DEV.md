@@ -1,5 +1,16 @@
 # netflow-circular developer changelog
 
+## 1.3.1 · API 1 · 2026-11-08
+
+### Quick
+A chord ring names an arc only when its name clears every name already placed, biggest arcs first. flights-10k at 300 wide: 23 names with about 6 overlapping become 19 names with none; at 600 wide all 23 stay. Requested by the owner.
+
+### Details
+Names stand out from the ring like spokes, so two touch when their middles are closer than one line of text (13 px times the label scale) along the ring at the label radius. The test scales with the drawing, so a bigger ring or zoom keeps more names. No API change.
+
+### Deep
+First tried a per-arc length test (brief CHORD-LABEL-FIX-2026.11.08.md): it fixed 300 but dropped 5 names at 600 that had room, because small arcs with gaps between them still have space. Spacing between kept names is the real limit.
+
 ## 1.3.0 · API 1 · 2026-11-07
 
 ### Quick

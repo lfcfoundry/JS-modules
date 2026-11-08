@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.3.0 (API 1)
+ * Version 1.3.1 (API 1)
  * netflow-circular.js: the circular views of Netflow Map (Chord, Bundles). layout(view, G, o) returns a plain layout; scene(L, o, NS) turns it
  * into drawing lists for netflow-scene. Built on netflow-hierarchy (its tree, values and drawing frame): load netflow-hierarchy.js first,
  * or keep it next to this folder in Node. No page, no DOM.
@@ -241,12 +241,19 @@ var NetflowCircular = (function () {
       var S = C.S, L = C.L, ch = C.ch, o = C.o, T = C.T, alpha = C.alpha, groupsHex = C.groupsHex, gcol = C.gcol, fillOf = C.fillOf, lab = C.lab, clip = C.clip, mono = C.mono, idxOfId = C.idxOfId, addCurve = C.addCurve, itemShow = C.itemShow, iscale = C.iscale;
       if (type === 'chord') {
       var R = ch.R, th = ch.th, cx = ch.cx, cy = ch.cy;
+      /* names stand out from the ring like spokes, so two names touch when their middles are closer than one line of text along the ring (since 1.3.1).
+         Bigger arcs choose first; a smaller one keeps its name only when it clears every name already placed. */
+      var named = {}, keep = [], gap = 13 * iscale / (R + th + 8);
+      ch.arcs.filter(function (A) { return A.a1 > A.a0; }).sort(function (a, b) { return (b.a1 - b.a0) - (a.a1 - a.a0) || a.k - b.k; }).forEach(function (A) {
+        for (var j = 0; j < keep.length; j++) { var d = Math.abs(A.mid - keep[j]) % (2 * Math.PI); if (Math.min(d, 2 * Math.PI - d) < gap) return; }
+        keep.push(A.mid); named[A.k] = true;
+      });
       ch.arcs.forEach(function (A) {
         if (!(A.a1 > A.a0)) return;
         var col = mono && !ch.byGroup ? groupsHex[A.k % groupsHex.length] : A.item !== undefined ? fillOf(A.item) : gcol(A.group);
         pushSector(S, cx, cy, R, R + th, A.a0, A.a1, col, [0, 0, 0, 0], ch.byGroup ? { group: A.group } : null);
         var mid = A.mid, lr = R + th + 8, right = Math.cos(mid) >= 0, rot = right ? mid : mid + Math.PI;
-        if (itemShow) lab(cx + Math.cos(mid) * lr, cy + Math.sin(mid) * lr, clip(A.label, 28), 12 * iscale, T.fg, { align: right ? 'l' : 'r', rot: rot, node: A.item !== undefined ? A.item : -1, minK: 0.15, group: ch.byGroup ? A.group : undefined });
+        if (itemShow && named[A.k]) lab(cx + Math.cos(mid) * lr, cy + Math.sin(mid) * lr, clip(A.label, 28), 12 * iscale, T.fg, { align: right ? 'l' : 'r', rot: rot, node: A.item !== undefined ? A.item : -1, minK: 0.15, group: ch.byGroup ? A.group : undefined });
       });
       var directed = ch.flows.length <= 4000;
       ch.flows.forEach(function (f) {
