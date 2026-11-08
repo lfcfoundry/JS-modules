@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.6.0 · API 1 · 2026-11-08
+- New optional NetflowHierarchy.warm() makes the first treemap or sunburst draw much sooner.
+
 ## 1.5.1 · API 1 · 2026-11-07
 - Chord and treemap amounts written as '1,200' are read as 1,200.
 

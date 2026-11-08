@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.5.1 (API 1)
+ * Version 1.6.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -670,7 +670,17 @@ var NetflowHierarchy = (function () {
     o = o || {}; var NS = sceneLib('netflow-hierarchy'), lo = {}; for (var k in o) lo[k] = o[k]; if (lo.nest === undefined) lo.nest = 'auto'; if (lo.sized === undefined) lo.sized = true;
     return NS.toSvg(scene(layout(o.type || 'treemap', asGraph(data, o), lo), o, NS), o.title);
   }
-  return { VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, asGraph: asGraph, sceneLib: sceneLib, hierarchy: hierarchy, sums: sums, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
+  /* warm(): optional, never called for you. Draws two small made-up pictures (a treemap and a sunburst of 30 items) once and throws them away, so the browser's JavaScript engine has already
+     optimized the drawing code when your first real picture comes. Call it from an idle callback, after netflow-scene.js has loaded (about 10 ms of work). Returns true when it ran, false when
+     NetflowScene is missing. Nothing else changes: a picture comes out the same with or without it. */
+  function warm() {
+    var rows = [], i, s = 5, r = function () { return (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; };
+    try { sceneLib('netflow-hierarchy'); } catch (e) { return false; }
+    for (i = 1; i < 30; i++) rows.push({ from: 'n' + (i >> 2), to: 'n' + i, value: Math.round(r() * 90) + 10 });
+    toSvg(rows); toSvg(rows, { type: 'sunburst' });
+    return true;
+  }
+  return { warm: warm, VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, asGraph: asGraph, sceneLib: sceneLib, hierarchy: hierarchy, sums: sums, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
     tmpI: tmpI, tmpF: tmpF, sector: sector, pushSector: pushSector, lumi: lumi };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NetflowHierarchy;

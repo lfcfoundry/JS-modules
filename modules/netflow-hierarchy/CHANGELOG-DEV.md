@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.6.0 · API 1 · 2026-11-08
+
+### Quick
+New opt-in NetflowHierarchy.warm(): draws two small made-up pictures in an idle callback; the first real treemap/sunburst (250 items) then takes 0.50 (Chromium 156), 0.82 (Firefox 158) and 0.60 (WebKitGTK 2.52.6) of the time. Idle work 6-11 ms. Nothing changes unless you call it.
+
+### Details
+New API, opt-in, no change to existing calls. Returns true when it ran, false when NetflowScene is missing. 11 paired fresh pages per browser: 0.50 (11/11), 0.82 (7/11), 0.60 (10/11). Owner approved the card 'Add opt-in warm() to netflow-circular and netflow-hierarchy' ('Yes, add both').
+
+### Deep
+netflow-hierarchy 1.6.0: opt-in warm(). First treemap+sunburst of 250 items after an idle warm(): Chromium 156 0.50 (23.1 ms base, idle 11.3 ms), Firefox 158 0.82, WebKitGTK 2.52.6 0.60 (idle 9, 6 ms). 11 pairs. 953 checks pass.
+
 ## 1.5.1 · API 1 · 2026-11-07
 
 ### Quick

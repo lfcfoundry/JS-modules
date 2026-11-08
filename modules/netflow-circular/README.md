@@ -1,8 +1,8 @@
 # netflow-circular
 
-**Version 1.3.1 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** node tests (951 checks, 2 new); label browser check in Chromium 155, Firefox 158, WebKitGTK 2.52.6; chord pictures at 300 and 600 in all 3
+**Tested in:** node tests (953, shared with netflow-hierarchy); first-picture paired runs, fresh page per sample, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -36,6 +36,8 @@ Load `netflow-scene.js`, then `netflow-hierarchy.js`, then `netflow-circular.js`
 svgElement.outerHTML = NetflowCircular.toSvg(links);                          // chord; { type: 'bundles' } for edge bundles
 containerDiv.innerHTML = NetflowCircular.toSvg(links);   // the same call into a <div> you already have
 ```
+
+- `NetflowCircular.warm()` (optional, since 1.4.0): call it from an idle callback, after `netflow-scene.js` and `netflow-hierarchy.js` have loaded. It draws a small made-up chord and bundles once and throws them away, so the engine has already optimized the drawing code when your first real picture comes. 7 to 14 ms of work; the first chord and bundles of 120 links then took 0.46 (ungoogled Chromium 156), 0.69 (Firefox 158) and 0.58 (WebKitGTK 2.52.6) of the time without it. Returns `true`, or `false` when `NetflowScene` is missing. Pictures are the same with or without it.
 
 Amounts written as plain-number text (`'40'`) are read as numbers; write them without thousands commas (`'1200'`, not `'1,200'`). Your table can keep its own column names: `toSvg(rows, { from: 'Source', to: 'Target', value: 'Amount' })`, or leave them out and the first two text columns and the first number column are used (rows straight from a CSV work). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
 

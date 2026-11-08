@@ -37,8 +37,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-circular](modules/netflow-circular/README.md) | 1.3.1 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-circular](modules/netflow-circular/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.6.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.16.1 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -69,6 +69,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **netflow-plot** 2.16.1 · API 2: Big area charts build 9 to 11% faster sooner: pointing text is made when you point.
 - 2026-11-08 · **netflow-plot** 2.16.0 · API 2: New optional NetflowPlot.warm(): call it from an idle callback and the first charts are 18 to 45% faster to draw (7-13 ms of idle work).
 - 2026-11-08 · **netflow-plot** 2.15.0 · API 2: Three groups in mauve, light green and orange; keys name all of 3 or fewer groups
+- 2026-11-08 · **netflow-hierarchy** 1.6.0 · API 1: New optional NetflowHierarchy.warm() makes the first treemap or sunburst draw much sooner.
+- 2026-11-08 · **netflow-circular** 1.4.0 · API 1: New optional NetflowCircular.warm() makes the first chord or bundles draw much sooner.
 - 2026-11-08 · **netflow-circular** 1.3.1 · API 1: Chord names never overlap on small rings; bigger arcs keep their names first.
 - 2026-11-08 · **memory-compression** 2.14.1 · API 2: Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
 - 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
