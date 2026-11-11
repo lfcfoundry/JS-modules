@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.16.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.8.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.8.3 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -61,6 +61,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-11 · **lfc-pack** 0.8.3 · API 0: Packing is faster for rows with long or exponent numbers.
+- 2026-11-11 · **lfc-pack** 0.8.2 · API 0: Packing UUID columns is faster. Packing picks each column's layout faster.
 - 2026-11-08 · **ppmd-decode** 1.7.0 · API 1: New optional ppmd7Decode.warm({ order, memSize }) makes the first plain-JavaScript decode about 0.6 to 0.75 times as long.
 - 2026-11-08 · **ppmd-decode** 1.6.1 · API 1: First decode a little faster in Chromium; same output.
 - 2026-11-08 · **netflow-scene** 1.13.0 · API 1: Area bands are drawn as one shape instead of one per step: area charts are 1.2 to 7.7 times as fast (15 to 87% less time) to show, and the fill looks a little darker on long data (the true fill color).
