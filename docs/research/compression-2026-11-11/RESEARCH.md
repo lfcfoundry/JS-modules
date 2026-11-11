@@ -22,7 +22,7 @@ Related earlier work, not repeated here: the LZ4 1.11 framework and validation n
 2. **Pack spends 11 to 19% of its time compressing encodings that lose** on number and log data. zstd sees 3.9 times the bytes that end up in the file on sensor-style data, and 1.5 times on logs.
 3. **ADOPT CANDIDATE B2: choose a column's encoding from a small sample (the BtrBlocks idea).** This prototype estimates every candidate from a 64 KB sample and compresses only the winner in full. Pack takes 0.86 to 0.96 of the time on 300,000-row sensor and log data in Chromium 156, Firefox 158 and WebKitGTK 2.52.6. The output is byte-for-byte the same on all 10 data sets, and the nested control set is unchanged (1.01 to 1.04).
 4. **ADOPT CANDIDATE B1: UUID text to bytes with char codes.** The UUID column encoder called `replace` and `parseInt(substr)` 16 times per value. A table lookup gives the same bytes. Pack on UUID-heavy data takes 0.74 to 0.91 of the time on the first pack, or 0.69 to 0.98 on later packs, in all 3 browsers. It was never slower.
-5. **New lead B3: full-precision decimals push a whole block onto the slow writer.** One column of 17-digit decimals (such as `Math.random()` output) makes the fast flat writer decline the whole block, so the block goes to the `JSON.parse` writer. The UUID/hash test set packs at about 1,000 ms per 45 MB, against about 370 ms per 44 MB for logs. Without that one column, the fast writer takes the block.
+5. **ADOPT CANDIDATE B3 (added 8:10 AM Eastern): keep long numbers on the fast writer.** One number with more than 15 digits, more than 9 decimals, an exponent or `-0` made the fast flat writer give up on the whole block. The prototype keeps such numbers as text for that one column. Pack on such data takes 0.67 to 0.86 of the time in the three browsers, and one small first pack in WebKitGTK was even at 1.01. All three candidates stacked (B1 + B2 + B3) take 0.50 to 0.54 of the time on the UUID/hash/decimal set in Chromium 156. The output is byte-identical on 19 of 19 sets, and lfc-pack 0.8.1 reads the new files.
 6. **Skipping zstd on incompressible frames (the Brotli and zstd raw-block idea) has little headroom.** Even on the UUID/hash/random set, frames that end up stored raw cost only 4 to 5% of pack time, because zstd is already quick on random bytes. Deferred.
 
 Speed numbers come only from the three test browsers. Node was used only for pass/fail checks, byte counts and finding hot spots, never for timing.
@@ -122,6 +122,35 @@ Found by a Node CPU profile of the `ids` pack (hot-spot finding only, no Node ti
 
 The principle is the one byte codecs use everywhere: table lookups on code units, with no per-byte string building. It is not an upstream algorithm. **Decision: ADOPT CANDIDATE** (no format or behavior change, same bytes). The regex checks before it (`RX_UUID`, `RX_HEX`, about 8% of the `ids` profile) could be merged into the same pass later.
 
+### 2026-11-11 E5 (B3): keep long numbers on the fast flat writer
+
+**Cause:** `wasm/flatscan.c` reads numbers as a mantissa of at most 15 digits plus up to 9 fraction digits. On anything else it calls `BAIL(10/11/12)`: more digits, an exponent, `-0`, or more decimals. That stops the fast writer for the whole block, and `JSON.parse` re-reads every row. A single column of `Math.random()`-style values is enough.
+
+**Prototype** (`experiments/b3-long-numbers.diff`, 38 changed lines):
+- A strict JSON-number scanner, `numspan`, replaces those bail-outs.
+- The key becomes type 6, and the cell keeps the number's byte span.
+- In JS, a type-6 column reads span cells with `Number(text)`. Earlier plain cells of the same key are read as mantissa / 10^digits, which is exactly the value `JSON.parse` gives, because both parts are exact doubles and one division rounds correctly.
+- The column then goes through `encodeColumn`, as in the general writer, with the same zone-map entry.
+- Invalid number text still bails as before.
+- Built with the repo's own `wasm/build-flatscan.sh` (clang 18.1.3). `tpl4.wasm` and `rowscan.wasm` came out byte-identical to the committed files.
+
+**Checks:**
+- `node test/run.js`: all lfc-pack checks pass.
+- `experiments/b3verify.cjs`: 19 data sets, the 10 research sets plus 9 number edge sets (exponents in both letter cases, `-0` every third row, values past 2^53, 5e-324, long decimals appearing half way down a column, 1e300 mixed with small integers). Files are byte-identical to lfc-pack 0.8.1, rows equal `JSON.parse`, `-0` is kept, and the 0.8.1 reader reads the new files.
+- A CPU-profile check confirms the `ids` block now stays on the fast writer.
+
+**Pack time, variant over base** (same bytes in every run):
+
+| Rows | Chromium 156 first / later | Firefox 158 first / later | WebKitGTK first / later |
+|---|---|---|---|
+| ids 300,000 | 0.71 (0.65-0.80) / 0.76 (0.69-0.85) | 0.78 (0.63-0.86) / 0.75 (0.63-0.78) | 0.67 (0.66-0.71) / 0.82 (0.78-0.82) |
+| ids 30,000 | 0.75 (0.63-0.89) / 0.75 (0.70-0.81) | 0.73 (0.70-0.99) / 0.86 (0.68-0.99) | 1.01 (0.95-1.05) / 0.87 (0.78-1.16) |
+| logs 300,000 (control, same path) | 0.95 / 0.94 | 0.95 / 0.99 | 0.91 / 1.02 |
+
+**All stacked, Chromium 156, 5 rounds** (`results/ab-summary-b3-stack.txt`): B1 + B2 + B3 against 0.8.1 gave ids 0.50 (0.48-0.60) first / 0.54 (0.52-0.62) later, sensors 0.88 / 0.92, and logs 1.01 / 1.04, which is neutral within noise. B1 + B2 without B3 gave ids 0.78 / 0.73. The gains add up: B3 removes the `JSON.parse` re-read, and B1 makes the UUID column cheap once it gets there. On logs, B2's gain was 0.92 in the 8-round run and about 1.0 in this 5-round run, so treat logs as "about neutral to 0.92".
+
+**Not covered:** the scanner's other bail-outs (values of 2^50 or more after scaling, which `gather` returns as 1; escapes; integer-like keys) still send the whole block to the slow writer. Each could get the same per-column fallback. Counting how often real files hit each bail-out is the next cheap step. **Decision: ADOPT CANDIDATE.** It needs a wasm rebuild, and the gate is the normal test suite, the byte-identity set and a three-browser early-stop A/B.
+
 ### 2026-11-11 E4: skip zstd on incompressible frames (measured headroom only)
 
 **Upstream:**
@@ -139,7 +168,9 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 
 **B2. Choose the encoding from a sample, compress the winner once.** Source: BtrBlocks (SIGMOD 2023). Target: lfc-pack flat writers' `cand()`; later memory-compression's chooser, whose packing was 23 to 52 times slower than jso fast in the October study. Advantage: pack 0.85 to 0.96 on number and log data; zstd input down 49% on sensors. Evidence: moderate to strong (3 browsers, 6 to 8 paired rounds, same bytes on 10 made-up sets; real corpus not yet run). Difficulty: low to medium. Risk: a wrong pick makes a file bigger. Mitigation: exact comparison when the top two are within 2%, plus a corpus size gate. Experiment: E2, then the corpus size gate, then early-stop A/B. **ADOPT CANDIDATE.**
 
-**B3. Keep full-precision decimals on the fast flat writer.** Source: our own profile. The principle is per-column fallback instead of per-block fallback, the way Parquet and ORC writers fall back from dictionary to plain for one column at a time. Target: `wasm/flatscan.c` and the fast writer. Today one column of 17-significant-digit decimals sends the whole block to the `JSON.parse` writer. Advantage: unknown until measured. The upper bound is pack time on such blocks moving from about 1,000 ms toward the about 370 ms of the fast path (300,000 rows). Evidence: moderate (profile plus a drop-one-column test; no A/B yet). Difficulty: medium. Exact decimal-to-double parsing in wasm is the hard part; marking the column for a JS parse is easier. Risk: medium, because number values must stay exact. Experiment: build a variant that sends only that column through `JSON.parse` of a joined array; byte-identical file and three-browser A/B. **EXPERIMENT (next).**
+**B3. Keep long numbers on the fast flat writer (per-column fallback instead of per-block).** Source: our own profile. The principle matches how Parquet and ORC writers fall back one column at a time. Target: `wasm/flatscan.c` and the `src/flat.js` fast writer. Advantage: pack 0.67 to 0.86 on blocks with long, exponent or `-0` numbers; 0.50 to 0.54 stacked with B1 and B2. Evidence: strong (3 browsers, byte-identical on 19 sets including edge cases, full test suite passes). Difficulty: medium (wasm rebuild, 38 lines). Risk: low to medium, because numbers must stay exact. This is covered by the edge sets and by the mantissa / 10^digits argument in E5. Experiment: E5. **ADOPT CANDIDATE.**
+
+**B3b. Same per-column fallback for the scanner's other bail-outs** (values of 2^50 or more after scaling, escaped strings, integer-like keys). Target: same files. First step: count how often real corpus files hit each bail-out code (`st` output of `scan`). Evidence: none yet. **EXPERIMENT (next).**
 
 **B4. Byte-budgeted admission and backpressure for worker pools.** Source: LZ4 1.11 multithreading and memory option (see the Codex handoff docs). Target: lfc-pack pool, Workbench import. **Owned by the Codex handoff thread; not duplicated here.**
 

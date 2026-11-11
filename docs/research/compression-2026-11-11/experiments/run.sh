@@ -20,3 +20,6 @@ for b in chromium firefox webkit; do
   node abdrive.cjs $b 6 4 base,sample logs-300000,sensors-300000,events-300000 && python3 abanal.py ab-$b.json base,sample
   node abdrive.cjs $b 4 4 base,uuid ids-300000,ids-30000 && python3 abanal.py ab-$b.json base,uuid
 done
+# E5 (B3): apply b3-long-numbers.diff to a copy of modules/lfc-pack, rebuild (wasm/build-flatscan.sh, build.py), then:
+#   node b3verify.cjs <0.8.1 lfc-pack.js> <patched lfc-pack.js>      # byte identity on 19 sets
+#   copy the two builds to www/v-base.js and www/v-b3.js; node abdrive.cjs <browser> 6 4 base,b3 ids-300000,ids-30000,logs-300000

@@ -1,0 +1,23 @@
+ungoogled Chromium 156.0.8078.79
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+ids-300000 | b3 | 0.71 (0.65-0.80) | 0.76 (0.69-0.85) | 1319 / 1164 | True
+ids-30000 | b3 | 0.75 (0.63-0.89) | 0.75 (0.70-0.81) | 180 / 119 | True
+logs-300000 | b3 | 0.95 (0.82-1.12) | 0.94 (0.88-1.01) | 450 / 403 | True
+Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+ids-300000 | b3 | 0.78 (0.63-0.86) | 0.75 (0.63-0.78) | 1214 / 1144 | True
+ids-30000 | b3 | 0.73 (0.70-0.99) | 0.86 (0.68-0.99) | 142 / 118 | True
+logs-300000 | b3 | 0.95 (0.84-1.14) | 0.99 (0.94-1.05) | 437 / 388 | True
+WebKitGTK 2.52.6
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+ids-300000 | b3 | 0.67 (0.66-0.71) | 0.82 (0.78-0.82) | 1338 / 991 | True
+ids-30000 | b3 | 1.01 (0.95-1.05) | 0.87 (0.78-1.16) | 159 / 101 | True
+logs-300000 | b3 | 0.91 (0.82-1.08) | 1.02 (0.81-1.13) | 490 / 365 | True
+ungoogled Chromium 156.0.8078.79
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+ids-300000 | b1b2 | 0.78 (0.73-0.84) | 0.73 (0.70-0.77) | 1408 / 1094 | True
+ids-300000 | stack | 0.50 (0.48-0.60) | 0.54 (0.52-0.62) | 1408 / 1094 | True
+logs-300000 | b1b2 | 1.02 (0.75-1.13) | 0.98 (0.84-1.06) | 430 / 368 | True
+logs-300000 | stack | 1.01 (0.83-1.07) | 1.04 (0.83-1.09) | 430 / 368 | True
+sensors-300000 | b1b2 | 0.90 (0.89-0.96) | 0.87 (0.85-0.96) | 341 / 237 | True
+sensors-300000 | stack | 0.88 (0.86-1.03) | 0.92 (0.88-0.98) | 341 / 237 | True

@@ -32,3 +32,11 @@ Required before shipping:
 Research screen: pack takes 0.85 to 0.96 of the time on 300,000-row number and log sets, with bytes identical on 10 made-up sets.
 
 Changelog note for users (one plain line each): "Packing UUID columns is faster." / "Packing picks each column's layout faster."
+
+## B3: keep long numbers on the fast flat writer (needs its own owner card; not covered by "Send both")
+
+Apply `experiments/b3-long-numbers.diff`, which touches `wasm/flatscan.c` and `src/flat.js`. Then rebuild with `wasm/build-flatscan.sh` (clang 18.1.3) and `python3 build.py`. `tpl4.wasm` and `rowscan.wasm` stay byte-identical; `flatscan.wasm` and `flatscan-plain.wasm` change. Today the scanner gives up on the whole block at one number with more than 15 digits, more than 9 decimals, an exponent or -0. With the patch, that key becomes type 6: the cell keeps the number's text and the column goes through `encodeColumn`, with the same zone-map entry as the general writer.
+
+Research screen: pack takes 0.67 to 0.86 of the time on such blocks in all 3 browsers, and 0.50 to 0.54 stacked with B1 and B2 in Chromium 156. Files are byte-identical on 19 sets (`experiments/b3verify.cjs`), and `node test/run.js` passes. Gate: the usual tests, `b3verify.cjs` against the release build, and a three-browser early-stop A/B.
+
+User changelog line: "Packing is faster for rows with long or exponent numbers."
