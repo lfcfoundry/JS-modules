@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>ab</title>
+<script>window.__H={c(){},d(){}};document.write('<script src="v-'+location.hash.slice(1)+'.js"><\/script>');</script>
+<script>
+async function run(name, reps) {
+  const buf = new Uint8Array(await (await fetch(name)).arrayBuffer()); await LfcPack.init(); const out = [];
+  for (let k = 0; k < reps; k++) { const t = performance.now(); const p = LfcPack.pack(buf); out.push(+(performance.now() - t).toFixed(2)); if (k === 0) out.push(p.length); }
+  return out;
+}
+</script>

@@ -1,0 +1,26 @@
+ungoogled Chromium 156.0.8078.79
+set | pack ms (first / median later) | zstd share of pack | wasted zstd share of pack | unpack ms | zstd-decode share of unpack | row building share | JSON.parse ms
+logs-30000 | 108 / 41 | 0.34 | 0.12 (first 0.15) | 51 / 15 | 0.14 | 0.21 | 30
+logs-300000 | 459 / 373 | 0.32 | 0.11 (first 0.12) | 296 / 184 | 0.13 | 0.48 | 295
+events-30000 | 119 / 42 | 0.13 | 0.00 (first 0.00) | 50 / 25 | 0.08 | n/a | 46
+events-300000 | 501 / 365 | 0.10 | 0.00 (first 0.00) | 308 / 246 | 0.05 | n/a | 498
+sensors-30000 | 73 / 29 | 0.22 | 0.19 (first 0.14) | 40 / 10 | 0.04 | 0.58 | 22
+sensors-300000 | 295 / 265 | 0.16 | 0.14 (first 0.14) | 158 / 76 | 0.02 | 0.62 | 245
+ids-30000 | 200 / 136 | 0.07 | 0.04 (first 0.06) | 36 / 15 | 0.09 | 0.19 | 29
+ids-300000 | 1309 / 1146 | 0.08 | 0.04 (first 0.04) | 216 / 222 | 0.06 | 0.46 | 260
+repeat-30000 | 47 / 17 | 0.04 | 0.02 (first 0.06) | 24 / 6 | 0.03 | 0.78 | 20
+repeat-300000 | 218 / 134 | 0.02 | 0.01 (first 0.03) | 110 / 58 | 0.01 | 0.77 | 213
+Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0
+set | pack ms (first / median later) | zstd share of pack | wasted zstd share of pack | unpack ms | zstd-decode share of unpack | row building share | JSON.parse ms
+logs-300000 | 503 / 374 | 0.33 | 0.11 (first 0.11) | 248 / 168 | 0.17 | 0.23 | 384
+events-300000 | 439 / 390 | 0.10 | 0.00 (first 0.00) | 304 / 226 | 0.05 | n/a | 520
+sensors-300000 | 318 / 268 | 0.17 | 0.14 (first 0.16) | 97 / 95 | 0.04 | 0.61 | 234
+ids-300000 | 1178 / 1082 | 0.08 | 0.04 (first 0.05) | 201 / 225 | 0.07 | 0.43 | 313
+repeat-300000 | 185 / 150 | 0.02 | 0.01 (first 0.01) | 81 / 74 | 0.01 | 0.78 | 204
+WebKitGTK 2.52.6
+set | pack ms (first / median later) | zstd share of pack | wasted zstd share of pack | unpack ms | zstd-decode share of unpack | row building share | JSON.parse ms
+logs-300000 | 452 / 342 | 0.37 | 0.13 (first 0.14) | 212 / 148 | 0.15 | 0.46 | 260
+events-300000 | 527 / 410 | 0.10 | 0.00 (first 0.00) | 194 / 140 | 0.11 | n/a | 448
+sensors-300000 | 390 / 247 | 0.22 | 0.18 (first 0.17) | 120 / 68 | 0.04 | 0.56 | 187
+ids-300000 | 1215 / 932 | 0.10 | 0.06 (first 0.05) | 213 / 138 | 0.10 | 0.21 | 242
+repeat-300000 | 217 / 130 | 0.04 | 0.03 (first 0.04) | 80 / 42 | 0.04 | 0.69 | 203

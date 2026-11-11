@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>exp</title>
+<script>window.__H={c(){},d(){}};</script><script src="inst.js"></script>
+<script>
+async function run(name, reps) {
+  const buf = new Uint8Array(await (await fetch(name)).arrayBuffer()); await LfcPack.init();
+  const out = [];
+  for (let k = 0; k < reps; k++) {
+    const cms = []; __H.c = (s, r, ms) => cms.push(+ms.toFixed(3));
+    let t = performance.now(); const p = LfcPack.pack(buf); const pack = performance.now() - t; __H.c = () => {};
+    let dms = 0; __H.d = (a, b, ms) => { dms += ms; };
+    t = performance.now(); const rows = LfcPack.unpack(p); const unpack = performance.now() - t; __H.d = () => {};
+    let dms2 = 0; __H.d = (a, b, ms) => { dms2 += ms; }; let cols = -1;
+    try { t = performance.now(); LfcPack.unpackColumns(p); cols = performance.now() - t; } catch (e) { cols = -1; } __H.d = () => {};
+    t = performance.now(); const txt = new TextDecoder().decode(buf); const lines = txt.split('\n'); const pr = []; for (const l of lines) if (l) pr.push(JSON.parse(l)); const jp = performance.now() - t;
+    out.push({ pack, cms, unpack, dms, cols, dms2, jp, rows: rows.length, outB: p.length });
+  }
+  return out;
+}
+</script>

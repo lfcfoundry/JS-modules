@@ -1,0 +1,10 @@
+logs-30000 zstd calls 38 zstd input bytes 2530269 winning input bytes 1427035 wasted share 0.44
+logs-300000 zstd calls 149 zstd input bytes 25160708 winning input bytes 14264855 wasted share 0.43
+events-30000 zstd calls 15 zstd input bytes 799167 winning input bytes 739148 wasted share 0.08
+events-300000 zstd calls 53 zstd input bytes 7124496 winning input bytes 7124420 wasted share 0.0
+sensors-30000 zstd calls 42 zstd input bytes 1094252 winning input bytes 174786 wasted share 0.84
+sensors-300000 zstd calls 124 zstd input bytes 10768814 winning input bytes 1731695 wasted share 0.84
+ids-30000 zstd calls 10 zstd input bytes 2200646 winning input bytes 732496 wasted share 0.67
+ids-300000 zstd calls 37 zstd input bytes 22002190 winning input bytes 7321276 wasted share 0.67
+repeat-30000 zstd calls 45 zstd input bytes 309026 winning input bytes 158829 wasted share 0.49
+repeat-300000 zstd calls 133 zstd input bytes 3026850 winning input bytes 851871 wasted share 0.72
