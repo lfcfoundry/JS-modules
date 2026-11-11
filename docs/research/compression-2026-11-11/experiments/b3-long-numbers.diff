@@ -54,7 +54,7 @@ index 0d373ac..26dc2ee 100644
          if(!allowstr) BAIL(16);
          if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) BAIL(8);
 diff --git a/modules/lfc-pack/src/flat.js b/modules/lfc-pack/src/flat.js
-index 2afc69c..6f5c36f 100644
+index 2afc69c..5b2a687 100644
 --- a/modules/lfc-pack/src/flat.js
 +++ b/modules/lfc-pack/src/flat.js
 @@ -486,6 +486,7 @@
@@ -74,3 +74,25 @@ index 2afc69c..6f5c36f 100644
        else if (ktype[j] === 1) {
          var base = colv[j], scale = P10[FD[kfd[j]]]; numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
          var d = numFirst(base, c, mono);
+@@ -531,7 +532,7 @@
+     }
+     var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
+     var hdr = te.encode(JSON.stringify({ k: 'f', n: nrows, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
+-    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
++    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), k67 = false; for (j = 0; j < nk; j++) if (ktype[j] >= 6) k67 = true; return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), k67: k67 };   // k67: some key needed the per-column fallback (long numbers, mixed kinds); see api.js
+   }
+   // with { check: 'xxh64' }: each column gets `o` (where its first frame starts, counted from the first column frame) and `x` (the XXH64 of its frames, 16 hex digits), so a reader that wants a few columns goes straight to them and checks only their bytes
+   function colBytes(meta) { var t = 0, j, i; for (j = 0; j < meta.cols.length; j++) for (i = 0; i < meta.cols[j].f.length; i++) t += meta.cols[j].f[i][1]; return t; }
+diff --git a/modules/lfc-pack/src/api.js b/modules/lfc-pack/src/api.js
+index 0ac1d15..8142867 100644
+--- a/modules/lfc-pack/src/api.js
++++ b/modules/lfc-pack/src/api.js
+@@ -123,7 +123,7 @@
+       if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
+       try {
+         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
+-        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk) kind = 'flat'; }   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
++        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk && blk.k67 && !kind && !(chunk.length > 262144 && looksFlat(chunk))) blk = null; if (blk) kind = 'flat'; }   // a block the fast writer kept only through the per-column fallback goes the old way when auto would have compared it with the nested layout, so the same layout wins   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
+         if (kind !== 'flat' && !kind && chunk.length > 262144 && looksFlat(chunk)) { blk = writeFlatBlock(ctx, chunk, opts); if (blk) { kind = 'flat'; } }
+         else if (kind === 'flat' && !blk) blk = writeFlatBlock(ctx, chunk, opts);
+         if (kind !== 'flat' || !blk) {

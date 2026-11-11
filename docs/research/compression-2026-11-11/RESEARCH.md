@@ -132,11 +132,12 @@ The principle is the one byte codecs use everywhere: table lookups on code units
 - In JS, a type-6 column reads span cells with `Number(text)`. Earlier plain cells of the same key are read as mantissa / 10^digits, which is exactly the value `JSON.parse` gives, because both parts are exact doubles and one division rounds correctly.
 - The column then goes through `encodeColumn`, as in the general writer, with the same zone-map entry.
 - Invalid number text still bails as before.
+- **Layout guard (added 10:05 AM Eastern):** in auto mode, 0.8.1 compares the nested and flat layouts for a block that the fast writer declines, when the block is 256 KB or smaller or its first lines fail `looksFlat`. A block the fast writer now keeps only through the fallback would skip that comparison and could come out larger. So the fast writer tags such a result (`k67`), and `api.js` drops it in exactly those cases. Without the guard, 7 of 21 small mixed-kind sets in E6 came out different (up to 1.65x larger). With it, every set is byte-identical. The speed results below come from 3 MB and larger blocks, where the guard does not apply.
 - Built with the repo's own `wasm/build-flatscan.sh` (clang 18.1.3). `tpl4.wasm` and `rowscan.wasm` came out byte-identical to the committed files.
 
 **Checks:**
 - `node test/run.js`: all lfc-pack checks pass.
-- `experiments/b3verify.cjs`: 19 data sets, the 10 research sets plus 9 number edge sets (exponents in both letter cases, `-0` every third row, values past 2^53, 5e-324, long decimals appearing half way down a column, 1e300 mixed with small integers). Files are byte-identical to lfc-pack 0.8.1, rows equal `JSON.parse`, `-0` is kept, and the 0.8.1 reader reads the new files.
+- `experiments/b3verify.cjs`: 19 data sets (rerun with the guard; still identical; `b7verify.cjs` adds 22 more), the 10 research sets plus 9 number edge sets (exponents in both letter cases, `-0` every third row, values past 2^53, 5e-324, long decimals appearing half way down a column, 1e300 mixed with small integers). Files are byte-identical to lfc-pack 0.8.1, rows equal `JSON.parse`, `-0` is kept, and the 0.8.1 reader reads the new files.
 - A CPU-profile check confirms the `ids` block now stays on the fast writer.
 
 **Pack time, variant over base** (same bytes in every run):
@@ -150,6 +151,36 @@ The principle is the one byte codecs use everywhere: table lookups on code units
 **All stacked, Chromium 156, 5 rounds** (`results/ab-summary-b3-stack.txt`): B1 + B2 + B3 against 0.8.1 gave ids 0.50 (0.48-0.60) first / 0.54 (0.52-0.62) later, sensors 0.88 / 0.92, and logs 1.01 / 1.04, which is neutral within noise. B1 + B2 without B3 gave ids 0.78 / 0.73. The gains add up: B3 removes the `JSON.parse` re-read, and B1 makes the UUID column cheap once it gets there. On logs, B2's gain was 0.92 in the 8-round run and about 1.0 in this 5-round run, so treat logs as "about neutral to 0.92".
 
 **Not covered:** the scanner's other bail-outs (values of 2^50 or more after scaling, which `gather` returns as 1; escapes; integer-like keys) still send the whole block to the slow writer. Each could get the same per-column fallback. Counting how often real files hit each bail-out is the next cheap step. **Decision: ADOPT CANDIDATE.** It needs a wasm rebuild, and the gate is the normal test suite, the byte-identity set and a three-browser early-stop A/B.
+
+### 2026-11-11 E6 (B3b): keys with more than one kind of value (for example numbers with some nulls)
+
+**Real-corpus count** (`experiments/mkbail.py` + `bailcount.cjs`, counts only). The six corpus files used by earlier lfc-pack rounds are FHIR 21 MB, gen_logs, gen_config, gen_sparse, nd_dense and events-10x, cut at 13 MB and packed in 1 MB blocks. Reasons the fast writer gave up:
+
+| File | Blocks | Fast writer gave up because |
+|---|---|---|
+| fhir | 13 nested | nested object value (code 13) x12, list item over 32 bits (code 9) x1 |
+| events-10x | 13 nested | nested object value x13 |
+| gen_config | 4 flat | nested object value x4 (written as flat with JSON-text columns) |
+| gen_sparse | 1 flat | **a key with two kinds of value (code 8)** x1 |
+| gen_logs, nd_dense | 8 flat | none |
+
+Code 13 blocks belong to the nested layout anyway, and the scan stops at the first nested value, so little is wasted. Code 8 is the interesting one. A key whose values are of more than one JSON kind sends the whole block to the `JSON.parse` writer. That includes the very common nullable number or nullable string column.
+
+**Headroom** (Chromium 156, made-up `sensors` data, 3 fresh pages each): with 1% of one column set to `null` (`sensnull`), or to the string `"n/a"` (`sensstr`), pack goes from 256-327 ms to 457-604 ms at 300,000 rows (later packs). First packs go from 336-389 ms to 626-757 ms. That is 1.6 to 2x slower from 1% nulls. Unpack is unchanged (91-126 ms against 105-125 ms). The file is 4.3% larger, because that column becomes JSON text (`j`) instead of `V`/`B`. That size cost is backlog item B13.
+
+**Prototype** (`experiments/b3b-mixed-kinds.diff`, which includes B3 and the layout guard):
+- The scanner's `BAIL(8)` sites in the number, string, true/false and null branches jump to one `mixed` handler.
+- That handler turns the key into type 7 and keeps its first type in `kmaxfd`.
+- From then on, each of that key's cells is the value's literal byte span, marked `cfd 255`. A first try used `cfd 3`, which collides with numbers that have 3 decimals; the edge set `nullnum` caught that.
+- Lists and objects still bail.
+- In JS, cells from before the switch decode by the first type's rule. All literal cells of a key are joined into one `[..]` text and read with one `JSON.parse`.
+- The column then goes through `encodeColumn`, exactly as in the general writer.
+
+**Checks:**
+- `node test/run.js` passes.
+- `experiments/b7verify.cjs` covers 41 sets: 21 mixed-kind edge sets, the research sets and the 6 real corpus files. The edge sets are nullable numbers with 3 decimals, nullable strings, string/number mixes, escapes and non-ASCII including emoji, bool/number mixes, long numbers with `-0`, `1e300` and `"n/a"`, and nulls only near the end of a column, each at 50, 3,000 and 70,000 rows. Rows equal `JSON.parse`, the 0.8.1 reader reads every file, and with the guard all 41 files are byte-identical to 0.8.1.
+
+**Pack time:** see the table added below when the three-browser run finishes.
 
 ### 2026-11-11 E4: skip zstd on incompressible frames (measured headroom only)
 
@@ -170,7 +201,11 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 
 **B3. Keep long numbers on the fast flat writer (per-column fallback instead of per-block).** Source: our own profile. The principle matches how Parquet and ORC writers fall back one column at a time. Target: `wasm/flatscan.c` and the `src/flat.js` fast writer. Advantage: pack 0.67 to 0.86 on blocks with long, exponent or `-0` numbers; 0.50 to 0.54 stacked with B1 and B2. Evidence: strong (3 browsers, byte-identical on 19 sets including edge cases, full test suite passes). Difficulty: medium (wasm rebuild, 38 lines). Risk: low to medium, because numbers must stay exact. This is covered by the edge sets and by the mantissa / 10^digits argument in E5. Experiment: E5. **ADOPT CANDIDATE.**
 
-**B3b. Same per-column fallback for the scanner's other bail-outs** (values of 2^50 or more after scaling, escaped strings, integer-like keys). Target: same files. First step: count how often real corpus files hit each bail-out code (`st` output of `scan`). Evidence: none yet. **EXPERIMENT (next).**
+**B3b. Mixed-kind keys (nullable numbers and strings, string/number mixes) stay on the fast writer.** Source: our own profile. The principle is the same per-column fallback as B3. Target: `wasm/flatscan.c`, `src/flat.js`, `src/api.js` (layout guard). Advantage: pack 1.6 to 2x slower today on a block with 1% nulls in one column, and the prototype removes that (E6). Evidence: real-corpus count (gen_sparse), the headroom run, and 41/41 byte-identical sets. Difficulty: medium (65 changed lines with B3). Risk: low to medium, covered by the edge sets and the layout guard. **ADOPT CANDIDATE** once the three-browser A/B is in (E6).
+
+**B13. Validity bitmap for nullable typed columns.** Source: Arrow's validity bitmap ([Columnar.html](https://arrow.apache.org/docs/format/Columnar.html), not re-fetched this session); Parquet definition levels. Target: the LFC-pack flat layout. A `V`/`B`/`F`/`s`/`D` column with some `null`s would keep its typed encoding plus a null plane, like the presence planes already in the format, instead of becoming JSON text (`j`). Advantage: 4.3% smaller on `sensnull` (1,739,648 against 1,667,743 bytes with no nulls). Reads would also skip JSON text. Risk: high, because this changes the format (new optional column parameter; old readers must refuse or ignore it). **DEFER**; measure size and read time on real nullable data first, then write a format proposal.
+
+**B3c. Remaining scanner bail-outs** (list items over 32 bits, code 9; scaled values of 2^50 or more; integer-like or `__proto__` keys). Evidence: code 9 hit once in 13 FHIR blocks, and that block is nested anyway. **DEFER** (rare in the corpus).
 
 **B4. Byte-budgeted admission and backpressure for worker pools.** Source: LZ4 1.11 multithreading and memory option (see the Codex handoff docs). Target: lfc-pack pool, Workbench import. **Owned by the Codex handoff thread; not duplicated here.**
 

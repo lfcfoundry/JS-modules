@@ -1,0 +1,158 @@
+diff --git a/modules/lfc-pack/wasm/flatscan.c b/modules/lfc-pack/wasm/flatscan.c
+index 0d373ac..beb12fa 100644
+--- a/modules/lfc-pack/wasm/flatscan.c
++++ b/modules/lfc-pack/wasm/flatscan.c
+@@ -13,6 +13,16 @@ static u32 PRED[MAXK], KEXTRA[MAXK];   /* PRED[j]: the key that came j-th in the
+ static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18};
+ // digits from in[p] on, 8 at a time: m = m*10^k + their value, *nd += k; returns the new p, or 0xFFFFFFFF when more than 15 digits in all
+ static const u64 P10U[9]={1,10,100,1000,10000,100000,1000000,10000000,100000000};
++// B3 research: end of a strict JSON number token starting at p (any length, fraction, exponent, -0), or 0xFFFFFFFF when it is not one
++static u32 numspan(const u8*in,u32 p,u32 len){
++  if(p<len&&in[p]=='-') p++;
++  if(p>=len||in[p]<'0'||in[p]>'9') return 0xFFFFFFFFu;
++  if(in[p]=='0') p++; else while(p<len&&in[p]>='0'&&in[p]<='9') p++;
++  if(p<len&&in[p]=='.'){ p++; if(p>=len||in[p]<'0'||in[p]>'9') return 0xFFFFFFFFu; while(p<len&&in[p]>='0'&&in[p]<='9') p++; }
++  if(p<len&&(in[p]=='e'||in[p]=='E')){ p++; if(p<len&&(in[p]=='+'||in[p]=='-')) p++; if(p>=len||in[p]<'0'||in[p]>'9') return 0xFFFFFFFFu; while(p<len&&in[p]>='0'&&in[p]<='9') p++; }
++  if(p<len&&in[p]>='0'&&in[p]<='9') return 0xFFFFFFFFu;
++  return p;
++}
+ static u32 digits(const u8*in,u32 p,u32 len,u64*m,u32*nd){
+   while(p+8<=len){ u64 w; __builtin_memcpy(&w,in+p,8);
+     u64 bad=((w&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL)|(((w+0x0606060606060606ULL)&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL);   /* nonzero in each byte that is not '0'-'9' (a carry only starts at such a byte) */
+@@ -70,6 +80,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
+       WS; if(p>=len||in[p]!=':') BAIL(3); p++; WS;
+       if(p>=len) BAIL(3);
+       u8 c=in[p];
++      if(ktype[id]==7) goto mixed;
+       if(c=='['){
+         if(ktype[id]==0) ktype[id]=2; else if(ktype[id]!=2) BAIL(8);
+         p++; WS; u32 cnt=0;
+@@ -89,25 +100,26 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
+         }
+         llen[nl]=cnt; ckey[nc]=(u8)id; cval[nc]=(double)nl; cfd[nc]=0; clen[nc]=0; nc++; nl++;
+       } else if(c=='-'||(c>='0'&&c<='9')){
+-        if(ktype[id]==0) ktype[id]=1; else if(ktype[id]!=1) BAIL(8);
+-        u32 neg=0; if(c=='-'){ neg=1; p++; }
+-        if(p>=len||in[p]<'0'||in[p]>'9') BAIL(10);
++        if(ktype[id]==0) ktype[id]=1; else if(ktype[id]!=1&&ktype[id]!=6) goto mixed;
++        u32 p0=p, neg=0; if(c=='-'){ neg=1; p++; }
++        if(p>=len||in[p]<'0'||in[p]>'9') goto longnum;
+         u64 m=0; u32 nd=0, fd=0;
+-        if(in[p]=='0'&&p+1<len&&in[p+1]>='0'&&in[p+1]<='9') BAIL(10);
+-        { u32 q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) BAIL(10); p=q; }
++        if(in[p]=='0'&&p+1<len&&in[p+1]>='0'&&in[p+1]<='9') goto longnum;
++        { u32 q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) goto longnum; p=q; }
+         if(p<len&&in[p]=='.'){
+-          p++; if(p>=len||in[p]<'0'||in[p]>'9') BAIL(10);
+-          { u32 n0=nd, q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) BAIL(10); fd+=nd-n0; p=q; }
++          p++; if(p>=len||in[p]<'0'||in[p]>'9') goto longnum;
++          { u32 n0=nd, q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) goto longnum; fd+=nd-n0; p=q; }
+           while(fd>0&&m%10==0){ m/=10; fd--; }   // 1.50 is 1.5 and 2.0 is the whole number 2, as JSON.parse sees them
+         }
+-        if(p<len&&(in[p]=='e'||in[p]=='E')) BAIL(10);
+-        if(neg&&m==0) BAIL(11);   // -0
+-        if(fd>9) BAIL(12);   /* up to 9 fraction digits, as the JSON.parse path's decimal scale */
++        if(p<len&&(in[p]=='e'||in[p]=='E')) goto longnum;
++        if(neg&&m==0) goto longnum;   // -0
++        if(fd>9) goto longnum;   /* up to 9 fraction digits, as the JSON.parse path's decimal scale */
+         if(fd>kmaxfd[id]) kmaxfd[id]=(u8)fd;
+         ckey[nc]=(u8)id; cval[nc]=neg?-(double)m:(double)m; cfd[nc]=(u8)fd; clen[nc]=0; nc++;
++        if(0){ longnum: { u32 e=numspan(in,p0,len); if(e==0xFFFFFFFFu) BAIL(10); ktype[id]=6; ckey[nc]=(u8)id; cval[nc]=(double)p0; cfd[nc]=0; clen[nc]=e-p0; nc++; p=e; } }
+       } else if(c=='"'){
+         if(!allowstr) BAIL(16);
+-        if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) BAIL(8);
++        if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) goto mixed;
+         u32 ss=++p, ex0=extra, esc=0;
+         while(p<len&&in[p]!='"'){ u8 ch=in[p]; if(ch<0x20) BAIL(16);
+           if(ch=='\\'){   /* allowstr 2: escapes are let through (checked here, decoded by the caller); the cell gets cfd 1 and its key kmaxfd 1 */
+@@ -119,16 +131,27 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
+         if(p>=len) BAIL(16);
+         ckey[nc]=(u8)id; cval[nc]=(double)(ss-ex0); clen[nc]=(p-ss)-(extra-ex0); cfd[nc]=(u8)esc; if(esc) kmaxfd[id]=1; nc++; p++;
+       } else if(c=='t'||c=='f'){
+-        if(ktype[id]==0||ktype[id]==5) ktype[id]=4; else if(ktype[id]!=4) BAIL(8);
++        if(ktype[id]==0||ktype[id]==5) ktype[id]=4; else if(ktype[id]!=4) goto mixed;
+         u32 isT=(c=='t');
+         if(isT){ if(p+4>len||in[p+1]!='r'||in[p+2]!='u'||in[p+3]!='e') BAIL(17); p+=4; }
+         else { if(p+5>len||in[p+1]!='a'||in[p+2]!='l'||in[p+3]!='s'||in[p+4]!='e') BAIL(17); p+=5; }
+         ckey[nc]=(u8)id; cval[nc]=isT?1.0:0.0; cfd[nc]=0; nc++;
+       } else if(c=='n'){
+-        if(ktype[id]==0) ktype[id]=5; else if(ktype[id]!=5&&ktype[id]!=4) BAIL(8);   // null mixes with true/false
++        if(ktype[id]==0) ktype[id]=5; else if(ktype[id]!=5&&ktype[id]!=4) goto mixed;   // null mixes with true/false
+         if(p+4>len||in[p+1]!='u'||in[p+2]!='l'||in[p+3]!='l') BAIL(17);
+         p+=4; ckey[nc]=(u8)id; cval[nc]=0.0; cfd[nc]=2; clen[nc]=0; nc++;
+       } else BAIL(13);
++      if(0){ mixed: {   /* B3b research: a key with values of more than one JSON kind becomes type 7; kmaxfd keeps its first type, and from here on each cell is the value's literal bytes (cfd 255), parsed by the caller */
++        if(c=='['||c=='{'||ktype[id]==2) BAIL(8);
++        if(ktype[id]!=7){ kmaxfd[id]=ktype[id]; ktype[id]=7; }
++        u32 e;
++        if(c=='"'){ if(!allowstr) BAIL(16); e=p+1; while(e<len&&in[e]!='"'){ u8 ch=in[e]; if(ch<0x20) BAIL(16); if(ch=='\\'){ if(allowstr<2) BAIL(16); e+=2; continue; } if(ch>=0xC0) extra+=(ch>=0xE0)?2:1; e++; } if(e>=len) BAIL(16); e++; }
++        else if(c=='t'){ if(p+4>len||in[p+1]!='r'||in[p+2]!='u'||in[p+3]!='e') BAIL(17); e=p+4; }
++        else if(c=='f'){ if(p+5>len||in[p+1]!='a'||in[p+2]!='l'||in[p+3]!='s'||in[p+4]!='e') BAIL(17); e=p+5; }
++        else if(c=='n'){ if(p+4>len||in[p+1]!='u'||in[p+2]!='l'||in[p+3]!='l') BAIL(17); e=p+4; }
++        else { e=numspan(in,p,len); if(e==0xFFFFFFFFu) BAIL(10); }
++        ckey[nc]=(u8)id; cval[nc]=(double)p; clen[nc]=e-p; cfd[nc]=255; nc++; p=e;
++      } }
+       planes[id*pb+(row>>3)]|=(u8)(1u<<(row&7));
+       WS; if(p>=len) BAIL(3);
+       if(in[p]==','){ p++; WS; continue; }
+diff --git a/modules/lfc-pack/src/flat.js b/modules/lfc-pack/src/flat.js
+index 2afc69c..5ec1aaf 100644
+--- a/modules/lfc-pack/src/flat.js
++++ b/modules/lfc-pack/src/flat.js
+@@ -477,8 +477,8 @@
+     for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(mem.buffer, P.gout + 8 * goff[j], count[j]).slice(); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(mem.buffer, P.hex + hoff[j], count[j] * hexL[j] / 2).slice(); else if (byB[j]) colv[j] = null; else if (ktype[j] === 3 && asciiIn) {   // the column's literals as one JSON array (written over the dictionary scratch, already copied out), parsed at once: no whole-input text and no per-value slices (escapes decoded by JSON.parse as before)
+         if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
+         colv[j] = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.sout, W.x.rawjoin(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sout)))); byB[j] = 2; }
+-      else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
+-    var lp = 0, sc, m, v;
++      else { colv[j] = new Array(count[j]); if ((ktype[j] === 3 || (ktype[j] === 7 && kfd[j] === 3)) && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
++    var lp = 0, sc, m, v, mx7 = null, k7;
+     var rest = 0; for (j = 0; j < nk; j++) if (ktype[j] !== 1 && !byB[j]) rest = 1;   // cells the wasm passes did not already gather
+     if (rest) for (i = 0; i < nc; i++) {
+       j = ckey[i];
+@@ -486,8 +486,14 @@
+       else if (ktype[j] === 3) { if (byB[j] === 0) colv[j][pos[j]++] = cfd[i] ? JSON.parse(text.slice(cval[i] - 1, cval[i] + clen[i] + 1)) : text.slice(cval[i], cval[i] + clen[i]); }
+       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
+       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
++      else if (ktype[j] === 7) {   // B3b: a key with mixed JSON kinds; cells from before the switch keep the first type's form, the rest (cfd 255) are literals parsed together below
++        if (cfd[i] === 255) { if (!mx7) mx7 = {}; (mx7[j] || (mx7[j] = [])).push(pos[j]++, i); }
++        else { k7 = kfd[j]; colv[j][pos[j]++] = k7 === 3 ? (cfd[i] ? JSON.parse(text.slice(cval[i] - 1, cval[i] + clen[i] + 1)) : text.slice(cval[i], cval[i] + clen[i])) : k7 === 4 || k7 === 5 ? (cfd[i] === 2 ? null : cval[i] === 1) : clen[i] ? +String.fromCharCode.apply(null, input.subarray(cval[i], cval[i] + clen[i])) : cval[i] / P10[cfd[i]]; }
++      }
++      else if (ktype[j] === 6) colv[j][pos[j]++] = clen[i] ? +String.fromCharCode.apply(null, input.subarray(cval[i], cval[i] + clen[i])) : cval[i] / P10[cfd[i]];   // B3: a number the scanner kept as text (long, exponent, -0); earlier plain cells of the key are mantissa / 10^digits, the value JSON.parse gives
+       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
+     }
++    if (mx7) for (var j7 in mx7) { var L7 = mx7[j7], tot7 = 2, q7, o7 = 1, jb; for (q7 = 1; q7 < L7.length; q7 += 2) tot7 += clen[L7[q7]] + 1; jb = new Uint8Array(tot7); jb[0] = 91; for (q7 = 1; q7 < L7.length; q7 += 2) { if (q7 > 1) jb[o7++] = 44; jb.set(input.subarray(cval[L7[q7]], cval[L7[q7]] + clen[L7[q7]]), o7); o7 += clen[L7[q7]]; } jb[o7++] = 93; var pv7 = JSON.parse(FSTD.decode(jb.subarray(0, o7))); for (q7 = 0; q7 < L7.length; q7 += 2) colv[j7][L7[q7]] = pv7[q7 >> 1]; }
+     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
+     // lim: the candidate only counts when it takes fewer than lim bytes, so each frame is compressed with a byte limit and a loser stops early (null). A frame that does not fit
+     // its limit is stored raw: when that is also too big the candidate loses, as it would have; when it is not, raw is what the frame would have been anyway (compressed was no smaller).
+@@ -503,7 +509,7 @@
+         if (!cds) cand('s', {}, [sdOut[j]], c);
+         else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : new Uint8Array(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
+       }
+-      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); }
++      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); if ((ktype[j] === 6 || ktype[j] === 7) && (best.t === 'V' || best.t === 'B' || best.t === 'F') && c) { var mn6 = Infinity, mx6 = -Infinity, a6 = colv[j]; for (i = 0; i < a6.length; i++) { if (a6[i] < mn6) mn6 = a6[i]; if (a6[i] > mx6) mx6 = a6[i]; } zone.push([fnvStr('.' + keys[j]), mn6, mx6, a6.length]); } }
+       else if (ktype[j] === 1) {
+         var base = colv[j], scale = P10[FD[kfd[j]]]; numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
+         var d = numFirst(base, c, mono);
+@@ -531,7 +537,7 @@
+     }
+     var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
+     var hdr = te.encode(JSON.stringify({ k: 'f', n: nrows, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
+-    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
++    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), k67 = false; for (j = 0; j < nk; j++) if (ktype[j] >= 6) k67 = true; return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), k67: k67 };   // k67: some key needed the per-column fallback (long numbers, mixed kinds); see api.js
+   }
+   // with { check: 'xxh64' }: each column gets `o` (where its first frame starts, counted from the first column frame) and `x` (the XXH64 of its frames, 16 hex digits), so a reader that wants a few columns goes straight to them and checks only their bytes
+   function colBytes(meta) { var t = 0, j, i; for (j = 0; j < meta.cols.length; j++) for (i = 0; i < meta.cols[j].f.length; i++) t += meta.cols[j].f[i][1]; return t; }
+diff --git a/modules/lfc-pack/src/api.js b/modules/lfc-pack/src/api.js
+index 0ac1d15..8142867 100644
+--- a/modules/lfc-pack/src/api.js
++++ b/modules/lfc-pack/src/api.js
+@@ -123,7 +123,7 @@
+       if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
+       try {
+         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
+-        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk) kind = 'flat'; }   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
++        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk && blk.k67 && !kind && !(chunk.length > 262144 && looksFlat(chunk))) blk = null; if (blk) kind = 'flat'; }   // a block the fast writer kept only through the per-column fallback goes the old way when auto would have compared it with the nested layout, so the same layout wins   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
+         if (kind !== 'flat' && !kind && chunk.length > 262144 && looksFlat(chunk)) { blk = writeFlatBlock(ctx, chunk, opts); if (blk) { kind = 'flat'; } }
+         else if (kind === 'flat' && !blk) blk = writeFlatBlock(ctx, chunk, opts);
+         if (kind !== 'flat' || !blk) {
