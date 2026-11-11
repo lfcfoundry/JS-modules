@@ -123,7 +123,7 @@
       if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
       try {
         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
-        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk) kind = 'flat'; }   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
+        if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk && blk.k67 && !kind && !(chunk.length > 262144 && looksFlat(chunk))) blk = null; if (blk) kind = 'flat'; }   // a block the fast writer kept only through the per-column fallback goes the old way when auto would have compared it with the nested layout, so the same layout wins   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
         if (kind !== 'flat' && !kind && chunk.length > 262144 && looksFlat(chunk)) { blk = writeFlatBlock(ctx, chunk, opts); if (blk) { kind = 'flat'; } }
         else if (kind === 'flat' && !blk) blk = writeFlatBlock(ctx, chunk, opts);
         if (kind !== 'flat' || !blk) {

@@ -13,6 +13,17 @@ Node 22.23.4, worker_threads, stalled helpers (every post held), 3,098,190-byte 
 ### Deep
 test/pool-budget.cjs; handoff evidence docs/codex-handoffs/claude-2026-11-11/evidence/pool-budget-*.json. Not covered: concurrent writes to a SharedArrayBuffer during the copy (no atomic snapshot), mutation during synchronous wasm decode, decoded-output retention (Promise.all keeps every block's rows until the call ends), browser Web Workers.
 
+## 0.8.3 · API 0 · 2026-11-11
+
+### Quick
+Rows with numbers that have more than 15 digits, an exponent or -0 stay on the fast flat writer: pack takes 0.74-0.94 of the time on such blocks. Same bytes, same format.
+
+### Details
+The scanner no longer gives up on a whole block at one long number; that key keeps the number's text and goes through the per-column writer. Blocks of 256 KB or less in auto mode still compare nested and flat as before. 150,000 rows, pack new/old (Chromium/Firefox/WebKitGTK): long full-precision numbers 0.85/0.74/0.91, exponent numbers 0.83/0.86/0.94. Controls (logs, sensors, nested) neutral.
+
+### Deep
+lfc-pack 0.8.3: long numbers stay on the fast flat writer (owner approved 11.11 'Send it'). Patch from the 11.11 research (b3-long-numbers.diff with the k67 guard) plus a faster cell conversion: the first version converted each kept number with String.fromCharCode on a subarray, which made all-long-number data 1.1 to 1.6x slower on Firefox and WebKitGTK; slicing the already decoded text (ASCII input) fixed it. flatscan.wasm and flatscan-plain.wasm rebuilt with clang 18.1.3; tpl4.wasm and rowscan.wasm byte-identical. Pack time new/old vs 0.8.2, 9 paired fresh pages, 150,000 rows, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: long full-precision numbers 0.85 / 0.74 / 0.91, exponent numbers 0.83 / 0.86 / 0.94; controls logs 1.00 (15 pairs) / 0.86 / 1.01, sensors 0.97 / 0.87 / 1.02, nested 0.96 / 1.01 / 1.03 (15 pairs). Bytes identical to 0.8.2 on 17 research and edge sets (b3verify), FHIR 21 MB, Netflow maps 8,000 and 30,000 items, a Netflow QA map, a fonts table, mixed.ndjson, sensors and ids at 300k rows; none larger. Phone not run.
+
 ## 0.8.2 · API 0 · 2026-11-11
 
 ### Quick

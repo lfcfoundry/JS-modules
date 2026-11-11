@@ -13,6 +13,16 @@ static u32 PRED[MAXK], KEXTRA[MAXK];   /* PRED[j]: the key that came j-th in the
 static const double P10[19]={1,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18};
 // digits from in[p] on, 8 at a time: m = m*10^k + their value, *nd += k; returns the new p, or 0xFFFFFFFF when more than 15 digits in all
 static const u64 P10U[9]={1,10,100,1000,10000,100000,1000000,10000000,100000000};
+// B3 research: end of a strict JSON number token starting at p (any length, fraction, exponent, -0), or 0xFFFFFFFF when it is not one
+static u32 numspan(const u8*in,u32 p,u32 len){
+  if(p<len&&in[p]=='-') p++;
+  if(p>=len||in[p]<'0'||in[p]>'9') return 0xFFFFFFFFu;
+  if(in[p]=='0') p++; else while(p<len&&in[p]>='0'&&in[p]<='9') p++;
+  if(p<len&&in[p]=='.'){ p++; if(p>=len||in[p]<'0'||in[p]>'9') return 0xFFFFFFFFu; while(p<len&&in[p]>='0'&&in[p]<='9') p++; }
+  if(p<len&&(in[p]=='e'||in[p]=='E')){ p++; if(p<len&&(in[p]=='+'||in[p]=='-')) p++; if(p>=len||in[p]<'0'||in[p]>'9') return 0xFFFFFFFFu; while(p<len&&in[p]>='0'&&in[p]<='9') p++; }
+  if(p<len&&in[p]>='0'&&in[p]<='9') return 0xFFFFFFFFu;
+  return p;
+}
 static u32 digits(const u8*in,u32 p,u32 len,u64*m,u32*nd){
   while(p+8<=len){ u64 w; __builtin_memcpy(&w,in+p,8);
     u64 bad=((w&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL)|(((w+0x0606060606060606ULL)&0xF0F0F0F0F0F0F0F0ULL)^0x3030303030303030ULL);   /* nonzero in each byte that is not '0'-'9' (a carry only starts at such a byte) */
@@ -89,22 +99,23 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         }
         llen[nl]=cnt; ckey[nc]=(u8)id; cval[nc]=(double)nl; cfd[nc]=0; clen[nc]=0; nc++; nl++;
       } else if(c=='-'||(c>='0'&&c<='9')){
-        if(ktype[id]==0) ktype[id]=1; else if(ktype[id]!=1) BAIL(8);
-        u32 neg=0; if(c=='-'){ neg=1; p++; }
-        if(p>=len||in[p]<'0'||in[p]>'9') BAIL(10);
+        if(ktype[id]==0) ktype[id]=1; else if(ktype[id]!=1&&ktype[id]!=6) BAIL(8);
+        u32 p0=p, neg=0; if(c=='-'){ neg=1; p++; }
+        if(p>=len||in[p]<'0'||in[p]>'9') goto longnum;
         u64 m=0; u32 nd=0, fd=0;
-        if(in[p]=='0'&&p+1<len&&in[p+1]>='0'&&in[p+1]<='9') BAIL(10);
-        { u32 q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) BAIL(10); p=q; }
+        if(in[p]=='0'&&p+1<len&&in[p+1]>='0'&&in[p+1]<='9') goto longnum;
+        { u32 q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) goto longnum; p=q; }
         if(p<len&&in[p]=='.'){
-          p++; if(p>=len||in[p]<'0'||in[p]>'9') BAIL(10);
-          { u32 n0=nd, q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) BAIL(10); fd+=nd-n0; p=q; }
+          p++; if(p>=len||in[p]<'0'||in[p]>'9') goto longnum;
+          { u32 n0=nd, q=digits(in,p,len,&m,&nd); if(q==0xFFFFFFFFu) goto longnum; fd+=nd-n0; p=q; }
           while(fd>0&&m%10==0){ m/=10; fd--; }   // 1.50 is 1.5 and 2.0 is the whole number 2, as JSON.parse sees them
         }
-        if(p<len&&(in[p]=='e'||in[p]=='E')) BAIL(10);
-        if(neg&&m==0) BAIL(11);   // -0
-        if(fd>9) BAIL(12);   /* up to 9 fraction digits, as the JSON.parse path's decimal scale */
+        if(p<len&&(in[p]=='e'||in[p]=='E')) goto longnum;
+        if(neg&&m==0) goto longnum;   // -0
+        if(fd>9) goto longnum;   /* up to 9 fraction digits, as the JSON.parse path's decimal scale */
         if(fd>kmaxfd[id]) kmaxfd[id]=(u8)fd;
         ckey[nc]=(u8)id; cval[nc]=neg?-(double)m:(double)m; cfd[nc]=(u8)fd; clen[nc]=0; nc++;
+        if(0){ longnum: { u32 e=numspan(in,p0,len); if(e==0xFFFFFFFFu) BAIL(10); ktype[id]=6; ckey[nc]=(u8)id; cval[nc]=(double)p0; cfd[nc]=0; clen[nc]=e-p0; nc++; p=e; } }
       } else if(c=='"'){
         if(!allowstr) BAIL(16);
         if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) BAIL(8);

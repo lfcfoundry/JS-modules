@@ -513,7 +513,7 @@
     for (j = 0; j < nk; j++) { if (ktype[j] === 1) colv[j] = new Float64Array(mem.buffer, P.gout + 8 * goff[j], count[j]).slice(); else if (ktype[j] === 2) { colv[j] = new Uint32Array(count[j]); coll[j] = new Uint32Array(tot[j]); } else if (hexL[j] > 0) colv[j] = new Uint8Array(mem.buffer, P.hex + hoff[j], count[j] * hexL[j] / 2).slice(); else if (byB[j]) colv[j] = null; else if (ktype[j] === 3 && asciiIn) {   // the column's literals as one JSON array (written over the dictionary scratch, already copied out), parsed at once: no whole-input text and no per-value slices (escapes decoded by JSON.parse as before)
         if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
         colv[j] = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.sout, W.x.rawjoin(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sout)))); byB[j] = 2; }
-      else { colv[j] = new Array(count[j]); if (ktype[j] === 3 && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
+      else { colv[j] = new Array(count[j]); if ((ktype[j] === 3 || (ktype[j] === 6 && asciiIn)) && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
     var lp = 0, sc, m, v;
     var rest = 0; for (j = 0; j < nk; j++) if (ktype[j] !== 1 && !byB[j]) rest = 1;   // cells the wasm passes did not already gather
     if (rest) for (i = 0; i < nc; i++) {
@@ -522,6 +522,7 @@
       else if (ktype[j] === 3) { if (byB[j] === 0) colv[j][pos[j]++] = cfd[i] ? JSON.parse(text.slice(cval[i] - 1, cval[i] + clen[i] + 1)) : text.slice(cval[i], cval[i] + clen[i]); }
       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
+      else if (ktype[j] === 6) colv[j][pos[j]++] = clen[i] ? (asciiIn ? +text.slice(cval[i], cval[i] + clen[i]) : +String.fromCharCode.apply(null, input.subarray(cval[i], cval[i] + clen[i]))) : cval[i] / P10[cfd[i]];   // B3: a number the scanner kept as text (long, exponent, -0); earlier plain cells of the key are mantissa / 10^digits, the value JSON.parse gives
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
@@ -536,7 +537,7 @@
         if (!cds) cand('s', {}, [sdOut[j]], c);
         else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : new Uint8Array(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
       }
-      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); }
+      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); if (ktype[j] === 6 && (best.t === 'V' || best.t === 'B' || best.t === 'F') && c) { var mn6 = Infinity, mx6 = -Infinity, a6 = colv[j]; for (i = 0; i < a6.length; i++) { if (a6[i] < mn6) mn6 = a6[i]; if (a6[i] > mx6) mx6 = a6[i]; } zone.push([fnvStr('.' + keys[j]), mn6, mx6, a6.length]); } }
       else if (ktype[j] === 1) {
         var base = colv[j], scale = P10[FD[kfd[j]]]; numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
         var d = numFirst(base, c, mono);
@@ -564,7 +565,7 @@
     }
     var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: nrows, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
-    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
+    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), k67 = false; for (j = 0; j < nk; j++) if (ktype[j] >= 6) k67 = true; return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), k67: k67 };   // k67: some key needed the per-column fallback (long numbers, mixed kinds); see api.js
   }
   // with { check: 'xxh64' }: each column gets `o` (where its first frame starts, counted from the first column frame) and `x` (the XXH64 of its frames, 16 hex digits), so a reader that wants a few columns goes straight to them and checks only their bytes
   function colBytes(meta) { var t = 0, j, i; for (j = 0; j < meta.cols.length; j++) for (i = 0; i < meta.cols[j].f.length; i++) t += meta.cols[j].f[i][1]; return t; }
