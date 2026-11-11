@@ -1512,7 +1512,19 @@ var NFMScene = (function () {
   }
 
   /* ---------------------------------------------------------------- SVG export (same lists) */
-  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function xmlChar(cp) { return cp === 9 || cp === 10 || cp === 13 || (cp >= 0x20 && cp <= 0xD7FF) || (cp >= 0xE000 && cp <= 0xFFFD) || (cp >= 0x10000 && cp <= 0x10FFFF); }
+  function esc(s) {
+    s = String(s); var clean = '', i = 0, c, cp, part;
+    while (i < s.length) {
+      c = s.charCodeAt(i++); cp = c; part = String.fromCharCode(c);
+      if (c >= 0xD800 && c <= 0xDBFF && i < s.length) {
+        var low = s.charCodeAt(i);
+        if (low >= 0xDC00 && low <= 0xDFFF) { cp = 0x10000 + (c - 0xD800) * 1024 + low - 0xDC00; part += s.charAt(i++); }
+      }
+      clean += xmlChar(cp) ? part : '\\u{' + cp.toString(16).toUpperCase() + '}';
+    }
+    return clean.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
   /* the same number as +n.toFixed(2), about 20 times faster in Chromium (toFixed was most of a 20,000-dot scatter's SVG time): a rounding that lands
      within 0.0001 of a half, or a number too big for exact hundredths, goes through toFixed itself (since 1.10.1) */
   function fix2(n) { var m = n * 100, r = Math.round(m), d = m - r; if (d > 0.4999 || d < -0.4999 || !(m < 1e15 && m > -1e15)) return +n.toFixed(2); r /= 100; return r === 0 ? 0 : r; }

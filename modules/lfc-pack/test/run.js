@@ -25,6 +25,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('key and range reads', 'node', ['query.cjs']);
   step('lazy rows (opt-in)', 'node', ['lazyrows.cjs']);
   step('helper workers', 'node', ['pool.cjs']);
+  step('helper workers: byte limits, cancel', 'node', ['--expose-gc', 'pool-budget.cjs']);
   step('block-parallel pack', 'node', ['parallel.cjs']);
   step('packBlock + pushPacked (workers)', 'node', ['packblock.cjs']);
   step('packParallelStream', 'node', ['pstream.cjs']);

@@ -11,5 +11,31 @@ const JF = require('../lfc-pack.js'), assert = require('assert'), gen = require(
     const bad = Uint8Array.from(p); bad[40] ^= 1; let err = null; try { await pool.unpack(bad); } catch (e) { err = e; } assert.ok(err, 'damaged block must be refused');
     console.log(f, 'blocks', JF.info(p).blocks, 'pool', tp.toFixed(0), 'ms, single', t1.toFixed(0), 'ms (Node, not for publishing), ok');
   }
+  const archive = JF.pack(Buffer.from('{"n":1}\n{"n":2}\n{"n":3}\n'), { blockBytes: 32 });
+  const expected = JF.unpack(archive);
+  const pooled = Buffer.from(archive);
+  const padded = Buffer.concat([Buffer.from([9, 8]), Buffer.from(archive), Buffer.from([7, 6])]);
+  const offset = padded.subarray(2, 2 + archive.length);
+  const overlapping = padded.subarray(1, 3 + archive.length);
+  assert.ok(pooled.buffer.byteLength > pooled.byteLength, 'fixture must use a pooled backing slab');
+  assert.ok(offset.byteOffset > 0, 'fixture must exercise a nonzero view offset');
+  const overlappingBefore = Buffer.from(overlapping);
+  const shared = new SharedArrayBuffer(archive.length + 4);
+  const sharedBuffer = Buffer.from(shared, 2, archive.length);
+  sharedBuffer.set(archive);
+  for (const input of [pooled, offset, offset.slice(), sharedBuffer]) {
+    const before = Buffer.from(input);
+    assert.deepStrictEqual(await pool.unpack(input), expected);
+    assert.deepStrictEqual(Buffer.from(input), before, 'caller Buffer remains intact');
+    assert.deepStrictEqual(await pool.unpack(input), expected, 'same Buffer can be reused');
+  }
+  assert.equal(overlapping.length, archive.length + 2, 'overlapping view remains attached');
+  assert.deepStrictEqual(Buffer.from(overlapping), overlappingBefore, 'overlapping view contents remain intact');
+  assert.equal(padded.length, archive.length + 4, 'backing Buffer remains attached');
+  const pending = Buffer.alloc(archive.length);
+  pending.set(archive);
+  const queued = pool.unpack(pending);
+  pending.fill(0);
+  assert.deepStrictEqual(await queued, expected, 'queued worker receives the pre-mutation bytes');
   pool.close();
 })().catch((e) => { console.log('FAIL', e); process.exit(1); });

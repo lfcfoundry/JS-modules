@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.0 · API 0 · 2026-11-11
+
+### Quick
+pool.unpack keeps the reviewed Buffer fix (each block sent to a helper is an exact-size private copy; the parent transferred a Buffer slice that aliased caller memory and failed with "Cannot transfer object of unsupported type"). New, opt-in: { stable: true } copies a block only when a helper takes it; pool({ maxInflightBytes }) is a byte limit on posted blocks (worker count limits jobs, not bytes; a block over the limit runs alone); { signal } cancels a read (queued blocks dropped and released at once, posted blocks released when their helper answers; the pool keeps working); pool.stats(). Defaults unchanged: copy at call, no byte limit.
+
+### Details
+Node 22.23.4, worker_threads, stalled helpers (every post held), 3,098,190-byte file in 40 blocks, 2 helpers: private copies held while stalled, default 3,100,083 B of ArrayBuffer growth (all 40 blocks; the 0.8.1 parent did the same for a Uint8Array and failed for a Buffer); stable 315,158 B (4 blocks posted); stable + maxInflightBytes 1.5 blocks 81,408 B (1 block). Six calls at once, limit 2 blocks: 78,551 B held, 239 jobs queued without copies. Cancel: 36 queued dropped, 4 posted released on answer, next read correct. Byte counts only; no timings (speed is measured only in the test browsers).
+
+### Deep
+test/pool-budget.cjs; handoff evidence docs/codex-handoffs/claude-2026-11-11/evidence/pool-budget-*.json. Not covered: concurrent writes to a SharedArrayBuffer during the copy (no atomic snapshot), mutation during synchronous wasm decode, decoded-output retention (Promise.all keeps every block's rows until the call ends), browser Web Workers.
+
 ## 0.8.3 · API 0 · 2026-11-11
 
 ### Quick

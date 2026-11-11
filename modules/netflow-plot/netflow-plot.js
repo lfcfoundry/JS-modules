@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.16.1 (API 2)
+ * Version 2.17.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -75,7 +75,18 @@ var NetflowPlot = (function () {
   function dayText(t) { var x = new Date(t); return MONTHS[x.getUTCMonth()] + ' ' + x.getUTCDate(); }
   var PCT = false;   /* while make() draws a chart whose values are fractions between 0 and 1 (since 2.11.0): those values are written as percents */
   /** One map key for a pair of names: the first name's length goes in front, so no two pairs share a key, even names that hold the separator (since 2.14.6; was a + NUL + b). */
-  function gk(a, b) { a = String(a); return a.length + '\u0000' + a + '\u0000' + b; }
+  function gk(a, b) { var ka = isRest(a) ? '-' + a.id : (a = String(a), a.length + '\u0000' + a); return ka + (isRest(b) ? '\u0001' + b.id : '\u0000' + b); }
+  /** The folded rest of a long list ("Other") is its own kind of name, not a string (since 2.17.0): a real category spelled Other, Others or
+      Others, average stays its own bar, line or wedge, and no two shown names read the same. The rest is a frozen String object whose text is its label;
+      comparisons by === and Map keys tell it apart from every string, and gk() above gives it a key no pair of strings can make. */
+  var REST_ID = 0;
+  function isRest(x) { return x instanceof String && x.rest === true; }
+  function restOf(label, list) {
+    var names = [label, 'All ' + label.charAt(0).toLowerCase() + label.slice(1)], used = function (t) { for (var i = 0; i < list.length; i++) if (!isRest(list[i]) && list[i] === t) return true; return false; }, n = 2, t = names[0];
+    if (used(t)) t = names[1]; while (used(t)) t = names[1] + ' (' + n++ + ')';
+    var o = new String(t); o.rest = true; o.id = ++REST_ID; o.label = t; o.toJSON = function () { return t; };   /* a String object: every string method works on it, yet it is === to no string */
+    return Object.freeze(o);
+  }
   function fmtNum(v) {
     if (!isFinite(v)) return '';
     if (PCT && Math.abs(v) <= 1) { var pc = Number((v * 100).toFixed(1)); return (pc === 0 ? 0 : pc) + '%'; }
@@ -162,9 +173,9 @@ var NetflowPlot = (function () {
     /** A band under a line (x, y top, y bottom per point) as quads, each one whole from its middle. */
     F.band = function (xs, top, bot, fill) { for (var i = 0; i + 1 < xs.length; i++) { if (!(top[i] === top[i] && top[i + 1] === top[i + 1])) continue; var p = [xs[i], top[i], xs[i + 1], top[i + 1], xs[i + 1], bot[i + 1], xs[i], bot[i]]; S.polys.push({ pts: p, c: [(xs[i] + xs[i + 1]) / 2, (top[i] + top[i + 1] + bot[i] + bot[i + 1]) / 4], fill: fill, stroke: [0, 0, 0, 0] }); } };
     F.wedge = function (cx, cy, r0, r1, a0, a1, fill, mark) {
-      var step = 0.45, a = a0;
-      while (a < a1 - 1e-9) {
-        var b = Math.min(a1, a + step), m = Math.max(2, Math.ceil((b - a) / 0.05)), p = [], i;
+      var step = 0.45, a = a0, k = a1 > a0 ? Math.max(1, Math.ceil((a1 - a0) / step - 1e-9)) : 0, ki = 0;   /* k equal pieces, so no sliver piece is left at the end (since 2.17.0) */
+      while (ki++ < k) {
+        var b = ki === k ? a1 : a0 + (a1 - a0) * ki / k, m = Math.max(2, Math.ceil((b - a) / 0.05)), p = [], i;
         for (i = 0; i <= m; i++) { var t = a + (b - a) * i / m; p.push(cx + Math.cos(t) * r1, cy + Math.sin(t) * r1); }
         for (i = m; i >= 0; i--) { var t2 = a + (b - a) * i / m; p.push(cx + Math.cos(t2) * r0, cy + Math.sin(t2) * r0); }
         var am = (a + b) / 2, rm = (r0 + r1) / 2; S.polys.push({ pts: p, c: [cx + Math.cos(am) * rm, cy + Math.sin(am) * rm], fill: fill, stroke: [0, 0, 0, 0] });
@@ -220,7 +231,7 @@ var NetflowPlot = (function () {
       F.line([F.L, F.B, F.R, F.B], 1, alpha(T.muted, 0.7));
     };
     F.legend = function (title, names, colorOf) {
-      title = title ? axisName(title) || String(title) : ''; S.legendTitle = title; names.slice(0, 24).forEach(function (n, i) { S.legend.push({ k: 'group', c: colorOf ? colorOf(n, i) : F.color(i), t: n === '' ? '(blank)' : String(n), key: 'p:' + n }); });
+      title = title ? axisName(title) || String(title) : ''; S.legendTitle = title; names.slice(0, 24).forEach(function (n, i) { S.legend.push({ k: 'group', c: colorOf ? colorOf(n, i) : F.color(i), t: n === '' ? '(blank)' : String(n), key: (isRest(n) ? 'o:' : 'p:') + n }); });
       if (!F.keyRow) return;   /* a row of swatches over the plot (room was made for it), so the picture and its SVG carry their own key */
       var x = F.L, y = 14, cw = 6.6, more = 0, nl = 18;
       var tw = title ? Math.min(24, String(title).length + 1) * cw * 1.05 + 10 : 0, sum = function (m) { var e = 0; S.legend.forEach(function (l) { e += 16 + Math.min(m, l.t.length) * cw + 14; }); return e - 14; };
@@ -319,16 +330,16 @@ var NetflowPlot = (function () {
     else if (sort !== 'none') list.sort(function (a, b) { return tot.get(b) - tot.get(a); });
     var other = null;
     var hi = HI && (keys === HI.ck || keys === HI.xk) ? HI.name : undefined;   /* the highlighted series (or bar) keeps its own place, never folded into Other */
-    if (cap && list.length > cap) { var keep = hi !== undefined && list.indexOf(hi) >= cap - 1; other = list.slice(keep ? cap - 2 : cap - 1); if (keep) other.splice(other.indexOf(hi), 1); list = list.slice(0, keep ? cap - 2 : cap - 1).concat(keep ? [hi, 'Other'] : ['Other']); }
-    if (other && list.indexOf('Other') >= 0 && list.indexOf('Other') < list.length - 1) { list.splice(list.indexOf('Other'), 1); other.push('Other'); }   /* a real value named Other joins the folded rest, so there are never two series called Other */
+    var rest = null;
+    if (cap && list.length > cap) { var keep = hi !== undefined && list.indexOf(hi) >= cap - 1; other = list.slice(keep ? cap - 2 : cap - 1); if (keep) other.splice(other.indexOf(hi), 1); list = list.slice(0, keep ? cap - 2 : cap - 1); if (keep) list.push(hi); rest = restOf('Other', list); list.push(rest); }   /* a real value named Other keeps its own place; the rest is named so the two never read the same (since 2.17.0; before, a real Other joined the rest) */
     if (hi !== undefined) { if (keys === HI.ck) HI.F.hiCi = list.indexOf(hi); if (keys === HI.xk) HI.F.hiX = list.indexOf(hi) >= 0 ? hi : undefined; }
-    return { list: list, other: other ? new Set(other) : null, tot: tot };
+    return { list: list, other: other ? new Set(other) : null, rest: rest, tot: tot };
   }
   /** Values grouped by (x category, color category), aggregated. */
   function cross(xk, ck, v, how, xcats, ccats) {
     var map = new Map(), i;   /* rows grouped by x, then by color, in two maps; the pair key is made once a cell */
     for (i = 0; i < xk.length; i++) {
-      var a = xcats.other && xcats.other.has(xk[i]) ? 'Other' : xk[i], b = ck ? (ccats.other && ccats.other.has(ck[i]) ? 'Other' : ck[i]) : '';
+      var a = xcats.other && xcats.other.has(xk[i]) ? xcats.rest : xk[i], b = ck ? (ccats.other && ccats.other.has(ck[i]) ? ccats.rest : ck[i]) : '';
       var m2 = map.get(a); if (!m2) { m2 = new Map(); map.set(a, m2); }
       var l = m2.get(b); if (!l) { l = []; l.rows = []; m2.set(b, l); } l.push(v ? v[i] : 1); l.rows.push(i);
     }
@@ -343,9 +354,9 @@ var NetflowPlot = (function () {
     var xc = catsOf(xk, v, sp.top > 0 ? 'value' : sp.sort || 'value', sp.top > 0 ? Math.floor(sp.top) + 1 : sp.horizontal ? 60 : 50), cc = ck ? F.cats3(ck, v, 'value', 12) : { list: [''], other: null };
     var cell = cross(xk, ck, v, how, xc, cc), mode = ck ? (sp.stack || 'stack') : 'none', horiz = !!sp.horizontal;
     if (sp.top > 0 && xc.other && v && how === 'sum' && !G_ADD.test(sp.y)) {   /* top: the rest is one bar; a value that does not add up (a rate, a score) shows the average of the rest, named so */
-      var OA = 'Others, average'; xc.list = xc.list.map(function (x) { return x === 'Other' ? OA : x; });
-      cc.list.forEach(function (c) { var e = cell.get(gk('Other', c)); if (!e) return; cell.delete(gk('Other', c)); cell.set(gk(OA, c), { v: aggregate(e.rows.map(function (r) { return v[r]; }), 'mean'), rows: e.rows }); });
-    } else if (sp.top > 0 && xc.other) { xc.list = xc.list.map(function (x) { return x === 'Other' ? 'Others' : x; }); cc.list.forEach(function (c) { var e = cell.get(gk('Other', c)); if (e) { cell.delete(gk('Other', c)); cell.set(gk('Others', c), e); } }); }
+      var OA = restOf('Others, average', xc.list), R0 = xc.rest; xc.list = xc.list.map(function (x) { return x === R0 ? OA : x; }); xc.rest = OA;
+      cc.list.forEach(function (c) { var e = cell.get(gk(R0, c)); if (!e) return; cell.delete(gk(R0, c)); cell.set(gk(OA, c), { v: aggregate(e.rows.map(function (r) { return v[r]; }), 'mean'), rows: e.rows }); });
+    } else if (sp.top > 0 && xc.other) { var OS = restOf('Others', xc.list), R1 = xc.rest; xc.list = xc.list.map(function (x) { return x === R1 ? OS : x; }); xc.rest = OS; cc.list.forEach(function (c) { var e = cell.get(gk(R1, c)); if (e) { cell.delete(gk(R1, c)); cell.set(gk(OS, c), e); } }); }
     var totals = new Map(), lo = 0, hi = 0;
     xc.list.forEach(function (x) { var pos = 0, neg = 0, t = 0; cc.list.forEach(function (c) { var e = cell.get(gk(x, c)); if (!e || e.v !== e.v) return; if (e.v >= 0) pos += e.v; else neg += e.v; t += Math.abs(e.v); }); totals.set(x, t); if (mode === 'group' || mode === 'none') { cc.list.forEach(function (c) { var e = cell.get(gk(x, c)); if (e && e.v === e.v) { lo = Math.min(lo, e.v); hi = Math.max(hi, e.v); } }); } else { lo = Math.min(lo, neg); hi = Math.max(hi, pos); } });
     if (mode === 'normalize') { lo = 0; hi = 1; }
@@ -367,7 +378,7 @@ var NetflowPlot = (function () {
         else { v0 = 0; v1 = e.v; }
         var a = val.map(v0), b = val.map(v1), col = mode === 'none' && !ck && e.v < 0 ? F.T.bad : colOf(ci);
         if (F.hiX !== undefined && x !== F.hiX) col = F.gray;   /* highlight one bar, gray the rest (no color column) */
-        if (sp.top > 0 && !ck && (x === 'Others' || x === 'Others, average')) col = F.gray;   /* the rest of a top-N chart is a lighter gray, so the named bars lead */
+        if (sp.top > 0 && !ck && isRest(x)) col = F.gray;   /* the rest of a top-N chart is a lighter gray, so the named bars lead */
         var mark = { rows: e.rows, t: (x === '' ? '(blank)' : x) + (ck ? ' \u00b7 ' + (c || '(blank)') : '') + ': ' + fmtNum(e.v) };
         if (horiz) F.rect(a, s0, b - a, sw, col, mark); else F.rect(s0, b, sw, a - b, col, mark);
         var vt = mode === 'normalize' ? Math.round(Math.abs(e.v) / tot * 100) + '%' : fmtNum(e.v);
@@ -423,7 +434,7 @@ var NetflowPlot = (function () {
        have one row per x, so 20,000 rows no longer make 40,000 small lists; since 2.14.5). The values and rows come out the same. */
     for (var i = 0; i < x.length; i++) {
       if (x[i] !== x[i]) continue;
-      var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : '', m = by.get(c); if (!m) { m = { at: new Map(), v1: [], r1: [], more: [] }; by.set(c, m); }
+      var c = ck ? (cc.other && cc.other.has(ck[i]) ? cc.rest : ck[i]) : '', m = by.get(c); if (!m) { m = { at: new Map(), v1: [], r1: [], more: [] }; by.set(c, m); }
       var k0 = m.at.get(x[i]), yv = y ? y[i] : 1;
       if (k0 === undefined) { m.at.set(x[i], m.v1.length); m.v1.push(yv); m.r1.push(i); m.more.push(null); distinct++; }
       else { var mo = m.more[k0]; if (!mo) mo = m.more[k0] = { vals: [m.v1[k0]], rows: [m.r1[k0]] }; mo.vals.push(yv); mo.rows.push(i); }
@@ -531,7 +542,7 @@ var NetflowPlot = (function () {
     var base = n > 20000 ? 1.6 : n > 2000 ? 2.4 : 3.6, op = n > 20000 ? 0.45 : n > 2000 ? 0.65 : 0.85, pts = [];
     for (i = 0; i < n; i++) {
       if (x[i] !== x[i] || y[i] !== y[i]) continue;
-      var r = sz ? 2 + 22 * Math.sqrt(Math.max(0, sz[i]) / (smax || 1)) : base, c = ck ? (cc.other && cc.other.has(ck[i]) ? ci.get('Other') : ci.get(ck[i])) : 0;
+      var r = sz ? 2 + 22 * Math.sqrt(Math.max(0, sz[i]) / (smax || 1)) : base, c = ck ? (cc.other && cc.other.has(ck[i]) ? ci.get(cc.rest) : ci.get(ck[i])) : 0;
       var px = ax.map(x[i]), py = ay.map(y[i]); pts.push(px, py);
       F.dot(px, py, r, F.alpha(F.color(c || 0), sz ? 0.6 : op), n <= 5000 ? { rows: i, t: R.label(i) + ': ' + fmtNum(x[i]) + ', ' + fmtNum(y[i]) } : null, sz ? F.alpha(F.color(c || 0), 1) : null);
     }
@@ -585,7 +596,7 @@ var NetflowPlot = (function () {
   };
   CH.box = function (F, R, sp) {
     var xk = sp.x ? R.cat(sp.x) : null, y = R.num(sp.y || sp.x), cats = xk ? catsOf(xk, null, sp.sort || 'name', 40) : { list: [''], other: null }, by = new Map();
-    for (var i = 0; i < y.length; i++) { if (y[i] !== y[i]) continue; var c = xk ? (cats.other && cats.other.has(xk[i]) ? 'Other' : xk[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(y[i]); }
+    for (var i = 0; i < y.length; i++) { if (y[i] !== y[i]) continue; var c = xk ? (cats.other && cats.other.has(xk[i]) ? cats.rest : xk[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(y[i]); }
     var all = []; by.forEach(function (l) { for (var q = 0; q < l.length; q++) all.push(l[q]); });
     var band = bandAxis(cats.list, F.L, F.R, 0.4), ay = axisFor(all, false, F.B, F.Tp, false), st = [];
     cats.list.forEach(function (c, ci) {
@@ -617,7 +628,7 @@ var NetflowPlot = (function () {
   };
   function densityLines(F, R, sp, ridge) {
     var x = R.num(sp.x), ck = sp.color ? R.cat(sp.color) : null, cc = ck ? F.cats3(ck, null, ridge ? 'name' : 'value', ridge ? 30 : 8) : { list: [''], other: null }, by = new Map();
-    for (var i = 0; i < x.length; i++) { if (x[i] !== x[i]) continue; var c = ck ? (cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(x[i]); }
+    for (var i = 0; i < x.length; i++) { if (x[i] !== x[i]) continue; var c = ck ? (cc.other && cc.other.has(ck[i]) ? cc.rest : ck[i]) : ''; var l = by.get(c); if (!l) { l = []; by.set(c, l); } l.push(x[i]); }
     var ax = axisFor(x, !!x.time, F.L, F.R, false, 8), m = 160, curves = [], top = 0;
     cc.list.forEach(function (c, ci) { var l = by.get(c); if (!l || l.length < 2) return; var bw = silverman(l), d = kde(l, ax.lo, ax.hi, m, bw); for (var j = 0; j < m; j++) top = Math.max(top, d[j]); curves.push({ c: c, ci: ci, d: d, n: l.length }); });
     var xs = []; for (var j = 0; j < m; j++) xs.push(ax.map(ax.lo + (ax.hi - ax.lo) * j / (m - 1)));
@@ -688,14 +699,31 @@ var NetflowPlot = (function () {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', xc = catsOf(xk, v, 'value', 12), cell = cross(xk, null, v, how, xc, { other: null }), tot = 0, parts = [];
     xc.list.forEach(function (x) { var e = cell.get(gk(x, '')); if (e && e.v > 0) { parts.push({ x: x, v: e.v, rows: e.rows }); tot += e.v; } });
     F.three(parts.length);
-    var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, r1 = Math.min(F.W, F.B - F.Tp) / 2 - 30, r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
+    var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, room = Math.min(F.W, F.B - F.Tp), r1 = Math.max(room / 2 - 30, room / 4), r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
+    /* Smallest drawable wedge (since 2.17.0). The SVG writes coordinates to two decimals, so a share of a millionth would round to a line with no
+       area. Every positive share is drawn at least MIN_ARC px wide at the rim (plus the gap beside it); the width this takes is taken from the
+       wedges above the minimum, in proportion, so the ring still closes and bigger shares stay in order. Values, percents and totals in the text
+       are the true ones; a widened wedge says so when pointed at. With n wedges at most n * (MIN_ARC / r1 + pad) of the circle is not to scale
+       (12 wedges on a 150 px ring: under 2.5%). */
+    /* The ring keeps at least a quarter of the room as its radius (2.17.0): below about 200 px of height the 30 px kept for the outside labels
+       used to leave a ring a few px across, or a negative radius that drew it inside out (found by the browser raster check). */
+    var MIN_ARC = 1, n = parts.length, minSpan = n > 1 && r1 > 0 ? Math.min(MIN_ARC / r1 + pad, TAU / n) : 0, spans = parts.map(function (p) { return p.v / tot * TAU; }), wide = spans.map(function () { return false; }), again = n > 1;
+    while (again) {
+      var fixedN = 0, free = 0; again = false;
+      spans.forEach(function (sv, i) { if (wide[i]) fixedN++; else free += parts[i].v; });
+      var room = TAU - fixedN * minSpan;
+      spans.forEach(function (sv, i) { if (wide[i]) return; var want = free > 0 ? parts[i].v / free * room : 0; if (!(want >= minSpan) && fixedN < n - 1) { wide[i] = true; again = true; } });
+      if (!again) spans = spans.map(function (sv, i) { return wide[i] ? minSpan : (free > 0 ? parts[i].v / free * room : room); });
+    }
     parts.forEach(function (p, i) {
-      var span = p.v / tot * TAU; F.wedge(cx, cy, r0, r1, a + pad / 2, a + span - pad / 2, F.color(i), { rows: p.rows, t: (p.x || '(blank)') + ': ' + fmtNum(p.v) + ' (' + (p.v / tot * 100).toFixed(1) + '%)' });
+      var span = spans[i], pct = p.v / tot * 100, a1 = i === n - 1 ? -Math.PI / 2 + TAU : a + span;
+      F.wedge(cx, cy, r0, r1, a + pad / 2, a1 - pad / 2, F.color(i), { rows: p.rows, t: (p.x || '(blank)') + ': ' + fmtNum(p.v) + ' (' + (pct > 0 && pct < 0.05 ? '<0.1' : n > 1 && pct >= 99.95 ? '>99.9' : pct.toFixed(1)) + '%)' + (wide[i] ? ' \u00b7 drawn at minimum size' : '') });
       var m = a + span / 2, lr = r1 + 14, right = Math.cos(m) >= 0;
-      if (span > 0.08) F.text(cx + Math.cos(m) * lr, cy + Math.sin(m) * lr + 4, clip(p.x || '(blank)', 18) + ' ' + Math.round(p.v / tot * 100) + '%', 11, F.T.fg, { align: right ? 'l' : 'r' });
-      a += span;
+      if (p.v / tot * TAU > 0.08) F.text(cx + Math.cos(m) * lr, cy + Math.sin(m) * lr + 4, clip(p.x || '(blank)', 18) + ' ' + (n > 1 && pct >= 99.5 ? '>99' : Math.round(pct)) + '%', 11, F.T.fg, { align: right ? 'l' : 'r' });
+      a = a1;
     });
-    if (hole) { F.text(cx, cy + 2, fmtNum(tot), 22, F.T.fg, { bold: true }); F.text(cx, cy + 22, sp.y ? (how === 'sum' ? 'total ' : how + ' ') + sp.y : 'rows', 11, F.T.muted); }
+    /* the total goes in the hole only when it fits there (2.17.0): in a small chart the 22 px total covered the top of the ring and the wedges under it */
+    if (hole && fmtNum(tot).length * 0.6 * 22 / 2 <= r0 * 0.9) { F.text(cx, cy + 2, fmtNum(tot), 22, F.T.fg, { bold: true }); F.text(cx, cy + 22, sp.y ? (how === 'sum' ? 'total ' : how + ' ') + sp.y : 'rows', 11, F.T.muted); }
     F.legend(sp.x, parts.map(function (p) { return p.x; }));
   }
   CH.donut = function (F, R, sp) { donutCore(F, R, sp, true); };
@@ -717,7 +745,7 @@ var NetflowPlot = (function () {
     var ck = sp.color ? R.cat(sp.color) : null, cc = ck ? F.cats3(ck, null, 'value', 10) : null, n = R.n, op = n > 5000 ? 0.08 : n > 500 ? 0.25 : 0.6;
     for (var i = 0; i < n && i < 50000; i++) {
       var pts = []; for (var j = 0; j < cols.length; j++) { var v = data[j][i]; if (v !== v) { pts = null; break; } pts.push(F.L + j * step, axes[j].map(v)); }
-      if (pts) F.line(pts, 1, F.alpha(F.color(ck ? Math.max(0, cc.list.indexOf(cc.other && cc.other.has(ck[i]) ? 'Other' : ck[i])) : 0), op));
+      if (pts) F.line(pts, 1, F.alpha(F.color(ck ? Math.max(0, cc.list.indexOf(cc.other && cc.other.has(ck[i]) ? cc.rest : ck[i])) : 0), op));
     }
     cols.forEach(function (k, j) { var x = F.L + j * step; F.line([x, F.Tp, x, F.B], 1.2, F.T.fg); axes[j].list.forEach(function (t) { F.text(x - 5, axes[j].map(t) + 4, axes[j].fmt ? axes[j].fmt(t) : fmtNum(t), 10, F.T.muted, { align: 'r' }); }); F.text(x, F.B + 18, clip(k, 18), 12, F.T.fg, { bold: true }); });
     if (ck) F.legend(sp.color, cc.list);
