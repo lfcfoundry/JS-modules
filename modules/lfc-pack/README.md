@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.8.1 · API 0**
+**Version 0.9.0 · API 0**
 
 **Tested in:** the lfc-pack node suite, 480-case fuzz against 0.8.0 (identical JSON), paired fresh-page runs on ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -81,6 +81,9 @@ LfcPack.pool({ workers: 3 }).then(function (pool) {
   // same options as unpack
   return pool.unpack(file).then(function (rows) { pool.close(); return rows; });
 });
+// memory limits (0.9.0): { stable: true } promises you will not change the bytes until the read settles, so a block is copied only when a
+// helper takes it; LfcPack.pool({ maxInflightBytes }) caps the block bytes handed to helpers at once (a bigger block still runs, alone);
+// { signal } (an AbortSignal) cancels a read; pool.stats() reports queued, in-flight and copied bytes
 ```
 
 Row objects in, row objects out (no NDJSON text), and whole documents made of several tables plus plain values (a map with nodes, links, states and view settings):

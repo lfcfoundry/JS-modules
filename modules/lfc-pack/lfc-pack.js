@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.8.1 (API 0)
+ * Version 0.9.0 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -2049,7 +2049,7 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.8.1', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.9.0', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
@@ -2083,33 +2083,70 @@
       else { W = W || require('worker_threads').Worker; w = new W(src, { eval: true }); w.on('message', function (m) { done(w, m); }); w.on('error', failAll); w.post = function (m, t) { w.postMessage(m, t); }; w.kill = function () { w.terminate(); }; }
       w.busy = 0; return w;
     }
+    // Byte accounting (since 0.9.0). Every job carries the byte size of the block it sends. "queued" = waiting for a helper; "in flight" = posted,
+    // answer not yet back. A job's bytes are released when its answer arrives, when its call is cancelled, or when the pool fails; never when it
+    // merely starts. Worker count limits jobs, not bytes: maxInflightBytes (opt) is the byte limit for posted jobs. A single block larger than
+    // the limit still runs, alone, so a call never waits forever.
+    var maxInflight = opts.maxInflightBytes > 0 ? opts.maxInflightBytes : Infinity;
+    var st = { queuedJobs: 0, queuedBytes: 0, queuedCopyBytes: 0, inflightJobs: 0, inflightBytes: 0, peakInflightBytes: 0, peakHeldCopyBytes: 0, copiedBytes: 0, cancelledJobs: 0 };
+    function held() { return st.queuedCopyBytes + st.inflightBytes; }
+    function note() { if (st.inflightBytes > st.peakInflightBytes) st.peakInflightBytes = st.inflightBytes; if (held() > st.peakHeldCopyBytes) st.peakHeldCopyBytes = held(); }
     var jobs = [], active = 0, wake = null;
-    function failAll(e) { pending.forEach(function (p) { p.reject(e); }); pending.clear(); jobs.length = 0; }
-    function done(w, m) { w.busy--; var p = pending.get(m.id); pending.delete(m.id); if (m.error) { if (p) p.reject(new Error(m.error)); } else if (p) p.resolve(m.F); pump(); }
+    function failAll(e) { pending.forEach(function (p) { p.reject(e); }); pending.clear(); jobs.length = 0; st.queuedJobs = st.queuedBytes = st.queuedCopyBytes = st.inflightJobs = st.inflightBytes = 0; }
+    function done(w, m) {
+      w.busy--; var p = pending.get(m.id); pending.delete(m.id);
+      if (p) { st.inflightJobs--; st.inflightBytes -= p.bytes; }
+      if (m.error) { if (p) p.reject(new Error(m.error)); } else if (p) p.resolve(m.F);
+      pump();
+    }
     function pump() {
       while (jobs.length) {
         var w = null, q; for (q = 0; q < ws.length; q++) if (ws[q].busy < 2 && (!w || ws[q].busy < w.busy)) w = ws[q];
         if (!w) return;
-        var j = jobs.shift(); w.busy++; w.post(j.m, [j.m.buf.buffer]);
+        var j = jobs[0];
+        if (st.inflightJobs > 0 && st.inflightBytes + j.bytes > maxInflight) return;   // over the byte limit: wait for an answer (a job alone always runs)
+        jobs.shift(); st.queuedJobs--; st.queuedBytes -= j.bytes;
+        if (j.m.buf) st.queuedCopyBytes -= j.bytes; else { j.m.buf = j.make(); j.make = null; st.copiedBytes += j.bytes; }   // stable input: the private copy is made only now
+        var p = pending.get(j.m.id); p.bytes = j.bytes; st.inflightJobs++; st.inflightBytes += j.bytes; note();
+        w.busy++; w.post(j.m, [j.m.buf.buffer]);
       }
     }
-    function submit(m) { return new Promise(function (resolve, reject) { m.id = nextJob++; pending.set(m.id, { resolve: resolve, reject: reject }); jobs.push({ m: m }); pump(); }); }
+    // make: returns the private copy; called at once (default) or at dispatch (stable input). call: the unpack call's record, for cancelling.
+    function submit(m, bytes, make, lazy, call) {
+      return new Promise(function (resolve, reject) {
+        m.id = nextJob++; pending.set(m.id, { resolve: resolve, reject: reject, bytes: 0, call: call });
+        var j = { m: m, bytes: bytes, make: make, call: call };
+        if (!lazy) { m.buf = make(); j.make = null; st.copiedBytes += bytes; st.queuedCopyBytes += bytes; }
+        jobs.push(j); st.queuedJobs++; st.queuedBytes += bytes; note(); pump();
+      });
+    }
+    function cancel(call, err) {   // drop this call's queued jobs now; its posted jobs finish in their helper and their answers are dropped
+      for (var q = jobs.length - 1; q >= 0; q--) {
+        var j = jobs[q]; if (j.call !== call) continue;
+        jobs.splice(q, 1); st.queuedJobs--; st.queuedBytes -= j.bytes; if (j.m.buf) st.queuedCopyBytes -= j.bytes; j.m.buf = null; st.cancelledJobs++;
+        var p = pending.get(j.m.id); pending.delete(j.m.id); if (p) p.reject(err);
+      }
+      pending.forEach(function (p, id) { if (p.call === call && !p.dropped) { p.dropped = true; var r = p.reject; p.resolve = p.reject = function () {}; r(err); } });
+    }
     for (i = 0; i < size; i++) ws.push(spawn());
     function unpackPool(bytes, o) {
       o = o || {}; need(false);
       var file = openFile(bytes), rn = makeNestedReader(S.zdec, sharedOf(file)), rf = makeFlatReader(S.zdec), range = o.range || null, want = null, k, n = file.blocks.length, i2;
       if (o.keys) { want = {}; for (k = 0; k < o.keys.length; k++) want[o.keys[k]] = 1; if (range) want[range.key] = 1; }
-      var results = new Array(n), out = [], t0 = tmNow();
+      var results = new Array(n), out = [], t0 = tmNow(), call = {}, signal = o.signal || null, lazy = !!o.stable;   // stable: true = the caller keeps these bytes unchanged until the call settles, so private copies are made only when a block is sent
+      if (signal && signal.aborted) return Promise.reject(abortError(signal));
       for (i2 = 0; i2 < n; i2++) (function (i) {
         if ((o.table != null && (file.blocks[i][5] || 0) !== o.table) || !blockMayMatch(file, i, range)) { results[i] = Promise.resolve([]); return; }
         var b = file.blocks[i], kd = b[4];
         if (b[0] + b[1] > file.footer.bodyEnd) { results[i] = Promise.reject(new Error('block ' + i + ' out of range')); return; }
         if (kd === 'r') { results[i] = Promise.resolve(keepRows(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), range)); return; }
         // Buffer.slice aliases caller storage; workers must receive an owned block copy.
-        var blockInput = typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(file.bytes)
-          ? new Uint8Array(file.bytes.buffer, file.bytes.byteOffset + b[0], b[1]).slice()
-          : file.bytes.slice(b[0], b[0] + b[1]);
-        results[i] = submit({ kind: kd, buf: blockInput, crc: b[2], want: kd === 'f' ? want : null }).then(function (F) {
+        var makeCopy = function () {
+          return typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(file.bytes)
+            ? new Uint8Array(file.bytes.buffer, file.bytes.byteOffset + b[0], b[1]).slice()
+            : file.bytes.slice(b[0], b[0] + b[1]);
+        };
+        results[i] = submit({ kind: kd, buf: null, crc: b[2], want: kd === 'f' ? want : null }, b[1], makeCopy, lazy, call).then(function (F) {
           var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
           r = keepRows(r, range);
@@ -2118,11 +2155,20 @@
           return r;
         });
       })(i2);
+      results.forEach(function (r) { r.catch(function () {}); });   // a cancelled call rejects once, below; its other block promises must not report unhandled
+      var all0 = signal ? null : Promise.all(results);
+      if (signal) all0 = new Promise(function (res, rej) {
+        var onAbort = function () { var e = abortError(signal); cancel(call, e); rej(e); };
+        signal.addEventListener('abort', onAbort, { once: true });
+        Promise.all(results).then(function (v) { signal.removeEventListener('abort', onAbort); res(v); }, function (e) { signal.removeEventListener('abort', onAbort); rej(e); });
+      });
       // blocks are assembled in the order they finish; the result list is in block order
-      return Promise.all(results).then(function (all) { for (var a = 0; a < all.length; a++) for (var j = 0; j < all[a].length; j++) out.push(all[a][j]); return out; });
+      return all0.then(function (all) { for (var a = 0; a < all.length; a++) for (var j = 0; j < all[a].length; j++) out.push(all[a][j]); return out; });
     }
     function wantOf(keys) { var w = {}; keys.forEach(function (k) { w[k] = 1; }); return w; }
-    return Promise.resolve({ size: size, unpack: unpackPool, close: function () { ws.forEach(function (w) { w.kill(); }); if (url) URL.revokeObjectURL(url); } });
+    function abortError(sg) { var r = sg && sg.reason; if (r instanceof Error) return r; var e = new Error('LfcPack: pool read cancelled'); e.name = 'AbortError'; return e; }
+    function stats() { var o2 = {}, k2; for (k2 in st) o2[k2] = st[k2]; o2.heldCopyBytes = held(); o2.maxInflightBytes = maxInflight === Infinity ? 0 : maxInflight; return o2; }
+    return Promise.resolve({ size: size, unpack: unpackPool, stats: stats, close: function () { ws.forEach(function (w) { w.kill(); }); if (url) URL.revokeObjectURL(url); } });
   }
 
   // ---- block-parallel pack (opt-in): consecutive blocks are cut exactly where one thread would cut them, each helper packs its run, and the parts are joined behind one footer; the file is the same bytes the single-thread pack writes
