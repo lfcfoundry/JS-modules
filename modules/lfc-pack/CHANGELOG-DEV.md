@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.2 · API 0 · 2026-11-11
+
+### Quick
+Pack is faster: UUID columns convert with char codes (0.61-0.73 of the time on UUID-heavy blocks) and each column's layout is chosen from a 64 KB sample (0.78-0.96 on number and log data). Same bytes, same format.
+
+### Details
+B1: UUID text to bytes with char codes (pack time new/old, 60,000 rows with two UUID columns: Chromium 0.73, Firefox 0.65, WebKitGTK 0.61). B2: each candidate layout's size is estimated (frames up to 64 KB exact, longer ones from four 16 KB slices) and only the winner is compressed in full; when the best two estimates are within 2% both are compressed and the smaller kept. 150,000 rows, pack new/old: logs 0.94/0.94/0.96, sensors 0.88/0.92/0.78, nested control 1.04/0.88/0.95 (Chromium/Firefox/WebKitGTK). Files are byte-identical to 0.8.1 on every file tried.
+
+### Deep
+lfc-pack 0.8.2: two pack speedups, same format and same bytes (owner approved 11.11 'Send both'). B1: UUID columns convert text to bytes with char codes: pack new/old on 60,000 rows with two UUID columns, 9 pairs, Chromium 156 0.73 (354 to 258 ms), Firefox 158 0.65 (278 to 181), WebKitGTK 2.52.6 0.61 (316 to 194). B2: each flat column's layout is chosen from a sample; frames up to 64 KB are compressed exactly, longer ones are estimated from 4 evenly spaced 16 KB slices and only the winner is compressed in full; when the best two estimates are within 2% both are compressed in full and the smaller kept. 150,000 rows, 9 pairs, new/old pack: logs Chromium 0.94, Firefox 0.94, WebKitGTK 0.96; sensors 0.88 / 0.92 / 0.78; nested control 1.05 (1.04 in 15 more pairs) / 0.88 / 0.95. Size gate: byte-identical to 0.8.1 on FHIR 21 MB and 260 MB, Netflow test maps 2,000 / 8,000 / 30,000, mixed.ndjson, fnmap, google-fonts table, and 10 made-up sets (logs, events, sensors, ids, repeat at 20k and 300k rows); none larger. Phone not run.
+
 ## 0.8.1 · API 0 · 2026-11-08
 
 ### Quick
