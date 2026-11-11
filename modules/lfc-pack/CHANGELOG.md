@@ -5,6 +5,9 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 0.9.0 · API 0 · 2026-11-11
 - Helper-worker reads copy a Buffer's blocks so the caller's memory is never handed away; new opt-in memory limits (stable, maxInflightBytes), cancelling (signal) and pool.stats().
 
+## 0.8.2 · API 0 · 2026-11-11
+- Packing UUID columns is faster. Packing picks each column's layout faster.
+
 ## 0.8.1 · API 0 · 2026-11-08
 - Reading only some keys of nested rows is up to 2 times faster; output unchanged.
 

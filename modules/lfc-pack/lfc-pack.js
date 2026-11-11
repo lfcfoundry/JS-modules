@@ -950,10 +950,46 @@
     }
     return 0;
   }
-  function encodeColumn(v, zs, level, tmode, sj, key) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes; key: the column's key, for the once-per-call template read check
+  // Choosing a column's layout: each candidate's compressed size is estimated, and only the winner is compressed in full. A frame of 64 KB or less is compressed exactly (that result is
+  // kept); a longer one is estimated from 4 evenly spaced 16 KB slices, scaled up and capped at its raw size. When the best two estimates are within 2% of each other both are compressed in
+  // full and the smaller is kept (a tie goes to the candidate tried first), so a close call is always decided exactly. Same file format; a column's pick can differ from an exact pick only
+  // when the estimates were more than 2% apart yet wrong.
+  function sizeOf(zs, level, fr) {
+    var t = 0, z = [], exact = true, q, f, L, c, k, o, s, K = 4, sl = 16384;
+    for (q = 0; q < fr.length; q++) {
+      f = fr[q]; L = f.length;
+      if (L <= 65536) { c = zs.compress(f, level); if (c.length < L) { z.push([L, c, 1]); t += c.length; } else { z.push([L, f, 0]); t += L; } }
+      else { exact = false; s = new Uint8Array(K * sl); for (k = 0; k < K; k++) { o = Math.floor((L - sl) * k / (K - 1)) & ~7; s.set(f.subarray(o, o + sl), k * sl); } c = zs.compress(s, level); t += Math.min(L, Math.ceil(c.length * L / s.length)); }
+    }
+    return { size: t, z: exact ? z : null };
+  }
+  function addCand(zs, level, best, t, p, fr, n, st) {   // -> the new best (it carries the runner-up in .next)
+    var e = sizeOf(zs, level, fr), c = { t: t, p: p, fr: fr, z: e.z, size: e.size, n: n, st: st, next: null, ord: best ? best.cnt : 0, cnt: best ? best.cnt + 1 : 1 };
+    if (!best) return c;
+    best.cnt = c.cnt;
+    if (e.size < best.size) { c.next = best; return c; }
+    if (!best.next || e.size < best.next.size) best.next = c;
+    return best;
+  }
+  function fullOf(zs, level, c) {
+    var t = 0, z = [], q, f, k;
+    if (c.z) return c;
+    for (q = 0; q < c.fr.length; q++) { f = c.fr[q]; k = zs.compress(f, level); if (k.length < f.length) { z.push([f.length, k, 1]); t += k.length; } else { z.push([f.length, f, 0]); t += f.length; } }
+    c.z = z; c.size = t; return c;
+  }
+  function settle(zs, level, best) {   // the chosen candidate with its real frames
+    var b = best, r, o;
+    if (!b || !b.fr) return b;
+    r = b.next;
+    if (r && r.size <= b.size * 1.02 && (!b.z || !r.z)) { fullOf(zs, level, b); fullOf(zs, level, r); if (r.size < b.size || (r.size === b.size && r.ord < b.ord)) b = r; }
+    else fullOf(zs, level, b);
+    b.fr = null; b.next = null; return b;
+  }
+  function encodeColumn(v, zs, level, tmode, sj, key) { return settle(zs, level, encodeColumn0(v, zs, level, tmode, sj, key)); }
+  function encodeColumn0(v, zs, level, tmode, sj, key) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes; key: the column's key, for the once-per-call template read check
     var n = v.length, i, x, best = null;
     function stored(frames) { var t = 0, z = []; for (var q = 0; q < frames.length; q++) { var c = zs.compress(frames[q], level); if (c.length < frames[q].length) z.push([frames[q].length, c, 1]); else z.push([frames[q].length, frames[q], 0]); t += z[q][1].length; } return { z: z, size: t }; }
-    function cand(t, p, frames, st) { var s = stored(frames); if (!best || s.size < best.size) best = { t: t, p: p, z: s.z, size: s.size, n: n, st: st }; }
+    function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
     if (allOf(v, function (x) { return typeof x === 'number'; })) {
       var noNegZero = allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
       var allInt = noNegZero && allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; }), scale = 1, base = null;
@@ -979,7 +1015,7 @@
         cand('H', { L: L }, [raw]); return best;
       }
       if (L === 36 && allOf(v, function (x) { return RX_UUID.test(x); })) {
-        raw = new Uint8Array(n * 16); for (i = 0; i < n; i++) { var hx = v[i].replace(/-/g, ''); for (j = 0; j < 32; j += 2) raw[p++] = parseInt(hx.substr(j, 2), 16); }
+        raw = new Uint8Array(n * 16); for (i = 0; i < n; i++) { x = v[i]; for (j = 0; j < 36; j += 2) { if (j === 8 || j === 13 || j === 18 || j === 23) j++; raw[p++] = (hexv(x.charCodeAt(j)) << 4) | hexv(x.charCodeAt(j + 1)); } }
         cand('U', {}, [raw]); return best;
       }
       if (allOf(v, function (x) { var m = RX_IP.exec(x); return m && m[1] < 256 && m[2] < 256 && m[3] < 256 && m[4] < 256; })) {
@@ -992,7 +1028,7 @@
         else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
         if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [sj || te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
-        if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
+        if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { best = settle(zs, level, best); var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : new Uint8Array(codes);
           cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb], { distinct: labels.length });
@@ -1218,10 +1254,7 @@
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
-    // lim: the candidate only counts when it takes fewer than lim bytes, so each frame is compressed with a byte limit and a loser stops early (null). A frame that does not fit
-    // its limit is stored raw: when that is also too big the candidate loses, as it would have; when it is not, raw is what the frame would have been anyway (compressed was no smaller).
-    function stored(fr, lim) { var tt = 0, zz2 = [], qq, cc, room; for (qq = 0; qq < fr.length; qq++) { room = lim - tt; if (room <= 0) return null; cc = zs.compress(fr[qq], level, 0, Math.min(room - 1, fr[qq].length - 1)); if (cc && cc.length < fr[qq].length) zz2.push([fr[qq].length, cc, 1]); else zz2.push([fr[qq].length, fr[qq], 0]); tt += zz2[qq][1].length; } return tt < lim ? { z: zz2, size: tt } : null; }
-    function cand(tn, p, fr, n) { var sv = stored(fr, best ? best.size : Infinity); if (sv) best = { t: tn, p: p, z: sv.z, size: sv.size, n: n }; }
+    function cand(tn, p, fr, n) { best = addCand(zs, level, best, tn, p, fr, n); }
     for (j = 0; j < nk; j++) {
       best = null; c = count[j];
       if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column
@@ -1255,7 +1288,7 @@
         var ln = colv[j], dl = coll[j], t2 = dl.length, asc = listAsc(ln, dl, c);
         cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(listDeltas(ln, dl, c, asc), t2)], c);
       }
-      meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }), st: best.st, _z: best.z });
+      best = settle(zs, level, best); meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }), st: best.st, _z: best.z });
       for (i = 0; i < best.z.length; i++) frames.push(best.z[i][1]);
     }
     var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
