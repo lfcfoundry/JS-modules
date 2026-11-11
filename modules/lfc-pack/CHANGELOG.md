@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.2 · API 0 · 2026-11-11
+- Packing UUID columns is faster. Packing picks each column's layout faster.
+
 ## 0.8.1 · API 0 · 2026-11-08
 - Reading only some keys of nested rows is up to 2 times faster; output unchanged.
 
