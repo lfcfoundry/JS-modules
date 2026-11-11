@@ -180,17 +180,40 @@ Code 13 blocks belong to the nested layout anyway, and the scan stops at the fir
 - `node test/run.js` passes.
 - `experiments/b7verify.cjs` covers 41 sets: 21 mixed-kind edge sets, the research sets and the 6 real corpus files. The edge sets are nullable numbers with 3 decimals, nullable strings, string/number mixes, escapes and non-ASCII including emoji, bool/number mixes, long numbers with `-0`, `1e300` and `"n/a"`, and nulls only near the end of a column, each at 50, 3,000 and 70,000 rows. Rows equal `JSON.parse`, the 0.8.1 reader reads every file, and with the guard all 41 files are byte-identical to 0.8.1.
 
-**Pack time, variant over 0.8.1** (`results/ab-summary-b3b.txt`; Chromium 6 rounds, Firefox and WebKitGTK 4; same bytes in every run):
+**First-version pack time against 0.8.1** (`results/ab-summary-b3b.txt`): on 1% nulls or strings in one column, pack took 0.47 to 0.82 of the time in the 3 browsers. **That run tested only the easy case and missed the worst case.** The orchestrater relayed a lesson from shipping B3 as lfc-pack 0.8.3 (PR 655): with every column on the fallback, the first B3 patch was 1.1 to 1.6x slower in Firefox and WebKitGTK. It was fixed by slicing already-decoded text.
+
+**Worst-case round (2026-11-11, 10:04-10:39 AM Eastern, rebased on lfc-pack 0.8.3):**
+
+New sets (`experiments/worst.cjs`, `experiments/mixk.cjs`):
+- `allmix`: 13 columns. 6 nullable decimals and 3 nullable strings, all null in the first row, plus 3 number/string mixes. About 92% of cells take the fallback. ASCII and non-ASCII (`allmixu`) versions, 30,000 and 300,000 rows (5 to 50 MB).
+- `mixK`: K of 12 columns nullable from the first row, about K/13 of the cells on the fallback.
+
+Three versions:
+1. **v1 (per-cell lists in JS, then slice and join):** Chromium worst case 1.22 to 1.48x slower.
+2. **v2 (wasm joins each key's literals with a new `litjoin` export; one `JSON.parse` per key):** still 1.09 to 1.22x slower on `allmix`. Break-even in Chromium: `mix1` 0.65, `mix3` 0.72, `mix6` 0.89, `mix9` 0.96. Past about half the cells, one `JSON.parse` of the whole block (the other writer) is just as good.
+3. **v3 (shipped candidate):** v2 plus an early stop. The scanner counts fallback cells and gives up (new code 18) at any 4,096-row mark, or at the end, once they are more than half of all cells. The block then goes to today's writer, and only up to 4,096 rows of scanning are wasted. This needed wasm scratch for the cell lists and join buffer even in blocks with no text column; the first v2 build crashed on number-only blocks until that was added. `experiments/b3b-mixed-kinds.diff` is against lfc-pack 0.8.3.
+
+**v3 checks:** `node test/run.js` passes. `b7verify.cjs` now covers 50 sets, adding the worst-case and `mixK` sets: all byte-identical to 0.8.3, rows equal `JSON.parse`, and the 0.8.3 reader reads every file. The give-up counter confirms `allmix` and `mix9` go to the old writer (code 18 on all 4 blocks), while `mix6` and `sensnull` stay fast.
+
+**v3 pack time against 0.8.3** (5 rounds, 3 packs per page; `results/ab-summary-b3b-v2.txt`):
 
 | Set | Chromium 156 first / later | Firefox 158 first / later | WebKitGTK first / later |
 |---|---|---|---|
-| sensnull 300,000 (1% nulls in one column) | 0.60 (0.56-0.68) / 0.67 (0.62-0.72) | 0.65 (0.55-0.70) / 0.64 (0.63-0.68) | 0.82 (0.78-0.93) / 0.47 (0.41-0.50) |
-| sensstr 300,000 (1% `"n/a"`) | 0.61 (0.47-0.69) / 0.64 (0.52-0.69) | 0.67 (0.63-0.73) / 0.56 (0.55-0.66) | 0.76 (0.73-0.76) / 0.47 (0.42-0.60) |
-| sensnull 30,000 | 0.77 (0.69-0.82) / 0.64 (0.56-0.74) | 0.65 (0.61-0.90) / 0.60 (0.54-0.68) | 0.81 (0.75-0.90) / 0.66 (0.51-0.77) |
-| logs 300,000 (control, fast path before and after) | 1.00 / 0.97 | 1.09 (1.04-1.12) / 1.04 in 4 rounds; **rerun 8 rounds: 0.95 (0.75-1.11) / 0.98** | 0.97 / 1.02 |
-| nd_dense (real corpus, control), Firefox 8 rounds | | 0.82 (0.67-1.48) / 0.97 (0.73-1.38) | |
+| allmix 300,000 (worst, cut over) | 1.03 / 0.96 | 0.97 / 0.98 | 1.03 / 0.94 |
+| allmixu 300,000 (worst, non-ASCII) | 0.97 / 0.95 | 0.99 / 1.02 | 0.98 / 0.94 |
+| allmix 30,000 | 0.89 / 0.94 | 1.05 / 1.05 | 1.00 / 1.01 |
+| mix9 (about 70%, cut over) | 1.00 / 0.99 | 0.98 / 1.00 | 0.91 / 1.02 |
+| mix6 (about 46%) | 0.85 / 0.84 | 0.93 / 0.84 | 0.83 / 0.92 |
+| mix3 (about 23%) | 0.78 / 0.71 | 0.81 / 0.76 | 0.68 / 0.70 |
+| sensnull (1% nulls in one column) | 0.62 / 0.70 | 0.71 / 0.63 | 0.67 / 0.50 |
+| logs (control) | 1.05 / 1.06 | 1.03 / 1.03 | 1.07 / 1.14 |
+| nd_dense (real corpus, control) | 0.99 / 1.02 | 0.97 / 1.02 | 1.08 / 1.04 |
 
-The 4-round Firefox control looked 4 to 9% slower. The 8-round rerun on the same build put it at 0.95/0.98, so the first reading was noise. A ship gate should still run the early-stop A/B on a flat control in Firefox, because the scanner gains one type check per value. **Decision: ADOPT CANDIDATE.**
+The controls in the 5-round run read 1.03 to 1.14 in places, with wide ranges (0.79 to 1.24). An 8-round WebKitGTK rerun of the controls gave logs 1.02 / 1.02, nd_dense 1.04 / 0.99 and sensors 1.01 / 0.97. That is within noise, but the median of the first pack sits slightly above 1. The scanner does one more type check per value. **The ship gate must run an early-stop A/B on plain flat data in all three browsers and confirm the change costs less than 5%.**
+
+**Decision: ADOPT CANDIDATE (v3)**, with that control gate. Lessons recorded:
+- Always time the case where every cell takes a new slow path, not only the case it was built for.
+- Per-cell JS work on a fallback can cost more than the slow path it replaces. Hand the work to one native `JSON.parse` per column, and cut over to the old path past the break-even point.
 
 ### 2026-11-11 E4: skip zstd on incompressible frames (measured headroom only)
 
@@ -211,7 +234,7 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 
 **B3. Keep long numbers on the fast flat writer (per-column fallback instead of per-block).** Source: our own profile. The principle matches how Parquet and ORC writers fall back one column at a time. Target: `wasm/flatscan.c` and the `src/flat.js` fast writer. Advantage: pack 0.67 to 0.86 on blocks with long, exponent or `-0` numbers; 0.50 to 0.54 stacked with B1 and B2. Evidence: strong (3 browsers, byte-identical on 19 sets including edge cases, full test suite passes). Difficulty: medium (wasm rebuild, 38 lines). Risk: low to medium, because numbers must stay exact. This is covered by the edge sets and by the mantissa / 10^digits argument in E5. Experiment: E5. **ADOPT CANDIDATE.**
 
-**B3b. Mixed-kind keys (nullable numbers and strings, string/number mixes) stay on the fast writer.** Source: our own profile. The principle is the same per-column fallback as B3. Target: `wasm/flatscan.c`, `src/flat.js`, `src/api.js` (layout guard). Advantage: pack 1.6 to 2x slower today on a block with 1% nulls in one column, and the prototype removes that (E6). Evidence: real-corpus count (gen_sparse), the headroom run, and 41/41 byte-identical sets. Difficulty: medium (65 changed lines with B3). Risk: low to medium, covered by the edge sets and the layout guard. **ADOPT CANDIDATE** once the three-browser A/B is in (E6).
+**B3b. Mixed-kind keys (nullable numbers and strings, string/number mixes) stay on the fast writer.** Source: our own profile. The principle is the same per-column fallback as B3. Target: `wasm/flatscan.c`, `src/flat.js`, `src/api.js` (layout guard). Advantage: pack 1.6 to 2x slower today on a block with 1% nulls in one column, and the prototype removes that (E6). Evidence: real-corpus count (gen_sparse), the headroom run, and 41/41 byte-identical sets. Difficulty: medium (65 changed lines with B3). Risk: low to medium, covered by the edge sets and the layout guard. **ADOPT CANDIDATE (v3)**: wins 0.50 to 0.93 where up to about half the cells are mixed, the worst case is even (0.94 to 1.05), and a control gate is required (E6).
 
 **B13. Validity bitmap for nullable typed columns.** Source: Arrow's validity bitmap ([Columnar.html](https://arrow.apache.org/docs/format/Columnar.html), not re-fetched this session); Parquet definition levels. Target: the LFC-pack flat layout. A `V`/`B`/`F`/`s`/`D` column with some `null`s would keep its typed encoding plus a null plane, like the presence planes already in the format, instead of becoming JSON text (`j`). Advantage: 4.3% smaller on `sensnull` (1,739,648 against 1,667,743 bytes with no nulls). Reads would also skip JSON text. Risk: high, because this changes the format (new optional column parameter; old readers must refuse or ignore it). **DEFER**; measure size and read time on real nullable data first, then write a format proposal.
 

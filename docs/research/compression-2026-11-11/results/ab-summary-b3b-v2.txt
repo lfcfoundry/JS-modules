@@ -1,0 +1,60 @@
+ungoogled Chromium 156.0.8078.79
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+allmix-300000 | b8 | 1.25 (1.14-1.35) | 1.28 (1.12-1.35) | 1481 / 1307 | True
+allmixu-300000 | b8 | 1.34 (1.21-1.42) | 1.28 (1.15-1.37) | 1515 / 1416 | True
+allmix-30000 | b8 | 1.48 (1.34-1.62) | 1.22 (1.17-1.36) | 182 / 133 | True
+sensnull-300000 | b8 | 0.68 (0.62-0.76) | 0.68 (0.63-0.80) | 704 / 474 | True
+logs-300000 | b8 | 0.97 (0.83-1.16) | 0.99 (0.87-1.13) | 488 / 417 | True
+nd_dense | b8 | 1.05 (0.86-1.29) | 1.10 (0.75-1.45) | 135 / 57 | True
+ungoogled Chromium 156.0.8078.79
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+allmix-300000 | b9 | 1.12 (1.02-1.27) | 1.11 (0.95-1.19) | 1586 / 1454 | True
+allmixu-300000 | b9 | 1.22 (0.93-1.38) | 1.15 (0.99-1.21) | 1596 / 1474 | True
+allmix-30000 | b9 | 1.21 (0.91-1.25) | 1.09 (0.97-1.58) | 237 / 152 | True
+sensnull-300000 | b9 | 0.58 (0.52-0.67) | 0.64 (0.53-0.70) | 785 / 521 | True
+logs-300000 | b9 | 0.92 (0.64-1.29) | 1.03 (0.82-1.13) | 508 / 398 | True
+nd_dense | b9 | 0.97 (0.73-1.01) | 0.97 (0.67-1.13) | 136 / 58 | True
+ungoogled Chromium 156.0.8078.79
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+mix1-300000 | b9 | 0.64 (0.57-0.78) | 0.65 (0.63-0.75) | 1382 / 1132 | True
+mix3-300000 | b9 | 0.76 (0.74-1.00) | 0.72 (0.70-0.79) | 1351 / 1267 | True
+mix6-300000 | b9 | 0.90 (0.81-0.93) | 0.89 (0.84-0.90) | 1518 / 1263 | True
+mix9-300000 | b9 | 0.95 (0.91-1.03) | 0.96 (0.87-1.03) | 1695 / 1428 | True
+ungoogled Chromium 156.0.8078.79
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+allmix-300000 | b10 | 1.03 (0.98-1.21) | 0.96 (0.88-1.16) | 1450 / 1392 | True
+allmixu-300000 | b10 | 0.97 (0.94-1.01) | 0.95 (0.90-0.99) | 1576 / 1462 | True
+allmix-30000 | b10 | 0.89 (0.80-1.29) | 0.94 (0.76-1.38) | 205 / 155 | True
+mix9-300000 | b10 | 1.00 (0.95-1.04) | 0.99 (0.94-1.02) | 1568 / 1410 | True
+mix6-300000 | b10 | 0.85 (0.83-0.98) | 0.84 (0.78-0.89) | 1507 / 1331 | True
+mix3-300000 | b10 | 0.78 (0.68-0.80) | 0.71 (0.64-0.80) | 1374 / 1274 | True
+sensnull-300000 | b10 | 0.62 (0.58-0.68) | 0.70 (0.64-0.74) | 740 / 507 | True
+logs-300000 | b10 | 1.05 (0.86-1.08) | 1.06 (0.89-1.10) | 458 / 435 | True
+nd_dense | b10 | 0.99 (0.89-1.16) | 1.02 (0.80-1.22) | 121 / 55 | True
+Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+allmix-300000 | b10 | 0.97 (0.86-1.08) | 0.98 (0.93-1.06) | 1641 / 1537 | True
+allmixu-300000 | b10 | 0.99 (0.95-1.03) | 1.02 (0.88-1.13) | 1627 / 1490 | True
+allmix-30000 | b10 | 1.05 (0.95-1.10) | 1.05 (0.91-1.11) | 178 / 154 | True
+mix9-300000 | b10 | 0.98 (0.92-1.05) | 1.00 (0.93-1.05) | 1567 / 1408 | True
+mix6-300000 | b10 | 0.93 (0.86-1.00) | 0.84 (0.79-1.00) | 1504 / 1431 | True
+mix3-300000 | b10 | 0.81 (0.69-0.85) | 0.76 (0.71-0.79) | 1377 / 1294 | True
+sensnull-300000 | b10 | 0.71 (0.62-0.83) | 0.63 (0.62-0.69) | 606 / 542 | True
+logs-300000 | b10 | 1.03 (0.79-1.16) | 1.03 (0.82-1.13) | 446 / 374 | True
+nd_dense | b10 | 0.97 (0.65-1.10) | 1.02 (0.66-1.24) | 71 / 48 | True
+WebKitGTK 2.52.6
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+allmix-300000 | b10 | 1.03 (0.91-1.13) | 0.94 (0.88-0.98) | 1517 / 1360 | True
+allmixu-300000 | b10 | 0.98 (0.90-1.10) | 0.94 (0.92-1.01) | 1577 / 1356 | True
+allmix-30000 | b10 | 1.00 (0.90-1.35) | 1.01 (0.96-1.16) | 223 / 150 | True
+mix9-300000 | b10 | 0.91 (0.87-1.07) | 1.02 (0.89-1.03) | 1594 / 1346 | True
+mix6-300000 | b10 | 0.83 (0.77-0.86) | 0.92 (0.85-0.98) | 1609 / 1234 | True
+mix3-300000 | b10 | 0.68 (0.58-0.86) | 0.70 (0.59-0.83) | 1433 / 1216 | True
+sensnull-300000 | b10 | 0.67 (0.48-0.85) | 0.50 (0.45-0.51) | 581 / 570 | True
+logs-300000 | b10 | 1.07 (0.95-1.19) | 1.14 (0.91-1.24) | 482 / 375 | True
+nd_dense | b10 | 1.08 (0.94-1.29) | 1.04 (0.95-1.11) | 119 / 51 | True
+WebKitGTK 2.52.6
+set | variant | first pack ratio vs base (median of rounds, range) | later pack ratio vs base (median, range) | base first ms / later ms | size same?
+logs-300000 | b10 | 1.02 (0.87-1.15) | 1.02 (0.93-1.09) | 468 / 357 | True
+nd_dense | b10 | 1.04 (0.90-1.22) | 0.99 (0.72-1.13) | 122 / 51 | True
+sensors-300000 | b10 | 1.01 (0.93-1.13) | 0.97 (0.91-1.01) | 315 / 218 | True

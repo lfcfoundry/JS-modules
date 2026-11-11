@@ -41,10 +41,20 @@ Research screen: pack takes 0.67 to 0.86 of the time on such blocks in all 3 bro
 
 User changelog line: "Packing is faster for rows with long or exponent numbers."
 
-## B3b: keys with mixed kinds of value stay on the fast flat writer (needs its own owner card)
+## B3b: keys with mixed kinds of value stay on the fast flat writer (v3, against lfc-pack 0.8.3; needs its own owner card)
 
-Apply `experiments/b3b-mixed-kinds.diff` instead of the B3 diff. It contains B3 and the layout guard, plus the mixed-kind handler: type 7, literal cells marked cfd 255, and one `JSON.parse` per key. Rebuild as for B3.
+Apply `experiments/b3b-mixed-kinds.diff`, which touches `wasm/flatscan.c` and `src/flat.js` and is based on 0.8.3. Rebuild with `wasm/build-flatscan.sh` (clang 18.1.3) and `python3 build.py`. What it does:
+- A key whose values are of more than one JSON kind becomes type 7, keeping its first type in kfd.
+- Each later cell is that value's literal (cfd 255).
+- A new wasm export, `litjoin`, joins one key's literals so a single `JSON.parse` reads them.
+- The cell lists and join buffer are laid out even in blocks with no text column.
+- The scanner stops early (code 18) once more than half of the cells are literals, so all-mixed blocks keep today's path.
 
-Research screen: on blocks with 1% nulls or strings in one number column, pack takes 0.47 to 0.82 of the time in all 3 browsers. Today one such column makes pack 1.6 to 2x slower. Flat controls are neutral (Firefox checked over 8 rounds). Files are byte-identical on 41 of 41 sets, including the 6 real corpus files (`experiments/b7verify.cjs`). Gate: the usual tests, `b7verify.cjs`, and a three-browser early-stop A/B with a flat control.
+Research screen against 0.8.3:
+- Pack takes 0.50 to 0.93 of the time where up to about half the cells are mixed.
+- The worst case (about 92% mixed) is even, at 0.94 to 1.05 in all 3 browsers.
+- Files are byte-identical on 50 of 50 sets (`experiments/b7verify.cjs`, with the sets from `worst.cjs` and `mixk.cjs`).
+
+Gate: the usual tests, `b7verify.cjs`, worst-case and `mixK` sets in all 3 browsers, and an early-stop A/B on plain flat data (logs, nd_dense). Plain data read 1.02 to 1.04 on first packs in an 8-round WebKitGTK rerun, so confirm it costs less than 5%.
 
 User changelog line: "Packing is faster when a column mixes numbers with empty (null) or text values."
