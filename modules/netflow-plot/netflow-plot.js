@@ -699,12 +699,14 @@ var NetflowPlot = (function () {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', xc = catsOf(xk, v, 'value', 12), cell = cross(xk, null, v, how, xc, { other: null }), tot = 0, parts = [];
     xc.list.forEach(function (x) { var e = cell.get(gk(x, '')); if (e && e.v > 0) { parts.push({ x: x, v: e.v, rows: e.rows }); tot += e.v; } });
     F.three(parts.length);
-    var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, r1 = Math.min(F.W, F.B - F.Tp) / 2 - 30, r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
+    var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, room = Math.min(F.W, F.B - F.Tp), r1 = Math.max(room / 2 - 30, room / 4), r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
     /* Smallest drawable wedge (since 2.17.0). The SVG writes coordinates to two decimals, so a share of a millionth would round to a line with no
        area. Every positive share is drawn at least MIN_ARC px wide at the rim (plus the gap beside it); the width this takes is taken from the
        wedges above the minimum, in proportion, so the ring still closes and bigger shares stay in order. Values, percents and totals in the text
        are the true ones; a widened wedge says so when pointed at. With n wedges at most n * (MIN_ARC / r1 + pad) of the circle is not to scale
        (12 wedges on a 150 px ring: under 2.5%). */
+    /* The ring keeps at least a quarter of the room as its radius (2.17.0): below about 200 px of height the 30 px kept for the outside labels
+       used to leave a ring a few px across, or a negative radius that drew it inside out (found by the browser raster check). */
     var MIN_ARC = 1, n = parts.length, minSpan = n > 1 && r1 > 0 ? Math.min(MIN_ARC / r1 + pad, TAU / n) : 0, spans = parts.map(function (p) { return p.v / tot * TAU; }), wide = spans.map(function () { return false; }), again = n > 1;
     while (again) {
       var fixedN = 0, free = 0; again = false;
@@ -717,10 +719,11 @@ var NetflowPlot = (function () {
       var span = spans[i], pct = p.v / tot * 100, a1 = i === n - 1 ? -Math.PI / 2 + TAU : a + span;
       F.wedge(cx, cy, r0, r1, a + pad / 2, a1 - pad / 2, F.color(i), { rows: p.rows, t: (p.x || '(blank)') + ': ' + fmtNum(p.v) + ' (' + (pct > 0 && pct < 0.05 ? '<0.1' : n > 1 && pct >= 99.95 ? '>99.9' : pct.toFixed(1)) + '%)' + (wide[i] ? ' \u00b7 drawn at minimum size' : '') });
       var m = a + span / 2, lr = r1 + 14, right = Math.cos(m) >= 0;
-      if (p.v / tot * TAU > 0.08) F.text(cx + Math.cos(m) * lr, cy + Math.sin(m) * lr + 4, clip(p.x || '(blank)', 18) + ' ' + Math.round(p.v / tot * 100) + '%', 11, F.T.fg, { align: right ? 'l' : 'r' });
+      if (p.v / tot * TAU > 0.08) F.text(cx + Math.cos(m) * lr, cy + Math.sin(m) * lr + 4, clip(p.x || '(blank)', 18) + ' ' + (n > 1 && pct >= 99.5 ? '>99' : Math.round(pct)) + '%', 11, F.T.fg, { align: right ? 'l' : 'r' });
       a = a1;
     });
-    if (hole) { F.text(cx, cy + 2, fmtNum(tot), 22, F.T.fg, { bold: true }); F.text(cx, cy + 22, sp.y ? (how === 'sum' ? 'total ' : how + ' ') + sp.y : 'rows', 11, F.T.muted); }
+    /* the total goes in the hole only when it fits there (2.17.0): in a small chart the 22 px total covered the top of the ring and the wedges under it */
+    if (hole && fmtNum(tot).length * 0.6 * 22 / 2 <= r0 * 0.9) { F.text(cx, cy + 2, fmtNum(tot), 22, F.T.fg, { bold: true }); F.text(cx, cy + 22, sp.y ? (how === 'sum' ? 'total ' : how + ' ') + sp.y : 'rows', 11, F.T.muted); }
     F.legend(sp.x, parts.map(function (p) { return p.x; }));
   }
   CH.donut = function (F, R, sp) { donutCore(F, R, sp, true); };

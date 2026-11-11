@@ -154,6 +154,15 @@ module.exports = function (P, S, ok) {
     const r = donut('1,000 categories (power law)', rows);
     ok(r.wedges.length === 12 && rowsOf(r.s).length === 1000, 'many categories: 11 wedges and the rest, all 1,000 rows kept');
   }
+  /* 3. small charts (found by tests/netflow-plot-wedges-raster-browser.js): the ring keeps a real size, the total leaves the hole when it does not fit */
+  for (const [w, h] of [[160, 120], [200, 150], [240, 170]]) {
+    const rows = [{ cat: 'Big', v: 1e7 }, { cat: 't0', v: 1 }, { cat: 't1', v: 1 }], spec = { type: 'donut', x: 'cat', y: 'v' }, o = { width: w, height: h };
+    const s = make(rows, spec, o), ws = s.marks.filter((m) => m.wedge).map((m) => m.wedge);
+    ok(ws.length === 3 && ws.every((x) => x[3] >= 10 && x[2] > 0 && x[3] > x[2]), w + ' x ' + h + ': ring radius ' + (ws[0] && ws[0][3].toFixed(1)) + ' px, positive and not inside out');
+    const svg = P.toSvg(rows, Object.assign({}, spec, o)), hole = ws[0][2], inHole = (svg.match(/<text [^>]*font-size="22"[^>]*>[^<]*</g) || []);
+    ok(inHole.length === 0 || 3 * 0.6 * 22 / 2 <= hole * 0.9, w + ' x ' + h + ': the total is drawn in the hole only when it fits (hole ' + hole.toFixed(1) + ' px)');
+    ok(!/>Big 100%</.test(svg), w + ' x ' + h + ': the big share is not labeled 100% while others exist');
+  }
 };
 if (require.main === module) {
   global.NetflowScene = require('../../netflow-scene/netflow-scene.js');

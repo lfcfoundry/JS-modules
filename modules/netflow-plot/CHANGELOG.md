@@ -5,6 +5,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 2.17.0 · API 2 · 2026-11-11
 - A real category named Other, Others or Others, average keeps its own bar, line or wedge and its own name; the folded rest gets a name no shown category has.
 - Very small donut shares are drawn at least 1 px wide at the rim and say so when pointed at; their text keeps the true value.
+- Small donuts (under about 200 px tall) keep a real ring instead of one a few px across or drawn inside out; the total leaves the hole when it would cover the ring; a share of 99.5% or more reads ">99%" while other shares exist.
 
 ## 2.16.1 · API 2 · 2026-11-08
 - Big area charts build 9 to 11% faster sooner: pointing text is made when you point.
