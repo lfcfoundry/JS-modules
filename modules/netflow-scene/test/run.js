@@ -186,3 +186,11 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
   ok(['Adelie', 'Chinstrap', 'Gentoo'].every((n) => svg.includes('>' + n + '<')) && !svg.includes(' more<'), 'a 300-wide scatter key names all three groups');
   console.log('ok   three groups: worst color-vision gap ' + gaps.join(' and ') + ' (light, dark; today ' + gaps0.join(' and ') + '), four keep their order, all three names in the key');
 }
+/* SVG must not contain XML-invalid control characters or unpaired surrogates. */
+{
+  const S = SC.make({ kind: 'network', view: 'network', dir: 'none', nodes: [], edges: [], width: 200, height: 100 }, {});
+  S.labels = [{ x: 10, y: 20, size: 12, t: 'A\u0001B\uD800', color: S.theme.fg }];
+  const svg = SC.toSvg(S, 'T\u0002\uFFFF');
+  ok(!/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF\uD800-\uDFFF]/.test(svg), 'SVG contains only XML-valid scalars');
+  ok(svg.includes('\\u{1}') && svg.includes('\\u{2}') && svg.includes('\\u{D800}'), 'invalid source characters are visible as escapes');
+}

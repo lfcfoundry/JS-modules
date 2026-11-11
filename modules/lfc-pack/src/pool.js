@@ -53,7 +53,11 @@
         var b = file.blocks[i], kd = b[4];
         if (b[0] + b[1] > file.footer.bodyEnd) { results[i] = Promise.reject(new Error('block ' + i + ' out of range')); return; }
         if (kd === 'r') { results[i] = Promise.resolve(keepRows(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), range)); return; }
-        results[i] = submit({ kind: kd, buf: file.bytes.slice(b[0], b[0] + b[1]), crc: b[2], want: kd === 'f' ? want : null }).then(function (F) {
+        // Buffer.slice aliases caller storage; workers must receive an owned block copy.
+        var blockInput = typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(file.bytes)
+          ? new Uint8Array(file.bytes.buffer, file.bytes.byteOffset + b[0], b[1]).slice()
+          : file.bytes.slice(b[0], b[0] + b[1]);
+        results[i] = submit({ kind: kd, buf: blockInput, crc: b[2], want: kd === 'f' ? want : null }).then(function (F) {
           var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
           r = keepRows(r, range);

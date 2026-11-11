@@ -163,7 +163,7 @@ var NetflowPlot = (function () {
     F.band = function (xs, top, bot, fill) { for (var i = 0; i + 1 < xs.length; i++) { if (!(top[i] === top[i] && top[i + 1] === top[i + 1])) continue; var p = [xs[i], top[i], xs[i + 1], top[i + 1], xs[i + 1], bot[i + 1], xs[i], bot[i]]; S.polys.push({ pts: p, c: [(xs[i] + xs[i + 1]) / 2, (top[i] + top[i + 1] + bot[i] + bot[i + 1]) / 4], fill: fill, stroke: [0, 0, 0, 0] }); } };
     F.wedge = function (cx, cy, r0, r1, a0, a1, fill, mark) {
       var step = 0.45, a = a0;
-      while (a < a1 - 1e-9) {
+      while (a < a1) {
         var b = Math.min(a1, a + step), m = Math.max(2, Math.ceil((b - a) / 0.05)), p = [], i;
         for (i = 0; i <= m; i++) { var t = a + (b - a) * i / m; p.push(cx + Math.cos(t) * r1, cy + Math.sin(t) * r1); }
         for (i = m; i >= 0; i--) { var t2 = a + (b - a) * i / m; p.push(cx + Math.cos(t2) * r0, cy + Math.sin(t2) * r0); }
@@ -340,6 +340,13 @@ var NetflowPlot = (function () {
   var CH = {};
   CH.bar = function (F, R, sp) {
     var xk = R.cat(sp.x), v = sp.y ? R.num(sp.y) : null, how = sp.y ? (sp.agg || 'sum') : 'count', ck = sp.color && sp.color !== sp.x ? R.cat(sp.color) : null;
+    if (sp.top > 0 && xk.indexOf('Other') >= 0 && new Set(xk).size > Math.floor(sp.top) + 1) {
+      /* Distinguish the real category before catsOf adds its overflow bucket. */
+      var realOther = 'Other (category)', suffix = 2;
+      while (xk.indexOf(realOther) >= 0) realOther = 'Other (category ' + suffix++ + ')';
+      xk = xk.map(function (x) { return x === 'Other' ? realOther : x; });
+      if (HI && HI.name === 'Other' && HI.xk) { HI.name = realOther; HI.xk = xk; }
+    }
     var xc = catsOf(xk, v, sp.top > 0 ? 'value' : sp.sort || 'value', sp.top > 0 ? Math.floor(sp.top) + 1 : sp.horizontal ? 60 : 50), cc = ck ? F.cats3(ck, v, 'value', 12) : { list: [''], other: null };
     var cell = cross(xk, ck, v, how, xc, cc), mode = ck ? (sp.stack || 'stack') : 'none', horiz = !!sp.horizontal;
     if (sp.top > 0 && xc.other && v && how === 'sum' && !G_ADD.test(sp.y)) {   /* top: the rest is one bar; a value that does not add up (a rate, a score) shows the average of the rest, named so */
@@ -689,6 +696,11 @@ var NetflowPlot = (function () {
     xc.list.forEach(function (x) { var e = cell.get(gk(x, '')); if (e && e.v > 0) { parts.push({ x: x, v: e.v, rows: e.rows }); tot += e.v; } });
     F.three(parts.length);
     var cx = (F.W) / 2, cy = (F.Tp + F.B) / 2 + 10, r1 = Math.min(F.W, F.B - F.Tp) / 2 - 30, r0 = hole ? r1 * 0.58 : 0, a = -Math.PI / 2, pad = parts.length > 1 ? 0.006 : 0;
+    if (pad) {
+      var minSpan = Infinity;
+      parts.forEach(function (p) { minSpan = Math.min(minSpan, p.v / tot * TAU); });
+      pad = Math.min(pad, Math.max(0, minSpan - 1e-9));
+    }
     parts.forEach(function (p, i) {
       var span = p.v / tot * TAU; F.wedge(cx, cy, r0, r1, a + pad / 2, a + span - pad / 2, F.color(i), { rows: p.rows, t: (p.x || '(blank)') + ': ' + fmtNum(p.v) + ' (' + (p.v / tot * 100).toFixed(1) + '%)' });
       var m = a + span / 2, lr = r1 + 14, right = Math.cos(m) >= 0;
