@@ -285,7 +285,7 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const Sd = P.make(dr, { type: 'dotplot', x: 'name', y: 'v' }, { width: 300, height: 200 }, global.NetflowScene), nm = Sd.labels.filter((l) => /^n\d+$/.test(l.t)).sort((a, b) => a.y - b.y);
   ok(nm.length < 20 && nm.every((l, i) => !i || l.y - nm[i - 1].y >= 13), 'a thin dot plot writes names 13 px apart at least (' + nm.length + ' of 20)');
 }
-/* from an earlier repair branch (2026.11.01), adapted to main's choice: a real Other is folded into the rest, so there is one Other and no value is lost */
+/* from an earlier repair branch (2026.11.01); since 2.17.0 a real Other keeps its own wedge and the rest reads "All other", so no value is lost and no two wedges read the same */
 {
   const rows = [{ attrs: { cat: 'Other', v: 100 } }];
   for (let i = 0; i < 12; i++) rows.push({ attrs: { cat: 'c' + i, v: 1 } });
@@ -293,7 +293,8 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const values = s.marks.map((m) => Number((/:\s*(-?\d+(?:\.\d+)?)/.exec(m.t) || [])[1]));
   const covered = s.marks.flatMap((m) => m.rows || []);
   ok(values.reduce((a, b) => a + b, 0) === 112, 'donut cap keeps all 112 of the category values');
-  ok(s.marks.filter((m) => /^Others?\b/.test(m.t)).length === 1, 'one Other wedge: a real Other is folded into the rest');
+  ok(s.marks.filter((m) => /^Others?\b/.test(m.t)).length === 1 && s.marks.some((m) => /^Other: 100 /.test(m.t) && m.rows.length === 1 && m.rows[0] === 0), 'one Other wedge, and it is the real Other with its own row');
+  ok(s.marks.some((m) => /^All other: /.test(m.t)), 'the folded rest reads All other when a real Other is shown');
   ok(covered.length === 13 && new Set(covered).size === 13, 'each donut row belongs to exactly one wedge');
 }
 /* from the same repair branch: names holding the key separator (NUL) stay separate grouped-bar cells (since 2.14.6) */
@@ -314,7 +315,7 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const s = P.make(rows, { type: 'bar', x: 'cat', y: 'v', top: 2 }, { width: 600, height: 400 }, global.NetflowScene);
   const real = s.marks.find((m) => m.rows.length === 1 && m.rows[0] === 0);
   const rest = s.marks.find((m) => m.rows.includes(2));
-  ok(real && /^Other \(category\): 100$/.test(real.t), 'real Other remains its own top category');
+  ok(real && /^Other: 100$/.test(real.t), 'real Other remains its own top category, label unchanged');
   ok(rest && rest.rows.length === 2 && !rest.rows.includes(0), 'top-N overflow contains only the remaining categories');
 }
 /* A very small positive share retains a positive wedge angle and geometry. */
@@ -334,5 +335,7 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const keep = global.NetflowScene; delete global.NetflowScene; const off = P.warm(); global.NetflowScene = keep;
   ok(off === false, 'warm() returns false when NetflowScene is missing');
 }
+/* 2.17.0: rest identity, row and value conservation, and wedge area after SVG rounding */
+require('./rest-and-wedges.js')(P, global.NetflowScene, ok);
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

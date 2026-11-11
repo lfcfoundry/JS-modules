@@ -1,6 +1,6 @@
 # netflow-plot
 
-**Version 2.16.1 · API 2**
+**Version 2.17.0 · API 2**
 
 **Tested in:** node tests; area make() paired fresh-page runs, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 

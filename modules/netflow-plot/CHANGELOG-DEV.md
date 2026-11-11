@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.17.0 · API 2 · 2026-11-11
+
+### Quick
+The folded rest of a long list is now its own identity (a frozen String object, === to no string, its own gk() key) instead of the string "Other". A real Other / Others / Others, average stays separate with its literal label; the rest takes "Other", "Others" or "Others, average" unless a shown category already reads that, then "All other(s)...", then a number. Donut wedges: every positive share is drawn at least 1 px at the rim (plus the gap), width taken in proportion from the larger wedges; wedges are cut into equal pieces (no sliver piece). Texts keep true values; shares under 0.05% read "<0.1%"; a widened wedge adds "drawn at minimum size".
+
+### Details
+Fixes the review blockers from the 2026.11.11 handoff: in count mode, rows of a real "Others" were lost into the rest's "Others" mark (5 of 7 rows covered); a 1,000,000:1 share rounded to a zero-area SVG polygon. The earlier candidate's rename of a real Other to "Other (category)" is removed. New test/rest-and-wedges.js (179 checks) reads wedge areas back from the written SVG (two-decimal coordinates). Parent 2.16.1 fails 57 of them, the November 10 candidate 75. Node pass/fail only; no speed numbers; browser raster visibility not measured.
+
+### Deep
+Distortion bound: with n wedges at most n x (1/r1 + 0.006) rad is not to scale; 12 wedges on a 150 px ring is under 2.5%. Unwidened wedges keep exact ratios (span + gap proportional to value). Ratios 1e3 to 1e300 and sizes 123x679 to 1000x1000 tested; 1,000 categories fold to 11 + rest.
+
 ## 2.16.1 · API 2 · 2026-11-08
 
 ### Quick
