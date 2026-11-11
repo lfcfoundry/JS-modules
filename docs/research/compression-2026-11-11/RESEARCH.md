@@ -132,7 +132,7 @@ The principle is the one byte codecs use everywhere: table lookups on code units
 - In JS, a type-6 column reads span cells with `Number(text)`. Earlier plain cells of the same key are read as mantissa / 10^digits, which is exactly the value `JSON.parse` gives, because both parts are exact doubles and one division rounds correctly.
 - The column then goes through `encodeColumn`, as in the general writer, with the same zone-map entry.
 - Invalid number text still bails as before.
-- **Layout guard (added 10:05 AM Eastern):** in auto mode, 0.8.1 compares the nested and flat layouts for a block that the fast writer declines, when the block is 256 KB or smaller or its first lines fail `looksFlat`. A block the fast writer now keeps only through the fallback would skip that comparison and could come out larger. So the fast writer tags such a result (`k67`), and `api.js` drops it in exactly those cases. Without the guard, 7 of 21 small mixed-kind sets in E6 came out different (up to 1.65x larger). With it, every set is byte-identical. The speed results below come from 3 MB and larger blocks, where the guard does not apply.
+- **Layout guard (added 9:52 AM Eastern):** in auto mode, 0.8.1 compares the nested and flat layouts for a block that the fast writer declines, when the block is 256 KB or smaller or its first lines fail `looksFlat`. A block the fast writer now keeps only through the fallback would skip that comparison and could come out larger. So the fast writer tags such a result (`k67`), and `api.js` drops it in exactly those cases. Without the guard, 7 of 21 small mixed-kind sets in E6 came out different (up to 1.65x larger). With it, every set is byte-identical. The speed results below come from 3 MB and larger blocks, where the guard does not apply.
 - Built with the repo's own `wasm/build-flatscan.sh` (clang 18.1.3). `tpl4.wasm` and `rowscan.wasm` came out byte-identical to the committed files.
 
 **Checks:**
@@ -180,7 +180,17 @@ Code 13 blocks belong to the nested layout anyway, and the scan stops at the fir
 - `node test/run.js` passes.
 - `experiments/b7verify.cjs` covers 41 sets: 21 mixed-kind edge sets, the research sets and the 6 real corpus files. The edge sets are nullable numbers with 3 decimals, nullable strings, string/number mixes, escapes and non-ASCII including emoji, bool/number mixes, long numbers with `-0`, `1e300` and `"n/a"`, and nulls only near the end of a column, each at 50, 3,000 and 70,000 rows. Rows equal `JSON.parse`, the 0.8.1 reader reads every file, and with the guard all 41 files are byte-identical to 0.8.1.
 
-**Pack time:** see the table added below when the three-browser run finishes.
+**Pack time, variant over 0.8.1** (`results/ab-summary-b3b.txt`; Chromium 6 rounds, Firefox and WebKitGTK 4; same bytes in every run):
+
+| Set | Chromium 156 first / later | Firefox 158 first / later | WebKitGTK first / later |
+|---|---|---|---|
+| sensnull 300,000 (1% nulls in one column) | 0.60 (0.56-0.68) / 0.67 (0.62-0.72) | 0.65 (0.55-0.70) / 0.64 (0.63-0.68) | 0.82 (0.78-0.93) / 0.47 (0.41-0.50) |
+| sensstr 300,000 (1% `"n/a"`) | 0.61 (0.47-0.69) / 0.64 (0.52-0.69) | 0.67 (0.63-0.73) / 0.56 (0.55-0.66) | 0.76 (0.73-0.76) / 0.47 (0.42-0.60) |
+| sensnull 30,000 | 0.77 (0.69-0.82) / 0.64 (0.56-0.74) | 0.65 (0.61-0.90) / 0.60 (0.54-0.68) | 0.81 (0.75-0.90) / 0.66 (0.51-0.77) |
+| logs 300,000 (control, fast path before and after) | 1.00 / 0.97 | 1.09 (1.04-1.12) / 1.04 in 4 rounds; **rerun 8 rounds: 0.95 (0.75-1.11) / 0.98** | 0.97 / 1.02 |
+| nd_dense (real corpus, control), Firefox 8 rounds | | 0.82 (0.67-1.48) / 0.97 (0.73-1.38) | |
+
+The 4-round Firefox control looked 4 to 9% slower. The 8-round rerun on the same build put it at 0.95/0.98, so the first reading was noise. A ship gate should still run the early-stop A/B on a flat control in Firefox, because the scanner gains one type check per value. **Decision: ADOPT CANDIDATE.**
 
 ### 2026-11-11 E4: skip zstd on incompressible frames (measured headroom only)
 

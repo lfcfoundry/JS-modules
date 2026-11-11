@@ -35,8 +35,16 @@ Changelog note for users (one plain line each): "Packing UUID columns is faster.
 
 ## B3: keep long numbers on the fast flat writer (needs its own owner card; not covered by "Send both")
 
-Apply `experiments/b3-long-numbers.diff`, which touches `wasm/flatscan.c`, `src/flat.js` and `src/api.js`. The diff was updated at 10:05 AM Eastern with a 2-line layout guard. In auto mode, a block kept only through the new fallback goes the old way whenever 0.8.1 would have compared it with the nested layout (256 KB or smaller, or first lines not `looksFlat`), so the same layout wins. Without the guard, small blocks could come out larger. Then rebuild with `wasm/build-flatscan.sh` (clang 18.1.3) and `python3 build.py`. `tpl4.wasm` and `rowscan.wasm` stay byte-identical; `flatscan.wasm` and `flatscan-plain.wasm` change. Today the scanner gives up on the whole block at one number with more than 15 digits, more than 9 decimals, an exponent or -0. With the patch, that key becomes type 6: the cell keeps the number's text and the column goes through `encodeColumn`, with the same zone-map entry as the general writer.
+Apply `experiments/b3-long-numbers.diff`, which touches `wasm/flatscan.c`, `src/flat.js` and `src/api.js`. The diff was updated at 9:52 AM Eastern with a 2-line layout guard. In auto mode, a block kept only through the new fallback goes the old way whenever 0.8.1 would have compared it with the nested layout (256 KB or smaller, or first lines not `looksFlat`), so the same layout wins. Without the guard, small blocks could come out larger. Then rebuild with `wasm/build-flatscan.sh` (clang 18.1.3) and `python3 build.py`. `tpl4.wasm` and `rowscan.wasm` stay byte-identical; `flatscan.wasm` and `flatscan-plain.wasm` change. Today the scanner gives up on the whole block at one number with more than 15 digits, more than 9 decimals, an exponent or -0. With the patch, that key becomes type 6: the cell keeps the number's text and the column goes through `encodeColumn`, with the same zone-map entry as the general writer.
 
 Research screen: pack takes 0.67 to 0.86 of the time on such blocks in all 3 browsers, and 0.50 to 0.54 stacked with B1 and B2 in Chromium 156. Files are byte-identical on 19 sets (`experiments/b3verify.cjs`), and `node test/run.js` passes. Gate: the usual tests, `b3verify.cjs` against the release build, and a three-browser early-stop A/B.
 
 User changelog line: "Packing is faster for rows with long or exponent numbers."
+
+## B3b: keys with mixed kinds of value stay on the fast flat writer (needs its own owner card)
+
+Apply `experiments/b3b-mixed-kinds.diff` instead of the B3 diff. It contains B3 and the layout guard, plus the mixed-kind handler: type 7, literal cells marked cfd 255, and one `JSON.parse` per key. Rebuild as for B3.
+
+Research screen: on blocks with 1% nulls or strings in one number column, pack takes 0.47 to 0.82 of the time in all 3 browsers. Today one such column makes pack 1.6 to 2x slower. Flat controls are neutral (Firefox checked over 8 rounds). Files are byte-identical on 41 of 41 sets, including the 6 real corpus files (`experiments/b7verify.cjs`). Gate: the usual tests, `b7verify.cjs`, and a three-browser early-stop A/B with a flat control.
+
+User changelog line: "Packing is faster when a column mixes numbers with empty (null) or text values."
