@@ -103,3 +103,16 @@ Research screen (`RESEARCH.md` E11, `results/rdab-*-nl.json`), stacked with B3b 
 Gate: the usual tests plus new vectors for `N` (all-null but one, one null, nulls in the first and last row, every inner type, a damaged plane), the three readers on the same vectors, byte identity on the real corpus files that have no nullable flat column, and an early-stop A/B in all 3 browsers on pack and full read, including the worst case: every column nullable with 50% nulls.
 
 User changelog line: "Columns with some empty (null) values are now stored compactly: such files are up to a quarter smaller and faster to read. Older versions cannot open these files."
+
+## B17: delta saves, prototype behind an option (owner tapped "Send for a prototype", 2026-11-11 10:47 PM Eastern)
+A prototype, not a release: behind `pack(rows, { base })`, `packTables(obj, { base })` and `unpack(file, { base })`, off by default. Design, numbers and risks: `PROPOSAL-delta-saves.md`; results `RESEARCH.md` E12 and E13.
+- wasm: add `compress_prefix` and `decompress_prefix` to `wasm/zstd-glue.c` (`experiments/b17-zstd-glue-prefix.diff`, +1.3 KB). Rebuild with `wasm/build.sh` (the pinned zstd 1.5.7; the shipped `zstd-full.wasm` rebuilt byte for byte from it in research).
+- Frame matching: each frame uses the frame in the same place in the base (block, column, frame number) as its prefix when the base has one; otherwise no prefix.
+- Footer: a required flag section with the base save's XXH64; readers refuse a delta without the matching base.
+- Full-save rule for apps: a full save when the delta passes 25% of the last full save; saved or exported files are always full.
+
+Research screen (`experiments/www/zp.html`, 3 browsers), zstd step only: delta compress 0.23 to 0.37 of a full save's, decompress 0.07 to 0.20; zstd bytes 1% (1 edit) to 15% (500 edits) of a full save on a 2,000-node map.
+
+Gate: the usual tests plus new ones (wrong base refused, base with different columns, every frame kind, a 500-edit chain against one base), byte identity of files written without `base`, and an early-stop A/B in all 3 browsers on whole save and read time (not only zstd) on Netflow map saves of 20, 200 and 2,000 nodes. First app trial: Netflow autosave, owned by the Netflow thread.
+
+User changelog line (when it ships): "Autosaves can be stored as small changes against the last full save."
