@@ -446,7 +446,7 @@ Owner: "Keep going". A 2,000-node Netflow map save, then the same map after 1, 5
 - A delta read needs the base save decoded first: about 0.18 ms of zstd plus 0.01 to 0.04 for the delta, against 0.18 for a full read. That is under 0.05 ms more per read on this map.
 - The 200-node map and orders cases run 0.03 to 0.12 ms, below the timer resolution in Firefox and WebKitGTK (1 ms clamps), so only Chromium is quoted for them: compress 0.41 to 0.46, decompress 0.20 to 0.29.
 
-**Decision: B17 ADOPT CANDIDATE for a proposal** (not code yet). The size win is large (1 to 15% of the zstd bytes over 1 to 500 edits) and nothing got slower. It needs an API (`pack(rows, { base })`), a footer flag naming the base save by its XXH64, a full-save rule (a full save when the delta passes 25%), and the prefix calls in the shipped wasm. Next: `PROPOSAL-delta-saves.md` and an app check of how Netflow and Story Editor autosave would keep the base.
+**Decision: B17 ADOPT CANDIDATE for a proposal** (`PROPOSAL-delta-saves.md`) (not code yet). The size win is large (1 to 15% of the zstd bytes over 1 to 500 edits) and nothing got slower. It needs an API (`pack(rows, { base })`), a footer flag naming the base save by its XXH64, a full-save rule (a full save when the delta passes 25%), and the prefix calls in the shipped wasm. Next: `PROPOSAL-delta-saves.md` and an app check of how Netflow and Story Editor autosave would keep the base.
 
 ### 2026-11-11 E14 (B13, real data): the NYC taxi table, against Parquet
 
