@@ -66,6 +66,11 @@ Reading:
 LfcPack.unpack(file, { keys: ['ts', 'status'] });
 // rows whose number is in range; blocks outside it are not opened
 LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });
+// rows where one key equals a value (strict ===; a missing key never matches null); same rows and key order as unpack(file).filter(...), without building the other rows
+LfcPack.unpack(file, { equals: { key: 'level', value: 'ERROR' } });
+// asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
+LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
+LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
 // opt-in lazy rows (see "Lazy rows" below): values are read when a key is first used
 LfcPack.unpack(file, { rows: 'lazy' });      // columns decoded at unpack, rows made cheaply
 LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when some row reads its key
@@ -167,6 +172,9 @@ First call after warm(), compared with no warm-up (fresh browser per run, median
 | Chromium 155 | 0.85 | 0.90 | 0.53 | 0.73 |
 | Firefox 158 | 0.97 | 0.70 | 0.67 | 0.85 |
 | WebKitGTK 2.52.6 | 0.66 | 0.67 | 0.46 | 0.43 |
+
+## Delta saves (prototype, off by default)
+`packTables(tables, {base: baseBytes})` writes only what changed since `baseBytes` (a full file you saved earlier): rows are compared as text, so nested rows (such as map items with `attrs`) work. The result is a normal file that carries the base's XXH64 in footer section 17; `unpackTables(delta, {base: baseBytes})` rebuilds the tables, and a call with the wrong or missing base throws. Pass `dirty: {tableName: [rowNumbers]}` when the caller already knows which rows it touched to skip the comparison. Measured in Node on 8,000 nodes and 24,751 links with 10 to 80 edits: the patch is 0.7 to 3.5 percent of a full save, saving takes 0.25 to 0.42 of the time (0.01 to 0.05 with `dirty`), and reading takes about 0.84 to 1.3 of a full read. Reading must decode the base too, so it costs about 0.9 to 1.3 of a full read; pass `baseTables` (the tables the base was saved from or read into, unmodified; the result shares their row objects) and it drops to about 0.1 of a full read. The first delta save against a base reads the base once. Not part of the stable API; see LAYOUT-SPEC.md 4a.
 
 ## How the file is laid out
 - **Nested blocks** (any JSON): each row is split into a *shape* (its keys, nesting and value kinds) and its values. Rows with the same shape share one entry. Strings of the block go into one dictionary (each distinct string once, rows hold small codes); numbers and booleans go into one column per path (`.actor.id`, `.payload.commits[].sha`), stored at the narrowest width that holds every value (8, 16, 32 bits or a 64-bit float). A WebAssembly tokenizer does the splitting and the dictionary.

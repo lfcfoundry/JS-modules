@@ -5,6 +5,15 @@ What changed in each version, newest first, in plain words. The full details (nu
 ## 0.10.0 · API 0 · 2026-11-11
 - Columns with some empty (null) values are stored compactly: such files are smaller and faster to read. Older versions cannot open these files.
 
+## 0.9.6 · API 0 · 2026-11-12
+- Saving a small change can write only what changed (opt-in delta saves).
+
+## 0.9.5 · API 0 · 2026-11-12
+- Asking for the rows with one exact value is faster (unpack with equals), and reading columns is faster.
+
+## 0.9.4 · API 0 · 2026-11-12
+- Packs NDJSON into small column files and reads the rows back, exactly if you ask.
+
 ## 0.9.3 · API 0 · 2026-11-11
 - Reading a time range is faster: only the matching rows are built.
 

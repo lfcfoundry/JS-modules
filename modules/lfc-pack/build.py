@@ -4,7 +4,7 @@
 # Concatenates src/*.js into lfc-pack.js and embeds the wasm modules (the four big ones deflated, then base64; lfc-pack-read.js keeps plain base64). Run from anywhere.
 import base64, os, struct, sys, zlib
 here = os.path.dirname(os.path.abspath(__file__))
-order = ['head', 'util', 'wasm', 'zstd', 'shred', 'nested', 'flat', 'container', 'api', 'pool', 'tail']
+order = ['head', 'util', 'wasm', 'zstd', 'shred', 'nested', 'flat', 'container', 'api', 'delta', 'pool', 'tail']
 src = ''.join(open(os.path.join(here, 'src', n + '.js'), encoding='utf-8').read() for n in order)
 mods = {'zstd-dec': 'wasm/zstd-dec.wasm', 'zstd-full': 'wasm/zstd-full.wasm', 'core': 'wasm/core.wasm', 'core-plain': 'wasm/core-plain.wasm'}
 def packed(path):   # 4-byte size, then raw DEFLATE (level 9), then base64; src/wasm.js unpacks it

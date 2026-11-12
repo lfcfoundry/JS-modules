@@ -23,6 +23,7 @@
   }
   // trim(): gives back the WebAssembly memory that earlier jobs grew (memory only grows; a new instance of each compiled module starts small and the old memory goes with the old instance). Call it between jobs, never during one.
   function trim() {
+    dropDeltaBase();
     if (S.zfull) { S.zfull = makeZstd(loadSync('zstd-full')); S.zdec = S.zfull; } else if (S.zdec) S.zdec = makeZstd(loadSync('zstd-dec'));
     trimPacker(); arenaDrop();
   }
@@ -70,7 +71,15 @@
     }
     b[e] = 10; return b.subarray(1);
   }
-  function packRows(rows, opts) { return pack(rowsBytes(rows), opts); }
+  function packRows(rows, opts) { var po = packOpts(opts); if (!po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && b18Pays(rows)) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], po); return pack(rowsBytes(rows), opts); }
+  // B18b gate (Chromium 156 sweep on 0.9.3, 15 files): the row path wins when the rows would make more than 16 MB of text (the text path then leaves the wasm scanner), or when fewer than 40% of the cells are strings; string-heavy tables under 16 MB pack faster through the wasm text scanner (1.1 to 1.5 times slower otherwise)
+  function b18Pays(rows) { var n = rows.length, k = Math.min(1024, n), est = JSON.stringify(rows.slice(0, k)).length / k * n, i, r, c = 0, st = 0;
+    if (est > 16 * 1048576) return true;
+    for (i = 0; i < Math.min(256, n); i++) { r = rows[i]; for (var q in r) { c++; if (typeof r[q] === 'string') st++; } }
+    return st < c * 0.4; }
+  // B18b: true when every row is a plain object whose values are strings, booleans, null or finite numbers other than -0 (so JSON.stringify would write each value as is and keep every key)
+  function flatScalars(rows) { var i, r, k, v, t, P = Object.prototype; for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) return false; t = Object.getPrototypeOf(r); if (t !== P && t !== null) return false;
+    for (k in r) { v = r[k]; t = typeof v; if (t === 'number') { if (v !== v || v === Infinity || v === -Infinity || (v === 0 && 1 / v < 0)) return false; } else if (t !== 'string' && t !== 'boolean' && v !== null) return false; } } return true; }
   function packTables(obj, opts) {
     var names = Object.keys(obj), inputs = [], i, v;
     for (i = 0; i < names.length; i++) {
@@ -115,6 +124,12 @@
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;   // since 0.4.6 by default: each big block judges by itself (dupShare), no trial
     if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; ctx.pick = mid < PATHS_TRY * bb ? 1 : (typeof PATHS_SAMPLE !== 'undefined' && PATHS_SAMPLE > 0 ? samplePick(inputs[0].bytes, opts) : null); mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
+    if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
+      var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl;
+      for (ra = 0; ra < RA.length; ra += stp) { sl = RA.slice(ra, ra + stp); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
+        blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
+      tail = true; continue;
+    }
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
     while (retry.length || p < b.length) {
       if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
@@ -351,16 +366,67 @@
     r.readBlock = function (a, b, c) { arenaReset(); return rd.readBlock(a, b, c); };
     if (rd.readRange) r.readRange = function (a, b, c) { arenaReset(); return rd.readRange(a, b, c); };
     if (rd.readSel) r.readSel = function (a, b, c, d, e, f) { arenaReset(); return rd.readSel(a, b, c, d, e, f); };
+    if (rd.readEq) r.readEq = function (a, b, c, d, e, f, g) { arenaReset(); return rd.readEq(a, b, c, d, e, f, g); };
     return r;
   }
   // unpack(bytes, { keys: ['ts', 'ms'], range: { key: 'ts', min: 10, max: 20 } }): only those keys, only rows whose number is in range; blocks outside the range are never decoded
   function unpack(bytes, opts) {   // -> array of row objects
+    var f0 = openFile(bytes);
+    if (f0.footer.sec[SEC_DELTA]) { if (opts && (opts.equals || opts.range || opts.keys || opts.lazy)) throw new Error('LfcPack: a delta file reads whole (no equals, range, keys or lazy): rebuild the rows with unpackTables(file, { base }) first'); var dt = unpackDelta(bytes, opts), dn, dr = []; for (dn in dt) if (Array.isArray(dt[dn])) for (var di = 0; di < dt[dn].length; di++) dr.push(dt[dn][di]); return dr; }   // a delta: the rows of its tables, with { base }
     if (opts) return unpackSome(bytes, opts);
-    var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, r, j, kd;
+    var file = f0, rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, r, j, kd;
     for (i = 0; i < file.blocks.length; i++) { kd = file.blocks[i][4]; r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
     return out;
   }
+  // equality reads: unpack(file, { equals: { key, value }, keys?, cache? }) -> the rows whose value under key is === value (a missing key never matches null), with the same rows and key order as unpack(file).filter(...)
+  // cache: true keeps, between queries on the same file bytes, each touched block's parsed frames, decoded columns and one code per row for the asked key; kept bytes are counted and the least recently used blocks go first once they pass EQ_LIMIT (clearCache() drops all)
+  var EQ_CACHE = new WeakMap(), EQ_LRU = new Map(), EQ_LIMIT = 67108864, EQ_TOTAL = 0, EQ_ID = 0;
+  function eqSize(bc) {   // an estimate of the bytes one block's cache holds
+    var t = 0, j, k, v, F = bc.F;
+    if (!F) return 0;
+    if (F.pl) t += F.pl.length;
+    for (j = 0; j < F.cols.length; j++) { var c = F.cols[j]; if (c && c.one) for (k in c.one) if (c.one[k] && c.one[k].length) t += c.one[k].length; }
+    for (j = 0; j < bc.vals.length; j++) { v = bc.vals[j]; if (v) t += v.byteLength !== undefined ? v.byteLength : v.length * 8; }
+    for (k in bc) if (k.charAt(0) === 'k' && bc[k] && bc[k].row) { v = bc[k].row; t += v.byteLength !== undefined ? v.byteLength : v.length * 8; if (bc[k].lm) t += bc[k].lm.size * 48; }
+    return t;
+  }
+  function eqTouch(ent, bc) {   // count this block's cache, mark it most recently used, evict the oldest while over the limit (a block bigger than the limit is not kept)
+    var sz = eqSize(bc), old = ent.size, k, e;
+    EQ_TOTAL += sz - old; ent.size = sz; EQ_LRU.delete(ent.id); EQ_LRU.set(ent.id, ent);
+    for (k of EQ_LRU.keys()) {
+      if (EQ_TOTAL <= EQ_LIMIT) break;
+      e = EQ_LRU.get(k); EQ_LRU.delete(k); EQ_TOTAL -= e.size; delete e.EC[e.ck];
+    }
+  }
+  function clearCache() { EQ_LRU.forEach(function (e) { delete e.EC[e.ck]; }); EQ_LRU.clear(); EQ_TOTAL = 0; }
+  function cacheLimit(n) { if (n !== undefined) { EQ_LIMIT = Math.max(0, +n || 0); eqTouchAll(); } return EQ_LIMIT; }
+  function eqTouchAll() { var k, e; for (k of EQ_LRU.keys()) { if (EQ_TOTAL <= EQ_LIMIT) break; e = EQ_LRU.get(k); EQ_LRU.delete(k); EQ_TOTAL -= e.size; delete e.EC[e.ck]; } }
+  function cacheBytes() { return EQ_TOTAL; }
+  function unpackEq(bytes, opts) {
+    var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, eq = opts.equals, mode = opts._eq || 'codes', useCache = !!opts.cache && mode === 'codes' && bytes !== null && typeof bytes === 'object';
+    if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; want[eq.key] = 1; }
+    for (i = 0; i < file.blocks.length; i++) {
+      if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
+      kd = file.blocks[i][4]; r = null;
+      if (kd === 'f' && mode !== 'off') {
+        var pbk = want ? partialBytes(file, i) : null, bc = null, ent = null;
+        if (useCache) {
+          var EC = EQ_CACHE.get(bytes); if (!EC) { EC = {}; EQ_CACHE.set(bytes, EC); }
+          var ck = i + (want ? ':' + Object.keys(want).sort().join(',') : ''); bc = EC[ck];
+          if (!bc) { bc = EC[ck] = {}; bc._ent = { id: ++EQ_ID, EC: EC, ck: ck, size: 0 }; }
+          ent = bc._ent;
+        }
+        r = rf.readEq(pbk || blockBytes(file, i), want, !!pbk, eq.key, eq.value, mode, bc);
+        if (ent) eqTouch(ent, bc);
+      }
+      if (!r) { r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf.readBlock(blockBytes(file, i), want) : rn.readBlock(blockBytes(file, i), want)); if (want && kd === 'r') r = projectRows(r, want); var kp = []; for (j = 0; j < r.length; j++) if (r[j][eq.key] === eq.value) kp.push(r[j]); r = kp; }
+      if (opts.keys && opts.keys.indexOf(eq.key) < 0) r = projectRows(r, (function () { var w = {}; opts.keys.forEach(function (k) { w[k] = 1; }); return w; })());
+      for (j = 0; j < r.length; j++) out.push(r[j]);
+    }
+    return out;
+  }
   function unpackSome(bytes, opts) {
+    if (opts.equals) return unpackEq(bytes, opts);
     var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, range = opts.range || null;
     rf.generated(opts.rows === 'generated'); rf.lazy(opts.rows === 'lazy' ? 1 : opts.rows === 'lazycols' ? 2 : false);
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
@@ -385,6 +451,11 @@
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
   function unpackTables(bytes, opts) {
+    var f0 = openFile(bytes);
+    if (f0.footer.sec[SEC_DELTA]) return unpackDelta(bytes, opts);
+    return unpackTablesPlain(bytes, opts);
+  }
+  function unpackTablesPlain(bytes, opts) {
     var file = openFile(bytes), t = (file.header && file.header.tables) || [['', 'rows']], out = {}, i, r;
     for (i = 0; i < t.length; i++) { r = unpackSome(file.bytes, Object.assign({}, opts || {}, { table: i })); out[t[i][0]] = t[i][1] === 'value' ? (r.length ? r[0].v : null) : r; }
     return out;
@@ -583,4 +654,4 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.0', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.0', apiVersion: 0 };

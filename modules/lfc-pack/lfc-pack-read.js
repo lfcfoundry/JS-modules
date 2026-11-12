@@ -1049,8 +1049,8 @@
         var d = base.slice(); if (mono) for (i = n - 1; i > 0; i--) d[i] -= d[i - 1]; else for (i = 0; i < n; i++) d[i] = zz(d[i]);
         var dl2 = null, sa = 0, sb = 0;
         if (!mono && n > 1) { dl2 = new Array(n); dl2[0] = zz(base[0]); for (i = 1; i < n; i++) dl2[i] = zz(base[i] - base[i - 1]); for (i = 0; i < n; i++) { sa += vlen(d[i]); sb += vlen(dl2[i]); } }
-        if (!dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
-        if (dl2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
+        if (B18_ALLV || !dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
+        if (dl2 && (B18_ALLV || sb <= sa * 1.05)) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Array(n); for (i = 0; i < n; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)]); }
       }
       if (!best || best.size > n * 4) { var f = new Float64Array(v); cand('F', {}, [new Uint8Array(f.buffer)]); }   // raw doubles are only tried when the scaled whole numbers did not already get under half of their size
@@ -1141,10 +1141,39 @@
   var IPD = new Uint8Array(1024); (function () { for (var v = 0; v < 256; v++) { var s = String(v); IPD[v * 4] = s.length; for (var k = 0; k < s.length; k++) IPD[v * 4 + 1 + k] = s.charCodeAt(k); } })();
   function ipColV8(frames0, n) { var i, o, ir = frames0, ib = new Uint8Array(n * 16), ip = 0, io = new Uint32Array(n + 1), iq, iv; for (i = 0; i < n; i++) { io[i] = ip; for (iq = 0; iq < 4; iq++) { iv = ir[4 * i + iq] << 2; ib[ip] = IPD[iv + 1]; ib[ip + 1] = IPD[iv + 2]; ib[ip + 2] = IPD[iv + 3]; ip += IPD[iv]; ib[ip++] = 46; } ip--; } io[n] = ip; var ibig = tlat.decode(ib.subarray(0, ip)); o = new Array(n); for (i = 0; i < n; i++) o[i] = ibig.substring(io[i], io[i + 1]); return o; }
   function ipCol(frames0, n) { var i, o, ir = frames0, ib = new Uint8Array(n * 15), ip = 0, io = new Uint32Array(n + 1), iq, iv; for (i = 0; i < n; i++) { io[i] = ip; for (iq = 0; iq < 4; iq++) { iv = ir[4 * i + iq]; if (iv >= 100) { ib[ip++] = 48 + ((iv / 100) | 0); ib[ip++] = 48 + (((iv / 10) | 0) % 10); ib[ip++] = 48 + iv % 10; } else if (iv >= 10) { ib[ip++] = 48 + ((iv / 10) | 0); ib[ip++] = 48 + iv % 10; } else ib[ip++] = 48 + iv; if (iq < 3) ib[ip++] = 46; } } io[n] = ip; var ibig = tlat.decode(ib.subarray(0, ip)); o = new Array(n); for (i = 0; i < n; i++) o[i] = ibig.substring(io[i], io[i + 1]); return o; }
-  function colV(frames, n, p) { var i, u, o; u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+  function colZZ(b, n, sc) { var out = new Float64Array(n), p = 0, i, c, u, m;
+    for (i = 0; i < n; i++) { c = b[p++];
+      if (c < 128) { out[i] = ((c >>> 1) ^ -(c & 1)) / sc; continue; }
+      u = c & 127; c = b[p++]; if (c < 128) { u += c << 7; out[i] = ((u >>> 1) ^ -(u & 1)) / sc; continue; }
+      u += (c & 127) << 7; c = b[p++]; if (c < 128) { u += c << 14; out[i] = ((u >>> 1) ^ -(u & 1)) / sc; continue; }
+      u += (c & 127) << 14; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = unzz(u) / sc; }
+    return out; }
+  function colV(frames, n, p) { var i, u, o; if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
   function colB(frames, n, p) { var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
   function colD(frames, n, p) { var i, u, o; var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
+
+  // B19b: values of column c at value positions vi[0..m) (ascending), or null when this kind is decoded whole
+  var B19B = 'on';
+  function bitAt(b, i, w) { var bp = i * w, by = bp >> 3; return ((((b[by] | 0) | ((b[by + 1] | 0) << 8) | ((b[by + 2] | 0) << 16) | ((b[by + 3] | 0) << 24)) >>> (bp & 7)) & ((1 << w) - 1)) >>> 0; }
+  function decodeAt(c, frames, vi, m) {
+    var t = c.t, p = c.p, n = c.n, o = new Array(m), i, f, k, q, a, cd;
+    if (B19B === 'off' || m * 8 > n) return null;   // more than 1 in 8 rows: the whole-column decoders are quicker
+    if (t === 's') { f = frames[0]; var big = tdr.decode(f), x; k = 0; q = 0; a = 0;
+      if (big.length === f.length) { while (q < m) { x = big.indexOf('\0', a); if (x < 0) x = big.length; if (k === vi[q]) o[q++] = big.substring(a, x); else if (x === big.length) return null; k++; a = x + 1; } return o; }   // all ASCII: one character per byte
+      var sp = big.split('\0'); if (sp.length < n) return null; for (q = 0; q < m; q++) o[q] = sp[vi[q]]; return o; }
+    if (t === 'D') { var lab = tdr.decode(frames[0]).split('\0'); cd = frames[1];
+      for (i = 0; i < m; i++) o[i] = lab[p.w ? bitAt(cd, vi[i], p.w) : p.wide ? (cd[vi[i] * 2] | (cd[vi[i] * 2 + 1] << 8)) : cd[vi[i]]]; return o; }
+    if (t === 'T') { f = frames[0]; for (i = 0; i < m; i++) o[i] = bitAt(f, vi[i], 1) === 1; return o; }
+    if (t === 'B' && p.w <= 24) { f = frames[0]; for (i = 0; i < m; i++) o[i] = (bitAt(f, vi[i], p.w) + p.mn) / p.scale; return o; }
+    if (t === 'N') {   // null plane: frame 0 marks the nulls; the other values are the inner column, in order
+      var np = frames[0], ii = new Int32Array(m), im = 0, nn = 0, at = 0, wi = [];
+      for (q = 0; q < m; q++) { for (; at < vi[q]; at++) if ((np[at >> 3] >> (at & 7)) & 1) nn++; if ((np[at >> 3] >> (at & 7)) & 1) o[q] = null; else { ii[im++] = vi[q] - nn; wi.push(q); } }
+      if (!im) return o;
+      var iv = decodeAt({ t: p.t, p: p.p, n: p.m }, frames.slice(1), ii, im); if (!iv) return null;
+      for (q = 0; q < im; q++) o[wi[q]] = iv[q]; return o; }
+    return null;
+  }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
     if (t === 'N') { var iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)), pn = frames[0], q = 0; o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
@@ -1167,11 +1196,16 @@
     if (t === 'L') return untemplate(n, frames);
     if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
     if (t === 'D') return colD(frames, n, p);
-    var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
+    if (n && jnulls(frames[0], n)) { o = new Array(n); for (i = 0; i < n; i++) o[i] = null; return o; } var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); if (V8 || GECKO) { for (i = 0; i < n; i++) o[i] = jcell(js[i]); return o; } for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
   }
+  // 'j' cells: most are null, true, false or whole numbers; JSON.parse per cell costs about 80 ns, so read those by hand (whole numbers of up to 15 characters, digits only, no leading zero, are exact in a double); anything else goes to JSON.parse. Chromium and Firefox only: in WebKitGTK the per-cell reader was slower than JSON.parse (cloud WebKitGTK 2.52.6, 100,000 orders: unpackColumns 1.08 to 1.20 of the time), so it keeps JSON.parse there; the all-null check runs in every engine
+  function jnulls(f, n) { if (f.length !== n * 5 - 1) return false; for (var i = 0; i < f.length; i += 5) if (f[i] !== 110 || f[i + 1] !== 117 || f[i + 2] !== 108 || f[i + 3] !== 108 || (i + 4 < f.length && f[i + 4] !== 10)) return false; return true; }
+  function jcell(s) { var c0 = s.charCodeAt(0), L = s.length, i, v, d; if (c0 === 110 && s === 'null') return null; if (c0 === 116 && s === 'true') return true; if (c0 === 102 && s === 'false') return false; if (L <= 15) { i = c0 === 45 ? 1 : 0; if (i < L && (s.charCodeAt(i) !== 48 || L === i + 1)) { v = 0; for (; i < L; i++) { d = s.charCodeAt(i) - 48; if (d < 0 || d > 9) break; v = v * 10 + d; } if (i === L) return c0 === 45 ? -v : v; } } return JSON.parse(s); }
   // returns null when the input is not flat rows (some line is not a JSON object)
-  function writeFlatBlock(ctx, input, opts) {
-    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, text = td.decode(input), lines, rows = [], i, j, r, nl = 0, at = -1;
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && input.rowsIn); try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; } }
+  function writeFlatBlock0(ctx, input, opts) {
+    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, rowsIn = input && input.rowsIn, text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
+    if (!rowsIn) {   // B18b: row objects given, no text to parse
     // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
     while ((at = text.indexOf('\n', at + 1)) >= 0) nl++;
     if (text.charCodeAt(text.length - 1) !== 10) nl++;
@@ -1180,6 +1214,7 @@
     if (rows.length) { for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) { rows = []; break; } } }
     lines = rows.length ? [] : text.split('\n');
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
+    }
     var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
     for (i = 0; i < n; i++) { r = rows[i]; for (k in r) if (!seen.has(k)) { seen.set(k, keys.length); keys.push(k); cols.push([]); } }
     var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length), ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq;
@@ -1235,6 +1270,7 @@
   function numDiv(b, c, scale) { var f = new Float64Array(c), i; for (i = 0; i < c; i++) f[i] = b[i] / scale; return f; }
   function listAsc(ln, dl, c) { var asc = true, ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; } return asc; }
   function listDeltas(ln, dl, c, asc) { var dd = new Float64Array(dl.length), ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; } return dd; }
+  var B18_ALLV = false;   // B18b: set while the row-object path encodes a block
   function writeFlatBlockFast(ctx, input, opts) {
     if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
     if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
@@ -1396,7 +1432,7 @@
   }
   // the byte work of reading a flat block: zstd for every wanted column, and (predecode, in helper workers) the number columns turned into Float64Arrays
   // verify: the block's header part was checked by the caller (block table item 8) and the block as a whole was not, so every wanted column must carry `o` and `x` and is checked here; columns that are not wanted are not read at all
-  function flatFrames(zs, bytes, want, predecode, verify) {
+  function flatFrames(zs, bytes, want, predecode, verify, lazy) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j, base;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
     var meta = JSON.parse(tdr.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
@@ -1411,6 +1447,7 @@
         if (st0 < base || st0 + tl > bytes.length || xhex(zs, bytes.subarray(st0, st0 + tl)) !== c.x) throw new Error('block checksum mismatch (column ' + meta.keys[j] + ')');
         p = st0;
       }
+      if (lazy && wanted) { var zf = []; for (i = 0; i < c.f.length; i++) zf.push([c.f[i], take(c.f[i][1])]); cols[j] = { fr: null, zf: zf, zs: zs }; continue; }   // B19: compressed frames kept, decompressed on first use
       for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
       cols[j] = !wanted ? null : (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
     }
@@ -1428,6 +1465,10 @@
     return { t: 'f', n: n, meta: meta, pl: pl, ordList: ordList, ordIds: ordIds, cols: cols };
   }
   flatFrames = guard(flatFrames);
+  // B19 helpers: frame k of a lazily read column, all its frames, every column of a lazily read block
+  function frOne(c, k) { if (c.fr) return c.fr[k]; if (!c.one) c.one = []; if (!c.one[k]) { var f = c.zf[k][0], sb = c.zf[k][1]; c.one[k] = f[2] ? (c.keep ? c.zs.decompress(sb, f[0]).slice() : c.zs.decompress(sb, f[0])) : sb.slice(); } return c.one[k]; }
+  function frAll(c) { if (!c.fr) { var o = [], k; for (k = 0; k < c.zf.length; k++) o.push(frOne(c, k)); c.fr = o; } return c.fr; }
+  function frBlock(F) { for (var j = 0; j < F.cols.length; j++) if (F.cols[j] && !F.cols[j].pre) frAll(F.cols[j]); }
   // the footer-sized view of a flat block: keys, column types, counts and the optional statistics, from the meta frame only
   function flatMeta(zs, bytes) {
     var ph = parseBlockHeader(bytes), h = ph.h, m = JSON.parse(tdr.decode(zs.decompressView(bytes.subarray(ph.p, ph.p + h.m[1]), h.m[0])));
@@ -1566,6 +1607,89 @@
     }
     function assembleKeep(F, want, rk, min, max) { var r = assemble(F, want), out = [], i, x; for (i = 0; i < r.length; i++) { x = r[i][rk]; if (typeof x === 'number' && x >= min && x <= max) out.push(r[i]); } return out; }
     readSel = guard(readSel);
+    // B19: rows of a block whose value under key rk === val. mode 'plain' or 'codes' (see the patch notes). Same objects and key order as filtering readBlock(...)
+    function readEq(bytes, want, verify, rk, val, mode, bc) {
+      if (gen || lazyOn) return null;
+      if (bc) return readEqCached(bytes, want, verify, rk, val, bc);
+      var codes = mode === 'codes', F = flatFrames(zs, bytes, want, false, verify, codes), meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, keys = meta.keys, i, j, c, s, m = 0, jr = keys.indexOf(rk), q, x;
+      if (F.ordList || keys.indexOf('__proto__') >= 0) { if (codes) frBlock(F); return eqKeep(F, want, rk, val); }
+      if (jr < 0 || F.cols[jr] === null) return [];
+      var cm = meta.cols[jr], col = F.cols[jr], pb = (n + 7) >> 3, sel = new Int32Array(n), dense = cm.n === n, rv = null, isN = cm.t === 'N';
+      if (codes && (cm.t === 'D' || (isN && cm.p.t === 'D'))) {
+        var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, c0 = -1;
+        if (typeof val === 'string') c0 = tdr.decode(frOne(col, o)).split('\0').indexOf(val);
+        if (c0 < 0 && !(isN && val === null)) return [];   // the value is not in this block's labels: no other frame is decompressed
+        var cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0;
+        for (i = 0, s = jr * pb; i < n; i++) { if (!dense && !((pl[s + (i >> 3)] >> (i & 7)) & 1)) continue;
+          if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; if (val === null) sel[m++] = i; continue; } at++;
+          if (cd[k++] === c0 && c0 >= 0) sel[m++] = i; }
+        if (m * 2 > n) { var labs = typeof val === 'string' ? tdr.decode(frOne(col, o)).split('\0') : (cnt ? tdr.decode(frOne(col, o)).split('\0') : []), pre = new Array(cm.n), kk = 0; at = 0;
+          if (np) { for (i = 0; i < cm.n; i++) pre[i] = (np[i >> 3] >> (i & 7)) & 1 ? null : labs[cd[kk++]]; } else for (i = 0; i < cnt; i++) pre[i] = labs[cd[i]];
+          col.pre = pre; frBlock(F); var allr = assemble(F, want), pk = new Array(m); for (i = 0; i < m; i++) pk[i] = allr[sel[i]]; return pk; }
+      } else {
+        rv = decodeColumn(cm, zs, codes ? frAll(col) : col.fr);
+        if (rv.length === n) { for (i = 0; i < n; i++) if (rv[i] === val) sel[m++] = i; }
+        else { for (i = 0, c = 0, s = jr * pb; i < n; i++) if ((pl[s + (i >> 3)] >> (i & 7)) & 1) { if (rv[c++] === val) sel[m++] = i; } }
+      }
+      if (m * 2 > n) { if (codes) frBlock(F); if (rv) col.pre = rv; return eqKeep(F, want, rk, val); }
+      var out = new Array(m), vals = new Array(K), v; if (!m) return out;
+      for (i = 0; i < m; i++) out[i] = {};
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) continue;
+        var key = keys[j], base = j * pb;
+        if (codes && !F.cols[j].pre && !(j === jr && rv)) { var sv = selAt(meta.cols[j], frAll(F.cols[j]), pl, base, n, sel, m); if (sv) { for (i = 0; i < m; i++) if (sv[0][i] >= 0) out[i][key] = sv[1][i]; continue; } }   // B19b
+        v = F.cols[j].pre ? F.cols[j].pre : (j === jr && rv) ? rv : decodeColumn(meta.cols[j], zs, codes ? frAll(F.cols[j]) : F.cols[j].fr);
+        if (v.length === n) { for (i = 0; i < m; i++) out[i][key] = v[sel[i]]; continue; }
+        for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) out[q][key] = v[c]; c++; } if (i === sel[q]) q++; }
+      }
+      return out;
+    }
+    // B19 cache: bc is this block's cache object ({} the first time). Same rows as readEq
+    function readEqCached(bytes, want, verify, rk, val, bc) {
+      var F = bc.F, j, i, c, m = 0, q, x;
+      if (!F) { F = bc.F = flatFrames(zs, bytes, want, false, verify, true); F.pl = F.pl.slice(); bc.vals = []; for (j = 0; j < F.cols.length; j++) if (F.cols[j]) F.cols[j].keep = 1; }
+      var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, keys = meta.keys, jr = keys.indexOf(rk), pb = (n + 7) >> 3;
+      if (F.ordList || keys.indexOf('__proto__') >= 0) { frBlock(F); return eqKeep(F, want, rk, val); }
+      if (jr < 0 || F.cols[jr] === null) return [];
+      var rc = bc['k' + jr], sel = new Int32Array(n), colOf = function (j) { var v = bc.vals[j]; if (v === undefined) v = bc.vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, frAll(F.cols[j])); return v; };
+      if (!rc) {   // per row: the label index (D) or the value itself; -1 / undefined for rows without the key, -2 for null
+        var cm = meta.cols[jr], col = F.cols[jr], isN = cm.t === 'N', dense = cm.n === n;
+        if (cm.t === 'D' || (isN && cm.p.t === 'D')) {
+          var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, lab = tdr.decode(frOne(col, o)).split('\0'), cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0, codeRow = new Int32Array(n).fill(-1);
+          for (i = 0; i < n; i++) { if (!dense && !((pl[jr * pb + (i >> 3)] >> (i & 7)) & 1)) continue; if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; codeRow[i] = -2; continue; } at++; codeRow[i] = cd[k++]; }
+          var lm = new Map(); for (i = 0; i < lab.length; i++) lm.set(lab[i], i);
+          rc = bc['k' + jr] = { d: true, row: codeRow, lm: lm };
+        } else {
+          var rv = colOf(jr), byRow = new Array(n);
+          if (rv.length === n) for (i = 0; i < n; i++) byRow[i] = rv[i]; else for (i = 0, c = 0; i < n; i++) if ((pl[jr * pb + (i >> 3)] >> (i & 7)) & 1) byRow[i] = rv[c++];
+          rc = bc['k' + jr] = { d: false, row: byRow };
+        }
+      }
+      if (rc.d) { var c0 = val === null ? -2 : typeof val === 'string' && rc.lm.has(val) ? rc.lm.get(val) : -3; if (c0 === -3) return []; var R = rc.row; for (i = 0; i < n; i++) if (R[i] === c0) sel[m++] = i; }
+      else { var R2 = rc.row; for (i = 0; i < n; i++) if (R2[i] === val && (val !== undefined)) sel[m++] = i; }
+      var out = new Array(m), v; if (!m) return out;
+      if (m * 2 > n) { frBlock(F); for (j = 0; j < K; j++) if (F.cols[j] !== null && !F.cols[j].pre) F.cols[j].pre = colOf(j); var all = assemble(F, want), oo = new Array(m); for (i = 0; i < m; i++) oo[i] = all[sel[i]]; return oo; }
+      for (i = 0; i < m; i++) out[i] = {};
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) continue;
+        var key = keys[j], base = j * pb;
+        if (bc.vals[j] === undefined && !F.cols[j].pre) { bc.hits = bc.hits || []; if (!bc.hits[j]) { bc.hits[j] = 1; var sv = selAt(meta.cols[j], frAll(F.cols[j]), pl, base, n, sel, m); if (sv) { for (i = 0; i < m; i++) if (sv[0][i] >= 0) out[i][key] = sv[1][i]; continue; } } }   // B19b: the first use decodes only the matching positions
+        v = colOf(j); if (!v) continue;
+        if (v.length === n) { for (i = 0; i < m; i++) out[i][key] = v[sel[i]]; continue; }
+        for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) out[q][key] = v[c]; c++; } if (i === sel[q]) q++; }
+      }
+      return out;
+    }
+    // B19b: [value position per selected row (-1 = the row lacks the key), values] for column cm, or null to decode whole
+    function selAt(cm, frames, pl, base, n, sel, m) {
+      var dense = cm.n === n, vi = new Int32Array(m), vv = [], mi = new Int32Array(m), i, c, q, k = 0;
+      if (dense) { for (q = 0; q < m; q++) { vi[q] = sel[q]; mi[q] = q; } k = m; }
+      else { for (i = 0, c = 0, q = 0; q < m; i++) { var has = (pl[base + (i >> 3)] >> (i & 7)) & 1; if (i === sel[q]) { if (has) { vi[k] = c; mi[q] = k++; } else mi[q] = -1; q++; } if (has) c++; } }
+      var got = decodeAt(cm, frames, vi, k); if (!got) return null;
+      var pos = new Int32Array(m), out = new Array(m); for (q = 0; q < m; q++) { pos[q] = mi[q]; out[q] = mi[q] >= 0 ? got[mi[q]] : undefined; } return [pos, out];
+    }
+    function eqKeep(F, want, rk, val) { var r = assemble(F, want), out = [], i; for (i = 0; i < r.length; i++) if (r[i][rk] === val) out.push(r[i]); return out; }
+    readEq = guard(readEq);
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
     function columns(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
@@ -1578,14 +1702,14 @@
       }
       return { n: n, keys: Object.keys(cols), cols: cols, present: present };
     }
-    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
-  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15, SEC_SHARED = 16;
-  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1, 16: 1 };   // 15 is the number-spelling section, 16 the shared tables of nested blocks   // 8 and 13 are reserved
+  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15, SEC_SHARED = 16, SEC_DELTA = 17;
+  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1, 16: 1, 17: 1 };   // 15 is the number-spelling section, 16 the shared tables of nested blocks   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress, minor) {   // minor: 1 when a null-plane (N) column was written, else the file stays minor 0 and 0.8.x readers open it
     var parts = [], i, s, h;
     for (i = 0; i < sections.length; i++) { s = sections[i]; h = new Uint8Array(8); h[0] = s.id; h[1] = s.id >> 8; h[2] = s.flags; h[3] = s.flags >> 8; h.set(u32le(s.payload.length), 4); parts.push(h, s.payload); }
@@ -1640,6 +1764,7 @@
   }
   // trim(): gives back the WebAssembly memory that earlier jobs grew (memory only grows; a new instance of each compiled module starts small and the old memory goes with the old instance). Call it between jobs, never during one.
   function trim() {
+    dropDeltaBase();
     if (S.zfull) { S.zfull = makeZstd(loadSync('zstd-full')); S.zdec = S.zfull; } else if (S.zdec) S.zdec = makeZstd(loadSync('zstd-dec'));
     trimPacker(); arenaDrop();
   }
@@ -1687,7 +1812,15 @@
     }
     b[e] = 10; return b.subarray(1);
   }
-  function packRows(rows, opts) { return pack(rowsBytes(rows), opts); }
+  function packRows(rows, opts) { var po = packOpts(opts); if (!po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && b18Pays(rows)) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], po); return pack(rowsBytes(rows), opts); }
+  // B18b gate (Chromium 156 sweep on 0.9.3, 15 files): the row path wins when the rows would make more than 16 MB of text (the text path then leaves the wasm scanner), or when fewer than 40% of the cells are strings; string-heavy tables under 16 MB pack faster through the wasm text scanner (1.1 to 1.5 times slower otherwise)
+  function b18Pays(rows) { var n = rows.length, k = Math.min(1024, n), est = JSON.stringify(rows.slice(0, k)).length / k * n, i, r, c = 0, st = 0;
+    if (est > 16 * 1048576) return true;
+    for (i = 0; i < Math.min(256, n); i++) { r = rows[i]; for (var q in r) { c++; if (typeof r[q] === 'string') st++; } }
+    return st < c * 0.4; }
+  // B18b: true when every row is a plain object whose values are strings, booleans, null or finite numbers other than -0 (so JSON.stringify would write each value as is and keep every key)
+  function flatScalars(rows) { var i, r, k, v, t, P = Object.prototype; for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) return false; t = Object.getPrototypeOf(r); if (t !== P && t !== null) return false;
+    for (k in r) { v = r[k]; t = typeof v; if (t === 'number') { if (v !== v || v === Infinity || v === -Infinity || (v === 0 && 1 / v < 0)) return false; } else if (t !== 'string' && t !== 'boolean' && v !== null) return false; } } return true; }
   function packTables(obj, opts) {
     var names = Object.keys(obj), inputs = [], i, v;
     for (i = 0; i < names.length; i++) {
@@ -1732,6 +1865,12 @@
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;   // since 0.4.6 by default: each big block judges by itself (dupShare), no trial
     if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; ctx.pick = mid < PATHS_TRY * bb ? 1 : (typeof PATHS_SAMPLE !== 'undefined' && PATHS_SAMPLE > 0 ? samplePick(inputs[0].bytes, opts) : null); mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
+    if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
+      var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl;
+      for (ra = 0; ra < RA.length; ra += stp) { sl = RA.slice(ra, ra + stp); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
+        blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
+      tail = true; continue;
+    }
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
     while (retry.length || p < b.length) {
       if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
@@ -1968,16 +2107,67 @@
     r.readBlock = function (a, b, c) { arenaReset(); return rd.readBlock(a, b, c); };
     if (rd.readRange) r.readRange = function (a, b, c) { arenaReset(); return rd.readRange(a, b, c); };
     if (rd.readSel) r.readSel = function (a, b, c, d, e, f) { arenaReset(); return rd.readSel(a, b, c, d, e, f); };
+    if (rd.readEq) r.readEq = function (a, b, c, d, e, f, g) { arenaReset(); return rd.readEq(a, b, c, d, e, f, g); };
     return r;
   }
   // unpack(bytes, { keys: ['ts', 'ms'], range: { key: 'ts', min: 10, max: 20 } }): only those keys, only rows whose number is in range; blocks outside the range are never decoded
   function unpack(bytes, opts) {   // -> array of row objects
+    var f0 = openFile(bytes);
+    if (f0.footer.sec[SEC_DELTA]) { if (opts && (opts.equals || opts.range || opts.keys || opts.lazy)) throw new Error('LfcPack: a delta file reads whole (no equals, range, keys or lazy): rebuild the rows with unpackTables(file, { base }) first'); var dt = unpackDelta(bytes, opts), dn, dr = []; for (dn in dt) if (Array.isArray(dt[dn])) for (var di = 0; di < dt[dn].length; di++) dr.push(dt[dn][di]); return dr; }   // a delta: the rows of its tables, with { base }
     if (opts) return unpackSome(bytes, opts);
-    var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, r, j, kd;
+    var file = f0, rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, r, j, kd;
     for (i = 0; i < file.blocks.length; i++) { kd = file.blocks[i][4]; r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf : rn).readBlock(blockBytes(file, i)); for (j = 0; j < r.length; j++) out.push(r[j]); }
     return out;
   }
+  // equality reads: unpack(file, { equals: { key, value }, keys?, cache? }) -> the rows whose value under key is === value (a missing key never matches null), with the same rows and key order as unpack(file).filter(...)
+  // cache: true keeps, between queries on the same file bytes, each touched block's parsed frames, decoded columns and one code per row for the asked key; kept bytes are counted and the least recently used blocks go first once they pass EQ_LIMIT (clearCache() drops all)
+  var EQ_CACHE = new WeakMap(), EQ_LRU = new Map(), EQ_LIMIT = 67108864, EQ_TOTAL = 0, EQ_ID = 0;
+  function eqSize(bc) {   // an estimate of the bytes one block's cache holds
+    var t = 0, j, k, v, F = bc.F;
+    if (!F) return 0;
+    if (F.pl) t += F.pl.length;
+    for (j = 0; j < F.cols.length; j++) { var c = F.cols[j]; if (c && c.one) for (k in c.one) if (c.one[k] && c.one[k].length) t += c.one[k].length; }
+    for (j = 0; j < bc.vals.length; j++) { v = bc.vals[j]; if (v) t += v.byteLength !== undefined ? v.byteLength : v.length * 8; }
+    for (k in bc) if (k.charAt(0) === 'k' && bc[k] && bc[k].row) { v = bc[k].row; t += v.byteLength !== undefined ? v.byteLength : v.length * 8; if (bc[k].lm) t += bc[k].lm.size * 48; }
+    return t;
+  }
+  function eqTouch(ent, bc) {   // count this block's cache, mark it most recently used, evict the oldest while over the limit (a block bigger than the limit is not kept)
+    var sz = eqSize(bc), old = ent.size, k, e;
+    EQ_TOTAL += sz - old; ent.size = sz; EQ_LRU.delete(ent.id); EQ_LRU.set(ent.id, ent);
+    for (k of EQ_LRU.keys()) {
+      if (EQ_TOTAL <= EQ_LIMIT) break;
+      e = EQ_LRU.get(k); EQ_LRU.delete(k); EQ_TOTAL -= e.size; delete e.EC[e.ck];
+    }
+  }
+  function clearCache() { EQ_LRU.forEach(function (e) { delete e.EC[e.ck]; }); EQ_LRU.clear(); EQ_TOTAL = 0; }
+  function cacheLimit(n) { if (n !== undefined) { EQ_LIMIT = Math.max(0, +n || 0); eqTouchAll(); } return EQ_LIMIT; }
+  function eqTouchAll() { var k, e; for (k of EQ_LRU.keys()) { if (EQ_TOTAL <= EQ_LIMIT) break; e = EQ_LRU.get(k); EQ_LRU.delete(k); EQ_TOTAL -= e.size; delete e.EC[e.ck]; } }
+  function cacheBytes() { return EQ_TOTAL; }
+  function unpackEq(bytes, opts) {
+    var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, eq = opts.equals, mode = opts._eq || 'codes', useCache = !!opts.cache && mode === 'codes' && bytes !== null && typeof bytes === 'object';
+    if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; want[eq.key] = 1; }
+    for (i = 0; i < file.blocks.length; i++) {
+      if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
+      kd = file.blocks[i][4]; r = null;
+      if (kd === 'f' && mode !== 'off') {
+        var pbk = want ? partialBytes(file, i) : null, bc = null, ent = null;
+        if (useCache) {
+          var EC = EQ_CACHE.get(bytes); if (!EC) { EC = {}; EQ_CACHE.set(bytes, EC); }
+          var ck = i + (want ? ':' + Object.keys(want).sort().join(',') : ''); bc = EC[ck];
+          if (!bc) { bc = EC[ck] = {}; bc._ent = { id: ++EQ_ID, EC: EC, ck: ck, size: 0 }; }
+          ent = bc._ent;
+        }
+        r = rf.readEq(pbk || blockBytes(file, i), want, !!pbk, eq.key, eq.value, mode, bc);
+        if (ent) eqTouch(ent, bc);
+      }
+      if (!r) { r = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf.readBlock(blockBytes(file, i), want) : rn.readBlock(blockBytes(file, i), want)); if (want && kd === 'r') r = projectRows(r, want); var kp = []; for (j = 0; j < r.length; j++) if (r[j][eq.key] === eq.value) kp.push(r[j]); r = kp; }
+      if (opts.keys && opts.keys.indexOf(eq.key) < 0) r = projectRows(r, (function () { var w = {}; opts.keys.forEach(function (k) { w[k] = 1; }); return w; })());
+      for (j = 0; j < r.length; j++) out.push(r[j]);
+    }
+    return out;
+  }
   function unpackSome(bytes, opts) {
+    if (opts.equals) return unpackEq(bytes, opts);
     var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, range = opts.range || null;
     rf.generated(opts.rows === 'generated'); rf.lazy(opts.rows === 'lazy' ? 1 : opts.rows === 'lazycols' ? 2 : false);
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; if (range) want[range.key] = 1; }
@@ -2002,6 +2192,11 @@
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
   function unpackTables(bytes, opts) {
+    var f0 = openFile(bytes);
+    if (f0.footer.sec[SEC_DELTA]) return unpackDelta(bytes, opts);
+    return unpackTablesPlain(bytes, opts);
+  }
+  function unpackTablesPlain(bytes, opts) {
     var file = openFile(bytes), t = (file.header && file.header.tables) || [['', 'rows']], out = {}, i, r;
     for (i = 0; i < t.length; i++) { r = unpackSome(file.bytes, Object.assign({}, opts || {}, { table: i })); out[t[i][0]] = t[i][1] === 'value' ? (r.length ? r[0].v : null) : r; }
     return out;
@@ -2200,7 +2395,132 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.0', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.0', apiVersion: 0 };
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
+
+  // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
+  // A delta file is a normal file (written by packTables) holding a patch: for every table of x, the base rows to drop and the new rows to put in their place, in order, so any row shape (flat,
+  // nested, optional keys) works and an edit costs about its own rows. The rows are found by comparing each row's JSON text with the base's, so no zstd or layout knowledge is involved.
+  // Footer section 17 (required) = { v: 2, base: XXH64 of the base file's bytes }: a reader without the base, or with another one, refuses. The base must be a full file, not a delta.
+  // The base's row texts are kept for the next save (one base only, until clearCache()), so the second delta save against the same base is a compare and a small pack.
+  var DELTA_VERSION = 2, DELTA_BASE = null;
+  var DELTA_CHUNK = 64;   // rows compared as one text first: a chunk that did not change costs one JSON.stringify instead of one per row
+  function baseChunk(B, name, g) {   // the text JSON.stringify gives for rows g*64.. of the base (kept, built from the row texts)
+    var cs = B.cs[name] || (B.cs[name] = []), c = cs[g];
+    if (c === undefined) cs[g] = c = '[' + B.strs[name].slice(g * DELTA_CHUNK, (g + 1) * DELTA_CHUNK).join(',') + ']';
+    return c;
+  }
+  // rows of one table: a chunk-wise first pass finds the chunks that changed, and only their rows are compared one by one; many changed chunks (rows inserted or removed shift all that follows): the whole table row by row
+  function diffTable(B, name, v) {
+    var a = B.strs[name], na = a.length, nv = v.length, G = DELTA_CHUNK, nc = Math.ceil(Math.max(na, nv) / G), g, dirty = 0, runs = [], run = null, i, j, texts, d, ops = [], ins = [], x, b;
+    for (g = 0; g < nc; g++) {
+      if (g * G < nv && g * G < na && JSON.stringify(v.slice(g * G, (g + 1) * G)) === baseChunk(B, name, g)) { run = null; continue; }
+      dirty++; if (dirty > 8 && dirty * 5 > g + 1) return fullDiff(a, v);
+      if (run && run[1] === g) run[1] = g + 1; else { run = [g, g + 1]; runs.push(run); }
+    }
+    for (i = 0; i < runs.length; i++) {
+      b = runs[i][0] * G; x = Math.min(nv, runs[i][1] * G); texts = new Array(Math.max(0, x - b));
+      for (j = b; j < x; j++) texts[j - b] = rowText(v[j]) || 'null';
+      d = diffRows(a.slice(b, Math.min(na, runs[i][1] * G)), texts);
+      for (j = 0; j < d.ops.length; j += 3) ops.push(d.ops[j] + b, d.ops[j + 1], d.ops[j + 2]);
+      for (j = 0; j < d.ins.length; j++) ins.push(d.ins[j] + b);
+    }
+    return { ops: ops, ins: ins };
+  }
+  // opts.dirty = { table: [row numbers that may have changed] }: when the table has as many rows as the base, only those rows are compared (the others are taken as unchanged, so the caller must list every edit)
+  function dirtyDiff(a, v, rows) {
+    var idx = Array.from(new Set(rows)).filter(function (q) { return q >= 0 && q < v.length; }).sort(function (p, q) { return p - q; }), ops = [], ins = [], i, q, last = -2;
+    for (i = 0; i < idx.length; i++) {
+      q = idx[i];
+      if ((rowText(v[q]) || 'null') === a[q]) continue;
+      if (q === last + 1 && ops.length) { ops[ops.length - 2]++; ops[ops.length - 1]++; } else ops.push(q, 1, 1);
+      ins.push(q); last = q;
+    }
+    return { ops: ops, ins: ins };
+  }
+  function fullDiff(a, v) { var t = new Array(v.length), j; for (j = 0; j < v.length; j++) t[j] = rowText(v[j]) || 'null'; return diffRows(a, t); }
+  function rowText(r) { var t = JSON.stringify(r); return t === undefined ? null : t; }
+  function deltaBaseInfo(base) {
+    var bytes = bytesOf(base), h, f, t, names, strs = {}, i, j, a, s;
+    if (DELTA_BASE && (DELTA_BASE.bytes === bytes || (DELTA_BASE.bytes.length === bytes.length && DELTA_BASE.hash === hash(bytes, 'xxh64')))) return DELTA_BASE;
+    f = openFile(bytes);
+    if (f.footer.sec[SEC_DELTA]) throw new Error('LfcPack: base must be a full save, not a delta');
+    h = hash(bytes, 'xxh64'); t = unpackTables(bytes); names = Object.keys(t);
+    for (i = 0; i < names.length; i++) { a = t[names[i]]; if (Array.isArray(a)) { s = new Array(a.length); for (j = 0; j < a.length; j++) s[j] = rowText(a[j]) || 'null'; strs[names[i]] = s; } else strs[names[i]] = rowText(a); }
+    return (DELTA_BASE = { bytes: bytes, hash: h, strs: strs, cs: {} });
+  }
+  // rows of a (base texts) to rows of b (new texts) -> { ops: [at, del, count, ...], ins: indices of the new rows that are put in }; the common start and end are not listed
+  function diffRows(a, b) {
+    var na = a.length, nb = b.length, i = 0, j = 0, ea = na, eb = nb, ops = [], ins = [], at = -1, del = 0, cnt = 0, W = 48, k, kd, ki;
+    while (i < na && j < nb && a[i] === b[j]) { i++; j++; }
+    while (ea > i && eb > j && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
+    while (i < ea || j < eb) {
+      if (i < ea && j < eb && a[i] === b[j]) { if (at >= 0) { ops.push(at, del, cnt); at = -1; del = 0; cnt = 0; } i++; j++; continue; }
+      if (at < 0) at = i;
+      if (i >= ea) { ins.push(j++); cnt++; continue; }
+      if (j >= eb) { del++; i++; continue; }
+      if (i + 1 < ea && j + 1 < eb && a[i + 1] === b[j + 1]) { del++; i++; ins.push(j++); cnt++; continue; }
+      kd = 0; ki = 0;
+      for (k = 1; k <= W && (!kd || !ki); k++) { if (!kd && i + k < ea && a[i + k] === b[j]) kd = k; if (!ki && j + k < eb && b[j + k] === a[i]) ki = k; }
+      if (kd && (!ki || kd <= ki)) { del += kd; i += kd; }
+      else if (ki) { for (k = 0; k < ki; k++) { ins.push(j++); cnt++; } }
+      else { del++; i++; ins.push(j++); cnt++; }
+    }
+    if (at >= 0) ops.push(at, del, cnt);
+    return { ops: ops, ins: ins };
+  }
+  function footerParts(zs, file) {   // the footer's sections with their flags, in file order
+    var n = file.length, flen = rd32(file, n - 16), f = file.subarray(n - 16 - flen, n - 16), body = f[0] === 1 ? zs.decompress(f.subarray(1)) : f.subarray(1), out = [], p = 0;
+    while (p < body.length) { var len = rd32(body, p + 4); out.push({ id: rd16(body, p), flags: rd16(body, p + 2), payload: body.slice(p + 8, p + 8 + len) }); p += 8 + len; }
+    return { secs: out, bodyEnd: n - 16 - flen };
+  }
+  function packDelta(obj, opts) {
+    var B = deltaBaseInfo(opts.base), names = Object.keys(obj), meta = [], P = {}, vals = {}, nv = 0, i, j, v, d, rows, texts, popts = {}, k, any = 0, out, fp, zs;
+    for (k in opts) if (k !== 'base' && k !== 'meta' && k !== 'dirty') popts[k] = opts[k];
+    for (i = 0; i < names.length; i++) {
+      v = obj[names[i]];
+      if (Array.isArray(v)) {
+        d = !Array.isArray(B.strs[names[i]]) ? fullDiff([], v) : (opts.dirty && Array.isArray(opts.dirty[names[i]]) && v.length === B.strs[names[i]].length) ? dirtyDiff(B.strs[names[i]], v, opts.dirty[names[i]]) : diffTable(B, names[i], v);
+        rows = new Array(d.ins.length); for (j = 0; j < d.ins.length; j++) rows[j] = v[d.ins[j]];
+        meta.push({ n: names[i], k: 'r', len: v.length, ops: d.ops }); P['t' + i] = rows;
+      } else {
+        texts = rowText(v === undefined ? null : v);
+        if (texts === B.strs[names[i]] && !Array.isArray(B.strs[names[i]])) meta.push({ n: names[i], k: 'v', same: 1 });
+        else { meta.push({ n: names[i], k: 'v' }); vals[names[i]] = v === undefined ? null : v; nv++; }
+      }
+    }
+    P.meta = { d: meta }; P.vals = vals;
+    out = packTables(P, popts); zs = S.zfull;
+    fp = footerParts(S.zdec, out);
+    fp.secs.push({ id: SEC_DELTA, flags: 1, payload: te.encode(JSON.stringify({ v: DELTA_VERSION, base: B.hash })) });
+    return concat([out.subarray(0, fp.bodyEnd), writeFooter(zs, fp.secs, true, rd16(out, out.length - 8))]);
+  }
+  function deltaInfo(file) { var s = file.footer.sec[SEC_DELTA]; return s ? JSON.parse(tdr.decode(s)) : null; }
+  // the tables a delta stands for: the base's rows with the patch applied
+  function unpackDelta(bytes, opts) {
+    var file = openFile(bytes), info = deltaInfo(file), P, base, bt, out = {}, i, j, m, a, ins, res, ai, ii, o;
+    if (!opts || !opts.base) throw new Error('LfcPack: this file is a delta: pass { base } (the full save it was made against)');
+    base = bytesOf(opts.base);
+    if (info.v !== DELTA_VERSION) throw new Error('LfcPack: unknown delta version ' + info.v);
+    if (info.base !== hash(base, 'xxh64')) throw new Error('LfcPack: this delta belongs to a different base save');
+    if (deltaInfo(openFile(base))) throw new Error('LfcPack: base must be a full save, not a delta');
+    P = unpackTablesPlain(bytes, {}); bt = opts.baseTables || unpackTables(base); // opts.baseTables: the tables the base was saved from or read into (unmodified); their rows are shared with the result, not copied
+    for (i = 0; i < P.meta.d.length; i++) {
+      m = P.meta.d[i];
+      if (m.k === 'v') { out[m.n] = m.same ? bt[m.n] : P.vals[m.n]; continue; }
+      a = Array.isArray(bt[m.n]) ? bt[m.n] : []; ins = P['t' + i] || []; res = []; ai = 0; ii = 0;
+      for (j = 0; j < m.ops.length; j += 3) {
+        for (; ai < m.ops[j]; ai++) res.push(a[ai]);
+        ai += m.ops[j + 1];
+        for (o = 0; o < m.ops[j + 2]; o++) res.push(ins[ii++]);
+      }
+      for (; ai < a.length; ai++) res.push(a[ai]);
+      if (res.length !== m.len) throw new Error('LfcPack: the delta does not fit its base (table ' + m.n + ')');
+      out[m.n] = res;
+    }
+    return out;
+  }
+  function dropDeltaBase() { DELTA_BASE = null; }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

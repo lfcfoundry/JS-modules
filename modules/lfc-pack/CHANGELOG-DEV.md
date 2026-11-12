@@ -12,6 +12,38 @@ Format minor 1 is written only when a file holds an N column; the API version st
 
 ### Deep
 lfc-pack 0.10.0: null plane (B13). Column type N (format minor 1): a flat column of one scalar kind plus nulls keeps its inner typed encoding for the non-null values and one bit plane marks the nulls. New in the writer (nullBest in src/flat.js, also in the fast writer's mixed-kind columns), reader (decodeColumn), Python and Go readers, LAYOUT-SPEC.md 2.5 and 4, SPEC.md 2.1, vector flat-null-plane, test nullplane.cjs. Footer minor is 1 only when a pack wrote an N column (pack, packStream, packParallel); every other file is byte-identical to 0.9.3 (9 of 9 files checked: logs, sensors, ids, events, repeat, long at 300k rows, FHIR 21 MB, nd_dense, nd_gen_config). 0.8.1 refuses an N file. 100,000 rows, 7 pairs, Chromium / Firefox / WebKitGTK, new/old: orders (6 nullable columns, 34.5% smaller) pack 1.19 / 0.88 / 0.98, full read 0.69 / 0.62 / 0.62, 1% range 0.52 / 0.50 / 0.54; taxi-like (5 columns 2% null, 19.5% smaller) pack 1.21 / 1.08 / 1.05, full read 0.54 / 0.59 / 0.52, range 0.52 / 0.47 / 0.49; every column 50% null (34.6% smaller) pack 0.85 / 0.75 / 0.84, full read 0.54 / 0.45 / 0.55, range 0.48 / 0.36 / 0.42. No-null control logs 300k: pack 0.92 / 0.94 / 1.00, full read 0.88 / 1.13 / 0.99 (same bytes). The pack cost is a first-run cost in the general writer (nullBest, 47 of 360 ms cold in Node). Real NYC taxi gain is 0 to 3% (compression thread E14). Phone not run.
+## 0.9.6 · API 0 · 2026-11-12
+
+### Quick
+New opt-in packTables(tables, { base }) writes only the rows that changed since a full save, and unpackTables(delta, { base, baseTables }) rebuilds them. Netflow-like data, 8,000 items and 24,751 links, 80 edits: patch 1.4% of a full save, save 0.21 to 0.36 of the time (0.02 with dirty row numbers), read 0.08 to 0.13 with baseTables. Delta files need 0.9.6 or newer to read; full files are unchanged.
+
+### Details
+A delta file is an ordinary file whose tables are a patch against a base file (rows inserted, rows removed, values changed), with a required footer section 17 holding the base's XXH64; readers older than 0.9.6 refuse it, and a wrong or missing base throws. Rows are compared as text, so nested rows work. dirty: { table: [row numbers] } skips the comparison when the app knows what it touched. baseTables lets a read skip decoding the base. unpack() of a delta reads whole (no equals, range, keys or lazy). Stacked with the null plane: full file 7% smaller on null data, delta ratios unchanged.
+
+### Deep
+lfc-pack 0.9.6: delta saves v2 (owner chose Build into Netflow autosave, 2026-11-12). Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, 8,000 nodes, 24,751 links, 80 edits: patch 1.4%, save 0.16-0.40, with dirty rows 0.02, read 1.00-1.25 (0.08-0.13 with baseTables). Same output as a full save in all runs. Old readers refuse delta files by design. New test delta.cjs.
+
+## 0.9.5 · API 0 · 2026-11-12
+
+### Quick
+New option unpack(file, { equals: { key, value } }) returns the rows whose value is exactly that, building only those rows: 0.47 to 0.82 of read-then-filter over 24 queries, 0.06 to 0.20 with cache: true (3 browsers). Column reads of JSON-per-cell columns and large number columns are faster (Chromium 0.63 to 0.88 on logs, sensors and taxi columns). No format change.
+
+### Details
+equals tests one column, skips blocks whose dictionary lacks the value, and decodes only the matching positions when at most 1 row in 8 matches; common values assemble from the columns already read. cache: true keeps decoded blocks between queries on the same file bytes, counted and capped by LfcPack.cacheLimit() (64 MB default, least recently used first); LfcPack.clearCache() empties it. Cached first queries can cost up to 1.09 of a plain read. Column reads: an all-null JSON column is filled from its bytes (every engine); null, true, false and whole numbers up to 15 digits are read by hand in Chromium and Firefox; zigzag number columns of 16,384 values or more decode in one pass. Same rows and values.
+
+### Deep
+lfc-pack 0.9.5: B19 and B19c equality reads with an opt-in cache (size limit, clearCache), and B20 column reads (compression thread research, owner-approved 2026-11-12). Option names (cache: true, cacheLimit, clearCache) chosen by the owner 2026-11-12. Stack gate on 0.9.4 in 3 browsers: equality 24 queries 0.47-0.82 of read-then-filter, with cache 0.06-0.20 (first cached query up to 1.09); B20 columns vs 0.9.4 0.63-1.04 and rows 0.78-1.01 (cells over 1.05 on repeat were noise: identical builds measured 1.05 in the same harness). New tests equalsread.cjs, b20cols.cjs.
+
+## 0.9.4 · API 0 · 2026-11-12
+
+### Quick
+packRows on plain rows over 4,096 rows now goes straight to the column writer with no JSON text step: 0.50 to 0.65 of the time on taxi-like and orders sets in 3 browsers. Same format, same rows; files under the gate are byte-identical.
+
+### Details
+packRows(rows) skips the JSON text for plain scalar rows (strings, booleans, null, finite numbers other than -0) when there are more than 4,096 rows and either the rows would make more than 16 MB of text or fewer than 40% of the cells in the first 256 rows are strings; the writer tries both varint forms like the wasm writer, so files stay within 0.0002% of before. Other rows, and every call with exact, block or share, take the old path. 5 fresh-page pairs, packRows new/old: taxi-like 0.65 / 0.59 / 0.64, orders 0.57 / 0.50 / 0.50, sensors 0.87 / 0.71 / 0.90, ids 0.95 / 0.87 / 0.78 (Chromium / Firefox / WebKitGTK); logs 300k 0.84 / 1.04 / 0.99; an identical-build control swung 0.89 to 1.11.
+
+### Deep
+lfc-pack 0.9.4: B18b, packRows straight from row objects (the compression thread's research, owner-approved 2026-11-12). Gate and size fix as in the research notes. Keys are listed first-seen per block as before; a later block can list keys in another order, with identical values. New test rowpath.cjs.
 
 ## 0.9.3 · API 0 · 2026-11-11
 
