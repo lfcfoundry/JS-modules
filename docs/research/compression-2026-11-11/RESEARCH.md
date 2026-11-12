@@ -646,6 +646,31 @@ Decision: **ADOPT CANDIDATE**, with the cache opt-in and given a size limit befo
 - B19b: decode only the matching positions of `D` and `B` columns.
 - A per-block label summary in the footer (B8 follow-up).
 
+### 2026-11-12 E21: Blob-range import jobs paired with B18b saves, with real peak memory
+
+The idea comes from the Codex review thread (its no-copy screen, `/mnt/project-files/js-modules-research/codex-review-2026.11.11/no-copy-screen/`).
+
+The test is one app session in two steps (`experiments/www/sess.html`, `sw.js`, `experiments/sessdrive.cjs`, `sessanal.py`, `results/sess-*.json`; 4 MB blocks, 2 helpers, 3 fresh pages per cell):
+1. **Import** a file with helper workers. Today's shape reads the whole file, slices each block and transfers it. Blob-range jobs instead send each helper the `Blob` and a byte range. Each packed block is unpacked to rows as it arrives.
+2. **Save** with `packRows`: lfc-pack 0.9.3, or 0.9.3 + gated B18b.
+
+Peak memory is measured, not modeled: the summed resident memory (RSS) of all the browser's processes, sampled every 20 ms during each step, minus the level before the step.
+
+Results, as a share of today, given as Chromium 156 / Firefox 158 / WebKitGTK 2.52.6:
+
+| Data | Blob-range import | B18b save | Both, whole session | Import peak MB, today -> Blob-range | Save peak MB, today -> B18b |
+|---|---|---|---|---|---|
+| Orders 100k (18 MB) | 0.96 / 0.96 / 1.02 | 0.64 / 0.51 / 0.56 | 0.81 / 0.74 / 0.77 | 204->191 / 226->196 / 326->321 | 92->26 / 121->65 / 101->2 |
+| GitHub events 200k (22 MB) | 1.00 / 1.02 / 1.01 | 0.71 / 0.90 / 0.79 | 0.80 / 0.92 / 0.88 | 204->188 / 228->213 / 307->265 | 113->54 / 173->123 / 103->14 |
+| Logs 300k (44 MB) | 0.93 / 0.96 / 1.06 | 0.90 / 0.75 / 1.00 | 0.98 / 0.83 / 1.04 | 303->269 / 354->372 / 406->342 | 242->134 / 169->58 / 211->41 |
+
+- **Blob-range jobs:** main-thread copy time goes from 9 to 24 ms to 0, and import time is flat (0.93 to 1.06). Import peak memory falls 13 to 64 MB in Chromium and WebKit. In Firefox it is mixed, from -30 to +18 MB.
+- **B18b saves:** save peak memory falls 50 to 99 MB (there is no JSON text). The time gain is smaller here than in the E19 gate, because rows built by lfc-pack's reader save slower through the row path than rows from `JSON.parse`. Logs were 0.90 / 0.75 / 1.00 here, against 0.71 / 0.90 / 0.86 in E19.
+- **Stacking:** the two act on different steps, so session time is about the B18b number alone (0.74 to 1.04). For the session's peak memory (the larger of the two steps), the import step dominates, so Blob-range sets it. Neither is better than the sum; they add up.
+- Lead: find out why reader-built rows save slower on the row path (object shape), and close that gap for apps that load and then save.
+
+Decision: Blob-range jobs **ADOPT CANDIDATE** for imports (main-thread copy and memory, not speed). The pairing needs no extra work.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.

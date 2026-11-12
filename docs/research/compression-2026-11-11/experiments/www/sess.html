@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>import then save</title><script>var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research: an app session in two steps. (1) Import a file with helper workers: 'copy' reads the whole file, finds the cuts, slices each block and transfers it (today's packParallel shape); 'blob' sends each helper the Blob and a byte range (Blob-range jobs from the Codex review), cuts found from 64 KB windows. Each block is unpacked to rows on the main thread as it arrives. (2) Save: packRows(rows) with the page's build (0.9.3 or 0.9.3 + B18b).
+// hash = build:file:mode:blockBytes:helpers
+const [BUILD, FILE, MODE, BB, NW] = [__h[0], __h[1], __h[2], +__h[3], +__h[4]]; let ROWS = null;
+function cutsFromBytes(u, bb) { const c = [0]; let p = 0; while (p + bb < u.length) { const k = u.indexOf(10, p + bb); if (k < 0) break; p = k + 1; c.push(p); } if (c[c.length - 1] !== u.length) c.push(u.length); return c; }
+async function cutsFromBlob(blob, bb) { const c = [0], n = blob.size; let p = 0;
+  while (p + bb < n) { let base = p + bb, k = -1; while (base < n) { const w = new Uint8Array(await blob.slice(base, Math.min(n, base + 65536)).arrayBuffer()); k = w.indexOf(10); if (k >= 0) break; base += w.length; } if (k < 0) break; p = base + k + 1; if (p >= n) break; c.push(p); }
+  c.push(n); return c; }
+async function importStep() { await LfcPack.init(); const blob = await (await fetch(FILE)).blob(); const ws = [];
+  for (let i = 0; i < NW; i++) { const w = new Worker('sw.js'); await new Promise(r => { w.onmessage = r; w.postMessage({ build: BUILD }); }); ws.push(w); }
+  const T0 = performance.now(); let main = 0, whole = null, cuts;
+  if (MODE === 'blob') cuts = await cutsFromBlob(blob, BB); else { whole = new Uint8Array(await blob.arrayBuffer()); const t = performance.now(); cuts = cutsFromBytes(whole, BB); main += performance.now() - t; }
+  const jobs = []; for (let i = 0; i + 1 < cuts.length; i++) jobs.push([cuts[i], cuts[i + 1]]);
+  const parts = new Array(jobs.length); let next = 0, unpackMs = 0;
+  await new Promise(done => { let left = jobs.length;
+    function give(w) { if (next >= jobs.length) return; const i = next++, [a, b] = jobs[i], opts = { blockBytes: BB };
+      if (MODE === 'blob') w.postMessage({ id: i, blob, a, b, opts }); else { const t = performance.now(), s = whole.slice(a, b); main += performance.now() - t; w.postMessage({ id: i, buf: s, opts }, [s.buffer]); } }
+    ws.forEach(w => { w.onmessage = e => { const t = performance.now(); parts[e.data.id] = LfcPack.unpack(e.data.out); unpackMs += performance.now() - t; if (--left === 0) done(); else give(w); }; give(w); }); });
+  whole = null; ROWS = [].concat(...parts); const total = performance.now() - T0; ws.forEach(w => w.terminate());
+  return { importMs: +total.toFixed(1), mainCopyMs: +main.toFixed(1), unpackMs: +unpackMs.toFixed(1), rows: ROWS.length, blocks: jobs.length }; }
+function saveStep() { const t = performance.now(), b = LfcPack.packRows(ROWS); return { saveMs: +(performance.now() - t).toFixed(1), bytes: b.length }; }
+</script>
