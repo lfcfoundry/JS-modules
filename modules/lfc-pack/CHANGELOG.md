@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.5 · API 0 · 2026-11-12
+- Asking for the rows with one exact value is faster (unpack with equals), and reading columns is faster.
+
 ## 0.9.4 · API 0 · 2026-11-12
 - Packs NDJSON into small column files and reads the rows back, exactly if you ask.
 
