@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Brotli vs LFC-pack small files</title>
+<script src="v-r83.js"></script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// small app saves: Brotli 1.1.0 (research wasm) of the JSON text at quality 5 and 11, against LFC-pack 0.8.3 pack/unpack (packTables for .json). Times include JSON.stringify / JSON.parse on the Brotli side, as an app would do.
+let X; const med = a => { a = a.slice().sort((x, y) => x - y); return a[a.length >> 1]; };
+async function run(reps) {
+  X = (await WebAssembly.instantiate(await (await fetch('brotli.wasm')).arrayBuffer(), {})).instance.exports; await LfcPack.init(); const out = {};
+  for (const f of ['map-20.json', 'map-200.json', 'orders-100.ndjson', 'logs-100.ndjson']) {
+    const txt = await (await fetch(f)).text(), tbl = f.endsWith('.json'), obj = tbl ? JSON.parse(txt) : txt.trim().split('\n').map(l => JSON.parse(l));
+    const te = new TextEncoder(), td = new TextDecoder();
+    const brSave = q => { const b = te.encode(JSON.stringify(obj)), p = X.malloc(b.length), cap = X.bound(b.length), d = X.malloc(cap); new Uint8Array(X.memory.buffer, p, b.length).set(b); const n = X.compress(d, cap, p, b.length, q, 0); const r = new Uint8Array(X.memory.buffer, d, n).slice(); X.free(d); X.free(p); return [r, b.length]; };
+    const brLoad = (c, n) => { const p = X.malloc(c.length), o = X.malloc(n); new Uint8Array(X.memory.buffer, p, c.length).set(c); const r = X.decompress(o, n, p, c.length); const s = td.decode(new Uint8Array(X.memory.buffer, o, r)); X.free(o); X.free(p); return JSON.parse(s); };
+    const lfSave = () => tbl ? LfcPack.packTables(obj) : LfcPack.packRows(obj), lfLoad = p => tbl ? LfcPack.unpackTables(p) : LfcPack.unpack(p);
+    const T = (fn, k) => { fn(); const a = []; for (let r = 0; r < reps; r++) { const t = performance.now(); for (let i = 0; i < k; i++) fn(); a.push((performance.now() - t) / k); } return +med(a).toFixed(4); };
+    const k = 40, [c5, n] = brSave(5), [c11] = brSave(11), lp = lfSave();
+    out[f] = { size: { br5: c5.length, br11: c11.length, lfc: lp.length }, save: { br5: T(() => brSave(5), k), br11: T(() => brSave(11), 4), lfc: T(lfSave, k) }, load: { br5: T(() => brLoad(c5, n), k), br11: T(() => brLoad(c11, n), k), lfc: T(() => lfLoad(lp), k) } };
+  }
+  return out;
+}
+</script>

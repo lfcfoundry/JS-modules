@@ -30,9 +30,10 @@ Related earlier work, not repeated here: the LZ4 1.11 framework and validation n
 9. **Small files carry 350 to 840 bytes of fixed parts.** Below about 100 rows, LFC-pack is larger than gzip of the same JSON (1.2 to 3.4 times at 10 to 20 rows). A built-in dictionary would save only 120 to 320 bytes per file, so it is not worth a format change. REJECT for now (E9).
 
 10. **ADOPT CANDIDATE with B14 (added 9:10 PM Eastern): 4 MB blocks for flat data.** With B14, a 1% range read takes 0.12 to 0.29 of today's time on logs and sensors (0.56 to 0.78 on a mixed set), and the full read 0.81 to 1.02. Flat files grow up to 3.3%. Nested blocks lose 4 to 15% on full reads at 4 MB, so they stay at 13 MB (E10).
-11. **The null plane stacks with B3b (added 9:20 PM Eastern).** A real prototype of the `N` type, stacked with mixed kinds: pack 0.65 to 0.86, full read 0.50 to 0.92, files 14 to 24% smaller on data with nullable columns in all 3 browsers. Files without such columns are byte-identical. Still a format change, so it goes to the owner (E11, `PROPOSAL-null-plane.md`).
+11. **The null plane stacks with B3b (added 9:20 PM Eastern).** A real prototype of the `N` type, stacked with mixed kinds: pack 0.65 to 0.86, full read 0.50 to 0.92, files 14 to 24% smaller on data with nullable columns in all 3 browsers. Files without such columns are byte-identical. Still a format change, so it goes to the owner (E11, `PROPOSAL-null-plane.md`). **On the real NYC taxi table it saves only 0.1 to 2.5%** (full reads 0.83 to 0.97), because its nullable columns are small categories (E14).
 12. **Real zstd dictionaries save less than estimated, but the previous save is a big lever (added 9:20 PM Eastern).** A built-in dictionary saves 11 to 24% of a 10-row file, an app dictionary 15 to 28%. Using the previous version of the same document as the dictionary makes an edited 2,000-node map 6% of its size (22,845 to 1,258 bytes) and a 10-row append to 1,000 orders 10% (E12, new lead B17).
 13. **Deltas stay small for hundreds of edits (added 9:30 PM Eastern).** Compressing each frame against the same frame of the previous save keeps a 2,000-node map at 3% of a full save after 1 edit and 16% after 500, and native zstd time drops to 0.25 to 0.75 of a full save. In the 3 browsers the zstd step of a delta save takes 0.23 to 0.37 of a full save's, and decoding 0.07 to 0.20 (E13).
+14. **LFC-pack is 0.75 to 0.87 of Parquet's size (added 9:55 PM Eastern)** on the same real taxi rows (Parquet zstd-3 from pyarrow 26), and Brotli 11 of the JSON beats LFC-pack below about 100 to 200 rows (E14, E15).
 
 Speed numbers come only from the three test browsers. Node was used only for pass/fail checks, byte counts and finding hot spots, never for timing.
 
@@ -443,6 +444,54 @@ Owner: "Keep going". A 2,000-node Netflow map save, then the same map after 1, 5
 - The 200-node map and orders cases run 0.03 to 0.12 ms, below the timer resolution in Firefox and WebKitGTK (1 ms clamps), so only Chromium is quoted for them: compress 0.41 to 0.46, decompress 0.20 to 0.29.
 
 **Decision: B17 ADOPT CANDIDATE for a proposal** (not code yet). The size win is large (1 to 15% of the zstd bytes over 1 to 500 edits) and nothing got slower. It needs an API (`pack(rows, { base })`), a footer flag naming the base save by its XXH64, a full-save rule (a full save when the delta passes 25%), and the prefix calls in the shipped wasm. Next: `PROPOSAL-delta-saves.md` and an app check of how Netflow and Story Editor autosave would keep the base.
+
+### 2026-11-11 E14 (B13, real data): the NYC taxi table, against Parquet
+
+Owner approved three downloads (pyarrow 26.0.1 wheel, the NYC TLC yellow taxi trips for January 2024, Brotli 1.1.0 source), all kept in research scratch. The taxi table has 2,964,624 rows and 19 columns; 5 columns (`passenger_count`, `RatecodeID`, `store_and_fwd_flag`, `congestion_surcharge`, `Airport_fee`) are null in the same 140,162 rows, all at the end of the file. Sets (`experiments/mktaxi.py`, timestamps as epoch ms): `taxit` = the last 300,000 rows as stored (160k rows without nulls, then 140k with), `taxis` = the same rows sorted by pickup time (nulls spread through every block, as a database export sorted by time would be), `taxi0` = the first 100,000 rows (no nulls).
+
+**Sizes** (Node, rows checked; Parquet from pyarrow on the same rows, `experiments/pqsize.py`, `results/parquet-taxi.txt`):
+
+| Set | LFC-pack 0.8.3 | null plane | null plane + B3b | Parquet zstd-1 (default) | Parquet zstd-3 | Parquet snappy |
+|---|---|---|---|---|---|---|
+| taxit 300k | 4,324,352 | -0.1% | -0.2% | 5,535,876 | 4,968,395 | 6,347,190 |
+| taxis 300k | 3,736,788 | -1.5% | -2.5% | 5,442,897 | 4,841,548 | 6,503,439 |
+| taxi0 100k | 1,512,525 | same bytes | same bytes | 1,914,601 | 1,729,659 | 2,200,722 |
+
+- **The null plane saves only 0.1 to 2.5% on the real table**, not the 14 to 24% of the made-up sets. The nullable taxi columns are small categories (1 to 6, `N`/`Y`, 0 / 2.5, 0 / 1.75), which compress well even as JSON text: together they are 4.6% of the file (`experiments/cols.cjs`). In 4 of 9 blocks the typed inner column was larger than the text, so the writer kept `j`. The made-up sets had nulls in high-entropy columns (dates, decimals), which is where the plane pays.
+- **LFC-pack is 0.75 to 0.87 of Parquet's size** (zstd-3) on the same rows, and 0.68 to 0.79 of pyarrow's default. Parquet keeps typed timestamps and dictionary pages, with 1 MB pages and one row group. Parquet times are native pyarrow on one thread (write 33 to 113 ms, read 12 to 40 ms) and are not comparable to browser numbers. The fair speed test is a Parquet reader in the browser (card to the owner).
+
+**Browser timing** (300,000 rows, `ONLY=full,keys1`, 4 rounds, ratio of medians against 0.8.3, `results/rdab-*-tx.json`), Chromium / Firefox / WebKitGTK:
+
+| Set | build | pack | full read |
+|---|---|---|---|
+| taxis (sorted) | null plane | 1.01 / 1.01 / 0.98 | 0.90 / 0.88 / 0.83 |
+| | B3b | 0.85 / 0.78 / 0.77 | 0.98 / 0.89 / 1.00 |
+| | both | 0.92 / 0.82 / 0.82 | 0.89 / 0.93 / 0.92 |
+| taxit (as stored) | null plane | 1.04 / 1.00 / 1.03 | 0.97 / 0.84 / 0.92 |
+| | B3b | 0.93 / 0.85 / 0.88 | 0.93 / 0.98 / 0.99 |
+| | both | 0.92 / 0.88 / 0.92 | 0.94 / 0.93 / 0.98 |
+
+- On real data the null plane gives full reads 0.83 to 0.97 and costs up to 1.04 on pack when alone. Stacked with B3b, pack is 0.82 to 0.92 and full read 0.89 to 0.98: a real but smaller gain than on made-up data. One-column reads (3 to 5 ms) swung 0.75 to 1.33 and are below this harness's resolution.
+- Expectation for the code thread: on real data with nulls in small categorical columns, expect 0 to 3% smaller files and reads up to 0.83; the 14 to 24% applies to nulls in dates, decimals and names.
+
+### 2026-11-11 E15 (B7): Brotli against LFC-pack on small files and app saves
+
+Brotli 1.1.0 (PyPI source package; the GitHub archive URL was refused by the proxy) built for wasm32 without a C library (`experiments/brotli-wasm/`, `clang --target=wasm32 -Os -mbulk-memory -nostdlib -ffreestanding -DNDEBUG -DBROTLI_BUILD_PORTABLE`, 730 KB). Its output matches Node's Brotli byte for byte on the 200-node map.
+
+Sizes (`experiments/brsize.cjs`, `results/brotli-small-files.txt`): Brotli quality 11 of the JSON beats LFC-pack below about 100 to 200 rows (LFC-pack is 1.4 to 4.4 times larger at 10 to 20 rows, 0.90 to 1.27 at 100 rows) and loses above (LFC-pack 0.61 to 0.84 of Brotli 11 at 1,000 rows and on the 2,000-node map). Brotli 5 is close to gzip -9.
+
+Browser timing (`experiments/www/br.html`, 5 fresh pages, 5 samples; Brotli times include `JSON.stringify` / `JSON.parse`, as an app would do), ms, Chromium / Firefox / WebKitGTK:
+
+| File | size: Brotli 5 / Brotli 11 / LFC-pack | save: Brotli 5 / LFC-pack | save: Brotli 11 | load: Brotli 5 / LFC-pack |
+|---|---|---|---|---|
+| map, 20 nodes | 253 / 233 / 1,034 | 0.06 / 0.34, 0.05 / 0.23, 0.08 / 0.30 | 2.3 / 2.8 / 2.5 | 0.013 / 0.13, 0.025 / 0.13, 0.025 / 0.15 |
+| map, 200 nodes | 3,327 / 2,687 / 2,905 | 0.57 / 0.67, 0.60 / 0.65, 0.63 / 0.68 | 49 / 59 / 53 | 0.14 / 0.21, 0.15 / 0.23, 0.20 / 0.23 |
+| orders, 100 rows | 2,248 / 1,936 / 2,054 | 0.31 / 0.82, 0.35 / 0.78, 0.35 / 1.00 | 23 / 28 / 25 | 0.06 / 0.13, 0.05 / 0.13, 0.08 / 0.10 |
+| logs, 100 rows | 3,293 / 2,891 / 2,908 | 0.34 / 0.26, 0.38 / 0.23, 0.38 / 0.33 | 18 / 22 / 20 | 0.06 / 0.08, 0.05 / 0.10, 0.08 / 0.10 |
+
+- Below about 100 rows, Brotli 5 of the JSON is smaller than LFC-pack, faster to save (except logs) and 1.3 to 10 times faster to load. All of these are under 1 ms, so no user waits on either.
+- Brotli 11 is the smallest but takes 18 to 59 ms to save a 100 to 200 row file: too slow for autosave on every edit.
+- **Threshold for app threads:** an app save under about 100 rows is smaller as compressed JSON than as LFC-pack; above about 200 rows LFC-pack wins on size, and from about 1,000 rows by 16 to 39%. A small-file rule belongs in the app or in a future LFC-pack "tiny" mode (the raw `r` block of E9 with a stronger coder), not in the format today. Brotli is not shipped by LFC-pack and would add 730 KB of wasm, so it stays a yardstick, not a candidate.
 
 ## Backlog (prioritized)
 

@@ -1,0 +1,9 @@
+taxit-300000   zstd-1 (default)    5535876  write   98 ms  read   34 ms
+taxit-300000   zstd-3              4968395  write  103 ms  read   33 ms
+taxit-300000   snappy              6347190  write   85 ms  read   30 ms
+taxis-300000   zstd-1 (default)    5442897  write  109 ms  read   36 ms
+taxis-300000   zstd-3              4841548  write  116 ms  read   36 ms
+taxis-300000   snappy              6503439  write   91 ms  read   36 ms
+taxi0-100000   zstd-1 (default)    1914601  write   35 ms  read   14 ms
+taxi0-100000   zstd-3              1729659  write   37 ms  read   14 ms
+taxi0-100000   snappy              2200722  write   31 ms  read   11 ms
