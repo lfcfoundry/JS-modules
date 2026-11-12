@@ -835,6 +835,30 @@ Without the cache, B19c is even to slightly better. GitHub events take 0.52 / 0.
 
 Decision: **ADOPT CANDIDATE as an add-on to the approved B19 + cache.** It adds no new API, gives the same rows, and makes repeated queries in every browser faster than B19 + cache alone. Handoff through the orchestrater.
 
+### 2026-11-12 E25 (B19d): the no-cache loss on very common values is query-order garbage collection, not B19 (rejected)
+
+**Claim tested.** In E24, without the cache, a value in more than half the rows (GitHub `type=PushEvent`, orders `status=paid`) took 1.05 to 1.41 of today. The suggested fix was to count matches from the codes and decompress in one call.
+
+**What the profile shows.**
+- Run alone in Node, the same query in codes mode takes 0.89 to 0.94 of today: `type=PushEvent` 123 against 131 ms, `status=paid` 98 against 109 ms. Decompression is the same in both modes (one call per frame), and a third of the time is garbage collection.
+- The loss appears only in the page's cycle of 24 queries.
+
+**B19d** (`experiments/b19d-patch-common-today.py`) hands such a block to today's exact read-and-filter path, after only the label and code frames were read. Same rows on 582 checks.
+
+3 browsers, fewest pairs (events and orders, 0.9.3 and null plane, `results/eq-dd-*.json`). The common-value query as a share of today, B19c → B19d:
+
+| | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| GitHub events, 0.9.3 | 1.23 → 1.07 | 1.35 → 1.23 | 1.04 → 1.14 |
+| Orders, 0.9.3 | 1.11 → 1.07 | 0.90 → 0.89 | 0.87 → 1.03 |
+| GitHub events, null plane | 1.06 → 1.02 | 0.96 → 1.14 | 0.89 → 1.16 |
+| Orders, null plane | 1.11 → 1.43 | 1.09 → 1.19 | 0.95 → 0.98 |
+
+- **Even today's exact path measures 1.02 to 1.43 at that point in the cycle.** So the extra time is not in B19's code.
+- In today's mode, every query builds every row, so garbage collection is spread evenly over all queries. With B19, the other queries allocate little, and the collection lands on the one query that builds most of the file.
+- The 24-query totals stay at 0.45 to 0.71 of today either way. B19d made some totals worse (WebKit events 0.52 → 0.60).
+- Decision: **REJECT B19d.** Keep B19c. In a report, give the common-value query its run-alone time (0.89 to 0.94 of today) next to the cycle time, and say why they differ.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -872,6 +896,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B19. Equality reads through dictionary codes.** Source: the Codex research branch (DuckDB and Parquet dictionary filtering; KB M110). Target: `unpack(file, { equals })`, Netflow category filters, Workbench queries. 3-browser gate in E20: 24 queries 0.53 to 0.79 of today (0.10 to 0.37 with the opt-in cache), absent values 0.02 to 0.05, better than the sum with the null plane on first queries. **ADOPT CANDIDATE**, owner card 12:04 AM Eastern 11.12.
 
 **B19c. B19 add-on: common values and text at matches.** From E24 (Codex Phase 12 follow-up). With the cache, 24 queries go from 0.21 to 0.37 of today down to 0.12 to 0.29 in 3 browsers, and the worst single query from up to 1.11 down to 0.55. Same rows. **ADOPT CANDIDATE** (add-on to the approved B19 + cache).
+
+**B19d. Common values take today's path (no cache).** E25: no gain, because the loss is garbage-collection timing in the query cycle, not B19. **REJECTED.**
 
 **B20. Faster column reads: JSON cells and one-pass zigzag.** Source: our own profile against parquet-wasm (E17, E23). Target: `unpackColumns` and `unpack` on tables with nullable or money columns (Netflow, Workbench). Taxi columns take 0.57 to 0.80 of the time, and rows 0.70 to 0.88. With the null plane, columns are faster than parquet-wasm in Firefox and WebKit. Same values, no format change. Difficulty: low. Risk: an engine-specific branch, which lfc-pack already uses for address and list columns. **ADOPT CANDIDATE**, owner card 12:50 AM Eastern 11.12.
 

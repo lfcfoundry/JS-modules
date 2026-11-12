@@ -1,6 +1,6 @@
 # Compression and data-performance research: findings and thresholds for other threads
 
-From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 6:03 AM Eastern (Detroit). The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E24). The same files are in this folder.
+From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 6:10 AM Eastern (Detroit). The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E25). The same files are in this folder.
 
 How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3), in ungoogled Chromium 156, Firefox 158 and WebKitGTK 2.52.6, on one shared 4-core cloud machine. Each test pairs fresh pages and reports the ratio of medians, so 0.80 means the new way takes 80% of the time. Node was used only for byte counts and pass/fail checks. No laptop, tablet or phone runs yet.
 
@@ -19,6 +19,7 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3
 | B18b saves straight from row objects (no JSON text), gated | Approved 5:26 AM 11.12, sent | code thread |
 | B19 equality reads (`equals`), dictionary codes, opt-in cache (with B19b) | Approved 5:27 AM 11.12, sent | code thread |
 | B19c add-on (common values, text at matches) | Adopt candidate, 3-browser gate passed (cached 24 queries 0.12 to 0.29, worst query 0.55) | code thread, via the orchestrater |
+| B19d common values take today's path (no cache) | Rejected (E25): the leftover cost is garbage collection landing on the one big query, and even today's path measures 1.02 to 1.43 there | none |
 | B20 column reads: all-null JSON cells, hand-read JSON cells (Chromium, Firefox), one-pass zigzag | Adopt candidate; small tables re-run (owner pick); send-or-hold card open (5:35 AM) | owner |
 | Blob-range import jobs (from the Codex review) | Adopt candidate for imports (main-thread copy and memory, not speed) | code thread, via the orchestrater |
 
