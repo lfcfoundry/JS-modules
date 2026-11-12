@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>packRows stack</title><script>var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research B18b: packRows(rows) median time over reps on one page, file size, rows checked. hash = build:file[:4mb]
+async function run(reps) { await LfcPack.init(); const f = __h[1], o = __h[2] === "4mb" ? { blockBytes: 4194304 } : undefined, med = a => a.sort((x, y) => x - y)[a.length >> 1];
+  const rows = (await (await fetch(f)).text()).trim().split('\n').map(l => JSON.parse(l)); const t = []; let b;
+  for (let r = 0; r < reps; r++) { const a = performance.now(); b = LfcPack.packRows(rows, o); t.push(performance.now() - a); }
+  return { ms: +med(t).toFixed(1), bytes: b.length, same: canon(LfcPack.unpack(b)) === canon(rows) }; }
+// values compared with keys sorted: lfc-pack keeps keys in first-seen order per block (value-exact mode), so a block cut elsewhere may order keys differently
+function canon(rs) { return JSON.stringify(rs.map(r => { const o = {}; for (const k of Object.keys(r).sort()) o[k] = r[k]; return o; })); }
+</script>

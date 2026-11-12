@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>B19 equality reads</title><script>var __h = location.hash.slice(1).split(':'); globalThis.__B19 = __h[2]; document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research B19: unpack(file, { equals }) on one packed file. hash = build:file:mode (off | plain | codes). The first query is timed alone (a page's first read), then 24 queries cycling through the list
+const Q = { ghf: [['type', 'ReleaseEvent'], ['type', 'nope'], ['org', 'fadsgxch34'], ['actor', 'github-actions[bot]'], ['repo', 'LMAO-armv8/kernel_samsung_r0q'], ['type', 'PushEvent']],
+  ordersn: [['status', 'cancelled'], ['status', 'refunded'], ['status', 'nope'], ['status', 'paid']], logs: [['level', 'ERROR'], ['level', 'nope'], ['level', 'DEBUG']],
+  taxis: [['store_and_fwd_flag', 'Y'], ['store_and_fwd_flag', 'N'], ['store_and_fwd_flag', null]] };
+async function run() { await LfcPack.init(); const f = __h[1], b = new Uint8Array(await (await fetch('eq/' + f + '.lfc')).arrayBuffer()), q = Q[f.split('-')[0]];
+  const one = (k, v) => LfcPack.unpack(b, { equals: { key: k, value: v } }).length;
+  let t = performance.now(); const n1 = one(q[0][0], q[0][1]); const first = performance.now() - t, per = [];
+  let sum = 0; for (let i = 0; i < 24; i++) { const [k, v] = q[i % q.length]; t = performance.now(); sum += one(k, v); per.push(performance.now() - t); }
+  return { first: +first.toFixed(2), all24: +per.reduce((a, x) => a + x, 0).toFixed(1), n1, sum }; }
+</script>
