@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.9.3 (API 0)
+ * Version 0.9.4 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1000,8 +1000,8 @@
         var d = base.slice(); if (mono) for (i = n - 1; i > 0; i--) d[i] -= d[i - 1]; else for (i = 0; i < n; i++) d[i] = zz(d[i]);
         var dl2 = null, sa = 0, sb = 0;
         if (!mono && n > 1) { dl2 = new Array(n); dl2[0] = zz(base[0]); for (i = 1; i < n; i++) dl2[i] = zz(base[i] - base[i - 1]); for (i = 0; i < n; i++) { sa += vlen(d[i]); sb += vlen(dl2[i]); } }
-        if (!dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
-        if (dl2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
+        if (B18_ALLV || !dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
+        if (dl2 && (B18_ALLV || sb <= sa * 1.05)) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Array(n); for (i = 0; i < n; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)]); }
       }
       if (!best || best.size > n * 4) { var f = new Float64Array(v); cand('F', {}, [new Uint8Array(f.buffer)]); }   // raw doubles are only tried when the scaled whole numbers did not already get under half of their size
@@ -1120,8 +1120,10 @@
     var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
   }
   // returns null when the input is not flat rows (some line is not a JSON object)
-  function writeFlatBlock(ctx, input, opts) {
-    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, text = td.decode(input), lines, rows = [], i, j, r, nl = 0, at = -1;
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && input.rowsIn); try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; } }
+  function writeFlatBlock0(ctx, input, opts) {
+    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, rowsIn = input && input.rowsIn, text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
+    if (!rowsIn) {   // B18b: row objects given, no text to parse
     // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
     while ((at = text.indexOf('\n', at + 1)) >= 0) nl++;
     if (text.charCodeAt(text.length - 1) !== 10) nl++;
@@ -1130,6 +1132,7 @@
     if (rows.length) { for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) { rows = []; break; } } }
     lines = rows.length ? [] : text.split('\n');
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
+    }
     var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
     for (i = 0; i < n; i++) { r = rows[i]; for (k in r) if (!seen.has(k)) { seen.set(k, keys.length); keys.push(k); cols.push([]); } }
     var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length), ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq;
@@ -1184,6 +1187,7 @@
   function numDiv(b, c, scale) { var f = new Float64Array(c), i; for (i = 0; i < c; i++) f[i] = b[i] / scale; return f; }
   function listAsc(ln, dl, c) { var asc = true, ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; } return asc; }
   function listDeltas(ln, dl, c, asc) { var dd = new Float64Array(dl.length), ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; } return dd; }
+  var B18_ALLV = false;   // B18b: set while the row-object path encodes a block
   function writeFlatBlockFast(ctx, input, opts) {
     if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
     if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
@@ -1613,7 +1617,15 @@
     }
     b[e] = 10; return b.subarray(1);
   }
-  function packRows(rows, opts) { return pack(rowsBytes(rows), opts); }
+  function packRows(rows, opts) { var po = packOpts(opts); if (!po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && b18Pays(rows)) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], po); return pack(rowsBytes(rows), opts); }
+  // B18b gate (Chromium 156 sweep on 0.9.3, 15 files): the row path wins when the rows would make more than 16 MB of text (the text path then leaves the wasm scanner), or when fewer than 40% of the cells are strings; string-heavy tables under 16 MB pack faster through the wasm text scanner (1.1 to 1.5 times slower otherwise)
+  function b18Pays(rows) { var n = rows.length, k = Math.min(1024, n), est = JSON.stringify(rows.slice(0, k)).length / k * n, i, r, c = 0, st = 0;
+    if (est > 16 * 1048576) return true;
+    for (i = 0; i < Math.min(256, n); i++) { r = rows[i]; for (var q in r) { c++; if (typeof r[q] === 'string') st++; } }
+    return st < c * 0.4; }
+  // B18b: true when every row is a plain object whose values are strings, booleans, null or finite numbers other than -0 (so JSON.stringify would write each value as is and keep every key)
+  function flatScalars(rows) { var i, r, k, v, t, P = Object.prototype; for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) return false; t = Object.getPrototypeOf(r); if (t !== P && t !== null) return false;
+    for (k in r) { v = r[k]; t = typeof v; if (t === 'number') { if (v !== v || v === Infinity || v === -Infinity || (v === 0 && 1 / v < 0)) return false; } else if (t !== 'string' && t !== 'boolean' && v !== null) return false; } } return true; }
   function packTables(obj, opts) {
     var names = Object.keys(obj), inputs = [], i, v;
     for (i = 0; i < names.length; i++) {
@@ -1658,6 +1670,12 @@
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;   // since 0.4.6 by default: each big block judges by itself (dupShare), no trial
     if (ctx.pick == null && !opts._tryFirst) { for (ti = 0, mid = 0; ti < inputs.length; ti++) mid += inputs[ti].bytes.length; ctx.pick = mid < PATHS_TRY * bb ? 1 : (typeof PATHS_SAMPLE !== 'undefined' && PATHS_SAMPLE > 0 ? samplePick(inputs[0].bytes, opts) : null); mid = undefined; }
     for (ti = 0; ti < inputs.length; ti++) {
+    if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
+      var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl;
+      for (ra = 0; ra < RA.length; ra += stp) { sl = RA.slice(ra, ra + stp); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
+        blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
+      tail = true; continue;
+    }
     b = inputs[ti].bytes; p = 0; tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
     while (retry.length || p < b.length) {
       if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
@@ -2126,7 +2144,7 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.9.3', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.9.4', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread

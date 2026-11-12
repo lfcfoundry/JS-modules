@@ -271,8 +271,8 @@
         var d = base.slice(); if (mono) for (i = n - 1; i > 0; i--) d[i] -= d[i - 1]; else for (i = 0; i < n; i++) d[i] = zz(d[i]);
         var dl2 = null, sa = 0, sb = 0;
         if (!mono && n > 1) { dl2 = new Array(n); dl2[0] = zz(base[0]); for (i = 1; i < n; i++) dl2[i] = zz(base[i] - base[i - 1]); for (i = 0; i < n; i++) { sa += vlen(d[i]); sb += vlen(dl2[i]); } }
-        if (!dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
-        if (dl2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
+        if (B18_ALLV || !dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
+        if (dl2 && (B18_ALLV || sb <= sa * 1.05)) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Array(n); for (i = 0; i < n; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)]); }
       }
       if (!best || best.size > n * 4) { var f = new Float64Array(v); cand('F', {}, [new Uint8Array(f.buffer)]); }   // raw doubles are only tried when the scaled whole numbers did not already get under half of their size
@@ -391,8 +391,10 @@
     var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
   }
   // returns null when the input is not flat rows (some line is not a JSON object)
-  function writeFlatBlock(ctx, input, opts) {
-    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, text = td.decode(input), lines, rows = [], i, j, r, nl = 0, at = -1;
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && input.rowsIn); try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; } }
+  function writeFlatBlock0(ctx, input, opts) {
+    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, rowsIn = input && input.rowsIn, text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
+    if (!rowsIn) {   // B18b: row objects given, no text to parse
     // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
     while ((at = text.indexOf('\n', at + 1)) >= 0) nl++;
     if (text.charCodeAt(text.length - 1) !== 10) nl++;
@@ -401,6 +403,7 @@
     if (rows.length) { for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) { rows = []; break; } } }
     lines = rows.length ? [] : text.split('\n');
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
+    }
     var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
     for (i = 0; i < n; i++) { r = rows[i]; for (k in r) if (!seen.has(k)) { seen.set(k, keys.length); keys.push(k); cols.push([]); } }
     var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length), ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq;
@@ -455,6 +458,7 @@
   function numDiv(b, c, scale) { var f = new Float64Array(c), i; for (i = 0; i < c; i++) f[i] = b[i] / scale; return f; }
   function listAsc(ln, dl, c) { var asc = true, ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; } return asc; }
   function listDeltas(ln, dl, c, asc) { var dd = new Float64Array(dl.length), ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; } return dd; }
+  var B18_ALLV = false;   // B18b: set while the row-object path encodes a block
   function writeFlatBlockFast(ctx, input, opts) {
     if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
     if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
