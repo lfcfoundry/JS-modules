@@ -34,6 +34,8 @@ Related earlier work, not repeated here: the LZ4 1.11 framework and validation n
 12. **Real zstd dictionaries save less than estimated, but the previous save is a big lever (added 9:20 PM Eastern).** A built-in dictionary saves 11 to 24% of a 10-row file, an app dictionary 15 to 28%. Using the previous version of the same document as the dictionary makes an edited 2,000-node map 6% of its size (22,845 to 1,258 bytes) and a 10-row append to 1,000 orders 10% (E12, new lead B17).
 13. **Deltas stay small for hundreds of edits (added 9:30 PM Eastern).** Compressing each frame against the same frame of the previous save keeps a 2,000-node map at 3% of a full save after 1 edit and 16% after 500, and native zstd time drops to 0.25 to 0.75 of a full save. In the 3 browsers the zstd step of a delta save takes 0.23 to 0.37 of a full save's, and decoding 0.07 to 0.20 (E13).
 14. **LFC-pack is 0.75 to 0.87 of Parquet's size (added 9:55 PM Eastern)** on the same real taxi rows (Parquet zstd-3 from pyarrow 26), and Brotli 11 of the JSON beats LFC-pack below about 100 to 200 rows (E14, E15).
+15. **Stacked, the approved items beat the sum of their parts (added 10:05 PM Eastern)** on data with nullable columns: a 1% range read on the orders set takes 0.08 to 0.12 of today's time, against 0.16 to 0.28 if the gains were independent, because B14 picks typed values cheaply where it had to parse JSON text before. On the real taxi table the stack is even with 4 MB blocks alone for range reads (E16).
+16. **In the browser, LFC-pack is the smallest and fastest to rows, but slowest to save (added 10:30 PM Eastern).** On the same taxi rows it is 0.85 of Parquet zstd-3's size and builds rows in 0.51 to 0.63 of parquet-wasm's time, but `packRows` takes 1.8 to 2.9 times parquet-wasm's save (E17, new lead B18).
 
 Speed numbers come only from the three test browsers. Node was used only for pass/fail checks, byte counts and finding hot spots, never for timing.
 
@@ -493,6 +495,50 @@ Browser timing (`experiments/www/br.html`, 5 fresh pages, 5 samples; Brotli time
 - Brotli 11 is the smallest but takes 18 to 59 ms to save a 100 to 200 row file: too slow for autosave on every edit.
 - **Threshold for app threads:** an app save under about 100 rows is smaller as compressed JSON than as LFC-pack; above about 200 rows LFC-pack wins on size, and from about 1,000 rows by 16 to 39%. A small-file rule belongs in the app or in a future LFC-pack "tiny" mode (the raw `r` block of E9 with a stronger coder), not in the format today. Brotli is not shipped by LFC-pack and would add 730 KB of wasm, so it stays a yardstick, not a candidate.
 
+### 2026-11-11 E16: everything stacked against each part (B14 + 4 MB blocks + null plane + B3b)
+
+Owner rule (9:48 PM Eastern, relayed by the orchestrater): test stacked ideas together as well as alone, and look for combinations that beat the sum of their parts. Build `all` = B3b v3 + null plane + B14 (`b14-range-late-rows.diff` applied on top), written with 4 MB blocks. Parts: `sel` (B14 at 13 MB), `r83` at 4 MB, `b3bn` (null plane + B3b at 13 MB). 3 rounds, paired fresh pages, ratio of medians against 0.8.3 at 13 MB (`experiments/stkanal.py`, `results/rdab-*-stack.json`). "Product" is what independent gains would give (the parts' ratios multiplied). Range reads on the stacked build pass 108 of 108 checks against a filtered full read, including ranges on nullable columns (`experiments/selverify2.cjs`).
+
+| Set | measure | product of parts | all stacked (Chromium / Firefox / WebKitGTK) |
+|---|---|---|---|
+| orders 100k (6 nullable columns) | 1% range | 0.16 / 0.28 / 0.23 | **0.08 / 0.12 / 0.10** |
+| | one column | 0.36 / 0.27 / 0.50 | **0.19 / 0.25 / 0.29** |
+| | full read | 0.53 / 0.69 / 0.59 | **0.50 / 0.62 / 0.51** |
+| | pack | 0.71 / 0.67 / 0.72 | 0.65 / 0.63 / 0.70 |
+| 3 nullable sensor columns 100k | 1% range | 0.18 / 0.25 / 0.13 | **0.12 / 0.18** / 0.14 |
+| | one column | 0.17 / 0.18 / 0.19 | 0.14 / 0.15 / 0.17 |
+| | full read | 0.40 / 0.62 / 0.67 | 0.50 / 0.62 / **0.47** |
+| | pack | 0.89 / 0.96 / 0.88 | **0.80 / 0.77 / 0.76** |
+| taxi 300k, sorted (real) | 1% range | 0.24 / 0.18 / 0.30 | 0.32 / 0.29 / 0.46 |
+| | full read | 0.83 / 0.92 / 1.15 | 0.87 / 0.85 / 0.97 |
+| | pack | 0.89 / 0.84 / 0.80 | 0.90 / 0.78 / 0.82 |
+
+- **Better than the sum on data with nullable columns.** A 1% range read on orders takes 0.08 to 0.12 of today's time, against 0.16 to 0.28 if the gains were independent. Why: with a `j` (JSON text) column, B14 still has to parse the whole column to pick its selected rows; with the null plane the column is typed, so B14 decodes it and picks values cheaply. The null plane also gives nullable number columns zone maps, so smaller blocks can be skipped on them. Pack gains more than the product on the sensor set (0.76 to 0.80 against 0.88 to 0.96).
+- **On the real taxi table, the stack equals 4 MB blocks alone for range reads.** On their own pages at 4 MB (6 rounds, `results/rdab-*-txiso.json`), `all` against `r83` was 1.00 to 1.04 for a 1% range (10 to 13 ms). Both ideas cut the same rows there: a 4 MB taxi block holds about 10,000 rows, and a 1% range keeps about 30% of the block, near the B14 cutover. The stack is not slower; the overlap just means no extra gain. One-column taxi reads (1.5 to 5 ms) are below the harness's resolution.
+- Size stacks as expected (sizes do not interact).
+
+**Decision:** ship the three approved items together as one release, and gate it on these stacked numbers, not only on each item alone. The orders and sensor rows above are the stacked gate; the taxi rows are the real-data control.
+
+### 2026-11-11 E17: LFC-pack against Parquet and Arrow readers in the browser, and where saves lose (B18)
+
+Owner approved fetching browser rivals into research scratch (npm): parquet-wasm 0.9.0, hyparquet 1.33.0, Apache Arrow JS 21.2.0 (DuckDB-wasm 1.33.1-dev57.0 fetched, not run yet). Same 300,000 taxi rows as E14 sorted by pickup time. Rival files written by pyarrow 26 (`experiments/mkrival.py`): Parquet zstd-3 and snappy, Arrow IPC stream uncompressed; 64-bit ints narrowed to int32 and timestamps as milliseconds, so Arrow JS returns numbers. "rows" = plain row objects (for Arrow and parquet-wasm built with one keyed store per column, nulls via `isValid`, as LFC-pack does); "cols" = decoded columns (LFC-pack `unpackColumns`; Arrow table). "save" = from row objects (`packRows`; parquet-wasm via `tableFromJSON`, IPC, `writeParquet` with zstd). `experiments/www/rv.html`, 4 fresh pages per library, median of 3 (`results/rv-*.json`). ms, Chromium / Firefox / WebKitGTK:
+
+| Library | size | rows | cols | save |
+|---|---|---|---|---|
+| LFC-pack 0.8.3 | 3,736,788 | 339 / 286 / 325 | 204 / 143 / 153 | 1,809 / 1,799 / 1,647 |
+| LFC-pack, research stack (4 MB) | **3,716,840** | **305 / 261 / 276** | 167 / 134 / 115 | 1,733 / 1,490 / 1,401 |
+| parquet-wasm, zstd-3 | 4,396,479 | 574 / 508 / 515 | 102 / 103 / 105 | **617 / 830 / 746** |
+| parquet-wasm, snappy | 6,043,732 | 546 / 436 / 484 | 86 / 88 / 83 | |
+| hyparquet, snappy | 6,043,732 | 494 / 641 / 369 | | |
+| Arrow IPC, uncompressed | 37,549,576 | 348 / 260 / 291 | **0.6 / 1.0 / 1.0** | |
+
+- **Size:** LFC-pack is 0.85 of Parquet zstd-3 even with Parquet's types narrowed, and a tenth of Arrow IPC.
+- **Rows:** LFC-pack builds row objects in 0.51 to 0.63 of parquet-wasm's time and 0.41 to 0.75 of hyparquet's. Arrow IPC rows cost about the same as LFC-pack, because both spend the time on the same keyed stores.
+- **Columns:** LFC-pack's `unpackColumns` takes 1.1 to 2.0 times parquet-wasm's time. Arrow IPC reads in about 1 ms, because it does not decode anything (37.5 MB on disk).
+- **Saves lose: `packRows` takes 1.8 to 2.9 times parquet-wasm's time.** Split (`experiments/www/ps.html`, 3 browsers): `JSON.stringify` of the rows 220 to 290 ms, packing the same rows from NDJSON bytes 890 to 1,120 ms, `packRows` 1,600 to 2,000 ms. Two causes: (1) an array bigger than the tokenizer buffer (about 16 MB of text) falls back to a JavaScript comma scan of one huge text; (2) in 0.8.3 the taxi blocks fall to the slow JavaScript writer because of the nulls (Node profile: `writeFlatBlock` 26%, `encodeColumn0` 14%, garbage collection 11%). B3b fixes (2): with the stack the profile is on the fast writer.
+- **B18a, slices (`experiments/b18-patch-rows-slices.py`):** stringify a big array in slices that each fit the tokenizer buffer, so each slice takes the wasm comma scan. Same bytes. `packRows` 0.80 in Chromium, 0.89 in WebKitGTK, but 1.08 in Firefox (3 pages each). **EXPERIMENT**, Firefox needs more rounds and a slice-size sweep before it can go anywhere.
+- **B18b, the real gap:** LFC-pack goes rows → JSON text → tokens → columns, while parquet-wasm goes rows → columns. Even packing from NDJSON bytes (no stringify) is 1.3 to 1.5 times parquet-wasm's whole save from objects. A writer that reads row objects straight into columns would skip the text twice. **EXPERIMENT** (large: a second front end to the flat writer; must give the same bytes).
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -524,6 +570,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B16. Smaller skip units for range reads.** Update (E10): 4 MB flat blocks with B14 take 0.12 to 0.29 of the time for a 1% range on logs and sensors (0.56 to 0.78 mixed), the full read 0.81 to 1.02, up to 3.3% bigger. Nested stays at 13 MB (full read 1.04 to 1.15 at 4 MB). **ADOPT CANDIDATE with B14** (writer default, no format change). Original entry: Source: Parquet page index and ORC row groups (see B8). Default blocks hold 13 MB of text, so a 1% range opens a whole block (E7: `range1` costs the same as `range10`). Next experiment: smaller `blockBytes` (1, 2, 4 MB) for size against range-read time, which needs no format change. **EXPERIMENT** (after B14, which removes most of the per-row cost inside an opened block).
 
 **B17. Save as a delta of the previous save (zstd prefix, like `zstd --patch-from`).** Source: zstd `ZSTD_CCtx_refPrefix` and `--patch-from` (zstd 1.4.5 and later; not re-fetched this session). Target: autosave and history for Netflow map saves, Story Editor and Mind Mapper autosave, Workbench snapshots. Advantage (E12, sizes only): an edited 2,000-node map 1,258 bytes instead of 22,845 (6%), an edited 200-node map 27%, 10 rows appended to 1,000 orders 10%, to logs 47%. Evidence: real zstd, made-up edits; no speed numbers yet. Difficulty: medium to high: the wasm build has no prefix call today, and a delta file is unreadable without the earlier file, so it needs an API (`pack(rows, { base })`) and a container flag that names the base, plus a rule to write a full save every few saves. Risk: high (format and app change). E13: frame-to-frame prefixes stay under 16% of a full save after 500 edits, and native zstd time is 0.25 to 0.75 of a full save. Browsers (E13): the zstd step of a delta save is 0.23 to 0.37 of a full save's, decoding 0.07 to 0.20; zstd is about a tenth of a whole save, so the gain is size. **ADOPT CANDIDATE for a proposal.**
+
+**B18. Faster saves from row objects.** Source: our own profile against parquet-wasm 0.9.0 (E17). Target: `packRows`, `packTables` (app saves), Workbench import. (a) Stringify big arrays in slices: 0.80 to 1.08, EXPERIMENT. (b) Read row objects straight into columns, no JSON text: up to about 2x on saves if it reaches parquet-wasm's speed. Evidence: profiles plus rival timing. Difficulty: (a) low, (b) high. Risk: bytes must stay identical; (b) is a second writer front end. **EXPERIMENT.**
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 

@@ -35,6 +35,7 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.8.3, in ungoogled Chromi
 **Nulls (B13)**
 - One `null` anywhere in a typed column costs 11 to 16% of the file on number and text columns, at any null share from 0.1% to 50%. On true/false columns it costs 1 to 4%. The whole column falls back to JSON text.
 - With the null plane stacked on B3b, files with nullable columns are 14 to 24% smaller, pack takes 0.65 to 0.86 of today's time and a full read 0.50 to 0.92. Files without nulls are byte-identical.
+- **On real data the gain is much smaller** (9:55 PM). On the NYC taxi table (300,000 rows, 5 nullable columns of small categories) the null plane saves 0.1 to 2.5%, with full reads at 0.83 to 0.97. Expect the 14 to 24% only when nulls sit in dates, decimals or names.
 - For apps: until the null plane ships, leaving a key out costs far less than writing `null`. An out-of-range sentinel such as -999 is within 5.5% of the null plane on numbers.
 
 **Mixed kinds (B3b)**
@@ -51,6 +52,14 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.8.3, in ungoogled Chromi
 - Suggested rule: write a full save when the delta passes 25% of the last full save.
 - In the 3 browsers (9:40 PM), the zstd step of a delta save takes 0.23 to 0.37 of a full save's, and decoding takes 0.07 to 0.20. zstd is only about a tenth of a whole save (5 to 6 ms for this map), so the win is size, not speed. Reading a delta adds under 0.05 ms, because the base save has to be decoded first. Status: adopt candidate for a proposal.
 - Who could use it: Netflow saves, Story Editor and Mind Mapper autosave, Workbench snapshots. It needs an API and a format flag, so it would come as its own proposal.
+
+**Against other products (real taxi rows, 9:55 PM)**
+- LFC-pack is 0.75 to 0.87 of the size of Parquet zstd-3 and 0.68 to 0.79 of pyarrow's default Parquet (zstd-1). We don't have a browser speed comparison with Parquet yet.
+- Brotli 11 of the JSON beats LFC-pack on size below about 100 to 200 rows. LFC-pack wins above that, by 16 to 39% from about 1,000 rows.
+- Brotli 5 is smaller below about 100 rows, loads 1.3 to 10 times faster and saves faster, but everything stays under 1 ms. Brotli 11 saves take 18 to 59 ms on 100 to 200 rows, which is too slow for autosave.
+- **In the browser against rival readers (10:30 PM, same taxi rows, 3 browsers):** LFC-pack builds row objects in 0.51 to 0.63 of parquet-wasm's time. `unpackColumns` takes 1.1 to 2.0 times parquet-wasm's columns. Saving from row objects (`packRows`) takes 1.8 to 2.9 times parquet-wasm's save (lead B18). Arrow IPC reads columns in about 1 ms, but its file is 10 times larger.
+- **Stacking (E16):** the approved items beat the sum of their parts on data with nullable columns. A 1% range read on orders takes 0.08 to 0.12 of today's time, against 0.16 to 0.28 if the gains were independent. Gate the release on the stacked numbers.
+- For app threads: an app save under about 100 rows is smaller as compressed JSON than as LFC-pack.
 
 **Skips that don't pay**
 - Skipping zstd on incompressible frames saves under 5% of pack time.

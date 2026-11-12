@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>packRows split</title><script>document.write('<script src="v-' + (location.hash.slice(1) || 'r83') + '.js"><\/script>');</script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// where packRows(rows) spends its time on 300,000 taxi rows: JSON.stringify of the rows, then packRows (which stringifies inside); and pack of the original NDJSON bytes
+async function run(reps) { await LfcPack.init(); const b = new Uint8Array(await (await fetch('rv/taxis-r83.lfc')).arrayBuffer()), rows = LfcPack.unpack(b), med = a => a.sort((x, y) => x - y)[a.length >> 1];
+  const nd = new Uint8Array(await (await fetch('taxis-300000.ndjson')).arrayBuffer()); const o = { stringify: [], packRows: [], packNd: [] }; let j;
+  for (let r = 0; r < reps; r++) { let t = performance.now(); j = JSON.stringify(rows); o.stringify.push(performance.now() - t);
+    t = performance.now(); LfcPack.packRows(rows); o.packRows.push(performance.now() - t); t = performance.now(); LfcPack.pack(nd); o.packNd.push(performance.now() - t); }
+  for (const k in o) o[k] = +med(o[k]).toFixed(0); return o; }
+</script>

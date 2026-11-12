@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>LFC-pack vs Parquet and Arrow readers</title>
+<script>document.write('<script src="' + (location.hash === '#lfcall' ? 'v-all.js' : 'v-r83.js') + '"><\/script>');</script>
+<script src="nm/apache-arrow/Arrow.es2015.min.js"></script>
+<script type="module">
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// same 300,000 taxi rows: LFC-pack 0.8.3 and the full research stack against parquet-wasm 0.9.0 (zstd-3, snappy), hyparquet 1.33.0 (snappy), Arrow JS 21.2.0 (IPC stream, uncompressed).
+// "cols" = decoded columns; "rows" = plain row objects (Arrow and parquet-wasm rows are built with one keyed store per column, like LFC-pack; nulls checked with isValid, BigInt timestamps turned into numbers).
+import init, { readParquet, writeParquet, Table as PTable, WriterPropertiesBuilder, Compression } from './nm/parquet-wasm/esm/parquet_wasm.js';
+import { parquetReadObjects } from './nm/hyparquet/src/index.js';
+const A = window.Arrow;
+window.ready = (async () => { await init(); await LfcPack.init(); })();
+const med = a => { a = a.slice().sort((x, y) => x - y); return a[a.length >> 1]; };
+function arrowRows(t) {
+  const n = t.numRows, names = t.schema.fields.map(f => f.name), cols = names.map(k => { const v = t.getChild(k); let a = v.toArray(); if (a instanceof BigInt64Array) a = Float64Array.from(a, Number); return [k, a, v.nullCount ? v : null]; }), out = new Array(n);
+  for (let i = 0; i < n; i++) out[i] = {};
+  for (const [k, a, nv] of cols) { if (nv) for (let i = 0; i < n; i++) out[i][k] = nv.isValid(i) ? a[i] : null; else for (let i = 0; i < n; i++) out[i][k] = a[i]; }
+  return out;
+}
+window.run = async (lib, reps) => { await window.ready; const get = async f => new Uint8Array(await (await fetch('rv/' + f)).arrayBuffer());
+  const T = async fn => { await fn(); const r = []; for (let k = 0; k < reps; k++) { const t = performance.now(); await fn(); r.push(performance.now() - t); } return +med(r).toFixed(1); };
+  const o = {};
+  if (lib === 'lfc83' || lib === 'lfcall') { const b = await get(lib === 'lfc83' ? 'taxis-r83.lfc' : 'taxis-all.lfc'), L = window.LfcPack; o.size = b.length; o.rows = await T(() => L.unpack(b)); o.cols = await T(() => L.unpackColumns(b));
+    const rows = L.unpack(b); o.save = await T(() => L.packRows(rows)); }
+  if (lib === 'pqwasm') { const b = await get('taxis-z3.parquet'); o.size = b.length; o.cols = await T(() => A.tableFromIPC(readParquet(b).intoIPCStream())); o.rows = await T(() => arrowRows(A.tableFromIPC(readParquet(b).intoIPCStream())));
+    const rows = arrowRows(A.tableFromIPC(readParquet(b).intoIPCStream())), props = new WriterPropertiesBuilder().setCompression(Compression.ZSTD).build();
+    o.save = await T(() => writeParquet(PTable.fromIPCStream(A.tableToIPC(A.tableFromJSON(rows), 'stream')), new WriterPropertiesBuilder().setCompression(Compression.ZSTD).build())); }
+  if (lib === 'pqwasm-sn') { const b = await get('taxis-sn.parquet'); o.size = b.length; o.cols = await T(() => A.tableFromIPC(readParquet(b).intoIPCStream())); o.rows = await T(() => arrowRows(A.tableFromIPC(readParquet(b).intoIPCStream()))); }
+  if (lib === 'hyparquet') { const b = await get('taxis-sn.parquet'); o.size = b.length; o.rows = await T(() => parquetReadObjects({ file: b.buffer })); }
+  if (lib === 'arrow') { const b = await get('taxis.arrows'); o.size = b.length; o.cols = await T(() => A.tableFromIPC(b)); o.rows = await T(() => arrowRows(A.tableFromIPC(b))); }
+  return o; };
+</script>
