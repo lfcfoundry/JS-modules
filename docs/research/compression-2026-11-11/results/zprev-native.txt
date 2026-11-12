@@ -1,0 +1,10 @@
+file              today | whole         match         | compress ms: full  whole  match | decompress ms: full  whole  match   (native libzstd 1.5.5)
+mapseq-1.json     22635 |    582    3% |    601    3% | 0.385 0.890 0.123 | 0.154 0.045 0.045
+mapseq-5.json     22710 |    822    4% |    707    3% | 0.384 0.887 0.124 | 0.161 0.047 0.046
+mapseq-20.json    22976 |   1082    5% |    950    4% | 0.397 0.896 0.127 | 0.153 0.047 0.045
+mapseq-100.json   23945 |   2313   10% |   1931    8% | 0.380 0.906 0.137 | 0.145 0.052 0.052
+mapseq-500.json   25401 |   4823   19% |   4141   16% | 0.397 0.910 0.168 | 0.163 0.065 0.065
+file              today | whole         match         | compress ms: full  whole  match | decompress ms: full  whole  match   (native libzstd 1.5.5)
+map-200e.json      3015 |    803   27% |    749   25% | 0.110 0.127 0.060 | 0.048 0.036 0.035
+file              today | whole         match         | compress ms: full  whole  match | decompress ms: full  whole  match   (native libzstd 1.5.5)
+orders-1010.ndjson  10083 |    992   10% |    935    9% | 0.137 0.266 0.085 | 0.056 0.045 0.045

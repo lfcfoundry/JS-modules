@@ -32,6 +32,7 @@ Related earlier work, not repeated here: the LZ4 1.11 framework and validation n
 10. **ADOPT CANDIDATE with B14 (added 9:10 PM Eastern): 4 MB blocks for flat data.** With B14, a 1% range read takes 0.12 to 0.29 of today's time on logs and sensors (0.56 to 0.78 on a mixed set), and the full read 0.81 to 1.02. Flat files grow up to 3.3%. Nested blocks lose 4 to 15% on full reads at 4 MB, so they stay at 13 MB (E10).
 11. **The null plane stacks with B3b (added 9:20 PM Eastern).** A real prototype of the `N` type, stacked with mixed kinds: pack 0.65 to 0.86, full read 0.50 to 0.92, files 14 to 24% smaller on data with nullable columns in all 3 browsers. Files without such columns are byte-identical. Still a format change, so it goes to the owner (E11, `PROPOSAL-null-plane.md`).
 12. **Real zstd dictionaries save less than estimated, but the previous save is a big lever (added 9:20 PM Eastern).** A built-in dictionary saves 11 to 24% of a 10-row file, an app dictionary 15 to 28%. Using the previous version of the same document as the dictionary makes an edited 2,000-node map 6% of its size (22,845 to 1,258 bytes) and a 10-row append to 1,000 orders 10% (E12, new lead B17).
+13. **Deltas stay small for hundreds of edits (added 9:30 PM Eastern).** Compressing each frame against the same frame of the previous save keeps a 2,000-node map at 3% of a full save after 1 edit and 16% after 500, and native zstd time drops to 0.25 to 0.75 of a full save. Browser timing needs a zstd wasm with the prefix calls (E13).
 
 Speed numbers come only from the three test browsers. Node was used only for pass/fail checks, byte counts and finding hot spots, never for timing.
 
@@ -411,6 +412,27 @@ Whole-file size as a share of today (0.8.3; `results/zdict-small-files.txt`):
 
 **Decisions:** the built-in dictionary stays **REJECT** (real saving 1 to 24%, format change). The per-app dictionary is **DEFER** (needs a dictionary store per app). The previous-save delta is a new lead, **B17, EXPERIMENT**: it fits autosave and history (Netflow saves, Story Editor and Mind Mapper autosave, Workbench snapshots), where each save is a small edit of the last.
 
+### 2026-11-11 E13 (B17): the previous save as a zstd prefix, sizes after many edits and native timing
+
+Owner: "Keep going". A 2,000-node Netflow map save, then the same map after 1, 5, 20, 100 and 500 random edits (40% label renames, 40% link weight changes, 10% new nodes, 10% new links; seed 11). Every zstd frame of the new save is compressed at level 3 with a prefix from the base save, either all base frames (`whole`) or the frame in the same place (`match`; files with the same columns have the same frame order). `experiments/zprev.py`, system libzstd 1.5.5 through ctypes, every frame checked to decompress back to the same bytes. Times are native (not browser), median of 5 runs of 60, all frames of one file (`results/zprev-native.txt`).
+
+| Edits since the base save | today | delta, whole | delta, match | compress ms: full / whole / match | decompress ms: full / whole / match |
+|---|---|---|---|---|---|
+| 1 | 22,635 | 582 (3%) | 601 (3%) | 0.50 / 0.92 / 0.13 | 0.19 / 0.04 / 0.04 |
+| 5 | 22,710 | 822 (4%) | 707 (3%) | 0.38 / 0.91 / 0.13 | 0.16 / 0.04 / 0.04 |
+| 20 | 22,976 | 1,082 (5%) | 950 (4%) | 0.38 / 0.90 / 0.13 | 0.15 / 0.05 / 0.04 |
+| 100 | 23,945 | 2,313 (10%) | 1,931 (8%) | 0.38 / 0.90 / 0.14 | 0.15 / 0.05 / 0.05 |
+| 500 | 25,401 | 4,823 (19%) | 4,141 (16%) | 0.40 / 0.94 / 0.17 | 0.16 / 0.06 / 0.06 |
+| 200-node map, 11 edits | 3,015 | 803 (27%) | 749 (25%) | 0.08 / 0.13 / 0.06 | 0.07 / 0.05 / 0.05 |
+| 1,000 orders + 10 rows | 10,083 | 992 (10%) | 935 (9%) | 0.11 / 0.26 / 0.08 | 0.06 / 0.04 / 0.04 |
+
+- **Frame-to-frame (`match`) is both smaller and faster** than a whole-file prefix: zstd only indexes one frame per frame, and long matches are cheap. Compress takes 0.25 to 0.75 of a full save's zstd time and decompress 0.25 to 0.75, native.
+- Deltas grow slowly: still 16% of a full save after 500 edits. A rule "write a full save when the delta passes 25% of the last full save" would write a full save every several hundred edits on a 2,000-node map.
+- zstd is only part of pack and read time (E1), and a reader needs the base save decoded first, so these are zstd-only numbers. A delta read costs about one full read plus a small delta.
+- **No browser numbers yet.** The shipped zstd wasm (`wasm/zstd-glue.c`) exports no prefix call, and building one needs the pinned zstd 1.5.7 source, which `wasm/build.sh` downloads. That download was refused in this session's sandbox (E12), so the browser step waits for the owner.
+
+**Decision: B17 stays EXPERIMENT**, now with sizes and native times. Next: a research wasm with `ZSTD_CCtx_refPrefix` and `ZSTD_DCtx_refPrefix`, timed in the 3 browsers on the map sequence, then a proposal (API `pack(rows, { base })`, a footer flag naming the base by its XXH64, and the 25% full-save rule).
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -441,7 +463,7 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 
 **B16. Smaller skip units for range reads.** Update (E10): 4 MB flat blocks with B14 take 0.12 to 0.29 of the time for a 1% range on logs and sensors (0.56 to 0.78 mixed), the full read 0.81 to 1.02, up to 3.3% bigger. Nested stays at 13 MB (full read 1.04 to 1.15 at 4 MB). **ADOPT CANDIDATE with B14** (writer default, no format change). Original entry: Source: Parquet page index and ORC row groups (see B8). Default blocks hold 13 MB of text, so a 1% range opens a whole block (E7: `range1` costs the same as `range10`). Next experiment: smaller `blockBytes` (1, 2, 4 MB) for size against range-read time, which needs no format change. **EXPERIMENT** (after B14, which removes most of the per-row cost inside an opened block).
 
-**B17. Save as a delta of the previous save (zstd prefix, like `zstd --patch-from`).** Source: zstd `ZSTD_CCtx_refPrefix` and `--patch-from` (zstd 1.4.5 and later; not re-fetched this session). Target: autosave and history for Netflow map saves, Story Editor and Mind Mapper autosave, Workbench snapshots. Advantage (E12, sizes only): an edited 2,000-node map 1,258 bytes instead of 22,845 (6%), an edited 200-node map 27%, 10 rows appended to 1,000 orders 10%, to logs 47%. Evidence: real zstd, made-up edits; no speed numbers yet. Difficulty: medium to high: the wasm build has no prefix call today, and a delta file is unreadable without the earlier file, so it needs an API (`pack(rows, { base })`) and a container flag that names the base, plus a rule to write a full save every few saves. Risk: high (format and app change). Next experiment: time `refPrefix` compress and decompress in the browsers on the map edit, then write a proposal if the time is not worse than a full save. **EXPERIMENT.**
+**B17. Save as a delta of the previous save (zstd prefix, like `zstd --patch-from`).** Source: zstd `ZSTD_CCtx_refPrefix` and `--patch-from` (zstd 1.4.5 and later; not re-fetched this session). Target: autosave and history for Netflow map saves, Story Editor and Mind Mapper autosave, Workbench snapshots. Advantage (E12, sizes only): an edited 2,000-node map 1,258 bytes instead of 22,845 (6%), an edited 200-node map 27%, 10 rows appended to 1,000 orders 10%, to logs 47%. Evidence: real zstd, made-up edits; no speed numbers yet. Difficulty: medium to high: the wasm build has no prefix call today, and a delta file is unreadable without the earlier file, so it needs an API (`pack(rows, { base })`) and a container flag that names the base, plus a rule to write a full save every few saves. Risk: high (format and app change). E13: frame-to-frame prefixes stay under 16% of a full save after 500 edits, and native zstd time is 0.25 to 0.75 of a full save. Next experiment: a research wasm with the prefix calls, timed in the browsers, then a proposal. **EXPERIMENT.**
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 
