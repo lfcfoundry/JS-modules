@@ -790,6 +790,51 @@ In Node, with the two builds alternated over 200 warm calls on the same files, t
 
 Decision: **ADOPT CANDIDATE** (read-only, no format change). Owner card, 12:50 AM Eastern 11.12.
 
+### 2026-11-12 E24 (B19c): dictionary-code reads without 4 MB blocks, stacked, and two fixes (Codex Phase 12 follow-up)
+
+**Why this run.** Codex Phase 12 (KB M110 update, phone-only Node) found D-code equality reads 70 to 95% faster on common repeated queries. It found two losses: rare and absent values 6 to 7% slower, and non-D columns 38 to 52% slower. It proposed using codes only on D blocks. Our B19 already does both of the things that matter here:
+- codes only on D (and null plane over D) columns, with other columns taking the plain late-rows path;
+- skipping a block outright when its labels lack the value.
+
+The orchestrater asked for a stack test without 4 MB blocks (the owner chose B14 alone), with B19, the cache, B14 and the null plane.
+
+**Setup.** Default blocks (`*-13.lfc`: 2 to 9 blocks per file), one alternating run per build family (`eqdrive.cjs` `build@mode`), 3 fresh pages per cell, per-query medians (`experiments/eqzanal.py`, `results/eq-d13-*`, `eq-cv-*`, `eq-th-*`, `eq-z-*`).
+
+**Chromium screen (B19 + B19b + B20, 0.9.3 and the null-plane build).**
+- Absent values: 0.02 to 0.03 of today with codes, against 0.06 to 0.21 for late rows alone.
+- Sensors with nulls, 24 queries: 0.22 to 0.25 (0.14 with the null plane).
+- Taxi: 0.45 to 0.62, and 0.36 to 0.53 with the null plane.
+
+Two losses showed up:
+1. **A value in more than half the rows** (GitHub `type=PushEvent`, orders `status=paid`) costs 1.05 to 1.18 of today with codes. With the cache it costs 0.81 to 1.12, because the whole-block path decoded every column again on every query.
+2. **Text (`s`) columns at about 8% matches** (`actor`) took 0.74 with codes, against 0.55 with late rows alone. A Node run of the page's query cycle reproduced it (`experiments/eqcycle.cjs`: 73 against 60 ms).
+   - Changing B19b's 1-in-8 threshold did not help (1/16 and 1/32 tested, `results/eq-th-chromium.json`).
+   - A profile put 13% in `decodeAt`, the JavaScript byte loop over every byte of the text frame.
+
+**Two fixes** (`experiments/b19c-patch-common-values.py`, `experiments/b19c-patch-text-at-matches.py`; applied after the B19, cache and B19b patches):
+- **Common values.** In codes mode, the dictionary column is rebuilt from the labels and codes already read, and the rows are picked by position. In cache mode, the whole-block path assembles from the cached decoded columns instead of decoding every column again.
+- **Text at matches.** On an all-ASCII frame (decoded length = byte length), the separators are found with the engine's `indexOf` on the decoded text. Other frames are split once. Microbench (`experiments/b19c-textbench.cjs`, 200k rows at 8% matches): actors 6.3 → 3.7 ms, repos 10.9 → 5.5 ms; a full split takes 14.3 and 8.7.
+
+**Correctness.** `eqverify.cjs` (modes off / codes / cache) passed 144 + 540 + 360 checks with 0 differences on 0.9.3 and on the null-plane build. The checks covered orders and sensors at 10k rows, the three edge-case files (accents, near-duplicate labels, nulls, missing keys) and 2,000 GitHub events, including the most common value of each key and null.
+
+**3-browser gate.** 24 queries, share of today, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, with B20 in both columns:
+
+| Data | B19 + cache | B19 + cache + B19c | Worst single query, before → after |
+|---|---|---|---|
+| GitHub events 200k, 0.9.3 | 0.28 / 0.28 / 0.35 | **0.17 / 0.19 / 0.24** | 1.07 / 0.85 / 1.11 → 0.46 / 0.39 / 0.55 |
+| Orders 100k, 0.9.3 | 0.24 / 0.25 / 0.21 | **0.15 / 0.14 / 0.12** | 0.73 / 0.81 / 0.66 → 0.44 / 0.37 / 0.30 |
+| Taxi 300k, 0.9.3 | 0.37 / 0.35 / 0.34 | **0.21 / 0.23 / 0.26** | 0.63 / 0.57 / 0.59 → 0.31 / 0.34 / 0.38 |
+| Sensors with nulls 300k, 0.9.3 | 0.04 / 0.06 / 0.07 | 0.04 / 0.06 / 0.07 | even |
+| GitHub events, null plane | 0.24 / 0.32 / 0.28 | **0.15 / 0.22 / 0.19** | 0.89 / 1.03 / 0.91 → 0.37 / 0.51 / 0.47 |
+| Orders, null plane | 0.34 / 0.32 / 0.27 | **0.25 / 0.24 / 0.18** | |
+| Taxi, null plane | 0.37 / 0.35 / 0.35 | **0.27 / 0.26 / 0.29** | |
+
+Without the cache, B19c is even to slightly better. GitHub events take 0.52 / 0.52 / 0.68, against 0.60 / 0.55 / 0.76.
+
+**Still a loss without the cache:** a value in more than half the rows. On 0.9.3 it costs up to 1.12 of today. On the null-plane build it costs 1.07 to 1.41 in Firefox and 1.10 to 1.16 elsewhere (GitHub `type=PushEvent`, orders `status=paid`). Those queries return most of the file, so filtering can save little. A cheap next step would be to count matches from the codes first, and when more than half match, decompress the block in one call the way plain mode does.
+
+Decision: **ADOPT CANDIDATE as an add-on to the approved B19 + cache.** It adds no new API, gives the same rows, and makes repeated queries in every browser faster than B19 + cache alone. Handoff through the orchestrater.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -825,6 +870,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B18. Faster saves from row objects.** Source: our own profile against parquet-wasm 0.9.0 (E17). Target: `packRows`, `packTables` (app saves), Workbench import. (a) Stringify big arrays in slices: 0.80 to 1.08, EXPERIMENT. (b) Read row objects straight into columns, no JSON text: up to about 2x on saves if it reaches parquet-wasm's speed. Evidence: profiles plus rival timing. Difficulty: (a) low, (b) high. Risk: bytes must stay identical; (b) is a second writer front end. **EXPERIMENT.** Update (E19): (b) built as B18b with a size and string-share gate. Over 0.9.3, big tables save in 0.51 to 0.90 of the time in 3 browsers, files are 0.999 to 1.000 of the size, and files under the gate are byte-identical. (a) stays DEFERRED. **B18b: ADOPT CANDIDATE**, owner card 11:43 PM Eastern.
 
 **B19. Equality reads through dictionary codes.** Source: the Codex research branch (DuckDB and Parquet dictionary filtering; KB M110). Target: `unpack(file, { equals })`, Netflow category filters, Workbench queries. 3-browser gate in E20: 24 queries 0.53 to 0.79 of today (0.10 to 0.37 with the opt-in cache), absent values 0.02 to 0.05, better than the sum with the null plane on first queries. **ADOPT CANDIDATE**, owner card 12:04 AM Eastern 11.12.
+
+**B19c. B19 add-on: common values and text at matches.** From E24 (Codex Phase 12 follow-up). With the cache, 24 queries go from 0.21 to 0.37 of today down to 0.12 to 0.29 in 3 browsers, and the worst single query from up to 1.11 down to 0.55. Same rows. **ADOPT CANDIDATE** (add-on to the approved B19 + cache).
 
 **B20. Faster column reads: JSON cells and one-pass zigzag.** Source: our own profile against parquet-wasm (E17, E23). Target: `unpackColumns` and `unpack` on tables with nullable or money columns (Netflow, Workbench). Taxi columns take 0.57 to 0.80 of the time, and rows 0.70 to 0.88. With the null plane, columns are faster than parquet-wasm in Firefox and WebKit. Same values, no format change. Difficulty: low. Risk: an engine-specific branch, which lfc-pack already uses for address and list columns. **ADOPT CANDIDATE**, owner card 12:50 AM Eastern 11.12.
 
