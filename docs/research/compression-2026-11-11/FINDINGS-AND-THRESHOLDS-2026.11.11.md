@@ -1,8 +1,8 @@
 # Compression and data-performance research: findings and thresholds for other threads
 
-From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern. The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E13). The same files are in this folder.
+From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 12:24 AM Eastern. The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E22). The same files are in this folder.
 
-How these numbers were measured: on lfc-pack 0.8.1 to 0.8.3, in ungoogled Chromium 156, Firefox 158 and WebKitGTK 2.52.6, on one shared 4-core cloud machine. Each test pairs fresh pages and reports the ratio of medians, so 0.80 means the new way takes 80% of the time. Node was used only for byte counts and pass/fail checks. No laptop, tablet or phone runs yet.
+How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3), in ungoogled Chromium 156, Firefox 158 and WebKitGTK 2.52.6, on one shared 4-core cloud machine. Each test pairs fresh pages and reports the ratio of medians, so 0.80 means the new way takes 80% of the time. Node was used only for byte counts and pass/fail checks. No laptop, tablet or phone runs yet.
 
 ## Status of each idea
 
@@ -10,11 +10,15 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.8.3, in ungoogled Chromi
 |---|---|---|
 | B1 UUID char codes, B2 sample-based encoding pick | Shipped in 0.8.2 (PR 654) | done |
 | B3 long numbers on the fast writer | Shipped in 0.8.3 (PR 655) | done |
-| B3b v3 mixed kinds on the fast writer | Approved 6:41 PM, sent | code thread |
-| B14 range reads build only matching rows, plus B16 4 MB flat blocks | Approved 9:25 PM, sent | code thread |
+| B3b v3 mixed kinds on the fast writer | Shipped in 0.9.1 | done |
+| B14 range reads build only matching rows | Shipped in 0.9.3 | done |
+| B16 4 MB flat blocks | Approved 9:25 PM, sent | code thread |
 | B13 null plane (column type N, format minor 1) | Approved 9:25 PM, sent | code thread (plus the Python and Go readers) |
 | B17 previous save as a zstd prefix (delta saves) | Adopt candidate for a proposal (browser-timed) | this thread |
 | B7 built-in dictionary for small files | Rejected | none |
+| B18b saves straight from row objects (no JSON text), gated | Adopt candidate, 3-browser gate passed; owner card open (11:43 PM) | owner |
+| B19 equality reads (`equals`), dictionary codes, opt-in cache (with B19b) | Adopt candidate, 3-browser gate passed; owner card open (12:04 AM) | owner |
+| Blob-range import jobs (from the Codex review) | Adopt candidate for imports (main-thread copy and memory, not speed) | code thread, via the orchestrater |
 
 ## Thresholds other threads can use
 
@@ -62,6 +66,25 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.8.3, in ungoogled Chromi
 - **Real nested data (10:35 PM, 10,000 GitHub Archive events, 35.6 MB):** LFC-pack reads to objects in 0.57 to 0.83 of the time `JSON.parse` takes on the plain text, and 0.60 to 0.83 of zstd-3 plus parse. Whole-text zstd-19 and Brotli 9 are 17% smaller, because a whole-file window finds repeats. Keep nested blocks at 13 MB: at 4 MB this file was 10% bigger.
 - **DuckDB-wasm (taxi rows):** a 1% range read to rows takes LFC-pack 0.27 to 0.41 of DuckDB's time. A column sum is 1 to 2.2 times faster in DuckDB. DuckDB takes 0.7 to 3.6 s to start.
 - For app threads: an app save under about 100 rows is smaller as compressed JSON than as LFC-pack.
+
+**Saves from row objects (B18b, E19, E21; over 0.9.3)**
+- `packRows` without the JSON text step takes 0.51 to 0.90 of today's time on big tables in 3 browsers. Values are the same and files are 0.999 to 1.000 of the size.
+- Gate: take the row path only above about 16 MB of text, or when fewer than 40% of cells are strings. String-heavy tables under 16 MB are 1.1 to 1.5 times slower through the row path, because the wasm text scanner wins there.
+- Save peak memory falls 50 to 170 MB, because there is no JSON string.
+- 4 MB blocks don't change pack time.
+- Key order is first-seen per block (value-exact mode). Moving a block cut can reorder keys in later blocks, so compare values with sorted keys.
+
+**Equality reads (B19, E20, E22; over 0.9.3's read-then-filter)**
+- One query takes 0.36 to 0.87. Over 24 queries: 0.53 to 0.79, or 0.10 to 0.37 with a cache between queries.
+- A value absent from a block costs 0.02 to 0.05, when the column is a dictionary.
+- The cache holds about what all rows held in memory would (99 MB against 85 MB for 300,000 log rows), so it should be opt-in and need a size limit.
+- Stacked with the null plane, first queries beat the sum of the parts: orders 0.37 to 0.44 against an expected 0.44 to 0.59.
+- Decoding only the matching positions (B19b) matters only with the cache, where it removes the first-query cost (up to 1.10 down to 0.48).
+
+**Imports in helper workers (E21)**
+- Handing each helper a Blob and a byte range, instead of slicing the whole file, takes main-thread copying from 9-24 ms to 0. Time is flat (0.93 to 1.06).
+- Import peak memory falls 5 to 64 MB in Chromium and WebKit; Firefox is mixed (-30 to +18 MB).
+- With B18b saves the two add up, but don't beat the sum: they act on different steps.
 
 **Skips that don't pay**
 - Skipping zstd on incompressible frames saves under 5% of pack time.
