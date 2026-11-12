@@ -367,6 +367,31 @@
   function colB(frames, n, p) { var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
   function colD(frames, n, p) { var i, u, o; var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
+
+  // B19b: values of column c at value positions vi[0..m) (ascending), or null when this kind is decoded whole
+  var B19B = 'on';
+  function bitAt(b, i, w) { var bp = i * w, by = bp >> 3; return ((((b[by] | 0) | ((b[by + 1] | 0) << 8) | ((b[by + 2] | 0) << 16) | ((b[by + 3] | 0) << 24)) >>> (bp & 7)) & ((1 << w) - 1)) >>> 0; }
+  function decodeAt(c, frames, vi, m) {
+    var t = c.t, p = c.p, n = c.n, o = new Array(m), i, f, k, q, a, cd;
+    if (B19B === 'off' || m * 8 > n) return null;   // more than 1 in 8 rows: the whole-column decoders are quicker
+    if (t === 's') { f = frames[0]; k = 0; q = 0; a = 0; var hi = 0, st = new Int32Array(m), en = new Int32Array(m);   // byte ranges of the wanted strings; an all-ASCII frame is decoded once and cut, otherwise each wanted string is decoded alone
+      for (i = 0; i < f.length; i++) { var by = f[i]; hi |= by; if (by === 0) { if (q < m && k === vi[q]) { st[q] = a; en[q++] = i; } k++; a = i + 1; } }
+      if (q < m && k === vi[q]) { st[q] = a; en[q++] = f.length; }
+      if (q !== m) return null;
+      if (hi < 128) { var big = tdr.decode(f); for (q = 0; q < m; q++) o[q] = big.substring(st[q], en[q]); } else for (q = 0; q < m; q++) o[q] = tdr.decode(f.subarray(st[q], en[q]));
+      return o; }
+    if (t === 'D') { var lab = tdr.decode(frames[0]).split('\0'); cd = frames[1];
+      for (i = 0; i < m; i++) o[i] = lab[p.w ? bitAt(cd, vi[i], p.w) : p.wide ? (cd[vi[i] * 2] | (cd[vi[i] * 2 + 1] << 8)) : cd[vi[i]]]; return o; }
+    if (t === 'T') { f = frames[0]; for (i = 0; i < m; i++) o[i] = bitAt(f, vi[i], 1) === 1; return o; }
+    if (t === 'B' && p.w <= 24) { f = frames[0]; for (i = 0; i < m; i++) o[i] = (bitAt(f, vi[i], p.w) + p.mn) / p.scale; return o; }
+    if (t === 'N') {   // null plane: frame 0 marks the nulls; the other values are the inner column, in order
+      var np = frames[0], ii = new Int32Array(m), im = 0, nn = 0, at = 0, wi = [];
+      for (q = 0; q < m; q++) { for (; at < vi[q]; at++) if ((np[at >> 3] >> (at & 7)) & 1) nn++; if ((np[at >> 3] >> (at & 7)) & 1) o[q] = null; else { ii[im++] = vi[q] - nn; wi.push(q); } }
+      if (!im) return o;
+      var iv = decodeAt({ t: p.t, p: p.p, n: p.m }, frames.slice(1), ii, im); if (!iv) return null;
+      for (q = 0; q < im; q++) o[wi[q]] = iv[q]; return o; }
+    return null;
+  }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
     if (t === 'V') return colV(frames, n, p);
@@ -597,7 +622,7 @@
   }
   // the byte work of reading a flat block: zstd for every wanted column, and (predecode, in helper workers) the number columns turned into Float64Arrays
   // verify: the block's header part was checked by the caller (block table item 8) and the block as a whole was not, so every wanted column must carry `o` and `x` and is checked here; columns that are not wanted are not read at all
-  function flatFrames(zs, bytes, want, predecode, verify) {
+  function flatFrames(zs, bytes, want, predecode, verify, lazy) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j, base;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
     var meta = JSON.parse(tdr.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
@@ -612,6 +637,7 @@
         if (st0 < base || st0 + tl > bytes.length || xhex(zs, bytes.subarray(st0, st0 + tl)) !== c.x) throw new Error('block checksum mismatch (column ' + meta.keys[j] + ')');
         p = st0;
       }
+      if (lazy && wanted) { var zf = []; for (i = 0; i < c.f.length; i++) zf.push([c.f[i], take(c.f[i][1])]); cols[j] = { fr: null, zf: zf, zs: zs }; continue; }   // B19: compressed frames kept, decompressed on first use
       for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
       cols[j] = !wanted ? null : (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
     }
@@ -629,6 +655,10 @@
     return { t: 'f', n: n, meta: meta, pl: pl, ordList: ordList, ordIds: ordIds, cols: cols };
   }
   flatFrames = guard(flatFrames);
+  // B19 helpers: frame k of a lazily read column, all its frames, every column of a lazily read block
+  function frOne(c, k) { if (c.fr) return c.fr[k]; if (!c.one) c.one = []; if (!c.one[k]) { var f = c.zf[k][0], sb = c.zf[k][1]; c.one[k] = f[2] ? (c.keep ? c.zs.decompress(sb, f[0]).slice() : c.zs.decompress(sb, f[0])) : sb.slice(); } return c.one[k]; }
+  function frAll(c) { if (!c.fr) { var o = [], k; for (k = 0; k < c.zf.length; k++) o.push(frOne(c, k)); c.fr = o; } return c.fr; }
+  function frBlock(F) { for (var j = 0; j < F.cols.length; j++) if (F.cols[j] && !F.cols[j].pre) frAll(F.cols[j]); }
   // the footer-sized view of a flat block: keys, column types, counts and the optional statistics, from the meta frame only
   function flatMeta(zs, bytes) {
     var ph = parseBlockHeader(bytes), h = ph.h, m = JSON.parse(tdr.decode(zs.decompressView(bytes.subarray(ph.p, ph.p + h.m[1]), h.m[0])));
@@ -767,6 +797,86 @@
     }
     function assembleKeep(F, want, rk, min, max) { var r = assemble(F, want), out = [], i, x; for (i = 0; i < r.length; i++) { x = r[i][rk]; if (typeof x === 'number' && x >= min && x <= max) out.push(r[i]); } return out; }
     readSel = guard(readSel);
+    // B19: rows of a block whose value under key rk === val. mode 'plain' or 'codes' (see the patch notes). Same objects and key order as filtering readBlock(...)
+    function readEq(bytes, want, verify, rk, val, mode, bc) {
+      if (gen || lazyOn) return null;
+      if (bc) return readEqCached(bytes, want, verify, rk, val, bc);
+      var codes = mode === 'codes', F = flatFrames(zs, bytes, want, false, verify, codes), meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, keys = meta.keys, i, j, c, s, m = 0, jr = keys.indexOf(rk), q, x;
+      if (F.ordList || keys.indexOf('__proto__') >= 0) { if (codes) frBlock(F); return eqKeep(F, want, rk, val); }
+      if (jr < 0 || F.cols[jr] === null) return [];
+      var cm = meta.cols[jr], col = F.cols[jr], pb = (n + 7) >> 3, sel = new Int32Array(n), dense = cm.n === n, rv = null, isN = cm.t === 'N';
+      if (codes && (cm.t === 'D' || (isN && cm.p.t === 'D'))) {
+        var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, c0 = -1;
+        if (typeof val === 'string') c0 = tdr.decode(frOne(col, o)).split('\0').indexOf(val);
+        if (c0 < 0 && !(isN && val === null)) return [];   // the value is not in this block's labels: no other frame is decompressed
+        var cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0;
+        for (i = 0, s = jr * pb; i < n; i++) { if (!dense && !((pl[s + (i >> 3)] >> (i & 7)) & 1)) continue;
+          if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; if (val === null) sel[m++] = i; continue; } at++;
+          if (cd[k++] === c0 && c0 >= 0) sel[m++] = i; }
+      } else {
+        rv = decodeColumn(cm, zs, codes ? frAll(col) : col.fr);
+        if (rv.length === n) { for (i = 0; i < n; i++) if (rv[i] === val) sel[m++] = i; }
+        else { for (i = 0, c = 0, s = jr * pb; i < n; i++) if ((pl[s + (i >> 3)] >> (i & 7)) & 1) { if (rv[c++] === val) sel[m++] = i; } }
+      }
+      if (m * 2 > n) { if (codes) frBlock(F); if (rv) col.pre = rv; return eqKeep(F, want, rk, val); }
+      var out = new Array(m), vals = new Array(K), v; if (!m) return out;
+      for (i = 0; i < m; i++) out[i] = {};
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) continue;
+        var key = keys[j], base = j * pb;
+        if (codes && !F.cols[j].pre && !(j === jr && rv)) { var sv = selAt(meta.cols[j], frAll(F.cols[j]), pl, base, n, sel, m); if (sv) { for (i = 0; i < m; i++) if (sv[0][i] >= 0) out[i][key] = sv[1][i]; continue; } }   // B19b
+        v = F.cols[j].pre ? F.cols[j].pre : (j === jr && rv) ? rv : decodeColumn(meta.cols[j], zs, codes ? frAll(F.cols[j]) : F.cols[j].fr);
+        if (v.length === n) { for (i = 0; i < m; i++) out[i][key] = v[sel[i]]; continue; }
+        for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) out[q][key] = v[c]; c++; } if (i === sel[q]) q++; }
+      }
+      return out;
+    }
+    // B19 cache: bc is this block's cache object ({} the first time). Same rows as readEq
+    function readEqCached(bytes, want, verify, rk, val, bc) {
+      var F = bc.F, j, i, c, m = 0, q, x;
+      if (!F) { F = bc.F = flatFrames(zs, bytes, want, false, verify, true); F.pl = F.pl.slice(); bc.vals = []; for (j = 0; j < F.cols.length; j++) if (F.cols[j]) F.cols[j].keep = 1; }
+      var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, keys = meta.keys, jr = keys.indexOf(rk), pb = (n + 7) >> 3;
+      if (F.ordList || keys.indexOf('__proto__') >= 0) { frBlock(F); return eqKeep(F, want, rk, val); }
+      if (jr < 0 || F.cols[jr] === null) return [];
+      var rc = bc['k' + jr], sel = new Int32Array(n), colOf = function (j) { var v = bc.vals[j]; if (v === undefined) v = bc.vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, frAll(F.cols[j])); return v; };
+      if (!rc) {   // per row: the label index (D) or the value itself; -1 / undefined for rows without the key, -2 for null
+        var cm = meta.cols[jr], col = F.cols[jr], isN = cm.t === 'N', dense = cm.n === n;
+        if (cm.t === 'D' || (isN && cm.p.t === 'D')) {
+          var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, lab = tdr.decode(frOne(col, o)).split('\0'), cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0, codeRow = new Int32Array(n).fill(-1);
+          for (i = 0; i < n; i++) { if (!dense && !((pl[jr * pb + (i >> 3)] >> (i & 7)) & 1)) continue; if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; codeRow[i] = -2; continue; } at++; codeRow[i] = cd[k++]; }
+          var lm = new Map(); for (i = 0; i < lab.length; i++) lm.set(lab[i], i);
+          rc = bc['k' + jr] = { d: true, row: codeRow, lm: lm };
+        } else {
+          var rv = colOf(jr), byRow = new Array(n);
+          if (rv.length === n) for (i = 0; i < n; i++) byRow[i] = rv[i]; else for (i = 0, c = 0; i < n; i++) if ((pl[jr * pb + (i >> 3)] >> (i & 7)) & 1) byRow[i] = rv[c++];
+          rc = bc['k' + jr] = { d: false, row: byRow };
+        }
+      }
+      if (rc.d) { var c0 = val === null ? -2 : typeof val === 'string' && rc.lm.has(val) ? rc.lm.get(val) : -3; if (c0 === -3) return []; var R = rc.row; for (i = 0; i < n; i++) if (R[i] === c0) sel[m++] = i; }
+      else { var R2 = rc.row; for (i = 0; i < n; i++) if (R2[i] === val && (val !== undefined)) sel[m++] = i; }
+      var out = new Array(m), v; if (!m) return out;
+      if (m * 2 > n) { frBlock(F); var all = assemble(F, want), oo = []; for (i = 0; i < m; i++) oo.push(all[sel[i]]); return oo; }
+      for (i = 0; i < m; i++) out[i] = {};
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) continue;
+        var key = keys[j], base = j * pb;
+        if (bc.vals[j] === undefined && !F.cols[j].pre) { bc.hits = bc.hits || []; if (!bc.hits[j]) { bc.hits[j] = 1; var sv = selAt(meta.cols[j], frAll(F.cols[j]), pl, base, n, sel, m); if (sv) { for (i = 0; i < m; i++) if (sv[0][i] >= 0) out[i][key] = sv[1][i]; continue; } } }   // B19b: the first use decodes only the matching positions
+        v = colOf(j); if (!v) continue;
+        if (v.length === n) { for (i = 0; i < m; i++) out[i][key] = v[sel[i]]; continue; }
+        for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) out[q][key] = v[c]; c++; } if (i === sel[q]) q++; }
+      }
+      return out;
+    }
+    // B19b: [value position per selected row (-1 = the row lacks the key), values] for column cm, or null to decode whole
+    function selAt(cm, frames, pl, base, n, sel, m) {
+      var dense = cm.n === n, vi = new Int32Array(m), vv = [], mi = new Int32Array(m), i, c, q, k = 0;
+      if (dense) { for (q = 0; q < m; q++) { vi[q] = sel[q]; mi[q] = q; } k = m; }
+      else { for (i = 0, c = 0, q = 0; q < m; i++) { var has = (pl[base + (i >> 3)] >> (i & 7)) & 1; if (i === sel[q]) { if (has) { vi[k] = c; mi[q] = k++; } else mi[q] = -1; q++; } if (has) c++; } }
+      var got = decodeAt(cm, frames, vi, k); if (!got) return null;
+      var pos = new Int32Array(m), out = new Array(m); for (q = 0; q < m; q++) { pos[q] = mi[q]; out[q] = mi[q] >= 0 ? got[mi[q]] : undefined; } return [pos, out];
+    }
+    function eqKeep(F, want, rk, val) { var r = assemble(F, want), out = [], i; for (i = 0; i < r.length; i++) if (r[i][rk] === val) out.push(r[i]); return out; }
+    readEq = guard(readEq);
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
     function columns(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
@@ -779,5 +889,5 @@
       }
       return { n: n, keys: Object.keys(cols), cols: cols, present: present };
     }
-    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
   }
