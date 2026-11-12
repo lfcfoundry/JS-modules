@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>Column reads</title><script>var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research: unpackColumns and unpack on one packed file. hash = build:file. First call of each timed alone (a page's first read), then the median of 5 more
+async function run() { await LfcPack.init(); const b = new Uint8Array(await (await fetch('eq/' + __h[1] + '.lfc')).arrayBuffer()), o = {};
+  for (const [k, f] of [['cols', () => LfcPack.unpackColumns(b)], ['rows', () => LfcPack.unpack(b)]]) { let t = performance.now(); f(); o[k + 'First'] = +(performance.now() - t).toFixed(2); const xs = []; for (let i = 0; i < 5; i++) { t = performance.now(); f(); xs.push(performance.now() - t); } xs.sort((a, c) => a - c); o[k] = +xs[2].toFixed(2); }
+  return o; }
+</script>

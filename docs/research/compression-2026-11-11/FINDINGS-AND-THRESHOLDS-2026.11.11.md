@@ -1,6 +1,6 @@
 # Compression and data-performance research: findings and thresholds for other threads
 
-From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 12:35 AM Eastern. The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E22). The same files are in this folder.
+From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 12:51 AM Eastern. The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E23). The same files are in this folder.
 
 How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3), in ungoogled Chromium 156, Firefox 158 and WebKitGTK 2.52.6, on one shared 4-core cloud machine. Each test pairs fresh pages and reports the ratio of medians, so 0.80 means the new way takes 80% of the time. Node was used only for byte counts and pass/fail checks. No laptop, tablet or phone runs yet.
 
@@ -18,6 +18,7 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3
 | B7 built-in dictionary for small files | Rejected | none |
 | B18b saves straight from row objects (no JSON text), gated | Adopt candidate, 3-browser gate passed; owner card open (11:43 PM) | owner |
 | B19 equality reads (`equals`), dictionary codes, opt-in cache (with B19b) | Adopt candidate, 3-browser gate passed; owner card open (12:04 AM) | owner |
+| B20 column reads: all-null JSON cells, hand-read JSON cells (Chromium, Firefox), one-pass zigzag | Adopt candidate, 3-browser gate passed; owner card open (12:50 AM) | owner |
 | Blob-range import jobs (from the Codex review) | Adopt candidate for imports (main-thread copy and memory, not speed) | code thread, via the orchestrater |
 
 ## Thresholds other threads can use
@@ -61,7 +62,7 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3
 - LFC-pack is 0.75 to 0.87 of the size of Parquet zstd-3 and 0.68 to 0.79 of pyarrow's default Parquet (zstd-1). We don't have a browser speed comparison with Parquet yet.
 - Brotli 11 of the JSON beats LFC-pack on size below about 100 to 200 rows. LFC-pack wins above that, by 16 to 39% from about 1,000 rows.
 - Brotli 5 is smaller below about 100 rows, loads 1.3 to 10 times faster and saves faster, but everything stays under 1 ms. Brotli 11 saves take 18 to 59 ms on 100 to 200 rows, which is too slow for autosave.
-- **In the browser against rival readers (10:30 PM, same taxi rows, 3 browsers):** LFC-pack builds row objects in 0.51 to 0.63 of parquet-wasm's time. `unpackColumns` takes 1.1 to 2.0 times parquet-wasm's columns. Saving from row objects (`packRows`) takes 1.8 to 2.9 times parquet-wasm's save (lead B18). Arrow IPC reads columns in about 1 ms, but its file is 10 times larger.
+- **In the browser against rival readers (10:30 PM, same taxi rows, 3 browsers):** LFC-pack builds row objects in 0.51 to 0.63 of parquet-wasm's time. `unpackColumns` takes 1.1 to 2.0 times parquet-wasm's columns. **Update 12:50 AM (B20, E23):** most of that gap was one `JSON.parse` per cell in nullable columns (including blocks where the column is all null) and a three-pass money-column decode. With both fixed, taxi columns take 122 / 112 / 108 ms on 0.9.3 and 107 / 85 / 69 ms with the null plane, against parquet-wasm's 102 / 103 / 105 (Chromium / Firefox / WebKit). Saving from row objects (`packRows`) takes 1.8 to 2.9 times parquet-wasm's save (lead B18). Arrow IPC reads columns in about 1 ms, but its file is 10 times larger.
 - **Stacking (E16):** the approved items beat the sum of their parts on data with nullable columns. A 1% range read on orders takes 0.08 to 0.12 of today's time, against 0.16 to 0.28 if the gains were independent. Gate the release on the stacked numbers.
 - **Real nested data (10:35 PM, 10,000 GitHub Archive events, 35.6 MB):** LFC-pack reads to objects in 0.57 to 0.83 of the time `JSON.parse` takes on the plain text, and 0.60 to 0.83 of zstd-3 plus parse. Whole-text zstd-19 and Brotli 9 are 17% smaller, because a whole-file window finds repeats. Keep nested blocks at 13 MB: at 4 MB this file was 10% bigger.
 - **DuckDB-wasm (taxi rows):** a 1% range read to rows takes LFC-pack 0.27 to 0.41 of DuckDB's time. A column sum is 1 to 2.2 times faster in DuckDB. DuckDB takes 0.7 to 3.6 s to start.

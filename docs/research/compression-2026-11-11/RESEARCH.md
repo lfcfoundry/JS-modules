@@ -712,6 +712,51 @@ Decision: **ADOPT CANDIDATE as part of the B19 cache.** It adds no API, and it m
 - **Confirmed in every browser.** It beats the sum most on sensors (WebKit 0.18 against 0.33) and by 0.06 to 0.13 on taxi; orders are even to better.
 - Without B19b (`codes-nob`), the null plane plus B19 gives sensors 0.25 / 0.29 / 0.31, so B19b is what makes the pairing pay.
 
+### 2026-11-12 E23 (B20): why column reads trailed parquet-wasm, and two read fixes
+
+**Profile** (Node 22, 300,000 taxi rows, `experiments/coldt.cjs` with a timing wrapper around `decodeColumn`). `unpackColumns` on 0.9.3 took 204 ms per read:
+- 118 ms in JSON-per-cell (`j`) columns. The five nullable taxi columns are `j` in 0.9.3, read with one `JSON.parse` per cell. Even with the null plane, 13 of 29 blocks keep them as `j`, because the column is null in every row of those blocks, and that is 665,000 `JSON.parse('null')` calls (54 ms).
+- 53 ms in zigzag number columns. The money columns (scale 100) went through three passes over a Float64Array: the varints, then the zigzag, then the division.
+- Bit-packed columns took 10 ms, and decompression 2 to 5%.
+
+**Two read fixes, with no format change and the same values** (`experiments/b20-patch-json-cells.py`, `experiments/b20-patch-one-pass-zigzag.py`):
+1. **JSON cells.** A `j` frame that is exactly `null` on every line is filled with nulls straight from its bytes. Otherwise, in Chromium and Firefox, `null`, `true`, `false` and whole numbers of up to 15 digits are read by hand, and everything else still goes to `JSON.parse`. WebKitGTK keeps `JSON.parse` per cell, because the hand reader was slower there: orders took 1.08 to 1.20 of the time (`results/cols-i-webkit.json`).
+2. **One-pass zigzag.** Zigzag number columns (neither monotonic nor delta) are decoded in one loop: varint, zigzag with integer operations below 2^21, then the division by the scale.
+
+**Correctness.**
+- `experiments/colsame.cjs`: the same column kinds and values (`Object.is`), and identical `unpack` rows, on 12,053,388 cells (0.9.3) and 9,953,388 cells (null-plane build), across taxi, orders, sensors, logs and GitHub events.
+- `experiments/jcelltest.cjs`: the hand reader gives the same result as `JSON.parse`, or throws where it throws, on edge cases (`-0`, `-`, `01`, 16-digit numbers, `nul`, spaces, `1e3`) and on 200,000 random integers.
+
+**3-browser gate** (`experiments/colsdrive.cjs` + `www/cols.html`, 4 fresh pages per build, alternating, ratio of medians, `results/cols-g*-*.json`). Warm reads, shown as Chromium 156 / Firefox 158 / WebKitGTK 2.52.6:
+
+| Data | `unpackColumns` | `unpack` (rows) | First `unpackColumns` on a page |
+|---|---|---|---|
+| Taxi 300k, on 0.9.3 | **0.57 / 0.69 / 0.80** | **0.70 / 0.79 / 0.88** | 0.75 / 0.69 / 0.81 |
+| Taxi 300k, null-plane build | **0.61 / 0.66 / 0.65** | 0.69 / 0.75 / 0.86 | 0.77 / 0.64 / 0.70 |
+| Orders 100k, on 0.9.3 | 0.72 / 0.79 / 1.03 | 0.81 / 0.91 / 1.00 | 0.92 / 0.74 / 0.93 |
+| Orders 100k, null-plane build | 0.82 / 1.08 / 1.12 | 1.08 / 0.92 / 1.01 | 0.88 / 1.16 / 1.08 |
+| Sensors with nulls 300k, on 0.9.3 | 0.97 / 0.95 / 1.05 | 0.90 / 0.87 / 1.07 | 1.02 / 0.86 / 1.12 |
+| GitHub events 200k, on 0.9.3 | 1.01 / 1.01 / 0.95 | 0.99 / 0.98 / 0.95 | 0.98 / 1.03 / 0.92 |
+
+- The worst cells are orders on the null-plane build in Firefox and WebKit (1.08 to 1.16). Those reads take 13 to 29 ms, so the difference is 1 to 3 ms, near the 1 ms timer step. They need more rounds before anything ships.
+
+**Against parquet-wasm.** On the same taxi rows, E17 measured parquet-wasm 0.9.0 at 102 / 103 / 105 ms, against 1.1 to 2.0 times that for lfc-pack. Now:
+- 0.9.3 + B20 takes 122 / 112 / 108 ms.
+- The null plane + B20 takes **107 / 85 / 69 ms**, so it reads columns faster than parquet-wasm in Firefox and WebKit and about evenly in Chromium. The file is 0.85 of parquet's size.
+- The null-plane build's own baseline matches E17's research stack (176 / 130 / 106 against 167 / 134 / 115), so the two sessions line up.
+
+**Stacked with the null plane**, taxi columns against 0.9.3:
+
+| | Null plane alone | B20 alone | Expected if independent | Both |
+|---|---|---|---|---|
+| Chromium / Firefox / WebKit | 0.82 / 0.79 / 0.78 | 0.57 / 0.69 / 0.80 | 0.47 / 0.55 / 0.62 | 0.50 / 0.52 / 0.51 |
+
+The pair beats the sum in Firefox and WebKit, and is about even in Chromium. The null plane turns most `j` blocks into typed columns, and B20 removes the cost of the all-null blocks the null plane leaves as `j`.
+
+**Lead this opened:** the writer could store an all-null column as a null-plane column with no values. That would be a format change, so it belongs with B13's format minor version.
+
+Decision: **ADOPT CANDIDATE** (read-only, no format change). Owner card, 12:50 AM Eastern 11.12.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -747,6 +792,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B18. Faster saves from row objects.** Source: our own profile against parquet-wasm 0.9.0 (E17). Target: `packRows`, `packTables` (app saves), Workbench import. (a) Stringify big arrays in slices: 0.80 to 1.08, EXPERIMENT. (b) Read row objects straight into columns, no JSON text: up to about 2x on saves if it reaches parquet-wasm's speed. Evidence: profiles plus rival timing. Difficulty: (a) low, (b) high. Risk: bytes must stay identical; (b) is a second writer front end. **EXPERIMENT.** Update (E19): (b) built as B18b with a size and string-share gate. Over 0.9.3, big tables save in 0.51 to 0.90 of the time in 3 browsers, files are 0.999 to 1.000 of the size, and files under the gate are byte-identical. (a) stays DEFERRED. **B18b: ADOPT CANDIDATE**, owner card 11:43 PM Eastern.
 
 **B19. Equality reads through dictionary codes.** Source: the Codex research branch (DuckDB and Parquet dictionary filtering; KB M110). Target: `unpack(file, { equals })`, Netflow category filters, Workbench queries. 3-browser gate in E20: 24 queries 0.53 to 0.79 of today (0.10 to 0.37 with the opt-in cache), absent values 0.02 to 0.05, better than the sum with the null plane on first queries. **ADOPT CANDIDATE**, owner card 12:04 AM Eastern 11.12.
+
+**B20. Faster column reads: JSON cells and one-pass zigzag.** Source: our own profile against parquet-wasm (E17, E23). Target: `unpackColumns` and `unpack` on tables with nullable or money columns (Netflow, Workbench). Taxi columns take 0.57 to 0.80 of the time, and rows 0.70 to 0.88. With the null plane, columns are faster than parquet-wasm in Firefox and WebKit. Same values, no format change. Difficulty: low. Risk: an engine-specific branch, which lfc-pack already uses for address and list columns. **ADOPT CANDIDATE**, owner card 12:50 AM Eastern 11.12.
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 
