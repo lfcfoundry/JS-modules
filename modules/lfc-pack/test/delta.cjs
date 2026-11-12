@@ -40,6 +40,7 @@ const JF = require('../lfc-pack.js'), assert = require('assert');
   assert.throws(() => JF.unpackTables(dd), /delta/); assert.throws(() => JF.unpack(dd), /delta/);
   assert.throws(() => JF.unpackTables(dd, { base: JF.packTables(edit(base0, 3)) }), /different base/);
   assert.throws(() => JF.packTables(nx, { base: dd }), /full save/);
+  assert.throws(() => JF.unpack(dd, { base: baseBytes, equals: { key: 'id', value: 1 } }), /reads whole/);
   // unpack(delta, { base }) gives the rows of the tables in order
   same(JF.unpack(dd, { base: baseBytes }), [].concat(...Object.values(JF.unpackTables(JF.packTables(nx))).filter(Array.isArray)), 'unpack rows');
   // clearing the kept base changes nothing but speed

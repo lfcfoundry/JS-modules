@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.9.4 · API 0**
+**Version 0.9.6 · API 0**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6 (5 fresh-page pairs)
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6 (cloud)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -66,6 +66,11 @@ Reading:
 LfcPack.unpack(file, { keys: ['ts', 'status'] });
 // rows whose number is in range; blocks outside it are not opened
 LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });
+// rows where one key equals a value (strict ===; a missing key never matches null); same rows and key order as unpack(file).filter(...), without building the other rows
+LfcPack.unpack(file, { equals: { key: 'level', value: 'ERROR' } });
+// asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
+LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
+LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
 // opt-in lazy rows (see "Lazy rows" below): values are read when a key is first used
 LfcPack.unpack(file, { rows: 'lazy' });      // columns decoded at unpack, rows made cheaply
 LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when some row reads its key
