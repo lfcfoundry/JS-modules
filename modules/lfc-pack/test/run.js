@@ -33,6 +33,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('uuid columns and sampled layout choice', 'node', ['sampled.cjs']);
   step('long, exponent and -0 numbers', 'node', ['longnums.cjs']);
   step('mixed-kind keys', 'node', ['mixedkinds.cjs']);
+  step('uuid columns from wasm', 'node', ['uuidcols.cjs']);
   step('non-ASCII text in the flat path (SIMD and not)', 'node', ['nonascii.cjs']);
   step('variable-length string round trip (Workbench probe)', 'node', ['varlen-roundtrip.cjs']);
   step('decoder-only build', 'node', ['readonly.cjs']);

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.2 · API 0 · 2026-11-11
+
+### Quick
+UUID columns are converted to 16-byte values in wasm straight from the input, with no strings made: pack takes 0.42-0.56 of the 0.9.1 time on UUID-heavy blocks. Same bytes, same format.
+
+### Details
+hexcols also recognizes lowercase UUID columns (8-4-4-4-12) and writes 16 bytes a value; a bad value anywhere sends the key back to the old path. 60,000 rows with two UUID columns, pack new/old: Chromium 0.55, Firefox 0.42, WebKitGTK 0.56. Controls neutral.
+
+### Deep
+lfc-pack 0.9.2: UUID columns of the fast flat writer are read straight from the input bytes in wasm (hexcols extended: sentinel 3600 for a column of lowercase UUIDs, 16 bytes a value), so no JavaScript strings, no regular-expression check and no per-value conversion. Found by profiling 0.9.1 on a 300,000-row ids set: the UUID shape regex was 9% and string making 7 to 12%. Pack time new/old vs 0.9.1, 9 paired fresh pages, 60,000 rows with two UUID columns: Chromium 156 0.55 (202 to 112 ms), Firefox 158 0.42 (175 to 73), WebKitGTK 2.52.6 0.56 (167 to 94); Node ids-300k 503 to 355 ms. Controls, 9 to 15 pairs, 150,000 rows, Chromium / Firefox / WebKitGTK: logs 1.00 / 0.88 / 1.01, sensors 0.99 / 1.01 / 1.02, nested 0.96 / 0.90 / 1.01, long numbers 1.02 / 0.91 / 1.01. Bytes identical to 0.9.1 on 36 of 36 adversarial UUID sets (upper case, wrong dashes, wrong lengths, 36-character hex, nulls, late bad value), 41 of 41 b7verify sets, FHIR 21 MB, ids and events at 300k rows, a Netflow map and mixed.ndjson. Phone not run.
+
 ## 0.9.1 · API 0 · 2026-11-11
 
 ### Quick
