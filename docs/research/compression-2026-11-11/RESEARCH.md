@@ -671,6 +671,24 @@ Results, as a share of today, given as Chromium 156 / Firefox 158 / WebKitGTK 2.
 
 Decision: Blob-range jobs **ADOPT CANDIDATE** for imports (main-thread copy and memory, not speed). The pairing needs no extra work.
 
+### 2026-11-12 E22 (B19b): decode only the matching positions, alone and with the B19 cache and the null plane
+
+**Prototype** (`experiments/b19b-patch-decode-at-matches.py`): when at most 1 in 8 rows of a block match, the other columns are decoded only at the matching positions where the layout allows it:
+- Text (`s`): one zero-byte scan; an all-ASCII frame is decoded once and cut with `substring`, otherwise each wanted string is decoded alone.
+- Dictionary (`D`), true/false (`T`) and bit-packed numbers (`B`): read straight at each matching position.
+- Varints and other kinds are still decoded whole.
+
+In cache mode, the first use of a column decodes only the matching positions, and the second use decodes it in full and keeps it. Rows matched the full read on 1,062 checks. Results are in `results/eq-b19b*.json`, with `-nob` marking runs with B19b off.
+
+Chromium 156 (3 fresh pages per cell), share of 0.9.3's read-then-filter, first query / 24 queries:
+- **Without the cache:** B19b changes little. First queries are 0.03 to 0.09 better on GitHub events and taxi; elsewhere the change is within noise. Per-query runs vary by about 0.2, so no single query can be called a gain.
+- **With the cache:** B19b removes the cache's first-query cost on text-heavy rows. GitHub events go from 1.20 to 0.70 and taxi from 0.64 to 0.48. Over 24 queries the result is unchanged (0.12 to 0.37).
+- **Firefox 158, with the cache:** GitHub events go from 1.10 to 0.48 and orders from 0.91 to 0.82 on the first query.
+- **WebKitGTK 2.52.6, with the cache:** even (0.92 to 0.93 on GitHub events, 0.80 to 0.87 on orders, 0.38 to 0.35 on taxi). The 24-query numbers are even in both browsers.
+- **With the null plane (Chromium):** even; nullable columns are decoded whole.
+
+Decision: **ADOPT CANDIDATE as part of the B19 cache.** It adds no API, and it makes the opt-in cache's first query no slower than B19 without the cache. As a separate item: DEFER.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.

@@ -1,4 +1,4 @@
-<!doctype html><meta charset="utf-8"><title>B19 equality reads</title><script>var __h = location.hash.slice(1).split(':'); globalThis.__B19 = __h[2]; document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script>
+<!doctype html><meta charset="utf-8"><title>B19 equality reads</title><script>var __h = location.hash.slice(1).split(':'); if (/-nob$/.test(__h[2])) { globalThis.__B19B = 'off'; __h[2] = __h[2].replace(/-nob$/, ''); } globalThis.__B19 = __h[2]; document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script>
 <script>
 // Copyright (c) 2026 LFC Foundry. MIT License.
 // research B19: unpack(file, { equals }) on one packed file. hash = build:file:mode (off | plain | codes). The first query is timed alone (a page's first read), then 24 queries cycling through the list
