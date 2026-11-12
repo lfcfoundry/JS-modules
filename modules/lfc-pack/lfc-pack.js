@@ -989,9 +989,32 @@
   // research prototype (null plane, type N): a column whose values are one scalar kind plus some nulls keeps the typed encoding of its non-null values, plus one bit plane that marks the nulls
   var NMARK = 0;   // counts the null-plane (N) columns written, so a pack call can tell whether its file needs format minor 1
   var NULL_MODE = (typeof globalThis !== 'undefined' && globalThis.__NULLMODE) || 'plane';
+  // B13 fused pass: a column of numbers and nulls in one scan: the null bit plane, the numbers in a Float64Array, and what the number encoder would otherwise scan for (negative zero, whole numbers). undefined: some value is not a number or null, or there is no null or no number
+  var NN_FLAGS = [0, 0];
+  function nullNumbers(v, n) {
+    var nn = new Float64Array(n), pl = new Uint8Array((n + 7) >> 3), m = 0, i, x, nz = 0, ai = 1;
+    for (i = 0; i < n; i++) {
+      x = v[i];
+      if (x === null) pl[i >> 3] |= 1 << (i & 7);
+      else if (typeof x === 'number') { nn[m++] = x; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; }
+      else return undefined;
+    }
+    if (m === 0 || m === n) return undefined;
+    NN_FLAGS[0] = nz; NN_FLAGS[1] = ai;
+    return { nn: nn.subarray(0, m), pl: pl, m: m, nz: nz, ai: ai };
+  }
+  function nullNumBest(fz, v, n, zs, level, tmode, key) {
+    var inner = settle(zs, level, encodeColumn0(fz.nn, zs, level, tmode, undefined, key, fz));
+    if (inner.t === 'j') return null;
+    var pl = fz.pl, pz = zs.compress(pl, level), pzz = pz.length < pl.length ? [pl.length, pz, 1] : [pl.length, pl, 0], size = pzz[1].length, i;
+    for (i = 0; i < inner.z.length; i++) size += inner.z[i][1].length;
+    if (NULL_MODE === 'both') { var j = settle(zs, level, encodeColumn0(v, zs, level, tmode, undefined, key)); if (j.size <= size) return j; }
+    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: fz.m }, n: n, z: [pzz].concat(inner.z), size: size, nn: fz.nn };
+  }
   function nullBest(v, zs, level, tmode, key) {
     var n = v.length, i, x, k = null, m = 0, kind;
     if (NULL_MODE === 'off') return null;
+    if (n > 1 && typeof v === 'object' && v[0] !== undefined) { var fz = nullNumbers(v, n); if (fz !== undefined) return nullNumBest(fz, v, n, zs, level, tmode, key); }
     for (i = 0; i < n; i++) { x = v[i]; if (x === null) continue; kind = typeof x; if (kind !== 'number' && kind !== 'boolean' && kind !== 'string') return null; if (k === null) k = kind; else if (k !== kind) return null; m++; }
     if (k === null || m === n) return null;
     var nn = new Array(m), pl = new Uint8Array((n + 7) >> 3); for (i = 0, m = 0; i < n; i++) { if (v[i] === null) pl[i >> 3] |= 1 << (i & 7); else nn[m++] = v[i]; }
@@ -1010,13 +1033,13 @@
     if (dz2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz2, n)]);
     if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w, scale: scale }, [bitpack(numOff(base, n, mn), w)]); }
   }
-  function encodeColumn0(v, zs, level, tmode, sj, key) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes; key: the column's key, for the once-per-call template read check
+  function encodeColumn0(v, zs, level, tmode, sj, key, pre) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes; key: the column's key, for the once-per-call template read check
     var n = v.length, i, x, best = null;
     function stored(frames) { var t = 0, z = []; for (var q = 0; q < frames.length; q++) { var c = zs.compress(frames[q], level); if (c.length < frames[q].length) z.push([frames[q].length, c, 1]); else z.push([frames[q].length, frames[q], 0]); t += z[q][1].length; } return { z: z, size: t }; }
     function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
-    if (allOf(v, function (x) { return typeof x === 'number'; })) {
-      var noNegZero = allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
-      var allInt = noNegZero && allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; }), scale = 1, base = null;
+    if (pre || allOf(v, function (x) { return typeof x === 'number'; })) {
+      var noNegZero = pre ? !pre.nz : allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
+      var allInt = noNegZero && (pre ? !!pre.ai : allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; })), scale = 1, base = null;
       if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScale(v); base = scale ? DS_INTS : null; DS_INTS = null; if (!base) { scale = 1; base = null; } }
       if (base && n > 0) {   // scaled whole numbers: the typed-array passes the fast writer uses (same candidates, same rules, same bytes)
         numGeneral(cand, function () { return best; }, base instanceof Float64Array ? base : new Float64Array(base), n, scale);
