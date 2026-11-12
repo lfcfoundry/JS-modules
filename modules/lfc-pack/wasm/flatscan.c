@@ -151,7 +151,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         else if(c=='f'){ if(p+5>len||in[p+1]!='a'||in[p+2]!='l'||in[p+3]!='s'||in[p+4]!='e') BAIL(17); e=p+5; }
         else if(c=='n'){ if(p+4>len||in[p+1]!='u'||in[p+2]!='l'||in[p+3]!='l') BAIL(17); e=p+4; }
         else { e=numspan(in,p,len); if(e==0xFFFFFFFFu) BAIL(10); }
-        ckey[nc]=(u8)id; cval[nc]=(double)p; clen[nc]=e-p; cfd[nc]=255; nc++; p=e; NLIT++;
+        ckey[nc]=(u8)id; cval[nc]=(double)p; clen[nc]=e-p; cfd[nc]=255; nc++; p=e; if(!(kmaxfd[id]==1&&(c=='n'||c=='-'||(c>='0'&&c<='9')))) NLIT++;   /* numbers and nulls in a number key are read in wasm (litnum), so they do not count against the fast path */
       } }
       planes[id*pb+(row>>3)]|=(u8)(1u<<(row&7));
       WS; if(p>=len) BAIL(3);
@@ -289,6 +289,27 @@ EXPORT("ipcol") u32 ipcol(const u8*in,const double*cval,const u32*clen,const u32
       if(v>255) return 0; out[o++]=(u8)v; }
     if(p!=L) return 0; }
   return 1;
+}
+// B13: a mixed-kind key that holds numbers and nulls (a nullable number column; after its first null every cell is a literal): the n cells of one key (ix lists them) turned into the non-null numbers as whole numbers over a common power of ten (mant, scaled by 10^st[0]) and a bit plane of the nulls (set bit = null, LSB first, placed after mant and the fraction-digit scratch). Returns the count of numbers, or 0xFFFFFFFF when a cell is anything else (text, exponent, -0, more than 15 digits, more than 9 fraction digits): the caller then takes the general path.
+static const double P10D[10]={1.0,10.0,100.0,1e3,1e4,1e5,1e6,1e7,1e8,1e9};
+EXPORT("litnum") u32 litnum(const u8*in,const double*cval,const u32*clen,const u8*cfd,const u32*ix,u32 n,double*mant,u32*st){
+  u8*fd=(u8*)(mant+n); u8*pl=fd+n; u32 i,m=0,D=0,nb=(n+7)>>3;
+  for(i=0;i<nb;i++) pl[i]=0;
+  for(i=0;i<n;i++){
+    u32 c2=ix[i]; double v; u32 f;
+    if(cfd[c2]!=255){ if(clen[c2]||cfd[c2]>9) return 0xFFFFFFFFu; v=cval[c2]; f=cfd[c2]; }
+    else {
+      u32 s=(u32)cval[c2],L=clen[c2],k=0,nd=0,fr=0; const u8*q=in+s; int neg=0,dot=0; unsigned long long acc=0;
+      if(L==4&&q[0]=='n'&&q[1]=='u'&&q[2]=='l'&&q[3]=='l'){ pl[i>>3]|=(u8)(1u<<(i&7)); continue; }
+      if(k<L&&q[k]=='-'){ neg=1; k++; }
+      for(;k<L;k++){ u8 ch=q[k]; if(ch>='0'&&ch<='9'){ acc=acc*10+(ch-'0'); nd++; if(dot) fr++; if(nd>15) return 0xFFFFFFFFu; } else if(ch=='.'&&!dot&&nd) dot=1; else return 0xFFFFFFFFu; }
+      if(!nd||fr>9||(neg&&!acc)||(dot&&!fr)) return 0xFFFFFFFFu;
+      v=neg?-(double)acc:(double)acc; f=fr;
+    }
+    mant[m]=v; fd[m]=(u8)f; if(f>D) D=f; m++;
+  }
+  for(i=0;i<m;i++){ double w=mant[i]*P10D[D-fd[i]]; if(w>2251799813685247.0||w<-2251799813685247.0) return 0xFFFFFFFFu; mant[i]=w; }
+  st[0]=D; return m;
 }
 // B3b research: key k's literal cells (cfd 255, the suffix of a mixed-kind key) as one JSON array text: '[' then each literal joined by ',' then ']'. Returns its length.
 EXPORT("litjoin") u32 litjoin(const u8*in,const double*cval,const u32*clen,const u8*cfd,const u32*ix,u32 n,u8*out){

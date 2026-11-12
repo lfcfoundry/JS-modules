@@ -4,11 +4,11 @@
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
   var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15, SEC_SHARED = 16, SEC_DELTA = 17;
   var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1, 16: 1, 17: 1 };   // 15 is the number-spelling section, 16 the shared tables of nested blocks   // 8 and 13 are reserved
-  function writeFooter(zs, sections, compress) {
+  function writeFooter(zs, sections, compress, minor) {   // minor: 1 when a null-plane (N) column was written, else the file stays minor 0 and 0.8.x readers open it
     var parts = [], i, s, h;
     for (i = 0; i < sections.length; i++) { s = sections[i]; h = new Uint8Array(8); h[0] = s.id; h[1] = s.id >> 8; h[2] = s.flags; h[3] = s.flags >> 8; h.set(u32le(s.payload.length), 4); parts.push(h, s.payload); }
     var body = concat(parts), f = compress ? concat([new Uint8Array([1]), zs.compress(body, 3)]) : concat([new Uint8Array([0]), body]);
-    var t = new Uint8Array(16); t.set(u32le(f.length), 0); t.set(u32le(crcJS(f, 0)), 4); t[8] = MAJOR; t[10] = MINOR; t.set(MAGIC, 12);
+    var t = new Uint8Array(16); t.set(u32le(f.length), 0); t.set(u32le(crcJS(f, 0)), 4); t[8] = MAJOR; t[10] = minor > MINOR ? minor : MINOR; t.set(MAGIC, 12);
     return concat([f, t]);
   }
   function readFooter(zs, file) {
