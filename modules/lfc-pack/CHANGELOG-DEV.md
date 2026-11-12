@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.4 · API 0 · 2026-11-12
+
+### Quick
+packRows on plain rows over 4,096 rows now goes straight to the column writer with no JSON text step: 0.50 to 0.65 of the time on taxi-like and orders sets in 3 browsers. Same format, same rows; files under the gate are byte-identical.
+
+### Details
+packRows(rows) skips the JSON text for plain scalar rows (strings, booleans, null, finite numbers other than -0) when there are more than 4,096 rows and either the rows would make more than 16 MB of text or fewer than 40% of the cells in the first 256 rows are strings; the writer tries both varint forms like the wasm writer, so files stay within 0.0002% of before. Other rows, and every call with exact, block or share, take the old path. 5 fresh-page pairs, packRows new/old: taxi-like 0.65 / 0.59 / 0.64, orders 0.57 / 0.50 / 0.50, sensors 0.87 / 0.71 / 0.90, ids 0.95 / 0.87 / 0.78 (Chromium / Firefox / WebKitGTK); logs 300k 0.84 / 1.04 / 0.99; an identical-build control swung 0.89 to 1.11.
+
+### Deep
+lfc-pack 0.9.4: B18b, packRows straight from row objects (the compression thread's research, owner-approved 2026-11-12). Gate and size fix as in the research notes. Keys are listed first-seen per block as before; a later block can list keys in another order, with identical values. New test rowpath.cjs.
+
 ## 0.9.3 · API 0 · 2026-11-11
 
 ### Quick

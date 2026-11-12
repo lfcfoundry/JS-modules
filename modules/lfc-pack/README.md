@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.9.3 · API 0**
+**Version 0.9.4 · API 0**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6 (cloud)
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6 (5 fresh-page pairs)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
