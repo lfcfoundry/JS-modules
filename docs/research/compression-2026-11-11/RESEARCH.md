@@ -776,6 +776,14 @@ The pair beats the sum in Firefox and WebKit, and is about even in Chromium. The
 
 B20 trims the import step on taxi (0.92 to 0.93 of the time without B20), because the import unpacks every block to rows. It adds up with the others, no more. Peak memory is unchanged within noise.
 
+**Small tables, 10 rounds (owner pick "More rounds on small tables first", 5:33 AM, `results/cols-s*-*.json`, `cols-o*c-chromium.json`).** These are 10,000-row orders, sensors and logs, plus 100,000-row orders in Chromium, with 10 fresh pages per cell. In Firefox and WebKit the warm reads take 2 to 8 ms, and the 1 ms timer shows them as 1.00, so they say nothing either way. Chromium, warm `unpackColumns`:
+- **On 0.9.3:** 0.85 to 0.90 of the time on 10k rows, and 0.74 on 100k orders.
+- **On the null-plane build:** 1.11 to 1.49 of the time, which is 0.5 to 2 ms slower: 2.0 to 3.0 ms on sensors and 18 to 20 ms on 100k orders.
+
+In Node, with the two builds alternated over 200 warm calls on the same files, the null-plane cells are even (0.98 to 1.01, `experiments/colab.cjs`). So the browser cost is in a page's first few reads. My guess, not yet profiled: the new one-pass zigzag function is used only by zigzag columns, so it reaches fast code later than the shared varint reader it replaces.
+- If it matters, keep the old three-pass path for blocks under about 16,000 values.
+- Timing that variant would take one cheap Chromium run.
+
 **Check for the null-plane ship (B13):** lfc-pack 0.9.3 reads a research null-plane file as "damaged block: The encoded data was not valid for encoding utf-8". The shipped format-minor bump should make old readers say that the file needs a newer reader.
 
 **Lead this opened:** the writer could store an all-null column as a null-plane column with no values. That would be a format change, so it belongs with B13's format minor version.
