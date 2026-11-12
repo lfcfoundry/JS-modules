@@ -664,8 +664,8 @@ Results, as a share of today, given as Chromium 156 / Firefox 158 / WebKitGTK 2.
 | GitHub events 200k (22 MB) | 1.00 / 1.02 / 1.01 | 0.71 / 0.90 / 0.79 | 0.80 / 0.92 / 0.88 | 204->188 / 228->213 / 307->265 | 113->54 / 173->123 / 103->14 |
 | Logs 300k (44 MB) | 0.93 / 0.96 / 1.06 | 0.90 / 0.75 / 1.00 | 0.98 / 0.83 / 1.04 | 303->269 / 354->372 / 406->342 | 242->134 / 169->58 / 211->41 |
 
-- **Blob-range jobs:** main-thread copy time goes from 9 to 24 ms to 0, and import time is flat (0.93 to 1.06). Import peak memory falls 13 to 64 MB in Chromium and WebKit. In Firefox it is mixed, from -30 to +18 MB.
-- **B18b saves:** save peak memory falls 50 to 99 MB (there is no JSON text). The time gain is smaller here than in the E19 gate, because rows built by lfc-pack's reader save slower through the row path than rows from `JSON.parse`. Logs were 0.90 / 0.75 / 1.00 here, against 0.71 / 0.90 / 0.86 in E19.
+- **Blob-range jobs:** main-thread copy time goes from 9 to 24 ms to 0, and import time is flat (0.93 to 1.06). Import peak memory falls 5 to 64 MB in Chromium and WebKit. In Firefox it is mixed, from -30 to +18 MB.
+- **B18b saves:** save peak memory falls 50 to 170 MB (there is no JSON text). The time gain is smaller here than in the E19 gate, because rows built by lfc-pack's reader save slower through the row path than rows from `JSON.parse`. Logs were 0.90 / 0.75 / 1.00 here, against 0.71 / 0.90 / 0.86 in E19.
 - **Stacking:** the two act on different steps, so session time is about the B18b number alone (0.74 to 1.04). For the session's peak memory (the larger of the two steps), the import step dominates, so Blob-range sets it. Neither is better than the sum; they add up.
 - Lead: find out why reader-built rows save slower on the row path (object shape), and close that gap for apps that load and then save.
 
