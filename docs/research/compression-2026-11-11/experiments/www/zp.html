@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8"><title>B17 delta timing</title>
+<script src="v-r83.js"></script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// B17: zstd time of a full save against a delta save (each frame against the same frame of the base save), research wasm with prefix calls; also lfc-pack packTables/unpackTables of the 2,000-node map for scale
+let X, M; const enc = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function setup() { const w = await WebAssembly.instantiate(await (await fetch('zstd-prefix.wasm')).arrayBuffer(), {}); X = w.instance.exports; }
+function put(b) { const p = X.malloc(b.length || 1); new Uint8Array(X.memory.buffer, p, b.length).set(b); return p; }
+const med = a => { a = a.slice().sort((x, y) => x - y); return a[a.length >> 1]; };
+async function run(reps) {
+  await setup(); const C = (await (await fetch('zp-frames.json')).json()).cases, out = {};
+  for (const c of C) {
+    const base = c.base.map(enc), nw = c.new.map(enc), same = base.length === nw.length;
+    const bp = base.map(put), np = nw.map(put), cap = Math.max(...nw.map(x => X.bound(x.length))), dst = X.malloc(cap), raw = X.malloc(Math.max(...nw.map(x => x.length)) + 16);
+    const comp = (i, pre) => { const r = X.compress_prefix(dst, cap, np[i], nw[i].length, 3, pre ? bp[i] : 0, pre ? base[i].length : 0); if (X.is_error(r)) throw new Error('c' + r); return new Uint8Array(X.memory.buffer, dst, r).slice(); };
+    const full = nw.map((_, i) => comp(i, false)), del = nw.map((_, i) => comp(i, same)), fp = full.map(put), dp = del.map(put);
+    const dec = (i, pre, p, len) => { const r = X.decompress_prefix(raw, nw[i].length + 16, p, len, pre ? bp[i] : 0, pre ? base[i].length : 0); if (r !== nw[i].length) throw new Error('d' + r); };
+    for (let i = 0; i < nw.length; i++) { dec(i, true, dp[i], del[i].length); const got = new Uint8Array(X.memory.buffer, raw, nw[i].length); for (let k = 0; k < got.length; k++) if (got[k] !== nw[i][k]) throw new Error('mismatch ' + c.name); }
+    const t = { cf: [], cd: [], df: [], dd: [] };
+    for (let r = 0; r < reps; r++) {
+      let a = performance.now(); for (let k = 0; k < 50; k++) for (let i = 0; i < nw.length; i++) comp(i, false); t.cf.push((performance.now() - a) / 50);
+      a = performance.now(); for (let k = 0; k < 50; k++) for (let i = 0; i < nw.length; i++) comp(i, same); t.cd.push((performance.now() - a) / 50);
+      a = performance.now(); for (let k = 0; k < 50; k++) for (let i = 0; i < nw.length; i++) dec(i, false, fp[i], full[i].length); t.df.push((performance.now() - a) / 50);
+      a = performance.now(); for (let k = 0; k < 50; k++) for (let i = 0; i < nw.length; i++) dec(i, true, dp[i], del[i].length); t.dd.push((performance.now() - a) / 50);
+    }
+    out[c.name] = { fullBytes: full.reduce((s, x) => s + x.length, 0), deltaBytes: del.reduce((s, x) => s + x.length, 0), cf: med(t.cf), cd: med(t.cd), df: med(t.df), dd: med(t.dd) };
+  }
+  await LfcPack.init(); const m = await (await fetch('mapseq-500.json')).json(); const pk = [], up = []; let p;
+  for (let r = 0; r < reps * 4; r++) { let a = performance.now(); p = LfcPack.packTables(m); pk.push(performance.now() - a); a = performance.now(); LfcPack.unpackTables(p); up.push(performance.now() - a); }
+  out.lfcMap2000 = { pack: med(pk), unpack: med(up), size: p.length };
+  return out;
+}
+</script>
