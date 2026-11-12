@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>DuckDB-wasm vs LFC-pack range reads</title>
+<script type="importmap">{"imports":{"apache-arrow":"./nm/apache-arrow/Arrow.mjs","flatbuffers":"./nm/flatbuffers/mjs/flatbuffers.js","tslib":"./nm/tslib/tslib.es6.mjs","json-with-bigint":"./nm/json-with-bigint/json-with-bigint.js"}}</script>
+<script src="v-all.js"></script>
+<script type="module">
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// 300,000 taxi rows: DuckDB-wasm 1.33.1-dev57.0 SQL on the Parquet zstd-3 file (worker, eh bundle) against LFC-pack (research stack, 4 MB blocks) unpack({ range }). Times are from the page's side, query to rows in hand.
+import * as duckdb from './nm/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs';
+const med = a => a.sort((x, y) => x - y)[a.length >> 1];
+window.run = async reps => {
+  const D = new URL('./nm/@duckdb/duckdb-wasm/dist/', location.href).href, bundle = await duckdb.selectBundle({ mvp: { mainModule: D + 'duckdb-mvp.wasm', mainWorker: D + 'duckdb-browser-mvp.worker.js' }, eh: { mainModule: D + 'duckdb-eh.wasm', mainWorker: D + 'duckdb-browser-eh.worker.js' } });
+  const t0 = performance.now(), worker = new Worker(bundle.mainWorker), db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker); await db.instantiate(bundle.mainModule); const conn = await db.connect(); const startMs = performance.now() - t0;
+  const pq = new Uint8Array(await (await fetch('rv/taxis-z3.parquet')).arrayBuffer()); await db.registerFileBuffer('t.parquet', pq.slice());
+  await LfcPack.init(); const lf = new Uint8Array(await (await fetch('rv/taxis-all.lfc')).arrayBuffer());
+  const mm = (await conn.query("select epoch_ms(min(tpep_pickup_datetime)) a, epoch_ms(max(tpep_pickup_datetime)) b from 't.parquet'")).toArray()[0], mn = Number(mm.a), mx = Number(mm.b), hi = mn + (mx - mn) * 0.01;
+  const T = async fn => { await fn(); const r = []; let n; for (let k = 0; k < reps; k++) { const t = performance.now(); n = await fn(); r.push(performance.now() - t); } return [+med(r).toFixed(1), n]; };
+  const o = { duckStartMs: +startMs.toFixed(0), bundle: bundle.mainModule.split('/').pop() };
+  [o.duckRange1, o.duckRange1Rows] = await T(async () => (await conn.query(`select * from 't.parquet' where tpep_pickup_datetime between epoch_ms(${mn}) and epoch_ms(${Math.floor(hi)})`)).toArray().length);
+  [o.duckCount1] = await T(async () => Number((await conn.query(`select count(*) c from 't.parquet' where tpep_pickup_datetime between epoch_ms(${mn}) and epoch_ms(${Math.floor(hi)})`)).toArray()[0].c));
+  [o.duckSumFare] = await T(async () => Number((await conn.query(`select sum(fare_amount) s from 't.parquet'`)).toArray()[0].s));
+  [o.duckAll, o.duckAllRows] = await T(async () => (await conn.query(`select * from 't.parquet'`)).toArray().length);
+  [o.lfcRange1, o.lfcRange1Rows] = await T(async () => LfcPack.unpack(lf, { range: { key: 'tpep_pickup_datetime', min: mn, max: Math.floor(hi) } }).length);
+  [o.lfcSumFare] = await T(async () => { let s = 0; for (const b of LfcPack.unpackColumns(lf, { keys: ['fare_amount'] })) { const v = b.cols.fare_amount; for (let i = 0; i < v.length; i++) s += v[i]; } return s; });
+  [o.lfcAll, o.lfcAllRows] = await T(async () => LfcPack.unpack(lf).length);
+  await conn.close(); await db.terminate(); return o; };
+</script>

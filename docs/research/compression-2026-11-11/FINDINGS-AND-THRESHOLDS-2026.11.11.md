@@ -59,6 +59,8 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.8.3, in ungoogled Chromi
 - Brotli 5 is smaller below about 100 rows, loads 1.3 to 10 times faster and saves faster, but everything stays under 1 ms. Brotli 11 saves take 18 to 59 ms on 100 to 200 rows, which is too slow for autosave.
 - **In the browser against rival readers (10:30 PM, same taxi rows, 3 browsers):** LFC-pack builds row objects in 0.51 to 0.63 of parquet-wasm's time. `unpackColumns` takes 1.1 to 2.0 times parquet-wasm's columns. Saving from row objects (`packRows`) takes 1.8 to 2.9 times parquet-wasm's save (lead B18). Arrow IPC reads columns in about 1 ms, but its file is 10 times larger.
 - **Stacking (E16):** the approved items beat the sum of their parts on data with nullable columns. A 1% range read on orders takes 0.08 to 0.12 of today's time, against 0.16 to 0.28 if the gains were independent. Gate the release on the stacked numbers.
+- **Real nested data (10:35 PM, 10,000 GitHub Archive events, 35.6 MB):** LFC-pack reads to objects in 0.57 to 0.83 of the time `JSON.parse` takes on the plain text, and 0.60 to 0.83 of zstd-3 plus parse. Whole-text zstd-19 and Brotli 9 are 17% smaller, because a whole-file window finds repeats. Keep nested blocks at 13 MB: at 4 MB this file was 10% bigger.
+- **DuckDB-wasm (taxi rows):** a 1% range read to rows takes LFC-pack 0.27 to 0.41 of DuckDB's time. A column sum is 1 to 2.2 times faster in DuckDB. DuckDB takes 0.7 to 3.6 s to start.
 - For app threads: an app save under about 100 rows is smaller as compressed JSON than as LFC-pack.
 
 **Skips that don't pay**

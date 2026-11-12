@@ -36,6 +36,7 @@ Related earlier work, not repeated here: the LZ4 1.11 framework and validation n
 14. **LFC-pack is 0.75 to 0.87 of Parquet's size (added 9:55 PM Eastern)** on the same real taxi rows (Parquet zstd-3 from pyarrow 26), and Brotli 11 of the JSON beats LFC-pack below about 100 to 200 rows (E14, E15).
 15. **Stacked, the approved items beat the sum of their parts (added 10:05 PM Eastern)** on data with nullable columns: a 1% range read on the orders set takes 0.08 to 0.12 of today's time, against 0.16 to 0.28 if the gains were independent, because B14 picks typed values cheaply where it had to parse JSON text before. On the real taxi table the stack is even with 4 MB blocks alone for range reads (E16).
 16. **In the browser, LFC-pack is the smallest and fastest to rows, but slowest to save (added 10:30 PM Eastern).** On the same taxi rows it is 0.85 of Parquet zstd-3's size and builds rows in 0.51 to 0.63 of parquet-wasm's time, but `packRows` takes 1.8 to 2.9 times parquet-wasm's save (E17, new lead B18).
+17. **On real nested data LFC-pack reads faster than `JSON.parse` of the plain text (added 10:35 PM Eastern):** 0.57 to 0.83 of its time on 10,000 GitHub Archive events, and a 1% range read on the taxi rows takes 0.27 to 0.41 of DuckDB-wasm's time (E18).
 
 Speed numbers come only from the three test browsers. Node was used only for pass/fail checks, byte counts and finding hot spots, never for timing.
 
@@ -539,6 +540,35 @@ Owner approved fetching browser rivals into research scratch (npm): parquet-wasm
 - **B18a, slices (`experiments/b18-patch-rows-slices.py`):** stringify a big array in slices that each fit the tokenizer buffer, so each slice takes the wasm comma scan. Same bytes. `packRows` 0.80 in Chromium, 0.89 in WebKitGTK, but 1.08 in Firefox (3 pages each). **EXPERIMENT**, Firefox needs more rounds and a slice-size sweep before it can go anywhere.
 - **B18b, the real gap:** LFC-pack goes rows → JSON text → tokens → columns, while parquet-wasm goes rows → columns. Even packing from NDJSON bytes (no stringify) is 1.3 to 1.5 times parquet-wasm's whole save from objects. A writer that reads row objects straight into columns would skip the text twice. **EXPERIMENT** (large: a second front end to the flat writer; must give the same bytes).
 
+### 2026-11-11 E18: real nested data (GitHub Archive) and DuckDB-wasm
+
+**Nested:** the first 10,000 events of the public GitHub Archive hour 2024-01-15 15:00 UTC (35,635,662 bytes of NDJSON, kept in research scratch only, not committed: it holds real public user names). LFC-pack 0.8.3 writes it as nested blocks; rows come back the same (10,000 of 10,000). Sizes: LFC-pack 3,134,169; whole-text zstd-3 3,655,030; zstd-19 2,599,552; Brotli 5 (24-bit window) 2,920,187; Brotli 9 2,615,880; gzip -9 5,075,476; Parquet zstd-3 via pyarrow `from_pylist` 6,816,302 (its inferred schema fills every missing key with null, so it does not give back the same JSON). The 4 MB rule must stay flat-only: 4 MB nested blocks made this file 10% bigger (3,456,861).
+
+Browser timing (`experiments/www/gh.html`, 4 fresh pages, median of 3; "read" = to row objects, including `JSON.parse` per line for the whole-text codecs), ms, Chromium / Firefox / WebKitGTK:
+
+| | save | read |
+|---|---|---|
+| LFC-pack | 339 / 302 / 327 | **157 / 191 / 130** |
+| zstd-3 of the text | **86 / 84 / 82** | 261 / 231 / 201 |
+| Brotli 5 of the text | 466 / 529 / 534 | 272 / 254 / 165 |
+| `JSON.parse` of the plain text (no codec) | | 232 / 229 / 225 |
+
+- LFC-pack reads nested real data in 0.57 to 0.83 of the time `JSON.parse` takes on the uncompressed text, and 0.60 to 0.83 of zstd-3 plus parse.
+- Whole-text zstd-19 and Brotli 9 are 17% smaller than LFC-pack's level 3 here: a 35 MB window finds repeats (avatar URLs, repository names) across the whole hour that 13 MB blocks cannot. LFC-pack `level: 19` would close part of the gap (README: about 12% smaller, 15 times slower to write).
+
+**DuckDB-wasm 1.33.1-dev57.0** (`experiments/www/dk.html`, worker, `eh` bundle) on the taxi Parquet zstd-3 file against LFC-pack (research stack, 4 MB blocks), 4 fresh pages, median of 3, ms, Chromium / WebKitGTK:
+
+| | DuckDB-wasm | LFC-pack |
+|---|---|---|
+| start (worker plus wasm) | 664 / 3,612 | (`init` is part of page load) |
+| 1% time range to rows (6,658 rows) | 29 / 43 | **12 / 12** |
+| count in that range | 14 / 21 | |
+| sum of one column | **4.3 / 10** | 9.4 / 10 (`unpackColumns`, then a loop) |
+| all 300,000 rows | 180 / 216 (Arrow row proxies, not plain objects) | 307 / 271 (plain objects) |
+
+- Firefox could not run DuckDB: its Parquet extension is fetched from `extensions.duckdb.org` at run time, and the test box has no route there.
+- Range reads to rows: LFC-pack takes 0.27 to 0.41 of DuckDB's time. Column aggregates: DuckDB is 1 to 2.2 times faster. DuckDB's whole-table result is lazy row proxies, so it is not comparable with plain objects.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -609,5 +639,6 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 - The data is made up and seeded. A real corpus (FHIR, Netflow maps, Workbench imports) is required before B2 ships.
 - One noisy shared 4-core cloud box. Ranges are wide in Firefox, so use the medians. There were no laptop, tablet or phone runs. Per the owner's device rule, laptop and tablet come first for JS-modules.
 - Main-thread, single-threaded packs only. Memory (RSS, heap), allocation counts and concurrency were not measured this round.
+- Rival comparisons used each library's defaults as of 2026-11-11 and research builds; Parquet files came from pyarrow (one row group). DuckDB did not run in Firefox (no network for its extension).
 - E12 sizes leave frames stored without zstd as they are, so the delta numbers for files with many such frames (orders with the null plane) are pessimistic. Node jobs ran beside some browser runs; the noisy cell was rerun on its own.
 - Upstream items marked "not re-fetched this session" are cited from earlier knowledge. Recheck the exact lines before a design is built on them.

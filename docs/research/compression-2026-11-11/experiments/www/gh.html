@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Nested real data: LFC-pack vs whole-file codecs</title><script src="v-r83.js"></script>
+<script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// 10,000 real GitHub Archive events (nested JSON, 35.6 MB): LFC-pack 0.8.3 pack/unpack against compressing the whole NDJSON text with zstd (lfc-pack's own zstd 1.5.7 build, research copy) or Brotli 1.1.0 (research wasm), then JSON.parse per line.
+const med = a => a.sort((x, y) => x - y)[a.length >> 1];
+async function inst(f) { return (await WebAssembly.instantiate(await (await fetch(f)).arrayBuffer(), {})).instance.exports; }
+async function run(reps) {
+  await LfcPack.init(); const Z = await inst('zstd-prefix.wasm'), B = await inst('brotli.wasm'), nd = new Uint8Array(await (await fetch('gha-10000.ndjson')).arrayBuffer()), td = new TextDecoder();
+  const T = fn => { fn(); const r = []; for (let k = 0; k < reps; k++) { const t = performance.now(); fn(); r.push(performance.now() - t); } return +med(r).toFixed(0); };
+  const parse = s => { const L = s.split('\n'), o = []; for (const l of L) if (l) o.push(JSON.parse(l)); return o; };
+  const o = {}; let p; o.lfcPack = T(() => { p = LfcPack.pack(nd); }); o.lfcSize = p.length; o.lfcUnpack = T(() => LfcPack.unpack(p));
+  for (const [name, X, comp, dec] of [['zstd3', Z, (d, c, s, n) => X3(Z.compress(d, c, s, n, 3, 0)), (d, c, s, n) => Z.decompress(d, c, s, n)], ['br5', B, (d, c, s, n) => B.compress(d, c, s, n, 5, 24), (d, c, s, n) => B.decompress(d, c, s, n)]]) {
+    const src = X.malloc(nd.length), cap = X.bound(nd.length), dst = X.malloc(cap), out = X.malloc(nd.length); new Uint8Array(X.memory.buffer, src, nd.length).set(nd); let n;
+    o[name + 'Pack'] = T(() => { new Uint8Array(X.memory.buffer, src, nd.length).set(nd); n = comp(dst, cap, src, nd.length); }); o[name + 'Size'] = n;
+    o[name + 'Unpack'] = T(() => { const r = dec(out, nd.length, dst, n); parse(td.decode(new Uint8Array(X.memory.buffer, out, r))); });
+  }
+  o.parseOnly = T(() => parse(td.decode(nd)));
+  return o;
+}
+function X3(r) { return r; }
+</script>
