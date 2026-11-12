@@ -58,3 +58,18 @@ Research screen against 0.8.3:
 Gate: the usual tests, `b7verify.cjs`, worst-case and `mixK` sets in all 3 browsers, and an early-stop A/B on plain flat data (logs, nd_dense). Plain data read 1.02 to 1.04 on first packs in an 8-round WebKitGTK rerun, so confirm it costs less than 5%.
 
 User changelog line: "Packing is faster when a column mixes numbers with empty (null) or text values."
+
+## B14: range reads build only the rows they keep (against lfc-pack 0.8.3; needs its own owner card)
+Apply `experiments/b14-range-late-rows.diff` (`src/flat.js`, `src/api.js`; no wasm change), then `python3 build.py`. What it does:
+- `unpack(file, { range })` on a flat block decodes the range column first, lists the matching rows, and builds row objects for those rows only (`readSel`).
+- A block whose footer number range lies wholly inside the asked range skips the test (`blockInside`), and a block where more than half the rows match goes the old way, reusing the decoded range column.
+- Nested blocks, key-order lists, `__proto__` keys, and lazy or generated rows go the old way.
+
+Research screen against 0.8.3:
+- A 1% range takes 0.31 to 0.85 of the time in all 3 browsers, and 0.45 to 0.72 with `keys`.
+- A range that keeps every row, or 90%, is even (0.94 to 1.09) when each mode runs on its own page; the nested control read 0.95 to 1.02.
+- The rows are the same on 252 of 252 checks (`experiments/selverify.cjs`, 6 ranges x 3 key choices, 8 made-up sets and 6 real corpus files).
+
+Gate: the usual tests (`test/query.cjs` first), `selverify.cjs`, and an early-stop A/B in all 3 browsers on full reads, on wide ranges, and on narrow ranges followed by a wide range in the same page (that sequence read 1.04 to 1.29 slower in the research screen, because the shared row builder warms up later).
+
+User changelog line: "Reading a time range is faster: only the matching rows are built."

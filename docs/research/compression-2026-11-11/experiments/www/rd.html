@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>rd</title>
+<script>window.__H={c(){},d(){}};</script><script src="inst83.js"></script>
+<script>
+async function run(name, reps, k1, k2, rk, bb, only) {
+  const buf = new Uint8Array(await (await fetch(name)).arrayBuffer()); await LfcPack.init();
+  const p = bb ? LfcPack.pack(buf, { blockBytes: bb }) : LfcPack.pack(buf); const info = LfcPack.info(p);
+  // range: the first 10% of the rk key's span (blocks outside are not opened)
+  let mn = Infinity, mx = -Infinity; for (const o of LfcPack.unpack(p, { keys: [rk] })) { const v = o[rk]; if (typeof v !== 'number') continue; if (v < mn) mn = v; if (v > mx) mx = v; }
+  const modes = {
+    colsAll: () => LfcPack.unpackColumns(p),
+    cols2: () => LfcPack.unpackColumns(p, { keys: [k1, k2] }),
+    rows2: () => LfcPack.unpack(p, { keys: [k1, k2] }),
+    rowsAll: () => LfcPack.unpack(p),
+    range1: () => LfcPack.unpack(p, { range: { key: rk, min: mn, max: mn + (mx - mn) * 0.01 } }),
+    lazy2: () => { const r = LfcPack.unpack(p, { rows: 'lazycols' }); let s = 0; for (let i = 0; i < r.length; i++) { const o = r[i]; s += (o[k1] != null) + (o[k2] != null); } return r; },
+    range10: () => LfcPack.unpack(p, { range: { key: rk, min: mn, max: mn + (mx - mn) * 0.1 } }),
+  };
+  const out = { blocks: info.blocks, bytes: p.length };
+  for (const [m, f] of Object.entries(modes)) { if (only && !only.includes(m)) continue; const r = []; try { f(); } catch (e) { out[m] = 'n/a: ' + e.message.slice(0, 60); continue; } for (let k = 0; k < reps; k++) { let z = 0; __H.d = (a, b, ms) => { z += ms; }; const t = performance.now(); const v = f(); const ms = performance.now() - t; __H.d = () => {}; r.push([+ms.toFixed(2), +z.toFixed(2), v.length]); } out[m] = r; }
+  return out;
+}
+</script>

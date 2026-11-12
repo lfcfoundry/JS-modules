@@ -25,13 +25,17 @@ Related earlier work, not repeated here: the LZ4 1.11 framework and validation n
 5. **ADOPT CANDIDATE B3 (added 8:10 AM Eastern): keep long numbers on the fast writer.** One number with more than 15 digits, more than 9 decimals, an exponent or `-0` made the fast flat writer give up on the whole block. The prototype keeps such numbers as text for that one column. Pack on such data takes 0.67 to 0.86 of the time in the three browsers, and one small first pack in WebKitGTK was even at 1.01. All three candidates stacked (B1 + B2 + B3) take 0.50 to 0.54 of the time on the UUID/hash/decimal set in Chromium 156. The output is byte-identical on 19 of 19 sets, and lfc-pack 0.8.1 reads the new files.
 6. **Skipping zstd on incompressible frames (the Brotli and zstd raw-block idea) has little headroom.** Even on the UUID/hash/random set, frames that end up stored raw cost only 4 to 5% of pack time, because zstd is already quick on random bytes. Deferred.
 
+7. **ADOPT CANDIDATE B14 (added 7:26 PM Eastern): build only the rows a range read keeps.** `unpack(file, { range })` built every row of each opened block and then dropped the rows outside the range. The prototype tests the range column first. A 1% time range takes 0.31 to 0.85 of the time in the three browsers, and 0.45 to 0.72 when only a few keys are asked for. A range that keeps every row is even (0.94 to 1.09). The rows are the same in 252 of 252 checks, and the format does not change (E7).
+8. **Nulls in a typed column cost 11 to 16% of the file** on number and text columns, at any null share from 0.1% to 50%, because the column falls back to JSON text. A null plane would fix it, but it is a format change, and the real corpus barely has such columns. Proposal written, DEFER (E8).
+9. **Small files carry 350 to 840 bytes of fixed parts.** Below about 100 rows, LFC-pack is larger than gzip of the same JSON (1.2 to 3.4 times at 10 to 20 rows). A built-in dictionary would save only 120 to 320 bytes per file, so it is not worth a format change. REJECT for now (E9).
+
 Speed numbers come only from the three test browsers. Node was used only for pass/fail checks, byte counts and finding hot spots, never for timing.
 
 ## Environment and method
 
 - **Machine:** a 4-core Linux x86_64 cloud container with 15 GB of RAM, shared and noisy. This is not a qualification device. Laptop, tablet and phone runs are still to do.
 - **Browsers:** ungoogled Chromium 156.0.8078.79 (Playwright 1.63), Firefox 158.0 (WebDriver BiDi through puppeteer-core 25.16.0) and WebKitGTK 2.52.6 (WebKitWebDriver). All come from the knowledge-base `browsers` branch and ran one at a time.
-- **Code:** JS-modules `main` at `69049ec` (lfc-pack 0.8.1). The variants are string patches of the built `lfc-pack.js` (`experiments/mkvar.py`). Nothing in `modules/` was changed.
+- **Code:** JS-modules `main` at `69049ec` (lfc-pack 0.8.1) for E1 to E5; `537242c` (0.8.3) for E6 v3 and E7 to E9. The variants are string patches of the built `lfc-pack.js` (`experiments/mkvar.py`). Nothing in `modules/` was changed.
 - **Data:** seeded, made-up data with no real records (`experiments/data.cjs`):
   - `logs`: web-log rows from `modules/lfc-pack/test/gen.cjs`.
   - `events`: nested rows from the same file.
@@ -224,6 +228,101 @@ The controls in the 5-round run read 1.03 to 1.14 in places, with wide ranges (0
 
 **Measured headroom:** on the `ids` set, frames that end up stored raw (UUID, hex, random doubles) cost 4 to 5% of pack time in all three browsers (E1). zstd already moves fast through random bytes, and LFC-pack's fast writer already stops a losing candidate once it overflows its byte limit. **Decision: DEFER.** The ceiling is under 5%, and an order-0 entropy check cannot see repeated IDs (foreign keys), so it could make some files bigger. If ever done, combine it with B2: a sample that does not compress marks the frame stored.
 
+### 2026-11-11 E7 (B14): where column and filtered reads spend their time
+
+Asked by the owner ("Do first 3", lead 1), 6:45 PM Eastern. Code: JS-modules `main` at `537242c` (lfc-pack 0.8.3). Same browsers and machine as above.
+
+**Method:** `experiments/rddrive.cjs` opens one fresh page per set, packs once, then times each read mode 5 times after one warm-up call (median). The decompress hook of `mkinst.py` gives the zstd share. Modes: `rowsAll` = `unpack(file)`; `rows2` = `unpack(file, { keys: [2 keys] })`; `colsAll` and `cols2` = `unpackColumns` with all or 2 keys; `range10` and `range1` = `unpack(file, { range })` over the first 10% or 1% of a key's span; `lazy2` = `{ rows: 'lazycols' }` reading 2 keys of every row.
+
+**Time of each mode against a full `unpack`** (median ms ratio; Chromium / Firefox / WebKitGTK):
+
+| Set (blocks) | `rows2` | `cols2` | `colsAll` | `range1` | `lazy2` |
+|---|---|---|---|---|---|
+| logs, range on `ts` (4) | 0.17 / 0.20 / 0.28 | 0.10 / 0.10 / 0.12 | 0.96 / 0.82 / 0.69 | 0.30 / 0.30 / 0.29 | 0.53 / 0.63 / 0.57 |
+| sensors, `ts` (3) | 0.50 / 0.37 / 0.39 | 0.12 / 0.14 / 0.13 | 0.27 / 0.41 / 0.36 | 0.40 / 0.44 / 0.28 | 0.47 / 0.64 / 0.43 |
+| sensnull, `ts` (3) | 0.37 / 0.31 / 0.25 | 0.10 / 0.15 / 0.13 | 0.39 / 0.55 / 0.46 | 0.41 / 0.43 / 0.34 | 0.34 / 0.85 / 0.38 |
+| ids, range on random `k` (4) | 0.38 / 0.28 / 0.43 | 0.20 / 0.20 / 0.27 | 0.85 / 0.82 / 0.75 | 0.97 / 1.03 / 0.87 | 0.55 / 0.66 / 0.59 |
+| nd_dense, `amount` (1) | 0.16 / 0.27 / 0.22 | 0.10 / 0.09 / 0.11 | 0.76 / 0.82 / 1.00 | 0.76 / 0.91 / 1.11 | 0.48 / 0.45 / 0.78 |
+| events, nested (4) | 0.57 / 0.58 / 0.64 | n/a | n/a | 0.22 / 0.23 / 0.22 | 0.97 / 0.96 / 0.74 |
+
+Full table with milliseconds and zstd shares: `results/rd-<browser>.json` (`python3 experiments/rdanal.py`).
+
+**What it shows:**
+1. **zstd is still a small share.** 0 to 40% of a mode's time, usually under 20%; the highest shares are on tiny reads of 1 to 3 ms. Decoder ideas (B5) stay deferred.
+2. **A range read opens whole blocks and then builds every row in them.** `range1` costs the same as `range10` (logs 0.30 against 0.32 in Chromium), because a default block holds 13 MB of text (75,000 to 100,000 rows), and `unpack` builds all row objects of an opened block before `keepRows` drops the ones outside the range. On a key whose values are not in order (`ids`, `k`), no block can be skipped, so a 1% range costs as much as a full read. This is the lead for B14.
+3. **Rows with a few keys cost 2 to 5 times the columns.** `rows2` against `cols2`: sensors 48.6 against 11.6 ms in Chromium. A Node profile of `unpack(file, { keys })` on sensors gives 50% garbage collection, 18% `assemble`, 10% column decoding. In a Node micro-test on the same columns, building `{ ts, temp }` with an object literal takes 9 ms for 300,000 rows. The library's way (empty object, then one keyed store per column) takes 29 to 45 ms. Generated code (`new Function`) is 4 to 7 times faster than every non-generated way tried (column-major, row-major, template clone). That path already exists as `rows: 'generated'`, and it is opt-in because the page rules (CSP) forbid `eval`. No CSP-safe way matched it, so this is recorded, not proposed (B15).
+4. **`unpackColumns` with all keys is barely faster than rows on string-heavy data** (logs 0.69 to 0.96): making the JS strings is the cost, not the rows.
+
+**B14 prototype: test the range first, build only the matching rows** (`experiments/b14-range-late-rows.diff`, about 45 added or changed lines in `src/flat.js` and `src/api.js`). This is "late materialization" from column stores (Abadi, Myers, DeWitt and Madden, "Materialization Strategies in a Column-Oriented DBMS", ICDE 2007; not re-fetched this session): decode the filter column, keep a list of matching row numbers, then build objects for those rows only. Two cutovers keep the old path where it is faster: a block that the footer's number ranges show is wholly inside the range skips the test, and a block where more than half the rows match goes the old way (reusing the decoded range column). Nested blocks, key-order lists, `__proto__` keys and lazy or generated rows also go the old way.
+
+Correctness: `selverify.cjs` compares the JSON text of the rows from 0.8.3 and the prototype for 6 ranges (1%, 10%, a middle 1%, everything, none) times 3 key choices: 0 differences in 252 checks on 8 made-up sets and 6 real corpus files (FHIR, GitHub events, gen_logs, gen_sparse, gen_config, nd_dense).
+
+Paired fresh pages, alternating order, 4 rounds, 5 timed reads per mode (ratio of medians, prototype / 0.8.3; Chromium / Firefox / WebKitGTK):
+
+| Set | 1% range | middle 10% | 1% range, one other key |
+|---|---|---|---|
+| sensors | 0.31 / 0.52 / 0.52 | 0.36 / 0.48 / 0.75 | 0.45 / 0.48 / 0.69 |
+| sensnull | 0.40 / 0.49 / 0.54 | 0.47 / 0.62 / 0.56 | 0.46 / 0.50 / 0.62 |
+| logs | 0.68 / 0.71 / 0.73 | 0.63 / 0.93 / 0.77 | 0.59 / 0.57 / 0.67 |
+| ids (unordered key, every block opened) | 0.70 / 0.77 / 0.85 | 0.69 / 0.78 / 0.84 | 0.61 / 0.68 / 0.72 |
+| mix3 | 0.58 / 0.63 / 0.74 | 0.56 / 0.73 / 0.76 | 0.48 / 0.54 / 0.63 |
+| nd_dense (1 block) | 0.71 / 0.78 / 0.78 | 0.85 / 0.81 / 0.89 | 0.55 / 0.50 / 0.50 |
+| events (nested, control: no code change) | 0.96 / 0.91 / 1.00 | 1.09 / 1.01 / 1.08 | 0.99 / 1.07 / 1.03 |
+
+**Worst case (the rule from E6):** a range that keeps every row, or 90% of rows. The first version, without the cutovers, was up to 1.35 times slower in Chromium (nd_dense). With them, each mode on its own fresh page, 6 rounds:
+
+| Set | everything: C / F / W | 90%: C / F / W |
+|---|---|---|
+| sensors | 0.98 / 0.99 / 0.94 | 1.02 / 0.99 / 0.95 |
+| sensnull | 1.03 / 0.98 / 0.95 | 1.01 / 1.06 / 1.08 |
+| logs | 1.03 / 1.02 / 1.01 | 1.03 / 0.97 / 0.94 |
+| nd_dense | 0.95 / 1.00 / 1.00 | 1.02 / 1.09 / 1.04 |
+| events (control) | 1.01 / 1.02 / 0.95 | 0.96 / 0.98 / 1.02 |
+
+That is within the control's noise (0.95 to 1.02). One caveat: when the same page ran narrow ranges first and then a range that keeps every row, the wide range read 1.04 to 1.29 times slower. The narrow ranges no longer warm up the shared row builder, so it is still running colder code. A page that loads the whole file first (the usual case) warms it up. **The ship gate must time that sequence too.** (Firefox and WebKitGTK timers round to 1 ms, so nd_dense ratios there move in steps of about 0.09.)
+
+**Decision: ADOPT CANDIDATE (B14)**, read path only, no format change, same rows. Gates: the early-stop A/B on plain full reads and on the narrow-then-wide sequence in all three browsers, plus `node test/query.cjs` and the rest of the suite.
+
+### 2026-11-11 E8 (B13): what `null` costs in a typed column
+
+Lead 2. Made-up pairs from the 300,000-row sensor set (`experiments/mknull.py`): one key set to `null` in a random share of rows, and the same key left out of those rows. Left out is stored as a typed column plus a presence plane, which is what a null plane would cost, so it stands in for the proposal. Sizes come from Node (they do not depend on the engine).
+
+| Column (encoding) | 0.1% null | 1% | 10% | 50% |
+|---|---|---|---|---|
+| `temp`, slowly changing decimals (`V` delta) | +14.6% | +14.6% | +15.9% | +14.3% |
+| `dev`, 40 names (`D`) | +11.5% | +11.7% | +13.1% | +12.8% |
+| `ok`, true/false (`T`) | +0.9% | +1.1% | +2.8% | +4.3% |
+
+File growth with `null` against left out. One `null` in 1,000 rows costs as much as many, because the whole column falls back to JSON text (`j`).
+
+Read time, one fresh page per file, 7 reads (median ms, `null` file → left-out file):
+
+| | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|
+| `unpackColumns`, `temp` 1% | 45.3 → 29.8 | 50 → 28 | 37 → 24 |
+| `unpackColumns`, `dev` 1% | 59.3 → 26.2 | 57 → 28 | 57 → 25 |
+| `unpackColumns`, `temp` 10% | 45.5 → 26.7 | 55 → 28 | 40 → 21 |
+| `unpack`, `temp` 1% | 106 → 96 | 79 → 92 | 62 → 55 |
+| `unpack`, `dev` 1% | 120 → 92 | 86 → 68 | 78 → 52 |
+| `unpack`, `temp` 10% | 136 → 96 | 87 → 96 | 63 → 51 |
+
+Column reads take 0.44 to 0.66 of the time. Row reads take 0.67 to 0.90, except Firefox on `temp`, where the left-out file read 1.10 to 1.16 times slower (sparse rows cost more there). One pass per browser, so treat the row numbers as rough.
+
+**Real corpus:** only 2 of 8 files have a key holding one kind of value plus `null`: `mixed.ndjson` (`n`, 33% null, but the file is nested) and `nd_gen_logs` (`cache`, true/false, 34% null): 1.4% smaller if left out. There is no database export in the corpus, which is where such columns are common.
+
+**Decision: DEFER, proposal written** (`PROPOSAL-null-plane.md`): a new column type `N` wrapping the typed column plus a null plane, so 0.8.x readers refuse such files instead of misreading them. Needs a real nullable workload first.
+
+### 2026-11-11 E9 (B7): small files, app saves and a built-in dictionary
+
+Lead 3. Inputs: the first 10, 100 and 1,000 rows of the made-up sets and of FHIR and gen_logs, plus Netflow map saves cut from `netflow-map/test/maps/netflow-test-map-2000.json` (20, 200 and 2,000 nodes, saved with `packTables` the way `src/app/75-mapfile.js` does). `experiments/ovh.cjs` splits each file into its parts. Sizes only (Node).
+
+- **Fixed parts are 350 to 840 bytes per file:** trailer 16, footer 144 to 330, block headers 47 to 148, meta 155 to 400 (flat blocks), planes 17 to 141 below 1,000 rows. That is 39 to 81% of a 10-row file (FHIR, with long rows: 9%), 4 to 41% at 100 rows and 1 to 12% at 1,000 rows.
+- **Against gzip -9 of the JSON:** at 10 to 20 rows LFC-pack is 1.2 to 3.4 times larger (Netflow 20 nodes: 1,034 against 308 bytes). At 100 rows it is 0.76 to 0.98 of gzip; at 1,000 rows 0.45 to 0.74.
+- **Built-in dictionary, estimated** (`experiments/dict.cjs`: `c(D + x) - c(D)` + 6 at zstd level 3, D = footer and meta text of the other file families): saves 120 to 320 bytes per file, 15 to 31% of a 10-row file (FHIR 2.5%), 1 to 16% at 100 rows, 1 to 3% at 1,000 rows. A 10-row file stays larger than its gzip.
+- **No-format-change option:** a raw block (the whole text as one zstd frame) for tiny inputs gives logs 10 rows 647 bytes (flat 834) and sensors 403 (639), but loses at 100 rows, and `unpackColumns` refuses raw blocks.
+
+**Decision: REJECT the dictionary for now** (format change for a few hundred bytes; owner's rule is speed over size). Proposal with the numbers: `PROPOSAL-small-file-dictionary.md`. Revisit only if many small files are stored side by side.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -236,7 +335,9 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 
 **B3b. Mixed-kind keys (nullable numbers and strings, string/number mixes) stay on the fast writer.** Source: our own profile. The principle is the same per-column fallback as B3. Target: `wasm/flatscan.c`, `src/flat.js`, `src/api.js` (layout guard). Advantage: pack 1.6 to 2x slower today on a block with 1% nulls in one column, and the prototype removes that (E6). Evidence: real-corpus count (gen_sparse), the headroom run, and 41/41 byte-identical sets. Difficulty: medium (65 changed lines with B3). Risk: low to medium, covered by the edge sets and the layout guard. **ADOPT CANDIDATE (v3)**: wins 0.50 to 0.93 where up to about half the cells are mixed, the worst case is even (0.94 to 1.05), and a control gate is required (E6).
 
-**B13. Validity bitmap for nullable typed columns.** Source: Arrow's validity bitmap ([Columnar.html](https://arrow.apache.org/docs/format/Columnar.html), not re-fetched this session); Parquet definition levels. Target: the LFC-pack flat layout. A `V`/`B`/`F`/`s`/`D` column with some `null`s would keep its typed encoding plus a null plane, like the presence planes already in the format, instead of becoming JSON text (`j`). Advantage: 4.3% smaller on `sensnull` (1,739,648 against 1,667,743 bytes with no nulls). Reads would also skip JSON text. Risk: high, because this changes the format (new optional column parameter; old readers must refuse or ignore it). **DEFER**; measure size and read time on real nullable data first, then write a format proposal.
+**B14. Late materialization for range reads: test the range column, then build only the matching rows.** Source: column-store materialization strategies (Abadi, Myers, DeWitt and Madden, ICDE 2007; not re-fetched this session); the selection vectors used by vectorized engines work the same way. Target: lfc-pack `src/flat.js` (`readSel`) and `src/api.js` (`unpackSome`, `blockInside`). Advantage: 1% range reads take 0.31 to 0.85 of the time, and 0.45 to 0.72 with `keys`. Evidence: strong (3 browsers, paired fresh pages, 252/252 same rows, worst case even when each mode runs on its own page). Difficulty: low (about 45 lines, no wasm). Risk: low, read path only, no format change; the narrow-then-wide sequence ran 1.04 to 1.29 slower in one page and must be gated. Experiment: E7. **ADOPT CANDIDATE.**
+
+**B13. Validity bitmap (null plane) for nullable typed columns.** Source: Arrow's validity bitmap ([Columnar.html](https://arrow.apache.org/docs/format/Columnar.html), not re-fetched this session); Parquet definition levels. Target: the LFC-pack flat layout. Advantage: files 11 to 16% smaller when a number or text column has any nulls (1 to 4% for true/false), column reads 0.44 to 0.66 of the time (E8). Evidence: strong on made-up data; the real corpus has only one such flat key (1.4%). Risk: high, format change for three readers. **DEFER**, proposal in `PROPOSAL-null-plane.md` (new column type `N`, so old readers refuse safely).
 
 **B3c. Remaining scanner bail-outs** (list items over 32 bits, code 9; scaled values of 2^50 or more; integer-like or `__proto__` keys). Evidence: code 9 hit once in 13 FHIR blocks, and that block is nested anyway. **DEFER** (rare in the corpus).
 
@@ -246,7 +347,11 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 
 **B6. Skip zstd on incompressible frames.** Sources: Brotli `ShouldCompress`, zstd raw blocks, LZ4 and Snappy skip heuristics. Target: zstd glue. Advantage: 4 to 5% or less of pack. Evidence: measured headroom (E1/E4). **DEFER** (fold into B2 if ever done).
 
-**B7. Trained or static dictionaries for small files.** Source: zstd dictionary training (`lib/zdict.h`, `ZDICT_trainFromBuffer`); Brotli's built-in static dictionary. Not re-fetched this session. Target: small LFC-pack files and app saves (Story Editor, Mind Mapper), where frame overhead and short meta JSON dominate. Advantage: size only, on small files. Difficulty: medium. Risk: high, because frames are "no dictionary" today (`LAYOUT-SPEC.md` 1.1), so this is a format change. Related: shared tables (`share: true`) and idea 5 in the format-ideas file. **DEFER** until a small-file workload shows that size matters there. The owner's rule is speed over size.
+**B7. Trained or static dictionaries for small files.** Source: zstd dictionaries (`ZSTD_compress_usingDict`, `ZDICT_trainFromBuffer`); Brotli's built-in static dictionary. Not re-fetched this session. Target: small LFC-pack files and app saves (Netflow map files use `packTables`; Story Editor and Mind Mapper do not use LFC-pack today). Measured (E9): fixed parts are 350 to 840 bytes per file; a built-in dictionary saves an estimated 120 to 320 bytes (15 to 31% of a 10-row file, 1 to 3% at 1,000 rows), and a 10-row file stays larger than gzip. Risk: high (format change, dictionary kept forever, wasm grows). **REJECT for now**, proposal with numbers in `PROPOSAL-small-file-dictionary.md`.
+
+**B15. Faster row objects without generated code.** Source: our own profile (E7). Building rows with one keyed store per column costs 4 to 7 times generated object literals (`rows: 'generated'`, opt-in because of CSP), and is half garbage collection. No CSP-safe way tried (row-major, column-major, template clone) came close. **DEFER**; recorded so the next attempt starts from these numbers.
+
+**B16. Smaller skip units for range reads.** Source: Parquet page index and ORC row groups (see B8). Default blocks hold 13 MB of text, so a 1% range opens a whole block (E7: `range1` costs the same as `range10`). Next experiment: smaller `blockBytes` (1, 2, 4 MB) for size against range-read time, which needs no format change. **EXPERIMENT** (after B14, which removes most of the per-row cost inside an opened block).
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 
@@ -270,6 +375,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 | Aliasing caller Buffers to skip copies | Loses caller-memory safety | same |
 | Speculative SIMD without a measured hot loop | Weak evidence | same; E1 caps decoder-side SIMD on full unpack |
 | Order-0 entropy skip on its own (B6) | Under 5% headroom; misses repeated IDs | this log, E4 |
+| Built-in zstd dictionary for small files (B7) | Saves 120 to 320 bytes per file; format change | this log, E9 |
+| Raw block for tiny inputs | Smaller below about 20 rows, but `unpackColumns` refuses it and it loses at 100 rows | this log, E9 |
 
 ## Reproduce
 

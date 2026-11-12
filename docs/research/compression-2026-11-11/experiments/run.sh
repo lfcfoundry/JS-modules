@@ -23,3 +23,13 @@ done
 # E5 (B3): apply b3-long-numbers.diff to a copy of modules/lfc-pack, rebuild (wasm/build-flatscan.sh, build.py), then:
 #   node b3verify.cjs <0.8.1 lfc-pack.js> <patched lfc-pack.js>      # byte identity on 19 sets
 #   copy the two builds to www/v-base.js and www/v-b3.js; node abdrive.cjs <browser> 6 4 base,b3 ids-300000,ids-30000,logs-300000
+# E7 (read paths, B14): time split of 7 read modes, one fresh page per set (www/rd.html needs www/inst83.js from mkinst.py)
+#   python3 mkinst.py "$LP" www/inst83.js
+#   for b in chromium firefox webkit; do node rddrive.cjs $b 5 logs-300000:ts:status:ts,sensors-300000:ts:temp:ts,events-300000:id:type:id,ids-300000:x:k:k,sensnull-300000:ts:temp:ts,nd_dense:id:amount:id; python3 rdanal.py rd-$b.json; done
+#   B14: apply b14-range-late-rows.diff to a copy of modules/lfc-pack (python3 build.py), then
+#   node selverify.cjs "$LP" <patched lfc-pack.js> www <set:rangeKey:otherKey,...>        # same rows, 6 ranges x 3 key choices per set
+#   copy the builds to www/v-r83.js and www/v-sel.js; node rdabdrive.cjs <browser> 4 5 r83,sel sensors-300000:ts:temp,...; python3 rdabanal.py rdab-<browser>.json r83,sel
+#   worst case on its own page: ONLY=rangeAll TAG=-rangeAll node rdabdrive.cjs <browser> 6 5 r83,sel ...  (and ONLY=rangeMost)
+# E8 (nulls, B13): python3 mknull.py www/sensors-300000.ndjson temp 0.001,0.01,0.1,0.5 (also dev, ok); node sz.cjs "$LP" temp-*.ndjson ...; python3 -I nullscan.py <corpus files>
+#   read time: ONLY=rowsAll,colsAll TAG=-null node rddrive.cjs <browser> 7 temp-null-0.01:ts:temp:ts,temp-abs-0.01:ts:temp:ts,...
+# E9 (small files, B7): python3 mkinst-src.py "$LP" inst-src.js; node ovh.cjs inst-src.js <small files>; node dict.cjs <small files>

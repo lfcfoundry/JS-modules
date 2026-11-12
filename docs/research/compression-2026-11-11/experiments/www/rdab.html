@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><title>rdab</title>
+<script>document.write('<script src="v-'+location.hash.slice(1)+'.js"><\/script>');</script>
+<script>
+async function run(name, reps, rk, k2, only) {
+  const buf = new Uint8Array(await (await fetch(name)).arrayBuffer()); await LfcPack.init(); const p = LfcPack.pack(buf);
+  let mn = Infinity, mx = -Infinity; for (const o of LfcPack.unpack(p, { keys: [rk] })) { const v = o[rk]; if (typeof v === 'number') { if (v < mn) mn = v; if (v > mx) mx = v; } }
+  const R = f => ({ range: { key: rk, min: mn + (mx - mn) * f[0], max: mn + (mx - mn) * f[1] } });
+  const modes = { range1: R([0, 0.01]), rangeMid10: R([0.45, 0.55]), rangeAll: R([0, 1]), rangeMost: R([0, 0.9]), keys1: Object.assign(R([0, 0.01]), { keys: [k2] }) }, out = {};
+  for (const [m, o] of Object.entries(modes)) { if (only && !only.includes(m)) continue; LfcPack.unpack(p, o); const r = []; for (let k = 0; k < reps; k++) { const t = performance.now(); LfcPack.unpack(p, o); r.push(+(performance.now() - t).toFixed(2)); } r.sort((a, b) => a - b); out[m] = r[reps >> 1]; }
+  return out;
+}
+</script>
