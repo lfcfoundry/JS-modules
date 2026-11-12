@@ -210,6 +210,14 @@ Writer (reference, not a rule for readers): a string or shape first seen in a bl
 
 Row ranges need no extra section: a reader gets block `i` starting row by adding up the `rows` of blocks `0..i-1` in the block table (footer section 2) and decodes only the blocks that overlap the wanted range. `LfcPack.unpackRows(bytes, {from, count})` does this; a file with a raw block (`r`) is read whole and cut.
 
+## 4a. Delta saves (prototype, JavaScript only, off by default)
+`pack(x, { base })`, `packTables(x, { base })` and `unpack(file, { base })` write and read a *delta*: a normal file whose flat blocks have their frames compressed against the same frames of a *base*, an earlier full save (`zstd --patch-from`, one frame at a time). The rows are the same as the full file's; only the frame bytes and the block table change.
+- Footer section 17 (required, so readers that do not know it refuse the file): JSON `{ "v": 1, "base": XXH64-hex-of-the-base-file, "blocks": number-of-delta-blocks }`. A reader MUST refuse a delta unless it is handed a file whose XXH64 (the same 16 lowercase hex digits as block checksums, over the whole base file) equals `base`.
+- A flat block with header field `d: 1` has its meta frame (`m`) and plane frame (`pl`) compressed with the base block's raw meta bytes and raw plane bytes as the zstd prefix (`ZSTD_CCtx_refPrefix`, `ZSTD_DCtx_refPrefix`). The base block is the block with the same index in the base file and MUST be a flat block without key-order lists. A column frame whose `f` entry is `[raw, comp, 1, 1]` (fourth number 1) is compressed with the base's raw frame of the same column key and frame number as its prefix; a frame without the fourth number is an ordinary frame.
+- Blocks that are not flat, flat blocks with key-order lists and blocks without a flat partner in the base are written as in a full file. A delta of a file with nothing to share is the full file.
+- A base MUST be a full file, not a delta. Block checksums (block table entries) and column checksums (`x`) are over the delta's bytes as written.
+- Not in this prototype: the Python and Go readers, `range`, `keys` and `table` options with `base`, nested blocks.
+
 ## 5. Reader rules, short list
 1. Check block CRC (`SPEC.md` 2.4), then cut frames in order using the header; refuse the block if bytes are left over (a reader SHOULD; the reference JavaScript reader does not check yet).
 2. Never trust a length: check every decoded size against the layout.

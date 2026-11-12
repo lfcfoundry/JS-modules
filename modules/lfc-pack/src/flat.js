@@ -596,7 +596,8 @@
   function flatFrames(zs, bytes, want, predecode, verify) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j, base;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
-    var meta = JSON.parse(tdr.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
+    var dp = h.d ? zs.dp : null; if (h.d && !dp) throw new Error('this block is a delta: pass { base }');   // delta saves (prototype): the meta and plane frames, and every column frame marked f[3], were compressed against the same frames of the base save
+    var meta = JSON.parse(tdr.decode(dp ? zs.decompressPrefix(take(h.m[1]), h.m[0], dp.m) : zs.decompressView(take(h.m[1]), h.m[0]))), pl = dp ? zs.decompressPrefix(take(h.pl[1]), h.pl[0], dp.pl) : zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
     if (meta.ord) { var om = meta.ord; ordList = JSON.parse(tdr.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, odr.byteOffset, n); }
     base = p;
     for (j = 0; j < K; j++) {
@@ -608,7 +609,7 @@
         if (st0 < base || st0 + tl > bytes.length || xhex(zs, bytes.subarray(st0, st0 + tl)) !== c.x) throw new Error('block checksum mismatch (column ' + meta.keys[j] + ')');
         p = st0;
       }
-      for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
+      for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? (f[3] ? zs.decompressPrefix(sb, f[0], dp.col(meta.keys[j], i)) : zs.decompress(sb, f[0])) : sb.slice()); }
       cols[j] = !wanted ? null : (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
     }
     if (!ordList) {   // the presence bits of a key must be as many as its column has values (a dense column is read without looking at its bits, so a damaged bit plane would otherwise go unnoticed there)

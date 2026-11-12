@@ -2,10 +2,11 @@
 
   // ================================================================ zstd on top of a wasm instance (wasm/zstd-glue.c)
   function makeZstd(inst) {
-    var X = inst.exports, mem = X.memory, inP = 0, inCap = 0, outP = 0, outCap = 0;
+    var X = inst.exports, mem = X.memory, inP = 0, inCap = 0, outP = 0, outCap = 0, preP = 0, preCap = 0;
     function view(p, n) { return new Uint8Array(mem.buffer, p, n); }
     function ensureIn(n) { if (n > inCap) { if (inP) X.free(inP); inCap = Math.max(n, inCap * 2, 65536); inP = X.malloc(inCap); if (!inP) { inCap = 0; throw new Error('out of wasm memory'); } } }
     function ensureOut(n) { if (n > outCap) { if (outP) X.free(outP); outCap = Math.max(n, outCap * 2, 65536); outP = X.malloc(outCap); if (!outP) { outCap = 0; throw new Error('out of wasm memory'); } } }
+    function ensurePre(n) { if (n > preCap) { if (preP) X.free(preP); preCap = Math.max(n, preCap * 2, 65536); preP = X.malloc(preCap); if (!preP) { preCap = 0; throw new Error('out of wasm memory'); } } }
     function contentSize(src) {
       ensureIn(Math.min(src.length, 32)); view(inP, Math.min(src.length, 32)).set(src.subarray(0, 32));
       var n = X.content_size(inP, Math.min(src.length, 32)); return n === 0xFFFFFFFF ? -1 : n;
@@ -18,12 +19,26 @@
       if (X.is_error(r) || r !== outLen) throw new Error('zstd: damaged data');
       return view(outP, outLen);
     }
+    // delta saves (prototype, builds with the prefix calls): one frame compressed or decompressed against a raw prefix, the same frame of an earlier save
+    function decompressPrefix(src, outLen, pre) {
+      ensureIn(src.length); view(inP, src.length).set(src); ensureOut(outLen); ensurePre(pre.length); view(preP, pre.length).set(pre);
+      var r = X.decompress_prefix(outP, outLen, inP, src.length, preP, pre.length);
+      if (X.is_error(r) || r !== outLen) throw new Error('zstd: damaged data (or not the frame this was compressed against)');
+      return view(outP, outLen).slice();
+    }
     var api = {
       contentSize: contentSize,
       decompressView: decompressView,
       decompress: function (src, outLen) { return decompressView(src, outLen).slice(); },
       heapUsed: function () { return X.heap_used(); },
       hasEncoder: !!X.compress
+    };
+    if (X.decompress_prefix) api.decompressPrefix = decompressPrefix;
+    if (X.compress_prefix) api.compressPrefix = function (src, level, pre) {
+      ensureIn(src.length); view(inP, src.length).set(src); var cap = X.bound(src.length); ensureOut(cap); ensurePre(pre.length); view(preP, pre.length).set(pre);
+      var r = X.compress_prefix(outP, cap, inP, src.length, level == null ? 3 : level, preP, pre.length);
+      if (X.is_error(r)) throw new Error('zstd: compress failed');
+      return view(outP, r).slice();
     };
     // checksums computed inside the module (rebuilds from wasm/zstd-glue.c); the input goes through the module's input buffer in pieces of up to 4 MB
     if (X.crc32) api.crc32 = function (b) {

@@ -72,3 +72,20 @@ EXPORT("compress") u32 zs_compress(void* dst, u32 dcap, const void* src, u32 n, 
 }
 EXPORT("release") void zs_release(void) { if (cctx) { ZSTD_freeCCtx(cctx); cctx = 0; } }
 #endif
+/* ---- research only (B17): compress or decompress one frame against a raw prefix (the same frame of the previous save) */
+#ifndef ZS_DECODE_ONLY
+EXPORT("compress_prefix") u32 zs_compress_prefix(void* dst, u32 dcap, const void* src, u32 n, int level, const void* pre, u32 pn) {
+  if (!cctx) cctx = ZSTD_createCCtx(); if (!cctx) return (u32)-1;
+  ZSTD_CCtx_reset(cctx, ZSTD_reset_session_and_parameters);
+  ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, level); ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 0); ZSTD_CCtx_setParameter(cctx, ZSTD_c_contentSizeFlag, 1);
+  if (pn) ZSTD_CCtx_refPrefix(cctx, pre, pn);
+  return (u32)ZSTD_compress2(cctx, dst, dcap, src, n);
+}
+#endif
+static ZSTD_DCtx* dctx;
+EXPORT("decompress_prefix") u32 zs_decompress_prefix(void* dst, u32 dcap, const void* src, u32 n, const void* pre, u32 pn) {
+  if (!dctx) dctx = ZSTD_createDCtx(); if (!dctx) return (u32)-1;
+  ZSTD_DCtx_reset(dctx, ZSTD_reset_session_and_parameters);
+  if (pn) ZSTD_DCtx_refPrefix(dctx, pre, pn);
+  return (u32)ZSTD_decompressDCtx(dctx, dst, dcap, src, n);
+}
