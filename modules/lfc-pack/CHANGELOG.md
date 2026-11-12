@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.1 · API 0 · 2026-11-11
+- Packing is faster when a column mixes numbers with empty (null) or text values.
+
 ## 0.9.0 · API 0 · 2026-11-11
 - Helper-worker reads copy a Buffer's blocks so the caller's memory is never handed away; new opt-in memory limits (stable, maxInflightBytes), cancelling (signal) and pool.stats().
 
