@@ -84,3 +84,22 @@ Research screen against 0.8.3 at 13 MB (`RESEARCH.md` E10, `results/rdab-*-bs.js
 Gate: the usual tests, the B14 gate, the real-corpus size gate (no flat corpus file more than 3.5% bigger), and an early-stop A/B in all 3 browsers on full reads (at most 1.05 on flat sets) and on `packParallel`, which splits work by block and was not timed in the research screen. Check that `looksFlat` on the first chunk does not switch a nested file to 4 MB blocks.
 
 User changelog line: "Files of flat rows use smaller blocks, so reading part of a file is faster."
+
+## B13: null plane, new column type `N` (format minor 1; owner tapped "Send it with mixed-kinds", 2026-11-11 9:25 PM Eastern)
+Apply after B3b v3 (approved 6:41 PM Eastern). Research prototype: `experiments/b13-null-plane.diff` (against 0.8.3, `src/flat.js` only, about 20 lines; `experiments/b13-patch-null.py` applies the same change to a copy). Layout and reasons: `PROPOSAL-null-plane.md`.
+- Writer: a flat column whose values are one scalar kind (number, string or true/false) plus at least one `null` is written as `t: "N"`, `p: { t: INNER, p: INNER_PARAMS, m: NONNULL }`. Frame 0 is the null bitmap (bit set = `null`), frames 1 and up are the inner column of the `m` non-null values. If the inner column would be `j` anyway, write `j` as today.
+- Reader: walk the bitmap; refuse the block if the plane is short or the count of clear bits is not `m`.
+- Zone maps: an `N` column with inner `V`, `B` or `F` gets a zone entry from its non-null values (the prototype does this in `writeFlatBlock`; the fast writer path needs the same).
+- `unpackColumns`: the prototype returns a plain array with `null` cells, which is what a `j` column returns today, so no API change. A typed array plus the bitmap (Arrow style) is a later option, not part of this change.
+- Spec: `LAYOUT-SPEC.md` 2.5 gains type `N`; `SPEC.md` format minor 1. Old readers refuse `N` (rule 7: unknown type), so they fail safely. The Python and Go readers and the conformance vectors need `N` in the same release.
+
+Research screen (`RESEARCH.md` E11, `results/rdab-*-nl.json`), stacked with B3b v3, against 0.8.3, 100,000 rows, Chromium / Firefox / WebKitGTK:
+- Orders export (6 nullable columns): 23.5% smaller, pack 0.75 / 0.69 / 0.76, full read 0.50 / 0.62 / 0.65.
+- 3 nullable columns: 24.3% smaller, pack 0.80 / 0.86 / 0.71, full read 0.54 / 0.64 / 0.64.
+- One decimal column 10% null: 13.6% smaller, pack 0.81 / 0.71 / 0.65, full read 0.80 / 0.83 / 0.92.
+- `N` alone packed up to 1.05 slower in Firefox on one set; stacked it never was.
+- Same rows on 21 test files (`experiments/nverify.cjs`); byte-identical on 9 files without nullable columns (`experiments/ident.cjs`).
+
+Gate: the usual tests plus new vectors for `N` (all-null but one, one null, nulls in the first and last row, every inner type, a damaged plane), the three readers on the same vectors, byte identity on the real corpus files that have no nullable flat column, and an early-stop A/B in all 3 browsers on pack and full read, including the worst case: every column nullable with 50% nulls.
+
+User changelog line: "Columns with some empty (null) values are now stored compactly: such files are up to a quarter smaller and faster to read. Older versions cannot open these files."
