@@ -1,6 +1,6 @@
 # Compression and data-performance research: findings and thresholds for other threads
 
-From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 12:26 AM Eastern. The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E22). The same files are in this folder.
+From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 12:35 AM Eastern. The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E22). The same files are in this folder.
 
 How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3), in ungoogled Chromium 156, Firefox 158 and WebKitGTK 2.52.6, on one shared 4-core cloud machine. Each test pairs fresh pages and reports the ratio of medians, so 0.80 means the new way takes 80% of the time. Node was used only for byte counts and pass/fail checks. No laptop, tablet or phone runs yet.
 
@@ -79,7 +79,7 @@ How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3
 - A value absent from a block costs 0.02 to 0.05, when the column is a dictionary.
 - The cache holds about what all rows held in memory would (99 MB against 85 MB for 300,000 log rows), so it should be opt-in and need a size limit.
 - Stacked with the null plane, first queries beat the sum of the parts: orders 0.37 to 0.44 against an expected 0.44 to 0.59.
-- Decoding only the matching positions (B19b) removes the cache's first-query cost (up to 1.10 down to 0.48). Through the null plane, it beats the sum of its parts: sensors with nulls over 24 queries take 0.14 of today, against an expected 0.24, because the nullable column is no longer JSON text.
+- Decoding only the matching positions (B19b) removes the cache's first-query cost (up to 1.10 down to 0.48). Through the null plane, it beats the sum of its parts: sensors with nulls over 24 queries take 0.14 of today, against an expected 0.24 (Firefox 0.17 against 0.25, WebKit 0.18 against 0.33), because the nullable column is no longer JSON text.
 
 **Imports in helper workers (E21)**
 - Handing each helper a Blob and a byte range, instead of slicing the whole file, takes main-thread copying from 9-24 ms to 0. Time is flat (0.93 to 1.06).

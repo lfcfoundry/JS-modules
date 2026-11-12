@@ -701,6 +701,17 @@ Decision: **ADOPT CANDIDATE as part of the B19 cache.** It adds no API, and it m
 - With the cache, the three-way stack is even with the cache alone: 0.07 on sensors, where everything is decoded once anyway.
 - This pairing (null plane, then B19b) is a reason to ship them together.
 
+**Three-way stack in all three browsers (12:33 AM, 11.12).** Same runs in Firefox 158 and WebKitGTK 2.52.6 (`results/eq-3way-*-{firefox,webkit}.json`; match counts identical in every mode). 24 queries, against 0.9.3's read-then-filter, Chromium / Firefox / WebKit:
+
+| Data | Expected if independent | All three, measured | First query, all three |
+|---|---|---|---|
+| Sensors with nulls, 300k | 0.24 / 0.25 / 0.33 | **0.14 / 0.17 / 0.18** | 0.35 / 0.31 / 0.38 (expected 0.37 / 0.39 / 0.63) |
+| Taxi, 300k | 0.55 / 0.59 / 0.50 | **0.49 / 0.46 / 0.42** | 0.35 / 0.24 / 0.26 |
+| Orders, 100k | 0.28 / 0.34 / 0.34 | 0.26 / 0.34 / 0.26 | 0.44 / 0.44 / 0.39 |
+
+- **Confirmed in every browser.** It beats the sum most on sensors (WebKit 0.18 against 0.33) and by 0.06 to 0.13 on taxi; orders are even to better.
+- Without B19b (`codes-nob`), the null plane plus B19 gives sensors 0.25 / 0.29 / 0.31, so B19b is what makes the pairing pay.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
