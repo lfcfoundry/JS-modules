@@ -436,6 +436,18 @@ def _untemplate(n, fr):
 
 def _decode_col(c, fr):
     n, t, p = c['n'], c['t'], c['p']
+    if t == 'N':   # null plane (format minor 1): frame 0 marks the null rows, the other frames hold the inner column of the non-null values
+        m = p['m']; pn = fr[0]
+        if len(pn) < (n + 7) // 8: raise ValueError('damaged block: N plane cut off')
+        inner = _decode_col({'t': p['t'], 'p': p['p'], 'n': m}, fr[1:])
+        o, q = [], 0
+        for i in range(n):
+            if (pn[i >> 3] >> (i & 7)) & 1: o.append(None)
+            else:
+                if q >= len(inner): raise ValueError('damaged block: N count')
+                o.append(inner[q]); q += 1
+        if q != m: raise ValueError('damaged block: N count')
+        return o
     if t == 'V':
         u = _varints(fr[0], n)
         if p['mono']:

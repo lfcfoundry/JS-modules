@@ -2,6 +2,16 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.0 · API 0 · 2026-11-11
+
+### Quick
+A column of one kind of value plus some nulls now keeps its compact typed form, with one bit per row marking the nulls (column type N, format minor 1). Made-up files with nullable columns are 19 to 35% smaller and read in 0.45 to 0.69 of the time; real NYC taxi data gains only 0 to 3%. Files without nulls are byte-identical. lfc-pack 0.9.3 and older refuse N files.
+
+### Details
+Format minor 1 is written only when a file holds an N column; the API version stays 0. Python and Go readers read N; new vector flat-null-plane. 100,000 rows, 7 fresh-page pairs, new/old: full read 0.45 to 0.69 and 1% range 0.36 to 0.54 on 3 made-up null sets in all 3 browsers; pack 0.75 to 1.21 (Chromium 1.19 orders, 1.21 taxi-like; Firefox 1.08 taxi-like).
+
+### Deep
+lfc-pack 0.10.0: null plane (B13). Column type N (format minor 1): a flat column of one scalar kind plus nulls keeps its inner typed encoding for the non-null values and one bit plane marks the nulls. New in the writer (nullBest in src/flat.js, also in the fast writer's mixed-kind columns), reader (decodeColumn), Python and Go readers, LAYOUT-SPEC.md 2.5 and 4, SPEC.md 2.1, vector flat-null-plane, test nullplane.cjs. Footer minor is 1 only when a pack wrote an N column (pack, packStream, packParallel); every other file is byte-identical to 0.9.3 (9 of 9 files checked: logs, sensors, ids, events, repeat, long at 300k rows, FHIR 21 MB, nd_dense, nd_gen_config). 0.8.1 refuses an N file. 100,000 rows, 7 pairs, Chromium / Firefox / WebKitGTK, new/old: orders (6 nullable columns, 34.5% smaller) pack 1.19 / 0.88 / 0.98, full read 0.69 / 0.62 / 0.62, 1% range 0.52 / 0.50 / 0.54; taxi-like (5 columns 2% null, 19.5% smaller) pack 1.21 / 1.08 / 1.05, full read 0.54 / 0.59 / 0.52, range 0.52 / 0.47 / 0.49; every column 50% null (34.6% smaller) pack 0.85 / 0.75 / 0.84, full read 0.54 / 0.45 / 0.55, range 0.48 / 0.36 / 0.42. No-null control logs 300k: pack 0.92 / 0.94 / 1.00, full read 0.88 / 1.13 / 0.99 (same bytes). The pack cost is a first-run cost in the general writer (nullBest, 47 of 360 ms cold in Node). Real NYC taxi gain is 0 to 3% (compression thread E14). Phone not run.
 ## 0.9.6 · API 0 · 2026-11-12
 
 ### Quick
