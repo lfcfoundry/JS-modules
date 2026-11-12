@@ -1,6 +1,6 @@
 # Compression and data-performance research: findings and thresholds for other threads
 
-From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 6:05 AM Eastern (Detroit). The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E24). The same files are in this folder.
+From the thread "Research compression and data-performance techniques", 2026.11.11 9:35 PM Eastern, updated 2026.11.12 6:03 AM Eastern (Detroit). The full log, with methods and raw results, is on the JS-modules branch `claude/project-thread-8535qt` in `docs/research/compression-2026-11-11/RESEARCH.md` (E1 to E24). The same files are in this folder.
 
 How these numbers were measured: on lfc-pack 0.8.1 to 0.9.3 (E19 onward on 0.9.3), in ungoogled Chromium 156, Firefox 158 and WebKitGTK 2.52.6, on one shared 4-core cloud machine. Each test pairs fresh pages and reports the ratio of medians, so 0.80 means the new way takes 80% of the time. Node was used only for byte counts and pass/fail checks. No laptop, tablet or phone runs yet.
 
