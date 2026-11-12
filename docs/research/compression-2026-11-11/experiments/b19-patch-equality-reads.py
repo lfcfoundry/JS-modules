@@ -2,7 +2,7 @@
 # research prototype B19: equality reads, unpack(file, { equals: { key, value } }) -> the rows whose value under key === value (strict, so a missing key never matches null).
 # Three ways, picked by globalThis.__B19 for A/B timing: 'off' reads whole blocks and filters (what an app does today), 'plain' tests the decoded column and builds only the matching rows (as B14 does for ranges),
 # 'codes' (default) also reads a dictionary (D) column through its codes: the label frame is decompressed first, a block without the value stops there, and the other columns are decompressed only when a row matches.
-# More than half the rows of a block matching -> the whole-block path, as in B14. usage: python3 patch_b19.py <module dir built with B14>
+# More than half the rows of a block matching -> the whole-block path, as in B14. usage: python3 b19-patch-equality-reads.py <module dir built with B14>
 import sys, os
 d = sys.argv[1]
 p = os.path.join(d, 'src/flat.js'); s = open(p).read()

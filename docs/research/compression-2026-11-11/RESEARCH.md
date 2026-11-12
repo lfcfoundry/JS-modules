@@ -37,7 +37,7 @@ Related earlier work, not repeated here: the LZ4 1.11 framework and validation n
 15. **Stacked, the approved items beat the sum of their parts (added 10:05 PM Eastern)** on data with nullable columns: a 1% range read on the orders set takes 0.08 to 0.12 of today's time, against 0.16 to 0.28 if the gains were independent, because B14 picks typed values cheaply where it had to parse JSON text before. On the real taxi table the stack is even with 4 MB blocks alone for range reads (E16).
 16. **In the browser, LFC-pack is the smallest and fastest to rows, but slowest to save (added 10:30 PM Eastern).** On the same taxi rows it is 0.85 of Parquet zstd-3's size and builds rows in 0.51 to 0.63 of parquet-wasm's time, but `packRows` takes 1.8 to 2.9 times parquet-wasm's save (E17, new lead B18).
 17. **On real nested data LFC-pack reads faster than `JSON.parse` of the plain text (added 10:35 PM Eastern):** 0.57 to 0.83 of its time on 10,000 GitHub Archive events, and a 1% range read on the taxi rows takes 0.27 to 0.41 of DuckDB-wasm's time (E18).
-18. **Saving from row objects without the JSON text step (B18b, added 11:45 PM Eastern):** over lfc-pack 0.9.3, `packRows` takes 0.51 to 0.90 of today's time on big tables in 3 browsers, with the same values and the same file size. A gate keeps today's exact bytes for small string-heavy tables, where the wasm text scanner is faster (E19).
+18. **Saving from row objects without the JSON text step (B18b, added 11:43 PM Eastern):** over lfc-pack 0.9.3, `packRows` takes 0.51 to 0.90 of today's time on big tables in 3 browsers, with the same values and the same file size. A gate keeps today's exact bytes for small string-heavy tables, where the wasm text scanner is faster (E19).
 
 Speed numbers come only from the three test browsers. Node was used only for pass/fail checks, byte counts and finding hot spots, never for timing.
 
@@ -617,9 +617,9 @@ That sweep set the gate above.
 - 4 MB blocks don't change pack time, so that pair is about even.
 - Values matched in every cell (compared with keys sorted).
 - Key order: lfc-pack keeps keys in first-seen order per block, as documented for value-exact mode. B18b cuts blocks by row count, so a later block can order a key differently. On 200,000 GitHub events with an often-missing key, 0.9.3 itself reorders keys on 53,388 rows and B18b on 31,164.
-- Decision: **ADOPT CANDIDATE**, owner card posted 11:47 PM Eastern. Summary for other threads: `B18b-GATE-2026.11.11.md`.
+- Decision: **ADOPT CANDIDATE**, owner card posted 11:43 PM Eastern. Summary for other threads: `B18b-GATE-2026.11.11.md`.
 
-### 2026-11-11 E20 (B19): equality reads through dictionary codes (in progress)
+### 2026-11-11 E20 (B19): equality reads through dictionary codes, alone, with a cache and with the null plane
 
 From the Codex review (KB M110): scan a dictionary column's codes, and build strings and rows only for matches.
 
@@ -631,6 +631,20 @@ From the Codex review (KB M110): scan a dictionary column's codes, and build str
 More than half the rows of a block matching sends the block down the whole-block path.
 
 **Correctness** (`experiments/eqverify.cjs`): every mode gives the same rows as `unpack(file).filter(...)`, with the same key order, on 378 checks. They cover accents, CJK, emoji, empty text, near-duplicate labels, null against missing keys, a number asked of a text column, 256 KB to 13 MB blocks, with and without `keys`, and real GitHub events (flat rows made by `experiments/mkgh-flat.py`; the data stays in scratch). Timing is next.
+
+**Timing** (`experiments/eqdrive.cjs`, `www/eq.html`, `eqanal.py`, `eqq.py`; `results/eq-*.json`). This adds a third variant, `cache` (`experiments/b19-patch-cache.py`, the Codex variant): it keeps each block's decoded columns, plus one code per row for the asked key, between queries on the same file.
+
+Over 0.9.3's read-then-filter, 3 browsers (C / F / W):
+- **24 queries:** B19 takes 0.53 to 0.79 on big files. With the cache, 0.10 to 0.37.
+- **First query:** B19 takes 0.36 to 0.87. With the cache, 0.41 to 1.03, because it copies frames out of the read buffer.
+- **Per query:** dictionary codes tie with plain late rows when the value is present. They take an absent value from 0.10-0.27 down to 0.02-0.05.
+- **Cache memory:** about 99 MB for a 6 MB, 300,000-row log file, against 85 MB for all rows held. So the cache is opt-in.
+- **Stacked with the null plane, first query:** better than the sum. Orders take 0.37 to 0.44 against an expected 0.44 to 0.59, and taxi 0.32 to 0.41 against 0.36 to 0.51.
+- **With the cache, 24 queries:** about even or a bit worse than the sum (0.14 to 0.16 against 0.11 to 0.12).
+
+Decision: **ADOPT CANDIDATE**, with the cache opt-in and given a size limit before it ships. Summary for other threads: `B19-GATE-2026.11.12.md`. New leads:
+- B19b: decode only the matching positions of `D` and `B` columns.
+- A per-block label summary in the footer (B8 follow-up).
 
 ## Backlog (prioritized)
 
@@ -664,9 +678,9 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 
 **B17. Save as a delta of the previous save (zstd prefix, like `zstd --patch-from`).** Source: zstd `ZSTD_CCtx_refPrefix` and `--patch-from` (zstd 1.4.5 and later; not re-fetched this session). Target: autosave and history for Netflow map saves, Story Editor and Mind Mapper autosave, Workbench snapshots. Advantage (E12, sizes only): an edited 2,000-node map 1,258 bytes instead of 22,845 (6%), an edited 200-node map 27%, 10 rows appended to 1,000 orders 10%, to logs 47%. Evidence: real zstd, made-up edits; no speed numbers yet. Difficulty: medium to high: the wasm build has no prefix call today, and a delta file is unreadable without the earlier file, so it needs an API (`pack(rows, { base })`) and a container flag that names the base, plus a rule to write a full save every few saves. Risk: high (format and app change). E13: frame-to-frame prefixes stay under 16% of a full save after 500 edits, and native zstd time is 0.25 to 0.75 of a full save. Browsers (E13): the zstd step of a delta save is 0.23 to 0.37 of a full save's, decoding 0.07 to 0.20; zstd is about a tenth of a whole save, so the gain is size. **ADOPT CANDIDATE for a proposal.**
 
-**B18. Faster saves from row objects.** Source: our own profile against parquet-wasm 0.9.0 (E17). Target: `packRows`, `packTables` (app saves), Workbench import. (a) Stringify big arrays in slices: 0.80 to 1.08, EXPERIMENT. (b) Read row objects straight into columns, no JSON text: up to about 2x on saves if it reaches parquet-wasm's speed. Evidence: profiles plus rival timing. Difficulty: (a) low, (b) high. Risk: bytes must stay identical; (b) is a second writer front end. **EXPERIMENT.** Update (E19): (b) built as B18b with a size and string-share gate. Over 0.9.3, big tables save in 0.51 to 0.90 of the time in 3 browsers, files are 0.999 to 1.000 of the size, and files under the gate are byte-identical. (a) stays DEFERRED. **B18b: ADOPT CANDIDATE**, owner card 11:47 PM Eastern.
+**B18. Faster saves from row objects.** Source: our own profile against parquet-wasm 0.9.0 (E17). Target: `packRows`, `packTables` (app saves), Workbench import. (a) Stringify big arrays in slices: 0.80 to 1.08, EXPERIMENT. (b) Read row objects straight into columns, no JSON text: up to about 2x on saves if it reaches parquet-wasm's speed. Evidence: profiles plus rival timing. Difficulty: (a) low, (b) high. Risk: bytes must stay identical; (b) is a second writer front end. **EXPERIMENT.** Update (E19): (b) built as B18b with a size and string-share gate. Over 0.9.3, big tables save in 0.51 to 0.90 of the time in 3 browsers, files are 0.999 to 1.000 of the size, and files under the gate are byte-identical. (a) stays DEFERRED. **B18b: ADOPT CANDIDATE**, owner card 11:43 PM Eastern.
 
-**B19. Equality reads through dictionary codes.** Source: the Codex research branch (DuckDB and Parquet dictionary filtering; KB M110). Target: `unpack(file, { equals })`, Netflow category filters, Workbench queries. Prototype and correctness in E20; timing in progress. **EXPERIMENT.**
+**B19. Equality reads through dictionary codes.** Source: the Codex research branch (DuckDB and Parquet dictionary filtering; KB M110). Target: `unpack(file, { equals })`, Netflow category filters, Workbench queries. 3-browser gate in E20: 24 queries 0.53 to 0.79 of today (0.10 to 0.37 with the opt-in cache), absent values 0.02 to 0.05, better than the sum with the null plane on first queries. **ADOPT CANDIDATE**, owner card 12:04 AM Eastern 11.12.
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 
