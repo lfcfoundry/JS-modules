@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.1 · API 0 · 2026-11-11
+
+### Quick
+A key with mixed kinds of value (numbers with null, numbers with text) stays on the fast flat writer: pack takes 0.70-0.93 of the time where up to about half the cells are mixed, even where nearly all are. Same bytes, same format.
+
+### Details
+Keys whose values are of more than one JSON kind keep their first type; later cells are kept as literals and one JSON.parse reads a key's literals. The scanner stops early once more than half of the cells are literals, so all-mixed blocks take the old path. 150,000 rows, pack new/old vs 0.9.0 (Chromium 156/Firefox 158/WebKitGTK 2.52.6): 1 mixed column of 13 0.70/0.72/0.74, 6 of 13 0.93/0.93/0.84, all-mixed worst cases 0.99-1.04. Plain flat and nested controls neutral.
+
+### Deep
+lfc-pack 0.9.1: keys with mixed kinds of value stay on the fast flat writer (owner approved 11.11, 'Send it' on the mixed-values card). Patch b3b-mixed-kinds.diff (v3) from the 11.11 research, applied on 0.9.0 with no conflicts; flatscan.wasm and flatscan-plain.wasm rebuilt with clang 18.1.3 (tpl4.wasm and rowscan.wasm byte-identical). Pack time new/old vs 0.9.0, 9 paired fresh pages, 150,000 rows, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: mix1 (1 of 13 columns nullable) 0.70 / 0.72 / 0.74, mix6 0.93 / 0.93 / 0.84, worst cases allmix 1.02 / 1.04 / 1.03 and allmixu (non-ASCII) 1.01 / 0.99 / 1.02 (everything mixed; the scanner bails early so they take the old path). Plain flat and nested controls, 11 to 15 pairs: logs 1.00 / 1.02 / 1.01, sensors 1.04 / 0.96 / 1.01, nested 1.00 / 0.93 / 0.99 (15 pairs), nd_dense 0.96 / 1.01 (15 pairs) / 0.98 (15 pairs). Bytes identical to 0.9.0 on 41 of 41 sets (b7verify: research sets, worst and mixK sets, mixed-kind pools, corpus files). Phone not run.
+
 ## 0.9.0 · API 0 · 2026-11-11
 
 ### Quick

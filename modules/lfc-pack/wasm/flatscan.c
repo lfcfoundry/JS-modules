@@ -40,11 +40,12 @@ static u32 digits(const u8*in,u32 p,u32 len,u64*m,u32*nd){
 // cell outputs, in row-major order: ckey (key id), cval (number: signed mantissa as double; list: index into llen), cfd (fraction digits, numbers only)
 // list outputs: llen (length of each list), lval (values, pooled in the same order)
 // ktype: 1 number, 2 list of whole numbers, 3 string without escapes (cval = start offset and clen = length, both in UTF-16 units of the decoded text; the caller has checked the bytes are valid UTF-8), 4 boolean (cval 1 or 0; cfd 2 marks a null in a boolean column), 5 null (every value of the column)
+static u32 NLIT;   /* B3b: literal (mixed-kind) cells so far in this block */
 EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyoff,u32*keylen,u8*ktype,u8*kmaxfd,u32*st,u8*ckey,double*cval,u8*cfd,u32*llen,u32*lval,u32*clen,u32 allowstr,u32 first,u32 stop){
   /* resumable: first=1 starts at the top; with first=0 it goes on from the state in st. It returns 100 at the first row that starts at or after byte stop, so the caller
      scans a block in pieces: browsers only switch a wasm function from its quick first code to optimized code between calls, so one long call stays slow on a first pack */
   u32 p=0,row=0,nk=0,nc=0,nl=0,nlv=0,extra=0;   // extra = bytes minus UTF-16 units so far, for the strings' offsets in the decoded text
-  if(first){ for(u32 i=0;i<512;i++) HT[i]=0; for(u32 i=0;i<MAXK;i++){ LASTROW[i]=0xFFFFFFFFu; PRED[i]=0xFFFFFFFFu; } }
+  if(first){ NLIT=0; for(u32 i=0;i<512;i++) HT[i]=0; for(u32 i=0;i<MAXK;i++){ LASTROW[i]=0xFFFFFFFFu; PRED[i]=0xFFFFFFFFu; } }
   else { nk=st[0]; nc=st[1]; nl=st[2]; nlv=st[3]; row=st[4]; p=st[5]; extra=st[6]; }
 #define BAIL(c) do{ st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; st[6]=extra; return (c); }while(0)
 #define WS while(p<len&&(in[p]==' '||in[p]=='\t')) p++
@@ -80,6 +81,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
       WS; if(p>=len||in[p]!=':') BAIL(3); p++; WS;
       if(p>=len) BAIL(3);
       u8 c=in[p];
+      if(ktype[id]==7) goto mixed;
       if(c=='['){
         if(ktype[id]==0) ktype[id]=2; else if(ktype[id]!=2) BAIL(8);
         p++; WS; u32 cnt=0;
@@ -99,7 +101,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         }
         llen[nl]=cnt; ckey[nc]=(u8)id; cval[nc]=(double)nl; cfd[nc]=0; clen[nc]=0; nc++; nl++;
       } else if(c=='-'||(c>='0'&&c<='9')){
-        if(ktype[id]==0) ktype[id]=1; else if(ktype[id]!=1&&ktype[id]!=6) BAIL(8);
+        if(ktype[id]==0) ktype[id]=1; else if(ktype[id]!=1&&ktype[id]!=6) goto mixed;
         u32 p0=p, neg=0; if(c=='-'){ neg=1; p++; }
         if(p>=len||in[p]<'0'||in[p]>'9') goto longnum;
         u64 m=0; u32 nd=0, fd=0;
@@ -118,7 +120,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         if(0){ longnum: { u32 e=numspan(in,p0,len); if(e==0xFFFFFFFFu) BAIL(10); ktype[id]=6; ckey[nc]=(u8)id; cval[nc]=(double)p0; cfd[nc]=0; clen[nc]=e-p0; nc++; p=e; } }
       } else if(c=='"'){
         if(!allowstr) BAIL(16);
-        if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) BAIL(8);
+        if(ktype[id]==0) ktype[id]=3; else if(ktype[id]!=3) goto mixed;
         u32 ss=++p, ex0=extra, esc=0;
         while(p<len&&in[p]!='"'){ u8 ch=in[p]; if(ch<0x20) BAIL(16);
           if(ch=='\\'){   /* allowstr 2: escapes are let through (checked here, decoded by the caller); the cell gets cfd 1 and its key kmaxfd 1 */
@@ -130,16 +132,27 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         if(p>=len) BAIL(16);
         ckey[nc]=(u8)id; cval[nc]=(double)(ss-ex0); clen[nc]=(p-ss)-(extra-ex0); cfd[nc]=(u8)esc; if(esc) kmaxfd[id]=1; nc++; p++;
       } else if(c=='t'||c=='f'){
-        if(ktype[id]==0||ktype[id]==5) ktype[id]=4; else if(ktype[id]!=4) BAIL(8);
+        if(ktype[id]==0||ktype[id]==5) ktype[id]=4; else if(ktype[id]!=4) goto mixed;
         u32 isT=(c=='t');
         if(isT){ if(p+4>len||in[p+1]!='r'||in[p+2]!='u'||in[p+3]!='e') BAIL(17); p+=4; }
         else { if(p+5>len||in[p+1]!='a'||in[p+2]!='l'||in[p+3]!='s'||in[p+4]!='e') BAIL(17); p+=5; }
         ckey[nc]=(u8)id; cval[nc]=isT?1.0:0.0; cfd[nc]=0; nc++;
       } else if(c=='n'){
-        if(ktype[id]==0) ktype[id]=5; else if(ktype[id]!=5&&ktype[id]!=4) BAIL(8);   // null mixes with true/false
+        if(ktype[id]==0) ktype[id]=5; else if(ktype[id]!=5&&ktype[id]!=4) goto mixed;   // null mixes with true/false
         if(p+4>len||in[p+1]!='u'||in[p+2]!='l'||in[p+3]!='l') BAIL(17);
         p+=4; ckey[nc]=(u8)id; cval[nc]=0.0; cfd[nc]=2; clen[nc]=0; nc++;
       } else BAIL(13);
+      if(0){ mixed: {   /* B3b research: a key with values of more than one JSON kind becomes type 7; kmaxfd keeps its first type, and from here on each cell is the value's literal bytes (cfd 255), parsed by the caller */
+        if(c=='['||c=='{'||ktype[id]==2) BAIL(8);
+        if(ktype[id]!=7){ kmaxfd[id]=ktype[id]; ktype[id]=7; }
+        u32 e;
+        if(c=='"'){ if(!allowstr) BAIL(16); e=p+1; while(e<len&&in[e]!='"'){ u8 ch=in[e]; if(ch<0x20) BAIL(16); if(ch=='\\'){ if(allowstr<2) BAIL(16); e+=2; continue; } if(ch>=0xC0) extra+=(ch>=0xE0)?2:1; e++; } if(e>=len) BAIL(16); e++; }
+        else if(c=='t'){ if(p+4>len||in[p+1]!='r'||in[p+2]!='u'||in[p+3]!='e') BAIL(17); e=p+4; }
+        else if(c=='f'){ if(p+5>len||in[p+1]!='a'||in[p+2]!='l'||in[p+3]!='s'||in[p+4]!='e') BAIL(17); e=p+5; }
+        else if(c=='n'){ if(p+4>len||in[p+1]!='u'||in[p+2]!='l'||in[p+3]!='l') BAIL(17); e=p+4; }
+        else { e=numspan(in,p,len); if(e==0xFFFFFFFFu) BAIL(10); }
+        ckey[nc]=(u8)id; cval[nc]=(double)p; clen[nc]=e-p; cfd[nc]=255; nc++; p=e; NLIT++;
+      } }
       planes[id*pb+(row>>3)]|=(u8)(1u<<(row&7));
       WS; if(p>=len) BAIL(3);
       if(in[p]==','){ p++; WS; continue; }
@@ -148,9 +161,11 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
     }
     WS;
     row++;
+    if(!(row&4095)&&NLIT*2>nc) BAIL(18);   /* B3b: past half of the cells as literals, one JSON.parse of the block (the other writer) is no slower: stop early */
     if(p<len){ if(in[p]!='\n') BAIL(14); p++; }
   }
   if(row!=nrows) BAIL(15);
+  if(NLIT*2>nc) BAIL(18);
   st[0]=nk; st[1]=nc; st[2]=nl; st[3]=nlv; st[4]=row; st[5]=p; st[6]=extra;
   return 0;
 }
@@ -267,4 +282,10 @@ EXPORT("ipcol") u32 ipcol(const u8*in,const double*cval,const u32*clen,const u32
       if(v>255) return 0; out[o++]=(u8)v; }
     if(p!=L) return 0; }
   return 1;
+}
+// B3b research: key k's literal cells (cfd 255, the suffix of a mixed-kind key) as one JSON array text: '[' then each literal joined by ',' then ']'. Returns its length.
+EXPORT("litjoin") u32 litjoin(const u8*in,const double*cval,const u32*clen,const u8*cfd,const u32*ix,u32 n,u8*out){
+  u32 i,o=1,f=0; out[0]='[';
+  for(i=0;i<n;i++){ u32 c2=ix[i]; if(cfd[c2]!=255) continue; u32 s=(u32)cval[c2],L=clen[c2]; if(f) out[o++]=','; f=1; __builtin_memcpy(out+o,in+s,L); o+=L; }
+  out[o++]=']'; return o;
 }
