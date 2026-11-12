@@ -22,6 +22,12 @@ helpers = r"""
       for (i = 0; i < m; i++) o[i] = lab[p.w ? bitAt(cd, vi[i], p.w) : p.wide ? (cd[vi[i] * 2] | (cd[vi[i] * 2 + 1] << 8)) : cd[vi[i]]]; return o; }
     if (t === 'T') { f = frames[0]; for (i = 0; i < m; i++) o[i] = bitAt(f, vi[i], 1) === 1; return o; }
     if (t === 'B' && p.w <= 24) { f = frames[0]; for (i = 0; i < m; i++) o[i] = (bitAt(f, vi[i], p.w) + p.mn) / p.scale; return o; }
+    if (t === 'N') {   // null plane: frame 0 marks the nulls; the other values are the inner column, in order
+      var np = frames[0], ii = new Int32Array(m), im = 0, nn = 0, at = 0, wi = [];
+      for (q = 0; q < m; q++) { for (; at < vi[q]; at++) if ((np[at >> 3] >> (at & 7)) & 1) nn++; if ((np[at >> 3] >> (at & 7)) & 1) o[q] = null; else { ii[im++] = vi[q] - nn; wi.push(q); } }
+      if (!im) return o;
+      var iv = decodeAt({ t: p.t, p: p.p, n: p.m }, frames.slice(1), ii, im); if (!iv) return null;
+      for (q = 0; q < im; q++) o[wi[q]] = iv[q]; return o; }
     return null;
   }
 """

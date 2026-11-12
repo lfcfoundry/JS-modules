@@ -689,6 +689,18 @@ Chromium 156 (3 fresh pages per cell), share of 0.9.3's read-then-filter, first 
 
 Decision: **ADOPT CANDIDATE as part of the B19 cache.** It adds no API, and it makes the opt-in cache's first query no slower than B19 without the cache. As a separate item: DEFER.
 
+**Through the null plane (added 12:25 AM, 11.12).** B19b now also decodes null-plane (`N`) columns at the matching positions: it walks the null bitmap once, then reads the inner typed column at the non-null matches. Rows matched the full read on 198 more checks. Three-way stack (null plane + B19 + B19b) in Chromium 156, against 0.9.3's read-then-filter (`results/eq-3way-*.json`), first query / 24 queries:
+
+| Data | Null plane alone | B19 + B19b alone | Expected if independent | All three, measured | Null plane + B19 without B19b |
+|---|---|---|---|---|---|
+| Sensors with nulls, 300k | 0.88 / 0.82 | 0.42 / 0.29 | 0.37 / 0.24 | **0.35 / 0.14** | 0.48 / 0.25 |
+| Taxi, 300k | 0.88 / 0.89 | 0.41 / 0.62 | 0.36 / 0.55 | **0.34 / 0.49** | 0.39 / 0.53 |
+| Orders, 100k | 0.63 / 0.42 | 0.76 / 0.67 | 0.48 / 0.28 | **0.43 / 0.27** | 0.41 / 0.27 |
+
+- **Better than the sum, most of all on sensors over 24 queries** (0.14 against 0.24). Without the null plane, the nullable `hum` column is JSON text and has to be parsed whole. With it, that column is typed bit-packed numbers, which B19b can read at the matches alone.
+- With the cache, the three-way stack is even with the cache alone: 0.07 on sensors, where everything is decoded once anyway.
+- This pairing (null plane, then B19b) is a reason to ship them together.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
