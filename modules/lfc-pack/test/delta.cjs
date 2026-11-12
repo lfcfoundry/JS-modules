@@ -44,5 +44,7 @@ const JF = require('../lfc-pack.js'), assert = require('assert');
   same(JF.unpack(dd, { base: baseBytes }), [].concat(...Object.values(JF.unpackTables(JF.packTables(nx))).filter(Array.isArray)), 'unpack rows');
   // clearing the kept base changes nothing but speed
   JF.trim(); same(JF.unpackTables(JF.packTables(nx, { base: baseBytes }), { base: baseBytes }), JF.unpackTables(JF.packTables(nx)), 'after trim');
+  // baseTables: the already-decoded base gives the same result
+  same(JF.unpackTables(dd, { base: baseBytes, baseTables: JF.unpackTables(baseBytes) }), JF.unpackTables(JF.packTables(nx)), 'baseTables');
   console.log('ok');
 })().catch((e) => { console.error(e); process.exit(1); });

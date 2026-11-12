@@ -2261,7 +2261,7 @@
     if (info.v !== DELTA_VERSION) throw new Error('LfcPack: unknown delta version ' + info.v);
     if (info.base !== hash(base, 'xxh64')) throw new Error('LfcPack: this delta belongs to a different base save');
     if (deltaInfo(openFile(base))) throw new Error('LfcPack: base must be a full save, not a delta');
-    P = unpackTablesPlain(bytes, {}); bt = unpackTables(base);
+    P = unpackTablesPlain(bytes, {}); bt = opts.baseTables || unpackTables(base); // opts.baseTables: the tables the base was saved from or read into (unmodified); their rows are shared with the result, not copied
     for (i = 0; i < P.meta.d.length; i++) {
       m = P.meta.d[i];
       if (m.k === 'v') { out[m.n] = m.same ? bt[m.n] : P.vals[m.n]; continue; }
