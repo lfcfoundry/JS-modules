@@ -753,6 +753,31 @@ Decision: **ADOPT CANDIDATE as part of the B19 cache.** It adds no API, and it m
 
 The pair beats the sum in Firefox and WebKit, and is about even in Chromium. The null plane turns most `j` blocks into typed columns, and B20 removes the cost of the all-null blocks the null plane leaves as `j`.
 
+**Orders re-run (12:53 AM, 10 rounds, Firefox and WebKit, `results/cols-o*-*.json`):** the 1.08 to 1.16 cells were noise. Columns now take 0.86 to 0.99 of the time and rows 0.92 to 1.02, on both builds.
+
+**Stacked with the other candidates (1:05 AM, 3 browsers, 3 fresh pages per cell, `results/eq-b20-*.json`, `results/sess-b20-*.json`).** Builds are mixed in one alternating run (`eqdrive.cjs` now takes `build@mode`). Taxi, as a share of 0.9.3's read-then-filter, Chromium / Firefox / WebKit:
+
+| 24 equality queries | Without B20 | With B20 | Expected if independent | With B20 + null plane |
+|---|---|---|---|---|
+| B20 alone (read, then filter) | 1.00 | 0.71 / 0.80 / 0.81 | | |
+| B19 + B19b | 0.65 / 0.55 / 0.50 | **0.47 / 0.44 / 0.44** | 0.46 / 0.44 / 0.41 | **0.34 / 0.36 / 0.32** |
+| B19 + B19b + cache | 0.39 / 0.33 / 0.31 | **0.28 / 0.28 / 0.28** | 0.28 / 0.26 / 0.25 | **0.26 / 0.24 / 0.25** |
+
+- On taxi the pair adds up about as expected, neither better nor worse. On orders and on sensors with nulls it is a little better than expected: orders 0.55 / 0.57 / 0.59 against an expected 0.59 / 0.63 / 0.60, and sensors 0.26 / 0.25 / 0.28 against 0.28 / 0.29 / 0.32.
+- The first query on taxi is a little worse than expected: 0.34 / 0.35 / 0.35 against 0.29 / 0.29 / 0.36.
+- The null-plane column multiplies the N build's own ratio by its `off` time over 0.9.3's: 0.91 / 0.90 / 0.81.
+
+**Whole session** (import with Blob-range jobs, then save with B18b; `sess.html`; share of today):
+
+| | Orders 100k | Taxi 300k |
+|---|---|---|
+| Blob-range + B18b | 0.82 / 0.76 / 0.77 | 0.63 / 0.70 / 0.86 |
+| Blob-range + B18b + B20 | 0.75 / 0.76 / 0.79 | **0.61 / 0.67 / 0.82** |
+
+B20 trims the import step on taxi (0.92 to 0.93 of the time without B20), because the import unpacks every block to rows. It adds up with the others, no more. Peak memory is unchanged within noise.
+
+**Check for the null-plane ship (B13):** lfc-pack 0.9.3 reads a research null-plane file as "damaged block: The encoded data was not valid for encoding utf-8". The shipped format-minor bump should make old readers say that the file needs a newer reader.
+
 **Lead this opened:** the writer could store an all-null column as a null-plane column with no values. That would be a format change, so it belongs with B13's format minor version.
 
 Decision: **ADOPT CANDIDATE** (read-only, no format change). Owner card, 12:50 AM Eastern 11.12.
