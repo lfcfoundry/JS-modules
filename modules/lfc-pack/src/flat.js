@@ -499,6 +499,7 @@
     // scratch for text columns (hex ids, dictionaries, joined values), laid out only when the block has a text column: number-only blocks keep their wasm memory smaller
     var hasStr = 0, kt0 = new Uint8Array(mem.buffer, P.ktype, nk); for (j = 0; j < nk; j++) if (kt0[j] === 3) hasStr = 1;
     var has7 = 0; for (j = 0; j < nk; j++) if (kt0[j] === 7) has7 = 1;   // B3b: mixed-kind keys need the cell lists and the join buffer even without a text column
+    if (has7 && NULL_MODE === 'plane') { lay('lnum', 10 * cells + 16); lay('lst', 16); }   // B13 typed nullable numbers
     if (has7 && !(asciiIn && hasStr)) { lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('sout', len + cells + 16); if (o > 1610612736) return null; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); m8 = new Uint8Array(mem.buffer); }
     if (asciiIn && hasStr) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < nrows + 2) T2 *= 2; lay('sht', 16 * T2); lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('scodes', 4 * nrows + 16); lay('slab', 4 * nrows + 16);   /* a key has at most one value a row (scan rejects repeated keys), so the dictionary scratch is sized by rows */ lay('sout', len + cells + 16); lay('sres', 16); }
     if (asciiIn && hasStr) { if (o > 1610612736) return null; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); m8 = new Uint8Array(mem.buffer); }
@@ -534,6 +535,18 @@
         if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
         colv[j] = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.sout, W.x.rawjoin(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sout)))); byB[j] = 2; }
       else { colv[j] = new Array(count[j]); if ((ktype[j] === 3 || ((ktype[j] === 6 || ktype[j] === 7) && asciiIn) || (ktype[j] === 7 && kfd[j] === 3)) && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
+    // B13: a mixed key that is numbers and nulls (a nullable number column): the numbers go straight to scaled whole numbers and the nulls to a bit plane, in wasm, with no JS array of mixed values
+    var elig = null, nnv = null, npl = null, nmc = null, lst = null;
+    if (NULL_MODE === 'plane' && asciiIn && W.x.litnum) {
+      for (j = 0; j < nk; j++) {
+        if (ktype[j] !== 7 || kfd[j] === 3 || kfd[j] === 4 || kfd[j] === 5 || count[j] < 2) continue;
+        if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
+        var cn = count[j], rm = W.x.litnum(P['in'], P.cval, P.clen, P.cfd, P.kix + 4 * kixo[j], cn, P.lnum, P.lst);
+        if (rm < 0 || rm === 0 || rm === cn) continue;
+        if (!elig) { elig = new Int8Array(nk).fill(-1); nnv = new Array(nk); npl = new Array(nk); nmc = new Uint32Array(nk); }
+        elig[j] = new Uint32Array(mem.buffer, P.lst, 1)[0]; nmc[j] = rm; nnv[j] = new Float64Array(mem.buffer, P.lnum, rm).slice(); npl[j] = new Uint8Array(mem.buffer, P.lnum + 9 * cn, (cn + 7) >> 3).slice();
+      }
+    }
     var lp = 0, sc, m, v, pre7 = null, k7;
     var rest = 0; for (j = 0; j < nk; j++) if (ktype[j] !== 1 && !byB[j]) rest = 1;   // cells the wasm passes did not already gather
     if (rest) for (i = 0; i < nc; i++) {
@@ -543,19 +556,39 @@
       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
       else if (ktype[j] === 7) {   // B3b: a key with mixed JSON kinds; cells before the switch keep the first type's form, the literal cells after it (cfd 255) are parsed together below
+        if (elig && elig[j] >= 0) { pos[j]++; continue; }
         if (cfd[i] === 255) { pos[j]++; if (!pre7) pre7 = new Int32Array(nk).fill(-1); if (pre7[j] < 0) pre7[j] = pos[j] - 1; }
         else { k7 = kfd[j]; colv[j][pos[j]++] = k7 === 3 ? (cfd[i] ? JSON.parse(text.slice(cval[i] - 1, cval[i] + clen[i] + 1)) : text.slice(cval[i], cval[i] + clen[i])) : k7 === 4 || k7 === 5 ? (cfd[i] === 2 ? null : cval[i] === 1) : clen[i] ? (asciiIn ? +text.slice(cval[i], cval[i] + clen[i]) : +String.fromCharCode.apply(null, input.subarray(cval[i], cval[i] + clen[i]))) : cval[i] / P10[cfd[i]]; }
       }
       else if (ktype[j] === 6) colv[j][pos[j]++] = clen[i] ? (asciiIn ? +text.slice(cval[i], cval[i] + clen[i]) : +String.fromCharCode.apply(null, input.subarray(cval[i], cval[i] + clen[i]))) : cval[i] / P10[cfd[i]];   // B3: a number the scanner kept as text (long, exponent, -0); earlier plain cells of the key are mantissa / 10^digits, the value JSON.parse gives
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
-    if (pre7) for (j = 0; j < nk; j++) if (ktype[j] === 7 && pre7[j] >= 0) {   // one JSON.parse per mixed key over its literals, joined in wasm
+    if (pre7) for (j = 0; j < nk; j++) if (ktype[j] === 7 && pre7[j] >= 0 && !(elig && elig[j] >= 0)) {   // one JSON.parse per mixed key over its literals, joined in wasm
       if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
       var pv7 = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.sout, W.x.litjoin(P['in'], P.cval, P.clen, P.cfd, P.kix + 4 * kixo[j], count[j], P.sout)))), b7 = pre7[j], q7;
       if (b7 === 0) colv[j] = pv7; else for (q7 = 0; q7 < pv7.length; q7++) colv[j][b7 + q7] = pv7[q7];
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
     function cand(tn, p, fr, n) { best = addCand(zs, level, best, tn, p, fr, n); }
+    function numCands(base, c, scale, key, zc) {   // the candidates of a number column held as scaled whole numbers (mantissas), as the general writer would try them
+        numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
+        var d = numFirst(base, c, mono);
+        if (scale > 100) {   // 3 to 9 fraction digits (columns the JSON.parse path used to write): the same candidates as encodeColumn there, so the same bytes and no extra compressions
+          var dz2 = null, sa = 0, sb = 0;
+          if (!mono && c > 1) { dz2 = numDeltaZz(base, c); sa = vlenSum(d, c); sb = vlenSum(dz2, c); }
+          if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
+          if (dz2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz2, c)], c);
+          if (mx - mn < 16777216) { var w3 = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w3, scale: scale }, [bitpack(numOff(base, c, mn), w3)], c); }
+          if (!best || best.size > c * 4) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);
+          if (c) zone.push([fnvStr('.' + key), mn / scale, mx / scale, zc === undefined ? c : zc]);
+        } else {
+        cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
+        if (!mono && c > 1) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(numDeltaZz(base, c), c)], c);
+        if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w, scale: scale }, [bitpack(numOff(base, c, mn), w)], c); }
+        if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
+        if (c) zone.push([fnvStr('.' + key), mn / scale, mx / scale, zc === undefined ? c : zc]);
+        }
+    }
     for (j = 0; j < nk; j++) {
       best = null; c = count[j];
       if (hexL[j] === 3600) cand('U', {}, [colv[j]], c);   // as encodeColumn writes a UUID column
@@ -567,26 +600,16 @@
         if (!cds) cand('s', {}, [sdOut[j]], c);
         else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : new Uint8Array(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
       }
+      else if (elig && elig[j] >= 0) {   // the typed nullable-number path
+        var m8n = nmc[j], plb = npl[j], scn = P10[elig[j]]; best = null;
+        numCands(nnv[j], m8n, scn, keys[j], c); var inn = settle(zs, level, best); best = null;
+        var pzn = zs.compress(plb, level), pzzn = pzn.length < plb.length ? [plb.length, pzn, 1] : [plb.length, plb, 0], szn = pzzn[1].length;
+        for (i = 0; i < inn.z.length; i++) szn += inn.z[i][1].length;
+        NMARK++; best = { t: 'N', p: { t: inn.t, p: inn.p, m: m8n }, n: c, z: [pzzn].concat(inn.z), size: szn };
+      }
       else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); if (best.t === 'N' && (best.p.t === 'V' || best.p.t === 'B' || best.p.t === 'F') && best.nn.length) { var mnN = Infinity, mxN = -Infinity; for (i = 0; i < best.nn.length; i++) { if (best.nn[i] < mnN) mnN = best.nn[i]; if (best.nn[i] > mxN) mxN = best.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, c]); } if ((ktype[j] === 6 || ktype[j] === 7) && (best.t === 'V' || best.t === 'B' || best.t === 'F') && c) { var mn6 = Infinity, mx6 = -Infinity, a6 = colv[j]; for (i = 0; i < a6.length; i++) { if (a6[i] < mn6) mn6 = a6[i]; if (a6[i] > mx6) mx6 = a6[i]; } zone.push([fnvStr('.' + keys[j]), mn6, mx6, a6.length]); } }
-      else if (ktype[j] === 1) {
-        var base = colv[j], scale = P10[FD[kfd[j]]]; numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
-        var d = numFirst(base, c, mono);
-        if (scale > 100) {   // 3 to 9 fraction digits (columns the JSON.parse path used to write): the same candidates as encodeColumn there, so the same bytes and no extra compressions
-          var dz2 = null, sa = 0, sb = 0;
-          if (!mono && c > 1) { dz2 = numDeltaZz(base, c); sa = vlenSum(d, c); sb = vlenSum(dz2, c); }
-          if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
-          if (dz2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz2, c)], c);
-          if (mx - mn < 16777216) { var w3 = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w3, scale: scale }, [bitpack(numOff(base, c, mn), w3)], c); }
-          if (!best || best.size > c * 4) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);
-          if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
-        } else {
-        cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
-        if (!mono && c > 1) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(numDeltaZz(base, c), c)], c);
-        if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w, scale: scale }, [bitpack(numOff(base, c, mn), w)], c); }
-        if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
-        if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
-        }
-      } else {
+      else if (ktype[j] === 1) numCands(colv[j], c, P10[FD[kfd[j]]], keys[j]);
+      else {
         var ln = colv[j], dl = coll[j], t2 = dl.length, asc = listAsc(ln, dl, c);
         cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(listDeltas(ln, dl, c, asc), t2)], c);
       }
