@@ -784,6 +784,11 @@ In Node, with the two builds alternated over 200 warm calls on the same files, t
 - If it matters, keep the old three-pass path for blocks under about 16,000 values.
 - Timing that variant would take one cheap Chromium run.
 
+**Small-block rule (owner pick "Fix the small-file cost first", 11:28 AM Detroit, `results/cols-16*-*.json`).** The one-pass zigzag decode now runs only on blocks of 16,384 or more values (`experiments/b20-patch-one-pass-zigzag.py`). Smaller blocks keep today's three-pass decode. Same values on 12.8 million cells. The machine was busier this round: the taxi baselines were 20 to 40% slower than at 1 AM.
+- **Taxi, null plane, default blocks:** columns take 0.48 / 0.64 / 0.65 of today (Chromium 8 pages; Firefox and WebKit 4). On 0.9.3 they take 0.63 / 0.62 / 0.70. The rule keeps the whole big-table gain.
+- **Small null-plane tables (10,000 rows):** these now run today's number code, plus only the all-null check. Chromium, 10 rounds: 0.87 to 1.24 of today, both above and below 1. So the earlier 1.11 to 1.49 was noise on 3 to 5 ms reads, not a cost of B20.
+- **Cell to watch:** 100,000 orders on the null-plane build in Firefox, 1.33 (4 pages, busy machine). The same cell was 0.97 over 10 rounds at 12:53 AM.
+
 **Check for the null-plane ship (B13):** lfc-pack 0.9.3 reads a research null-plane file as "damaged block: The encoded data was not valid for encoding utf-8". The shipped format-minor bump should make old readers say that the file needs a newer reader.
 
 **Lead this opened:** the writer could store an all-null column as a null-plane column with no values. That would be a format change, so it belongs with B13's format minor version.
