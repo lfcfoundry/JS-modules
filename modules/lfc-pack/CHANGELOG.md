@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.3 · API 0 · 2026-11-11
+- Reading a time range is faster: only the matching rows are built.
+
 ## 0.9.2 · API 0 · 2026-11-11
 - Packing UUID columns is about twice as fast again.
 

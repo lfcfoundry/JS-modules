@@ -739,6 +739,30 @@
       return out;
     }
     readRange = guard(readRange);
+    // rows of a block whose number under key rk is in [min, max]: the range column is tested first and row objects are made for the matching rows alone. Same objects, same key order, as keepRows(readBlock(...)). null when the block needs the full path
+    function readSel(bytes, want, verify, rk, min, max) {
+      if (gen || lazyOn) return null;
+      var F = flatFrames(zs, bytes, want, false, verify), meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, keys = meta.keys, i, j, c, s, m, jr = keys.indexOf(rk);
+      if (F.ordList || keys.indexOf('__proto__') >= 0) return assembleKeep(F, want, rk, min, max);
+      if (jr < 0 || F.cols[jr] === null) return [];
+      var vals = new Array(K), pb = (n + 7) >> 3, rv = F.cols[jr].pre ? F.cols[jr].pre : decodeColumn(meta.cols[jr], zs, F.cols[jr].fr), sel = new Int32Array(n), v, x;
+      vals[jr] = rv; m = 0;
+      if (rv.length === n) { for (i = 0; i < n; i++) { x = rv[i]; if (typeof x === 'number' && x >= min && x <= max) sel[m++] = i; } }
+      else { for (i = 0, c = 0, s = jr * pb; i < n; i++) if ((pl[s + (i >> 3)] >> (i & 7)) & 1) { x = rv[c++]; if (typeof x === 'number' && x >= min && x <= max) sel[m++] = i; } }
+      if (m * 2 > n) { F.cols[jr].pre = rv; return assembleKeep(F, want, rk, min, max); }   // more than half the rows match: the whole-block path (with its engine fast paths) is quicker; the range column is not decoded twice
+      var out = new Array(m); if (!m) return out;
+      for (j = 0; j < K; j++) if (j !== jr) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+      for (i = 0; i < m; i++) out[i] = {};
+      for (j = 0; j < K; j++) {
+        v = vals[j]; if (!v) continue;
+        var key = keys[j], base = j * pb, q;
+        if (v.length === n) { for (i = 0; i < m; i++) out[i][key] = v[sel[i]]; continue; }
+        for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) out[q][key] = v[c]; c++; } if (i === sel[q]) q++; }
+      }
+      return out;
+    }
+    function assembleKeep(F, want, rk, min, max) { var r = assemble(F, want), out = [], i, x; for (i = 0; i < r.length; i++) { x = r[i][rk]; if (typeof x === 'number' && x >= min && x <= max) out.push(r[i]); } return out; }
+    readSel = guard(readSel);
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
     function columns(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
@@ -751,5 +775,5 @@
       }
       return { n: n, keys: Object.keys(cols), cols: cols, present: present };
     }
-    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
   }

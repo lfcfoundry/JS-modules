@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.3 · API 0 · 2026-11-11
+
+### Quick
+A range read of a file of flat rows now decodes the range column first and builds row objects for the matching rows only. A 1% range takes 0.35 to 0.81 of the time on 300,000-row logs and sensors. Same rows, same files, no format change.
+
+### Details
+unpack(file, { range }) on a flat block lists the matching rows from the range column, then builds only those rows (a block wholly inside the range skips the test; a block where more than half the rows match goes the old way; nested blocks, key-order lists and __proto__ keys go the old way). 300,000 rows, 1% range, new/old, 7 pairs: Chromium logs 0.62, sensors 0.35; Firefox logs 0.81, sensors 0.47. Full reads 0.99 to 1.06 (A/A control 1.03).
+
+### Deep
+lfc-pack 0.9.3: B14, range reads build only the rows they keep (read path only; no format change). Same rows on 90 of 90 range-read checks (6 ranges x 3 key choices, 5 sets) and in the new test rangesel.cjs (plain, null, missing, text and optional-key range columns, mixed key order, 40 to 20,000 rows, small blocks). 300,000 rows, 7 fresh-page pairs, 1% range new/old: Chromium 156 logs 0.62 and sensors 0.35, Firefox 158 logs 0.81 and sensors 0.47, WebKitGTK 2.52.6 sensors 0.70 (9 pairs). Full reads Chromium 0.99 / 0.99, Firefox 0.99 / 1.06, WebKitGTK 1.06 (15 pairs, A/A control 1.03). Phone not run. The 4 MB flat-block default that was approved with B14 is not in this release: with it a 1% range takes 0.17 to 0.43, but WebKitGTK full reads on sensors take 1.20 and parallel pack 1.18, so it waits for an owner card.
+
 ## 0.9.2 · API 0 · 2026-11-11
 
 ### Quick

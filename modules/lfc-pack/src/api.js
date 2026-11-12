@@ -308,6 +308,12 @@
     for (q = 0; q < z.length; q++) if (z[q][0] === h) return !(z[q][2] < range.min || z[q][1] > range.max);
     return true;
   }
+  function blockInside(file, i, range) {   // every number under range.key in block i is inside [min, max] (zone map), so no row-by-row test is worth making before the rows
+    if (!file.zone || !file.zone[i]) return false;
+    var h = fnvStr('.' + range.key), z = file.zone[i], q;
+    for (q = 0; q < z.length; q++) if (z[q][0] === h) return z[q][1] >= range.min && z[q][2] <= range.max;
+    return false;
+  }
   function keepRows(rows, range) {
     if (!range) return rows;
     var out = [], i, v; for (i = 0; i < rows.length; i++) { v = rows[i][range.key]; if (typeof v === 'number' && v >= range.min && v <= range.max) out.push(rows[i]); }
@@ -344,6 +350,7 @@
     var r = Object.create(rd);
     r.readBlock = function (a, b, c) { arenaReset(); return rd.readBlock(a, b, c); };
     if (rd.readRange) r.readRange = function (a, b, c) { arenaReset(); return rd.readRange(a, b, c); };
+    if (rd.readSel) r.readSel = function (a, b, c, d, e, f) { arenaReset(); return rd.readSel(a, b, c, d, e, f); };
     return r;
   }
   // unpack(bytes, { keys: ['ts', 'ms'], range: { key: 'ts', min: 10, max: 20 } }): only those keys, only rows whose number is in range; blocks outside the range are never decoded
@@ -361,9 +368,9 @@
       if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
       if (!blockMayMatch(file, i, range)) continue;
       kd = file.blocks[i][4];
-      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') { var pbk = want ? partialBytes(file, i) : null; r = rf.readBlock(pbk || blockBytes(file, i), want, !!pbk); } else r = rn.readBlock(blockBytes(file, i), want);
+      if (kd === 'r') r = rawRows(readRawBlock(S.zdec, blockBytes(file, i))); else if (kd === 'f') { var pbk = want ? partialBytes(file, i) : null; r = range && !blockInside(file, i, range) ? rf.readSel(pbk || blockBytes(file, i), want, !!pbk, range.key, range.min, range.max) : null; if (r) kd = 'fs'; else r = rf.readBlock(pbk || blockBytes(file, i), want, !!pbk); } else r = rn.readBlock(blockBytes(file, i), want);
       if (want && kd === 'r') r = projectRows(r, want);
-      r = keepRows(r, range);
+      if (kd !== 'fs') r = keepRows(r, range);
       if (opts.keys && range && opts.keys.indexOf(range.key) < 0) r = projectRows(r, (function () { var w = {}; opts.keys.forEach(function (k) { w[k] = 1; }); return w; })());
       for (j = 0; j < r.length; j++) out.push(r[j]);
     }
@@ -576,4 +583,4 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.9.2', apiVersion: 0 };
+  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(packTables, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.9.3', apiVersion: 0 };
