@@ -210,6 +210,9 @@ Writer (reference, not a rule for readers): a string or shape first seen in a bl
 
 Row ranges need no extra section: a reader gets block `i` starting row by adding up the `rows` of blocks `0..i-1` in the block table (footer section 2) and decodes only the blocks that overlap the wanted range. `LfcPack.unpackRows(bytes, {from, count})` does this; a file with a raw block (`r`) is read whole and cut.
 
+## 4a. Delta saves (prototype, footer section 17)
+A delta file is an ordinary file written by `packTables` of a patch object `P`, plus footer section 17 `{v: 2, base: <XXH64 hex of the base file's bytes>}` (required: a reader that does not know section 17 refuses the file). `P` has three parts: `meta`, a value table `{d: [...]}` with one entry per table of the saved object, in order; `vals`, a value table holding the tables that are not row lists; and `t<i>`, the rows put in for table number `i`. A row-list entry is `{n: name, k: 'r', len: rows in the result, ops: [at, del, count, ...]}`: walking the ops in order, copy the base rows up to `at`, skip `del` base rows, then take `count` rows from `t<i>`; after the last op copy the remaining base rows; the result must have `len` rows. A value entry is `{n, k: 'v', same: 1}` (the base's value) or `{n, k: 'v'}` (the value is in `vals[n]`). The base must be a full file (no section 17). Rows are compared by their JSON text, so any row shape works.
+
 ## 5. Reader rules, short list
 1. Check block CRC (`SPEC.md` 2.4), then cut frames in order using the header; refuse the block if bytes are left over (a reader SHOULD; the reference JavaScript reader does not check yet).
 2. Never trust a length: check every decoded size against the layout.

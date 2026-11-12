@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.9.6 · API 0 · 2026-11-12
+
+### Quick
+New opt-in packTables(tables, { base }) writes only the rows that changed since a full save, and unpackTables(delta, { base, baseTables }) rebuilds them. Netflow-like data, 8,000 items and 24,751 links, 80 edits: patch 1.4% of a full save, save 0.21 to 0.36 of the time (0.02 with dirty row numbers), read 0.08 to 0.13 with baseTables. Delta files need 0.9.6 or newer to read; full files are unchanged.
+
+### Details
+A delta file is an ordinary file whose tables are a patch against a base file (rows inserted, rows removed, values changed), with a required footer section 17 holding the base's XXH64; readers older than 0.9.6 refuse it, and a wrong or missing base throws. Rows are compared as text, so nested rows work. dirty: { table: [row numbers] } skips the comparison when the app knows what it touched. baseTables lets a read skip decoding the base. unpack() of a delta reads whole (no equals, range, keys or lazy). Stacked with the null plane: full file 7% smaller on null data, delta ratios unchanged.
+
+### Deep
+lfc-pack 0.9.6: delta saves v2 (owner chose Build into Netflow autosave, 2026-11-12). Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, 8,000 nodes, 24,751 links, 80 edits: patch 1.4%, save 0.16-0.40, with dirty rows 0.02, read 1.00-1.25 (0.08-0.13 with baseTables). Same output as a full save in all runs. Old readers refuse delta files by design. New test delta.cjs.
+
 ## 0.9.5 · API 0 · 2026-11-12
 
 ### Quick
