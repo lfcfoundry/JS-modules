@@ -46,6 +46,9 @@ So a built-in dictionary saves a fixed 120 to 320 bytes per file. Even with it, 
 ## A no-format-change option checked too
 A raw block (`r`, the whole text as one zstd frame, `SPEC.md`) is already readable by every reader. Written for tiny inputs it gives: logs 10 rows 647 bytes (flat 834), sensors 403 (639), events 636 (891), but at 100 rows it is bigger than flat (logs 3,613 against 2,908). The catch is the API: `unpackColumns` and `R.columns` refuse raw blocks, and raw blocks have no number ranges. A writer rule "raw block when the input is under about 2 KB" would change what those calls do on tiny files. Not recommended without an owner decision.
 
+## Real zstd numbers (2026-11-11, E12)
+Measured with the system libzstd 1.5.5 (`experiments/zdict.py`), not estimated. A built-in dictionary saves 11 to 24% of a 10-row file, 3 to 12% at 100 rows and 0 to 3% at 1,000 rows, less than the estimate above. A per-app dictionary (the same app's earlier data) saves 15 to 28% at 10 rows and up to 15% on a 2,000-node map. Trained dictionaries lost to raw content at these sizes. The decision below stands for the built-in dictionary. A different use of the same zstd feature looks much stronger: the previous save as the dictionary (backlog B17), which makes an edited 2,000-node map 6% of its size.
+
 ## Why not now
 - It changes the format: frames are "no dictionary" today (`LAYOUT-SPEC.md` 1.1). A dictionary has to be versioned and kept forever, because files depend on it. The Python and Go readers need the same bytes.
 - The gain is a few hundred bytes per file. App saves of that size do not cost users time or space in practice, and the owner's rule is speed over size.

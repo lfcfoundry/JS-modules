@@ -1,6 +1,6 @@
 # Proposal: a null plane for typed columns (backlog B13)
 
-Status: research proposal, not a format change. Nothing here is implemented in `modules/lfc-pack`. It needs the owner's go-ahead and a code-thread change to the JavaScript, Python and Go readers together.
+Status: research proposal, not a format change. Nothing here is implemented in `modules/lfc-pack`. A research prototype exists (`experiments/b13-null-plane.diff`, `RESEARCH.md` E11). It needs the owner's go-ahead and a code-thread change to the JavaScript, Python and Go readers together.
 
 ## What it is
 Today a flat-block column keeps a typed encoding (`V`, `B`, `F`, `T`, `D`, `s`, `H`, `U`, `I`) only when every value under the key is of one kind (`LAYOUT-SPEC.md` 2.5). One `null` in the block turns the whole column into JSON text (`j`). The proposal keeps the typed encoding for the non-null values and records which rows hold `null` in one extra bit plane, the same shape as the presence planes the flat block already has (2.2).
@@ -50,5 +50,17 @@ Compatibility: format minor 1 (`SPEC.md` 2.1). Files without nullable typed colu
 - Writer cost: the scanner already handles mixed kinds on the fast path once B3b ships; picking `N` adds one plane per nullable column. To be timed in the 3 test browsers before adoption.
 - `unpackColumns` would return `null` cells in typed columns. A typed array cannot hold `null`, so the API needs a decision: return the inner typed array plus the null plane (like Arrow), or a plain array. This is an API choice for the owner.
 
+
+## Prototype results (2026-11-11, E11)
+Writer and reader for `N` in a copy of 0.8.3 (about 20 lines in `src/flat.js`). Same rows on 21 test files; byte-identical on 9 files without nullable columns. Browser ratios against 0.8.3 on 100,000-row cuts, stacked with B3b v3 (Chromium / Firefox / WebKitGTK):
+
+| Set | size | pack | full read |
+|---|---|---|---|
+| made-up orders export (6 nullable columns) | -23.5% | 0.75 / 0.69 / 0.76 | 0.50 / 0.62 / 0.65 |
+| 3 nullable columns, 5% null each | -24.3% | 0.80 / 0.86 / 0.71 | 0.54 / 0.64 / 0.64 |
+| one decimal column, 10% null | -13.6% | 0.81 / 0.71 / 0.65 | 0.80 / 0.83 / 0.92 |
+
+The null plane alone was up to 1.05 slower to pack in Firefox on one set; stacked with B3b it was never slower. With a per-app zstd dictionary on top, a 10-row orders file goes from 921 to 622 bytes (E12).
+
 ## Decision asked
-DEFER until a real workload with nullable typed columns shows up (a database export, a Workbench import). If the owner wants it sooner, the next step is a code-thread prototype behind a writer option, with the 3-browser pack and unpack gates and a byte-identity check on files with no nulls.
+Was DEFER until a real workload with nullable typed columns shows up (a database export, a Workbench import). With the prototype numbers above it is an ADOPT CANDIDATE as format minor 1, the owner's call. If the owner says go, the next step is a code-thread prototype behind a writer option, with the 3-browser pack and unpack gates and a byte-identity check on files with no nulls.
