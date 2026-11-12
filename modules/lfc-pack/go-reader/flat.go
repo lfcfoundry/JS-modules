@@ -135,6 +135,34 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 	}
 	out := make([]any, 0, n)
 	switch t {
+	case "N": // null plane (format minor 1): frame 0 marks the null rows, the other frames hold the inner column of the non-null values
+		m := int(pf("m"))
+		pn := need(0)
+		if len(pn) < (n+7)/8 {
+			fail("damaged block: N plane cut off")
+		}
+		ic := &Obj{}
+		it, _ := p.Get("t")
+		ip, _ := p.Get("p")
+		ic.Set("t", it)
+		ic.Set("p", ip)
+		ic.Set("n", float64(m))
+		inner := decodeCol(ic, fr[1:])
+		q := 0
+		for i := 0; i < n; i++ {
+			if (pn[i>>3]>>(uint(i)&7))&1 == 1 {
+				out = append(out, nil)
+				continue
+			}
+			if q >= len(inner) {
+				fail("damaged block: N count")
+			}
+			out = append(out, inner[q])
+			q++
+		}
+		if q != m {
+			fail("damaged block: N count")
+		}
 	case "V":
 		u := varints(need(0), n)
 		scale := pf("scale")

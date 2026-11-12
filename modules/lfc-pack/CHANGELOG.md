@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.0 · API 0 · 2026-11-11
+- Columns with some empty (null) values are stored compactly: such files are smaller and faster to read. Older versions cannot open these files.
+
 ## 0.9.3 · API 0 · 2026-11-11
 - Reading a time range is faster: only the matching rows are built.
 

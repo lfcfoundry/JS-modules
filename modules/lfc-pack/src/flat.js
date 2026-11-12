@@ -256,7 +256,23 @@
     else fullOf(zs, level, b);
     b.fr = null; b.next = null; return b;
   }
-  function encodeColumn(v, zs, level, tmode, sj, key) { return settle(zs, level, encodeColumn0(v, zs, level, tmode, sj, key)); }
+  function encodeColumn(v, zs, level, tmode, sj, key) { var nb = nullBest(v, zs, level, tmode, key); if (nb) return nb; return settle(zs, level, encodeColumn0(v, zs, level, tmode, sj, key)); }
+  // research prototype (null plane, type N): a column whose values are one scalar kind plus some nulls keeps the typed encoding of its non-null values, plus one bit plane that marks the nulls
+  var NMARK = 0;   // counts the null-plane (N) columns written, so a pack call can tell whether its file needs format minor 1
+  var NULL_MODE = (typeof globalThis !== 'undefined' && globalThis.__NULLMODE) || 'plane';
+  function nullBest(v, zs, level, tmode, key) {
+    var n = v.length, i, x, k = null, m = 0, kind;
+    if (NULL_MODE === 'off') return null;
+    for (i = 0; i < n; i++) { x = v[i]; if (x === null) continue; kind = typeof x; if (kind !== 'number' && kind !== 'boolean' && kind !== 'string') return null; if (k === null) k = kind; else if (k !== kind) return null; m++; }
+    if (k === null || m === n) return null;
+    var nn = new Array(m), pl = new Uint8Array((n + 7) >> 3); for (i = 0, m = 0; i < n; i++) { if (v[i] === null) pl[i >> 3] |= 1 << (i & 7); else nn[m++] = v[i]; }
+    var inner = settle(zs, level, encodeColumn0(nn, zs, level, tmode, undefined, key));
+    if (inner.t === 'j') return null;
+    var pz = zs.compress(pl, level), pzz = pz.length < pl.length ? [pl.length, pz, 1] : [pl.length, pl, 0];
+    var size = pzz[1].length; for (i = 0; i < inner.z.length; i++) size += inner.z[i][1].length;
+    if (NULL_MODE === 'both') { var j = settle(zs, level, encodeColumn0(v, zs, level, tmode, undefined, key)); if (j.size <= size) return j; }
+    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: m }, n: n, z: [pzz].concat(inner.z), size: size, nn: nn };
+  }
   function encodeColumn0(v, zs, level, tmode, sj, key) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes; key: the column's key, for the once-per-call template read check
     var n = v.length, i, x, best = null;
     function stored(frames) { var t = 0, z = []; for (var q = 0; q < frames.length; q++) { var c = zs.compress(frames[q], level); if (c.length < frames[q].length) z.push([frames[q].length, c, 1]); else z.push([frames[q].length, frames[q], 0]); t += z[q][1].length; } return { z: z, size: t }; }
@@ -369,6 +385,7 @@
   function colD(frames, n, p) { var i, u, o; var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
+    if (t === 'N') { var iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)), pn = frames[0], q = 0; o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
     if (t === 'V') return colV(frames, n, p);
     if (t === 'B') return colB(frames, n, p);
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
@@ -414,6 +431,7 @@
       var e = encodeColumn(cols[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, undefined, keys[j]); enc.push(e);
       meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
       for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
+      if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { var mnN = Infinity, mxN = -Infinity; for (i = 0; i < e.nn.length; i++) { if (e.nn[i] < mnN) mnN = e.nn[i]; if (e.nn[i] > mxN) mxN = e.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, e.n]); }
       if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; for (i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
     }
     if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
@@ -549,7 +567,7 @@
         if (!cds) cand('s', {}, [sdOut[j]], c);
         else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : new Uint8Array(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
       }
-      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); if ((ktype[j] === 6 || ktype[j] === 7) && (best.t === 'V' || best.t === 'B' || best.t === 'F') && c) { var mn6 = Infinity, mx6 = -Infinity, a6 = colv[j]; for (i = 0; i < a6.length; i++) { if (a6[i] < mn6) mn6 = a6[i]; if (a6[i] > mx6) mx6 = a6[i]; } zone.push([fnvStr('.' + keys[j]), mn6, mx6, a6.length]); } }
+      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); if (best.t === 'N' && (best.p.t === 'V' || best.p.t === 'B' || best.p.t === 'F') && best.nn.length) { var mnN = Infinity, mxN = -Infinity; for (i = 0; i < best.nn.length; i++) { if (best.nn[i] < mnN) mnN = best.nn[i]; if (best.nn[i] > mxN) mxN = best.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, c]); } if ((ktype[j] === 6 || ktype[j] === 7) && (best.t === 'V' || best.t === 'B' || best.t === 'F') && c) { var mn6 = Infinity, mx6 = -Infinity, a6 = colv[j]; for (i = 0; i < a6.length; i++) { if (a6[i] < mn6) mn6 = a6[i]; if (a6[i] > mx6) mx6 = a6[i]; } zone.push([fnvStr('.' + keys[j]), mn6, mx6, a6.length]); } }
       else if (ktype[j] === 1) {
         var base = colv[j], scale = P10[FD[kfd[j]]]; numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
         var d = numFirst(base, c, mono);
