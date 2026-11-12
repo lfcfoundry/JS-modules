@@ -73,3 +73,14 @@ Research screen against 0.8.3:
 Gate: the usual tests (`test/query.cjs` first), `selverify.cjs`, and an early-stop A/B in all 3 browsers on full reads, on wide ranges, and on narrow ranges followed by a wide range in the same page (that sequence read 1.04 to 1.29 slower in the research screen, because the shared row builder warms up later).
 
 User changelog line: "Reading a time range is faster: only the matching rows are built."
+
+## B16: 4 MB blocks for flat data (with B14; owner tapped "Send B14 + 4 MB flat blocks", 2026-11-11 9:25 PM Eastern)
+Writer default only, no format change: readers already take any block size. In `src/api.js` the default `bb` is `BLOCK_BYTES` (13 MB). Proposed rule: when the caller gives no `blockBytes` and the input passes `looksFlat` on its first chunk, use 4 MB (`4 << 20`); otherwise keep 13 MB. An explicit `blockBytes` always wins. Nested data stays at 13 MB, because 4 MB nested blocks read 1.04 to 1.15 times slower in full and grow 7.5% (E10).
+
+Research screen against 0.8.3 at 13 MB (`RESEARCH.md` E10, `results/rdab-*-bs.json`; whole-file `blockBytes`, B14 on):
+- A 1% time range takes 0.12 to 0.29 of the time on logs and sensors, 0.56 to 0.78 on a mixed set. One column: 0.19 to 0.59.
+- Full read 0.81 to 1.02, pack 0.87 to 0.98. Files grow up to 3.3% (mixed set), 0.4% (logs), and shrink 0.3% (sensors).
+
+Gate: the usual tests, the B14 gate, the real-corpus size gate (no flat corpus file more than 3.5% bigger), and an early-stop A/B in all 3 browsers on full reads (at most 1.05 on flat sets) and on `packParallel`, which splits work by block and was not timed in the research screen. Check that `looksFlat` on the first chunk does not switch a nested file to 4 MB blocks.
+
+User changelog line: "Files of flat rows use smaller blocks, so reading part of a file is faster."
