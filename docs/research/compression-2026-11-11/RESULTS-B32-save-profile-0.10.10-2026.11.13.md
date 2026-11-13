@@ -27,3 +27,7 @@
 2. **WebKitGTK helper tail (163 ms):** split the biggest number columns of the last block across helpers, or send the last block's columns first. Next: test this.
 
 Catalog: save profile on 0.10.10 (E36): scatter about 70% of main-thread time; the text route and leaner scatter G were dropped; WebKitGTK helper tail 163 ms. RESULTS-B32-save-profile-0.10.10-2026.11.13.md.
+
+## Correction (5:55 PM)
+
+The WebKitGTK numbers above come from the instrumented build. Uninstrumented 0.10.10 takes 194 ms on a later WebKitGTK save (`rp33-webkit.json`), so most of the "163 ms helper wait" was the cost of the timing calls. See RESULTS-B33.
