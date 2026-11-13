@@ -54,6 +54,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('first block of a big save is small (B22)', 'node', ['headblock.cjs']);
   step('open().readAhead()', 'node', ['readahead.cjs']);
   step('number kernel and folded row check (B25 + B26)', 'node', ['numkernel.cjs']);
+  step('packRowsParallel (B28)', 'node', ['b28.cjs']);
   step('sparse tables (rows with missing keys)', 'node', ['sparseread.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   step('python writer', 'python3', ['-I', 'pywriter.py', dir]);

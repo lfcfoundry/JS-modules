@@ -418,7 +418,7 @@
       }
       return v;
     }
-    function rowsOf(b, want, eqk, eqv) {
+    function rowsOf(b, want, eqk, eqv, rng) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i, c;
       if (b.g) { var L = b.L, GS = tables.s; for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); } }
       else for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
@@ -434,9 +434,15 @@
         for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.a !== null) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; ends[i] = c; }
       }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
-      if (eqk !== undefined) {    // P13c: find the matching rows first (no objects), then build only those
+      if (rng === 2) {   // P13f: rows lo..hi-1 alone (eqv = [lo, hi]); the other rows are skipped, not made, and the streams are still read to their ends
+        var wlo = eqv[0], whi = eqv[1], wr = new Array(Math.max(0, whi - wlo)), wp;
+        for (i = 0; i < b.n; i++) { id = ids[i]; wp = id < LK ? fnById[id] : GPL[id - LK]; if (i < wlo || i >= whi) skipP(wp); else wr[i - wlo] = build(wp); }
+        if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
+        return wr;
+      }
+      if (eqk !== undefined) {    // P13c: find the matching rows first (no objects), then build only those. P13f: rng set, eqv is [min, max] and a row matches when its number under eqk is inside (as keepRows tests)
         var planAt = function (i) { var d = ids[i]; return d < LK ? fnById[d] : GPL[d - LK]; }, sel = [], pl, ix;
-        for (i = 0; i < b.n; i++) { pl = planAt(i); if (pl.t !== 7) { skipP(pl); continue; } ix = pl.eqk === eqk ? pl.eqi : (pl.eqk = eqk, pl.eqi = pl.keys.indexOf(eqk)); if (ix < 0) { skipP(pl); continue; } if (peekRow(pl, ix) === eqv) sel.push(i); }
+        for (i = 0; i < b.n; i++) { pl = planAt(i); if (pl.t !== 7) { skipP(pl); continue; } ix = pl.eqk === eqk ? pl.eqi : (pl.eqk = eqk, pl.eqi = pl.keys.indexOf(eqk)); if (ix < 0) { skipP(pl); continue; } var pv = peekRow(pl, ix); if (rng ? typeof pv === 'number' && pv >= eqv[0] && pv <= eqv[1] : pv === eqv) sel.push(i); }
         if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
         var m = sel.length, res = new Array(m); if (!m) return res;
         TI = 0; COLS.forEach(function (c) { c.i = 0; }); if (tab) for (i = 0, c = 0; i < tab.length; i++) { SCOLS.get(tab[i][0]).i = c; c += tab[i][2]; }
@@ -450,5 +456,5 @@
       return out;
     }
     openBlock = guard(openBlock); rowsOf = guard(rowsOf);
-    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes, want) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want); }, readEq: function (bytes, want, k, v) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want, k, v); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
+    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes, want) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want); }, readEq: function (bytes, want, k, v) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want, k, v); }, readRange: function (bytes, lo, hi) { return rowsOf(openBlock(nestedFrames(zs, bytes)), null, null, [lo, hi], 2); }, readSel: function (bytes, want, verify, k, lo, hi) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want, k, [lo, hi], true); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
   }

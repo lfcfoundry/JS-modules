@@ -586,23 +586,48 @@
       else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
       else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
+    var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol;
     for (j = 0; j < cols.length; j++) {
-      var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, e;
-      if (pre21[j] === 1) pre21[j] = b21Flags(cols[j], cols[j].length); else if (pre21[j] === 2) pre21[j] = b21Flags(cols[j].nb, cols[j].m);
-      if (chk26 && pre21[j] && (pre21[j].nz || pre21[j].nf)) throw B26_BAIL;
-      if (pre21[j] && cols[j].nb) { c21 = cols[j]; NN_FLAGS[0] = pre21[j].nz; NN_FLAGS[1] = pre21[j].ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: pre21[j].nz, ai: pre21[j].ai }, null, c21.c, zs, level, tm21, keys[j]); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, keys[j]); cols[j] = []; }
-      else if (pre21[j]) e = settle(zs, level, encodeColumn0(cols[j], zs, level, tm21, undefined, keys[j], pre21[j]));
-      else e = encodeColumn(cols[j], zs, level, tm21, undefined, keys[j]);
-      enc.push(e); NK_BUF = null;
-      meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
-      for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
-      if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { var mnN = Infinity, mxN = -Infinity; if (NKZ.v === e.nn) { mnN = NKZ.mn; mxN = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mnN) mnN = e.nn[i]; if (e.nn[i] > mxN) mxN = e.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, e.n]); }
-      if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
+      if (rc && pre21[j] && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
+        (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; es[j2] = r; }; }(j)));
+        cols[j] = []; continue; }
+      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26);
     }
+    function finish() {
+      for (j = 0; j < cols.length; j++) {
+        var e = es[j].e;
+        meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
+        for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
+        if (es[j].zn) zone.push([fnvStr('.' + keys[j]), es[j].zn[0], es[j].zn[1], es[j].zn[2]]);
+      }
     if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
     var mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
     var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
+    }
+    if (wait) return { wait: Promise.all(wait).then(finish) };
+    return finish();
+  }
+  var B28_MIN = 8192;
+  // one column of the general flat writer, as writeFlatBlock0 encodes it: pre 1 = a typed number column, 2 = numbers and nulls ({ nb, np, m, c }), else a generic array; -> { e, zn: zone entry [min, max, count] or null }
+  function b28Col(pre, a, key, zs, level, tm21, chk26) {
+    var e, fl = null, zn = null, i, mn, mx, c21;
+    if (pre === 1) fl = b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
+    if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
+    if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
+    else if (pre === 1) e = settle(zs, level, encodeColumn0(a, zs, level, tm21, undefined, key, fl));
+    else e = encodeColumn(a, zs, level, tm21, undefined, key);
+    NK_BUF = null;
+    if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === e.nn) { mn = NKZ.mn; mx = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mn) mn = e.nn[i]; if (e.nn[i] > mx) mx = e.nn[i]; } zn = [mn, mx, e.n]; }
+    if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && a.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zn = [mn, mx, a.length]; }
+    return { e: e, zn: zn };
+  }
+  function b28Job(m) {   // in a helper: one column -> { msg, transfer }
+    try {
+      var a = m.pre === 2 ? { nb: m.nb, np: m.np, m: m.m, c: m.c } : m.nb, r; B18_ALLV = true;
+      try { r = b28Col(m.pre, a, m.key, S.zfull, m.level, m.tm, m.chk); } finally { B18_ALLV = false; }
+      var e = r.e; return { msg: { id: m.id, e: { t: e.t, p: e.p, n: e.n, z: e.z, st: e.st }, zn: r.zn }, transfer: [] };
+    } catch (er) { if (er === B26_BAIL) return { msg: { id: m.id, bail: 1 }, transfer: [] }; return { msg: { id: m.id, error: String(er && er.message || er) }, transfer: [] }; }
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
   function dropSmallWasm() { TPLW = null; FSW = null; NKW = null; NK_SRC = null; NK_N = -1; NK_BUF = null; NKZ.v = null; }   // trim(): the template and flat-scan helpers start again small when next needed

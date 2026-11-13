@@ -1,0 +1,27 @@
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// B28: packRowsParallel gives the same bytes as packRows (text-size rule, helper bail, helper error, overlapping calls, three calls in a row). Pass/fail only. Run: node modules/lfc-pack/test/b28.cjs
+'use strict';
+globalThis.__B28TEXT = 0.01; globalThis.__B28AUTO = 0;   // test knobs: take the helper path on small tables; start helpers at once
+const J = require('../lfc-pack.js');
+(async () => {
+  await J.init(); let bad = 0, n = 0;
+  const ok = (c, m) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
+  const eq = (a, b) => a.length === b.length && Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0;
+  const base = (len) => Array.from({ length: len || 20000 }, (_, i) => ({ id: i, x: i * 0.5, y: (i * 7919) % 1001 / 3, s: 'k' + (i % 9), b: i % 2 === 0, n: i % 5 ? null : i }));
+  const run = async (name, mut, len) => { const r1 = base(len), r2 = base(len); if (mut) { mut(r1); mut(r2); } let a, b, ea, eb; try { a = J.packRows(r1); } catch (e) { ea = e.message; } try { b = await J.packRowsParallel(r2, { workers: 2 }); } catch (e) { eb = e.message; } ok(ea || eb ? ea === eb : eq(a, b), name + ' same bytes as packRows'); if (!ea && b) ok(J.unpackRows(b).length === r1.length, name + ' rows count'); };
+  for (let k = 0; k < 3; k++) await run('plain call ' + (k + 1), null);
+  await run('small table (under 4096 rows)', null, 3000);
+  await run('negative zero in a big column', (r) => { r[15000].x = -0; });
+  await run('NaN in a big column', (r) => { r[15000].y = NaN; });
+  await run('Infinity', (r) => { r[100].x = Infinity; });
+  await run('nested value', (r) => { r[16000].s = { a: 1 }; });
+  await run('mixed kind', (r) => { r[12000].id = 'x'; });
+  await run('undefined value', (r) => { r[9000].x = undefined; });
+  const a1 = base(), a2 = base(30000);
+  const [p, q] = await Promise.all([J.packRowsParallel(a1, { workers: 2 }), J.packRowsParallel(a2, { workers: 2 })]);
+  ok(eq(p, J.packRows(base())) && eq(q, J.packRows(base(30000))), 'two overlapping calls');
+  const r = base(); r[5000].x = 1.5; const b0 = J.packRows(r); ok(eq(await J.packRowsParallel(r, { workers: 1 }), b0), 'one helper');
+  ok(eq(await J.packRowsParallel(base(), { workers: 4, level: 3 }), J.packRows(base(), { level: 3 })), 'level option');
+  J.trim && J.trim();
+  console.log(bad ? 'b28: ' + bad + ' bad of ' + n : 'b28 ok, ' + n + ' checks'); process.exit(bad ? 1 : 0);
+})();
