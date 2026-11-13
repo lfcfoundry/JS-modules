@@ -73,7 +73,6 @@ LfcPack.unpack(file, { equals: { key: 'level', anyOf: ['WARN', 'ERROR', 'FATAL']
 // asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
 LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
 LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
-// since 0.10.5, reading whole tables where rows lack some keys is faster in Chrome and Edge (0.20 to 0.82 of the 0.10.4 time on a Chrome 157 laptop; Firefox and Safari run the same code as before)
 // opt-in lazy rows (see "Lazy rows" below): values are read when a key is first used
 LfcPack.unpack(file, { rows: 'lazy' });      // columns decoded at unpack, rows made cheaply
 LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when some row reads its key
