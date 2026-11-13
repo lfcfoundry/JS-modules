@@ -317,3 +317,33 @@ EXPORT("litjoin") u32 litjoin(const u8*in,const double*cval,const u32*clen,const
   for(i=0;i<n;i++){ u32 c2=ix[i]; if(cfd[c2]!=255) continue; u32 s=(u32)cval[c2],L=clen[c2]; if(f) out[o++]=','; f=1; __builtin_memcpy(out+o,in+s,L); o+=L; }
   out[o++]=']'; return o;
 }
+// B25 (research): one number column's candidate frames in one call. b: n scaled whole numbers (|x| < 2^50, no -0) as doubles, as numGeneral / numCands hold them.
+// res (doubles): [0] monotone (b[0] >= 0 and never falling), [1] min, [2] max, [3] bytes of the first form, [4] bytes of the delta form (0: not written), [5] bit width (0: no bit-packed form), [6] varint byte sum of the first form, [7] of the delta form.
+// One pass writes all varint forms at once into fixed regions of out (n*8+8 bytes each): zigzag of each value, zigzag of the differences, and while the column stays monotone b[0] then the plain differences; a second pass bit-packs the offsets from the min (range under 2^24). res[8], res[9], res[10]: where the first form, the delta form and the bit-packed bytes start in out.
+// mode 0: the general writer's rule (a form is written only when its varints are not more than 5% longer than the other's); mode 1: both forms whenever the column is not monotone and has 2+ values (the fast writer's rule for 0 to 2 fraction digits).
+static inline u32 vlen64(u64 u){ return (u32)(70-__builtin_clzll(u|1))/7; }   /* bytes of u as a varint (u < 2^56) */
+static inline u8* putv(u8*o,u64 u){   /* one varint as one 8-byte store (the caller keeps 8 spare bytes after the output) */
+  if(u<128){ *o=(u8)u; return o+1; }
+  u32 k=vlen64(u); u64 w=(u&0x7FULL)|((u<<1)&0x7F00ULL)|((u<<2)&0x7F0000ULL)|((u<<3)&0x7F000000ULL)|((u<<4)&0x7F00000000ULL)|((u<<5)&0x7F0000000000ULL)|((u<<6)&0x7F000000000000ULL)|((u<<7)&0x7F00000000000000ULL);
+  w|=0x8080808080808080ULL&((1ULL<<(8*(k-1)))-1); __builtin_memcpy(o,&w,8); return o+k; }
+static inline u64 zz64(i64 x){ return ((u64)x<<1)^(u64)(x>>63); }
+EXPORT("numcol") u32 numcol(const double*b,u32 n,u8*out,double*res,u32 mode){
+  u32 i; i64 v,pv,mn,mx; u64 la=0,lz=0,lb=0; int mono;
+  if(!n){ res[0]=0; res[1]=1.0/0.0; res[2]=-1.0/0.0; res[3]=-1; res[4]=-1; res[5]=0; res[6]=0; res[7]=0; res[8]=0; res[9]=0; res[10]=0; return 0; }
+  u8*Z=out, *D=out+(u64)n*8+8, *M=out+(u64)n*16+16, *z=Z, *d=D, *m=M;
+  pv=(i64)b[0]; mono=pv>=0; mn=mx=pv; z=putv(z,zz64(pv)); d=putv(d,zz64(pv)); if(mono) m=putv(m,(u64)pv);
+  for(i=1;i<n;i++){ v=(i64)b[i]; i64 q=v-pv; mn=v<mn?v:mn; mx=v>mx?v:mx; z=putv(z,zz64(v)); d=putv(d,zz64(q)); if(mono){ if(q<0) mono=0; else m=putv(m,(u64)q); } pv=v; }
+  lz=(u64)(z-Z); lb=(u64)(d-D); la=(u64)(m-M);
+  double sa=(double)(mono?la:lz), sb=(double)lb; int hasDz=!mono&&n>1, wa, wb;
+  if(mode==1){ wa=1; wb=hasDz; } else { wa=!hasDz||sa<=sb*1.05; wb=hasDz&&sb<=sa*1.05; }
+  u8*o=M+(u64)n*8+8; u32 w=0, bo=0;
+  if(mx-mn<16777216){ u32 r=(u32)(mx-mn); w=r?32-(u32)__builtin_clz(r):1; u8*o0=o;
+    u64 acc=0; u32 bits=0; for(i=0;i<n;i++){ acc|=(u64)(u32)((i64)b[i]-mn)<<bits; bits+=w; if(bits>=32){ u32 lo=(u32)acc; __builtin_memcpy(o,&lo,4); o+=4; acc>>=32; bits-=32; } }
+    while(bits>0){ *o++=(u8)acc; acc>>=8; bits=bits>8?bits-8:0; } o=o0+(((u64)n*w+7)>>3); }
+  res[0]=mono; res[1]=(double)mn; res[2]=(double)mx; res[3]=wa?(double)(mono?la:lz):-1.0; res[4]=wb?(double)lb:-1.0; res[5]=w; res[6]=sa; res[7]=sb;
+  res[8]=(double)((mono?M:Z)-out); res[9]=(double)(D-out); res[10]=(double)(M+(u64)n*8+8-out);
+  return (u32)(o-out);
+}
+// B25b: b21Flags in one pass: res[0] 1 when some value is -0, res[1] 1 when every value is a whole number under 2^50 in size, res[2] 1 when some value is NaN or infinite
+EXPORT("numflags") void numflags(const double*a,u32 n,double*res){
+  u32 i,nz=0,ai=1,nf=0; for(i=0;i<n;i++){ double x=a[i]; ai&=(x==__builtin_trunc(x))&(x<1125899906842624.0)&(x>-1125899906842624.0); nz|=(x==0)&(__builtin_signbit(x)!=0); nf|=!(x-x==0); } res[0]=nz; res[1]=ai; res[2]=nf; }

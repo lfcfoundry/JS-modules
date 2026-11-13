@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.4 · API 0 · 2026-11-13
+- Saving big number tables is up to twice as fast.
+
 ## 0.10.3 · API 0 · 2026-11-13
 - Opening a big file in blocks uses about a third less memory at 1 to 4 MB blocks.
 

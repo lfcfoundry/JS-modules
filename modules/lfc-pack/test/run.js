@@ -53,6 +53,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('open(): block-at-a-time reads from a Blob or read()', 'node', ['open.cjs']);
   step('first block of a big save is small (B22)', 'node', ['headblock.cjs']);
   step('open().readAhead()', 'node', ['readahead.cjs']);
+  step('number kernel and folded row check (B25 + B26)', 'node', ['numkernel.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   step('python writer', 'python3', ['-I', 'pywriter.py', dir]);
   step('python writer files in JS', 'node', ['pywriter.cjs', dir]);
