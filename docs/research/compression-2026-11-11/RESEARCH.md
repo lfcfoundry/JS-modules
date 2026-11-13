@@ -1114,3 +1114,7 @@ Same bytes. Taxi first save 0.85 weighted, but repeat 0.99, and sensors repeat 1
 ## E34 (B30, 2026.11.13 5:26 PM): Blob-range pack jobs
 
 packParallel(blob): helpers read their own ranges. Same bytes. Taxi 121 MB 0.90 weighted, peak -31 to -109 MB, Chromium stall 71 to 8 ms. Stacks additively with B28. See RESULTS-B30-blob-range-pack-2026.11.13.md. Next free B31 / E35.
+
+## E35 (B31, 2026.11.13 5:34 PM): packRowsParallel yields between blocks
+
+Stall 210 to 53 ms (C), 214 to 29 (F), 178 to 27 (W); later saves 1.05 weighted. Same bytes. On a card. Next free B32 / E36.
