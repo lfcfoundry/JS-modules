@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.10 · API 0 · 2026-11-13
+
+### Quick
+packRowsParallel keeps the page responsive
+
+### Details
+B31: packRowsParallel yields between blocks (MessageChannel task). Longest main-thread stall on 300,000 taxi-like rows 210/214/178 ms to 53/29/27 ms (Chromium, Firefox, WebKitGTK); first call 1.04 to 1.08, later saves 0.99 to 1.02 of 0.10.9; same bytes. Owner accepted the cost.
+
+### Deep
+B31 yield every block (owner Yield every block). Fixed in review: in plain Node a script ended before the call finished (the port was unref'd); the port now keeps the process alive only while a block waits. b28.cjs 28 checks. All lfc-pack checks pass.
+
 ## 0.10.9 · API 0 · 2026-11-13
 
 ### Quick

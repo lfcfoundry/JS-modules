@@ -22,6 +22,12 @@ const J = require('../lfc-pack.js');
   ok(eq(p, J.packRows(base())) && eq(q, J.packRows(base(30000))), 'two overlapping calls');
   const r = base(); r[5000].x = 1.5; const b0 = J.packRows(r); ok(eq(await J.packRowsParallel(r, { workers: 1 }), b0), 'one helper');
   ok(eq(await J.packRowsParallel(base(), { workers: 4, level: 3 }), J.packRows(base(), { level: 3 })), 'level option');
+  // B31: the writer yields between blocks; small blocks force several of them
+  for (const [nm, mut] of [['several blocks', null], ['bail in a late block', (r) => { r[19000].x = -0; }], ['nested in a late block', (r) => { r[18500].s = { a: 1 }; }]]) {
+    const r1 = base(), r2 = base(); if (mut) { mut(r1); mut(r2); } const o = { workers: 2, blockBytes: 300000 }; let a, b, ea, eb; try { a = J.packRows(r1, o); } catch (e) { ea = e.message; } try { b = await J.packRowsParallel(r2, o); } catch (e) { eb = e.message; } ok(ea || eb ? ea === eb : eq(a, b), nm + ' (yielding writer) same bytes as packRows');
+  }
+  { const o = { workers: 2, blockBytes: 300000 }, [p, q] = await Promise.all([J.packRowsParallel(base(), o), J.packRowsParallel(base(25000), o)]); ok(eq(p, J.packRows(base(), o)) && eq(q, J.packRows(base(25000), o)), 'two overlapping calls, several blocks each'); }
+  { const cp = require('child_process'), code = "globalThis.__B28TEXT=0.01;globalThis.__B28AUTO=0;const J=require(" + JSON.stringify(require('path').resolve(__dirname, '../lfc-pack.js')) + ");(async()=>{await J.init();await J.packRowsParallel(Array.from({length:20000},(_,i)=>({id:i,x:i*.5})),{workers:2,blockBytes:100000});console.log('call done')})();", out = cp.spawnSync(process.execPath, ['-e', code], { encoding: 'utf8', timeout: 60000 }); ok(/call done/.test(out.stdout), 'a plain script waits for the yielding writer and then ends on its own'); }
   J.trim && J.trim();
   console.log(bad ? 'b28: ' + bad + ' bad of ' + n : 'b28 ok, ' + n + ' checks'); process.exit(bad ? 1 : 0);
 })();
