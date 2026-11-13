@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.10 · API 0 · 2026-11-13
+- packRowsParallel hands control back to the page between blocks: the longest pause on the main thread drops from 178 to 214 ms to 27 to 53 ms in Chromium, Firefox and WebKitGTK (cloud).
+
 ## 0.10.9 · API 0 · 2026-11-13
 - packParallel now takes a File or Blob without reading it whole first (less memory, shorter main-thread pause). Nested equality and range reads take one pass instead of two.
 

@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.10.9 · API 0**
+**Version 0.10.10 · API 0**
 
 **Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -112,7 +112,7 @@ LfcPack.unpackTables(file, { keys: ['id'] });
 
 Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blob:` only: no `eval`, no `new Function`, no remote scripts (the helper workers start from a blob made of this file).
 
-Saving big row arrays (since 0.10.8): `LfcPack.packRowsParallel(rows, opts)` returns a promise of the same bytes `packRows` writes. Rows are still read on the calling thread; number columns of 8,192 values or more are encoded and compressed in helper workers (at most 4, closed 3 seconds after the last call). Under about 52 MB of row text it just calls `packRows`. The first call in a page saves on the calling thread and starts the helpers afterwards (or call `warmPack()` first), so later saves are the fast ones: 0.54 (Chromium 156), 0.58 (Firefox 158) and 0.64 (WebKitGTK 2.52.6) of the `packRows` time on 300,000 rows of number-heavy data, cloud runs (first call 0.84 to 1.04). Same file format, same bytes.
+Saving big row arrays (since 0.10.8): `LfcPack.packRowsParallel(rows, opts)` returns a promise of the same bytes `packRows` writes. Rows are still read on the calling thread; number columns of 8,192 values or more are encoded and compressed in helper workers (at most 4, closed 3 seconds after the last call). Under about 52 MB of row text it just calls `packRows`. The first call in a page saves on the calling thread and starts the helpers afterwards (or call `warmPack()` first), so later saves are the fast ones: 0.54 (Chromium 156), 0.58 (Firefox 158) and 0.64 (WebKitGTK 2.52.6) of the `packRows` time on 300,000 rows of number-heavy data, cloud runs (first call 0.84 to 1.04). Since 0.10.10 it hands control back to the page after each block: the longest main-thread pause on 300,000 rows fell from 210 / 214 / 178 ms to 53 / 29 / 27 ms (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6), at a cost of 0.99 to 1.02 of the 0.10.9 time on later saves and 1.04 to 1.08 on the first call. Same file format, same bytes.
 
 Packing a file without reading it first (since 0.10.9): `LfcPack.packParallel(file)` takes a `File` or `Blob` as well as bytes. The calling thread only reads small windows to find where blocks end; each helper reads its own byte range. Same bytes as packing the bytes, and faster (0.83 to 0.95 of the time in Firefox 158, 0.87 to 0.92 in WebKitGTK 2.52.6, cloud runs), and the page never holds the whole file twice (about 30 to 110 MB less peak memory on a 121 MB file, and a much shorter pause on the main thread). The `exact`, `share` and `balance` options read the whole file as before.
 
