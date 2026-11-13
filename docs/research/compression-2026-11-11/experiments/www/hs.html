@@ -1,0 +1,10 @@
+<!doctype html><meta charset=utf-8><title>small first block stack</title><script>var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script><script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research: small first block in a viewer session. hash = build:file. open + first 50 rows (Blob reader), a 1% row range, 12 cached equality queries, then a full read
+async function run() { var L = LfcPack, o = {}, t, blob = await (await fetch('hb/' + __h[1])).blob(), u = new Uint8Array(await blob.arrayBuffer()); await L.init();
+  t = performance.now(); var R = await L.open(blob), r = await R.rows({ from: 0, count: 50 }); o.first = performance.now() - t;
+  t = performance.now(); var rg = L.unpackRows(u, { from: 150000, count: 3000 }); o.range = performance.now() - t;
+  var mid = rg[1500], qs = [['level', 'ERROR'], ['status', 500], ['id', mid.id], ['ip', mid.ip]]; L.clearCache(); t = performance.now(); var hits = 0;
+  for (var c = 0; c < 12; c++) hits += L.unpack(u, { equals: { key: qs[c % 4][0], value: qs[c % 4][1] }, cache: true }).length; o.eq12 = performance.now() - t; o.hits = hits;
+  t = performance.now(); var all = L.unpack(u); o.full = performance.now() - t; o.n = all.length; o.session = o.first + o.range + o.eq12 + o.full; return o; }
+</script>

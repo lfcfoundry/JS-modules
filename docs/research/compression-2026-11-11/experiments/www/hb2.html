@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><title>small first block</title><script>var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script><script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research: small first block (Codex lead 1). hash = build:file:mode. mode first = open + first 50 rows; full = cold unpack only; firstfull = first, then unpack (the lead's order); cols = cold unpackColumns only
+async function run() { var L = LfcPack, f = __h[1], mode = __h[2], o = {}; if (__h[3] === 'detach') new ArrayBuffer(8).transfer(); var blob = await (await fetch('hb/' + f)).blob(), u = new Uint8Array(await blob.arrayBuffer()); await L.init(); var t;
+  if (mode === 'first' || mode === 'firstfull') { t = performance.now(); var R = await L.open(blob), r = await R.rows({ from: 0, count: 50 }); o.first = performance.now() - t; o.n = r.length; }
+  if (mode === 'full' || mode === 'firstfull') { t = performance.now(); var all = L.unpack(u); o.full = performance.now() - t; o.all = all.length; }
+  if (mode === 'cols') { t = performance.now(); var c = L.unpackColumns(u); o.full = performance.now() - t; }
+  return o; }
+</script>
+<script>
+async function stage1(f) { var L = LfcPack; window.__blob = await (await fetch('hb/' + f)).blob(); window.__u = new Uint8Array(await window.__blob.arrayBuffer()); await L.init(); var R = await L.open(window.__blob); await R.rows({ from: 0, count: 50 }); return 1; }
+function stage2() { var t = performance.now(); LfcPack.unpack(window.__u); return performance.now() - t; }
+</script>
+<script>if (__h[3] === 'auto') addEventListener('load', async function () { await stage1(__h[1]); console.log('STAGE2 START'); var ms = stage2(); console.log('STAGE2 ' + ms.toFixed(0)); });</script>
+<script>if (__h[3] === 'autofull') addEventListener('load', async function () { var u = new Uint8Array(await (await fetch('hb/' + __h[1])).arrayBuffer()); await LfcPack.init(); window.__u = u; console.log('STAGE2 START'); var ms = stage2(); console.log('STAGE2 ' + ms.toFixed(0)); });</script>
+<script>async function stage0(f) { window.__u = new Uint8Array(await (await fetch('hb/' + f)).arrayBuffer()); await LfcPack.init(); return 1; }</script>

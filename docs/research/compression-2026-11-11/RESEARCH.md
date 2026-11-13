@@ -926,6 +926,48 @@ Decision: no add-on needed.
 - **Left on the table:** the remaining save time is the typed number passes (`numStats`, `varintsT`, `vlenSum`, `b21Flags`), which the fast writer shares. Fusing them into one pass, or moving them into wasm, is the next step.
 - **Decision:** ADOPT CANDIDATE. Writer only, same bytes, no format or API change.
 
+### 2026-11-12 E28: a small first block (Codex lead 1), and why cold full reads looked slower
+
+10:33 to 10:41 PM Detroit time. The lead came from the Codex review thread (`own-leads-2026.11.12`, lead 1): `packStream` cuts the first block at 64 KiB and the rest at the normal size. The writer changes only: no format change, and the rows are identical. That thread saw open plus the first 50 rows take about 0.10 of the time, but a "cold full unpack" 1.2 to 1.5 times slower, in Playwright Chromium 153 only. Files here came from the same patch on 0.10.0 (`mkhb.cjs`, `_head: 65536`). The reader was 0.10.0, and the stack runs also used the P13 + P14 + B21 build.
+
+- **Reproduced.** The lead's page opens the file, reads the first 50 rows, then runs the full unpack. In that order, Chromium 156 measured the full read at 302 against 218 ms (1.39x).
+- **Cause: moved warm-up, not a slower reader.**
+  - On a fresh page with no first read, the full read is even. Chromium measured 1.00 to 1.07 (logs, three runs), 1.02 on taxi and 1.06 on 4 MB blocks. Firefox measured 0.97 and WebKitGTK 0.95.
+  - Today's first screen decodes a whole 13 MB block. That costs 63 to 83 ms, but it also tiers up the column decoders and row building (OSR into Maglev, then TurboFan). The next big read then runs warm, and the lead's test measured that warm read.
+  - With a 64 KiB first block, the first screen is 4 to 12 ms. The warm-up then lands on the next big read.
+- **What it is not.**
+  - Not the wasm memory growing, which detaches the old buffer and invalidates V8's detach protector: forcing a detach at page start changed nothing (`hb-c3`).
+  - Not the frame arena (the Codex thread already found this).
+- **A small leftover in Chromium.** On logs, the full read after a small first read was about 30 ms slower than a cold one. `--trace-deopt` shows `hexCol` and `ipColV8` built on the 430-row block deopting ("wrong map", "out of bounds") on the 13 MB block. It doesn't show on taxi, on 4 MB blocks, or in Firefox and WebKitGTK.
+- **First screen** (open a Blob, then rows 0 to 49):
+
+| File | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|
+| Logs 300k | 0.10 to 0.11 | 0.06 | 0.13 to 0.15 |
+| Taxi 300k | 0.19 | | |
+| Logs 30k | 0.18 | | |
+| Orders 10k | 0.37 | | |
+
+- **Viewer session** (`hs.html`, one page: first screen, a 1% row range in the middle (B14), 12 cached equality queries (B19 cache), then a full read). Share of today's time:
+
+| | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|
+| First screen | 0.11 | 0.06 | 0.13 |
+| Next big read (the 1% range) | 1.57 | 1.06 | 1.42 |
+| 12 cached queries | 0.93 | 0.92 | 1.00 |
+| Full read | 0.99 | 0.73 | 1.05 |
+| **Session** | **0.91** | **0.79** | **0.94** |
+| Session on the P13 + P14 + B21 build | 0.91 | 0.86 | 0.93 |
+
+  The gains add to the other items. They don't multiply, because the head block moves warm-up time rather than removing it.
+- **Size:** +0.03% (logs and taxi at 300k), +0.12% (logs at 30k), +1.2% (a 76 KB orders file).
+- **Stack notes:**
+  - B21 doesn't meet this change: `packStream` from text takes the fast wasm writer, and `packRows` has no head-block option.
+  - Blob-range reads are what make the first screen cheap: `open(blob)` reads the footer and the first block only.
+  - B14 and the B19 cache work on the extra small block as on any other.
+- **Next lead (idle read-ahead):** after the first screen, decode the next block during idle time. The warm-up then happens before the user asks for more. This pairs with the Codex thread's lead 3 (capped read-ahead).
+- **Decision:** ADOPT CANDIDATE, for the owner. Proposed rule: all writers cut the first block at 64 KiB when the input is over 4 MiB of text, which keeps the size cost at 0.12% or less. Only `packStream` was measured; `pack`, `packRows` and `packTables` cut blocks in `packMany`, so the code thread would add the same rule there.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -969,6 +1011,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B20. Faster column reads: JSON cells and one-pass zigzag.** Source: our own profile against parquet-wasm (E17, E23). Target: `unpackColumns` and `unpack` on tables with nullable or money columns (Netflow, Workbench). Taxi columns take 0.57 to 0.80 of the time, and rows 0.70 to 0.88. With the null plane, columns are faster than parquet-wasm in Firefox and WebKit. Same values, no format change. Difficulty: low. Risk: an engine-specific branch, which lfc-pack already uses for address and list columns. **ADOPT CANDIDATE**, owner card 12:50 AM Eastern 11.12.
 
 **B21. Saves from row objects: number columns gathered as typed arrays.** Source: our own profile (E27). Target: `writeFlatBlock0` (the `packRows` row path and the JSON.parse fallback). Weighted save time 0.77 to 0.90 on five tables; taxi saves now beat parquet-wasm in Chromium. Same bytes, no format change. Stacks additively with P13 and P14. **ADOPT CANDIDATE.**
+
+**B22. Small first block (64 KiB) for a fast first screen.** Source: the Codex review thread (own lead 1). E28: first screen 0.06 to 0.15 of today, viewer session 0.79 to 0.94, a cold full read even; the "cold penalty" was warm-up moving to the next big read. Writer only, size +0.03 to 0.12% above 4 MiB of text. **ADOPT CANDIDATE.**
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 
