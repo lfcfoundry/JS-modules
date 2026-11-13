@@ -1126,3 +1126,7 @@ Scatter about 70% of main thread; text route 1.5-2.5x slower, leaner scatter G n
 ## E37 (B33, 2026.11.13 5:55 PM): main-thread steal, PARKED
 
 Later saves 1.17 / 1.41 / 1.33 (C / F / W). The E36 WebKit tail was an instrumentation artifact. Next free B34 / E38.
+
+## E38 (B34, 2026.11.13 6:08 PM): packColumnsParallel (owner-named)
+
+Columns in, packRowsParallel machinery. Later saves 0.60 taxi, 0.72 sensors, 0.76 logs, 0.73 ids (always-column option). On a card. Next free B35 / E39.
