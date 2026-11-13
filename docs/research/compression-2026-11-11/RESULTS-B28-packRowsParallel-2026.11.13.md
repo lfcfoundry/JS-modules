@@ -84,3 +84,15 @@ Catalog: B28 packRowsParallel (E32), plus the finding that helpers need about 4+
 - Cloud check of tester v2 (2 rounds): later saves 0.52 in Firefox 158 and 0.58 in Chromium 156; the first save wasn't slower. Bytes are the same.
 - New tester: `helper-saves-tester-v2-2026.11.13.html`.
 - Note: in a loop that calls `await packRowsParallel` back to back with no break in between, the helpers start only once the loop gives up a turn.
+
+## Laptop round 2 (owner, 11:32 AM Detroit): tester v2, Firefox 160 on Windows, 16 cores
+
+| Save | packRows | packRowsParallel | Ratio |
+|---|---|---|---|
+| First save | 582 ms | 595 ms | 1.02 |
+| Later saves | 543 ms | 398 ms | **0.73** |
+
+- Verdict: PASS. The file bytes are the same.
+- The first save is now within noise: per-round first saves were 549 to 603 ms for packRowsParallel against 552 to 602 ms for packRows. That's down from 1.06 in round 1.
+- Later saves on the laptop (0.73) gain less than in the cloud (0.52). Note that packRows on the laptop barely speeds up after its first save (582 to 543 ms), so main-thread work is a bigger share there.
+- Chrome on the laptop: not run yet.
