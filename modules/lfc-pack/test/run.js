@@ -24,6 +24,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('per-path strings pick', 'node', ['pathspick.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
   step('equality reads (B19)', 'node', ['equalsread.cjs']);
+  step('equality reads in stored bytes (P13, P14)', 'node', ['eqbytes.cjs']);
   step('column reads (B20)', 'node', ['b20cols.cjs']);
   step('delta saves (prototype)', 'node', ['delta.cjs']);
   step('lazy rows (opt-in)', 'node', ['lazyrows.cjs']);
