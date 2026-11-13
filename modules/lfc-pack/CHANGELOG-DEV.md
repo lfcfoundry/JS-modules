@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.4 · API 0 · 2026-11-13
+
+### Quick
+packRows saves number-heavy tables 0.45 to 0.72 of 0.10.3's time on 100,000-row sets (a wasm number kernel and one row check instead of two). Files are byte-identical.
+
+### Details
+B25 + B26 (owner-approved 2026-11-13 8:56 AM Detroit). packRows, 100,000 rows, share of 0.10.3 save time, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: taxi 0.45 / 0.46 / 0.67, sensors 0.72 / 0.63 / 0.94, logs 0.84 / 0.98 / 0.98, events 1.03 / 0.84 / 0.98. Same bytes on every test set and 15 bail cases.
+
+### Deep
+lfc-pack 0.10.4: B25 number kernel (wasm numcol in flatscan, one pass for stats and every candidate frame, 64+ values), B26 folded row check (first and last 1,024 rows up front, the writer bails to the text path on a non-scalar), B25d (checks just before each column is encoded). Files byte-identical to 0.10.3 (same21.cjs, same1.cjs, bail.cjs: 0 diffs). New test numkernel.cjs. B22 stays off the row path (1.2x slower first saves there).
+
 ## 0.10.3 · API 0 · 2026-11-13
 
 ### Quick
