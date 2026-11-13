@@ -1134,3 +1134,7 @@ Columns in, packRowsParallel machinery. Later saves 0.60 taxi, 0.72 sensors, 0.7
 ## E39 (B35, 2026.11.13 6:21 PM): unpackColumnsParallel (owner-named)
 
 Whole-table column read with helpers and auto start. Later reads 0.30 taxi, 0.68 logs, 0.45 sensors of unpackRows weighted; same values. On a card. Next free B36 / E40.
+
+## E40 (B36, 2026.11.13 6:29 PM): dense rows built 1,024 at a time (Firefox, WebKitGTK)
+
+WebKitGTK taxi later reads 0.74, sensors 0.80; Firefox 0.91-0.97; Chromium logs 1.09 so V8 excluded. On a card. Next free B37 / E41.
