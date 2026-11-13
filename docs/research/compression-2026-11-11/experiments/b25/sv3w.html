@@ -1,0 +1,9 @@
+<!doctype html><meta charset=utf-8><title>save timing</title><script>
+// B25 research: packRows timing on a fresh page. hash = build:file. First save is cold; then 3 more saves (warm), median reported.
+var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');
+</script><script>
+async function run() { var L = LfcPack; await L.init(); if (__h[2] === "warm") await L.warmPack(3); var R = (await (await fetch(__h[1] + '.ndjson')).text()).trim().split('\n').map(function (l) { return JSON.parse(l); });
+  var t = performance.now(), f = await L.packRowsParallel(R), cold = performance.now() - t, w = [];
+  for (var i = 0; i < 3; i++) { t = performance.now(); await L.packRowsParallel(R); w.push(performance.now() - t); }
+  w.sort(function (a, b) { return a - b; }); return { cold: cold, warm: w[1], bytes: f.length }; }
+</script>

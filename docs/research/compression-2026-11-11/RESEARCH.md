@@ -1102,3 +1102,7 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 - Taxi save 0.38 to 0.59 of parquet-wasm 0.9.0 in 3 browsers, file 0.79 of its size.
 - Stack: adds to B21 + P13 + P14 (in base); byte-identical with an approximate B22 head block on the row path. Finding: B22 on row saves costs Chromium 1.16 to 1.20x on a 10 MB table for the first saves on a page (JIT re-optimization after the small block), fading by the 5th save.
 - Next free: B27, E32.
+
+### 2026-11-13 E32: B28 packRowsParallel (helpers encode big number columns)
+
+9:07 to 9:35 AM Detroit time. Write-up: `RESULTS-B28-packRowsParallel-2026.11.13.md`. Same bytes as packRows. On 300k taxi rows: later calls 0.54 weighted of packRows (B25 + B26), first call 0.87 with auto start; always-helpers first call up to 1.39x in WebKitGTK at 200k rows. Under about 52 MB of row text it calls packRows. Next free: B29, E33.

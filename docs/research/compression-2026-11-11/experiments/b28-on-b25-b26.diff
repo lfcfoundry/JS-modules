@@ -1,0 +1,141 @@
+--- a/modules/lfc-pack/src/flat.js
++++ b/modules/lfc-pack/src/flat.js
+@@ -561,23 +561,48 @@
+       else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
+       else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
+     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
++    var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol;
+     for (j = 0; j < cols.length; j++) {
+-      var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, e;
+-      if (pre21[j] === 1) pre21[j] = b21Flags(cols[j], cols[j].length); else if (pre21[j] === 2) pre21[j] = b21Flags(cols[j].nb, cols[j].m);
+-      if (chk26 && pre21[j] && (pre21[j].nz || pre21[j].nf)) throw B26_BAIL;
+-      if (pre21[j] && cols[j].nb) { c21 = cols[j]; NN_FLAGS[0] = pre21[j].nz; NN_FLAGS[1] = pre21[j].ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: pre21[j].nz, ai: pre21[j].ai }, null, c21.c, zs, level, tm21, keys[j]); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, keys[j]); cols[j] = []; }
+-      else if (pre21[j]) e = settle(zs, level, encodeColumn0(cols[j], zs, level, tm21, undefined, keys[j], pre21[j]));
+-      else e = encodeColumn(cols[j], zs, level, tm21, undefined, keys[j]);
+-      enc.push(e); NK_BUF = null;
+-      meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
+-      for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
+-      if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { var mnN = Infinity, mxN = -Infinity; if (NKZ.v === e.nn) { mnN = NKZ.mn; mxN = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mnN) mnN = e.nn[i]; if (e.nn[i] > mxN) mxN = e.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, e.n]); }
+-      if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
++      if (rc && pre21[j] && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
++        (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; es[j2] = r; }; }(j)));
++        cols[j] = []; continue; }
++      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26);
+     }
++    function finish() {
++      for (j = 0; j < cols.length; j++) {
++        var e = es[j].e;
++        meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
++        for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
++        if (es[j].zn) zone.push([fnvStr('.' + keys[j]), es[j].zn[0], es[j].zn[1], es[j].zn[2]]);
++      }
+     if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
+     var mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
+     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
+     var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
++    }
++    if (wait) return { wait: Promise.all(wait).then(finish) };
++    return finish();
++  }
++  var B28_MIN = 8192;
++  // one column of the general flat writer, as writeFlatBlock0 encodes it: pre 1 = a typed number column, 2 = numbers and nulls ({ nb, np, m, c }), else a generic array; -> { e, zn: zone entry [min, max, count] or null }
++  function b28Col(pre, a, key, zs, level, tm21, chk26) {
++    var e, fl = null, zn = null, i, mn, mx, c21;
++    if (pre === 1) fl = b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
++    if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
++    if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
++    else if (pre === 1) e = settle(zs, level, encodeColumn0(a, zs, level, tm21, undefined, key, fl));
++    else e = encodeColumn(a, zs, level, tm21, undefined, key);
++    NK_BUF = null;
++    if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === e.nn) { mn = NKZ.mn; mx = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mn) mn = e.nn[i]; if (e.nn[i] > mx) mx = e.nn[i]; } zn = [mn, mx, e.n]; }
++    if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && a.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zn = [mn, mx, a.length]; }
++    return { e: e, zn: zn };
++  }
++  function b28Job(m) {   // in a helper: one column -> { msg, transfer }
++    try {
++      var a = m.pre === 2 ? { nb: m.nb, np: m.np, m: m.m, c: m.c } : m.nb, r; B18_ALLV = true;
++      try { r = b28Col(m.pre, a, m.key, S.zfull, m.level, m.tm, m.chk); } finally { B18_ALLV = false; }
++      var e = r.e; return { msg: { id: m.id, e: { t: e.t, p: e.p, n: e.n, z: e.z, st: e.st }, zn: r.zn }, transfer: [] };
++    } catch (er) { if (er === B26_BAIL) return { msg: { id: m.id, bail: 1 }, transfer: [] }; return { msg: { id: m.id, error: String(er && er.message || er) }, transfer: [] }; }
+   }
+   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
+   function dropSmallWasm() { TPLW = null; FSW = null; NKW = null; NK_SRC = null; NK_N = -1; NK_BUF = null; NKZ.v = null; }   // trim(): the template and flat-scan helpers start again small when next needed
+--- a/modules/lfc-pack/src/pool.js
++++ b/modules/lfc-pack/src/pool.js
+@@ -14,7 +14,8 @@
+         var f = openFile(out);
+         return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked }, transfer: [out.buffer] };
+       }
+-      if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };   // helper start-up only: the wasm is loaded by the time this answers
++      if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };
++      if (m.kind === 'c') return b28Job(m);   // B28: one number column of a packRowsParallel block   // helper start-up only: the wasm is loaded by the time this answers
+       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
+       var F = m.kind === 'f' ? flatFrames(S.zdec, b, m.want, true) : nestedFrames(S.zdec, b);
+       return { msg: { id: m.id, F: F }, transfer: m.kind === 'f' ? flatTransfer(F) : nestedTransfer(F) };
+@@ -177,6 +178,58 @@
+     });
+   }
+   var idleHelpers = [], idleTimer = null, trimTimer = null, HELPER_TRIM_MS = -1, packUrl = null;
++  // packRowsParallel(rows, opts) -> Promise of the same bytes packRows writes. B28 (research): the rows are scattered into columns on this thread as packRows does; big number
++  // columns (B28_MIN values or more) move to pack helpers (their Float64Arrays are transferred), which encode and compress them while this thread encodes the other columns.
++  // Inputs packRows would not send down the row path (exact, block, share, small or not flat) are packed by packRows itself.
++  var B28_TEXT = (typeof globalThis !== 'undefined' && globalThis.__B28TEXT !== undefined) ? globalThis.__B28TEXT : 4;
++  var B28_AUTO = !(typeof globalThis !== 'undefined' && globalThis.__B28AUTO === 0);
++  function packRowsParallel(rows, opts) {
++    return init().then(function () {
++      var po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), 8);
++      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || !b18Pays(rows)) return packRows(rows, opts);
++      if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return packRows(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
++      if (B28_AUTO && !idleHelpers.length) { clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); return packRows(rows, opts); }   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
++      var hs = [], k, nextId = 0;
++      function helperQ(h) {   // answers come back in the order the jobs were posted; a helper goes back to the idle list only once its last answer is in
++        var x = { h: h, q: [], drain: false, dead: false };
++        h.listen(function (m) { if (m.warm) return; var f = x.q.shift(); if (f) { if (m.error) f[1](new Error(m.error)); else f[0](m); } if (x.drain && !x.q.length) { x.drain = false; idleHelpers.push(h); armIdle(3000); } },
++          function (er) { x.dead = true; while (x.q.length) x.q.shift()[1](er); });
++        return x; }
++      function rcol(j, pre, col, key, level, tm, chk) {
++        var best = hs[0], i; for (i = 1; i < hs.length; i++) if (hs[i].q.length < best.q.length) best = hs[i];
++        if (!best || best.q.length >= 2) { if (hs.length < w) { best = helperQ(takeHelper()); hs.push(best); } }
++        var nb = pre === 2 ? col.nb : col, msg = { id: nextId++, kind: 'c', pre: pre, nb: nb, np: pre === 2 ? col.np : null, m: pre === 2 ? col.m : 0, c: pre === 2 ? col.c : nb.length, key: key, level: level, tm: tm, chk: chk }, tr = [nb.buffer];
++        if (pre === 2 && col.np) tr.push(col.np.buffer);
++        return new Promise(function (res, rej) { best.q.push([res, rej]); best.h.post(msg, tr); });
++      }
++      function release(ok) { hs.forEach(function (x) { if (!ok || x.dead) x.h.kill(); else if (x.q.length) x.drain = true; else idleHelpers.push(x.h); }); hs = []; armIdle(3000); }
++      var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol }), out;
++      try { out = packRowsBlocks(rows, jo); } catch (e) { release(true); if (e === B26_BAIL) return pack(rowsBytes(rows), opts); throw e; }
++      if (out === null) { release(true); return pack(rowsBytes(rows), opts); }
++      return out.then(function (b) { release(true); return b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows), opts); throw e; });
++    });
++  }
++  function packRowsBlocks(RA, opts) {   // packManyNow's row path, with blocks that may wait on helpers -> Promise of bytes, or null when a block cannot take the row path
++    need(true);
++    var bb = opts.blockBytes || BLOCK_BYTES, nm0 = NMARK, ctx = { zs: S.zfull, sh: S.sh, st: null, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, waits = [], ra, sl, blk;
++    if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;
++    if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;
++    if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
++    var est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
++    for (ra = 0; ra < RA.length; ra += stp) { sl = RA.slice(ra, ra + stp); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); }
++    return Promise.all(waits).then(function (bs) {
++      var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b;
++      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0)); zone.push(b.zone); parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
++      var secs = [
++        { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
++        { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
++        { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
++        { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: true })) }
++      ].concat(metaSecs(opts));
++      parts.push(writeFooter(S.zfull, secs, true, NMARK > nm0 ? 1 : 0));
++      return concat(parts);
++    });
++  }
+   // packParallelStream(opts): block-parallel pack for text that arrives in pieces (a parser, a download). push(bytes) any number of times; finish() -> Promise of the file, the same bytes pack() writes.
+   // A block is cut where pack cuts it (first line end at or after blockBytes), sent to a helper at once, and packed while later text is still being read; finish() joins the blocks behind one footer.
+   // opts as packParallel (workers, blockBytes, level, meta, ...); exact and share are not supported (one table built block after block). push copies what it keeps, so the caller may reuse its buffer.
+--- a/modules/lfc-pack/src/api.js
++++ b/modules/lfc-pack/src/api.js
+@@ -658,4 +658,4 @@
+     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
+     return warmP;
+   }
+-  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.1', apiVersion: 0 };
++  var api = { _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packRowsParallel: packRowsParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.1', apiVersion: 0 };
