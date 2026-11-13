@@ -71,6 +71,15 @@
      }
      if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
      var mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
+@@ -566,7 +579,7 @@
+     var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
+   }
+   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
+-  function dropSmallWasm() { TPLW = null; FSW = null; }   // trim(): the template and flat-scan helpers start again small when next needed
++  function dropSmallWasm() { TPLW = null; FSW = null; NKW = null; NK_SRC = null; NK_N = -1; NKZ.v = null; }   // trim(): the template and flat-scan helpers start again small when next needed
+   var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/", FSP64 = "/*FP:BEGIN*//*FP:END*/";
+   function fsw() {
+     if (FSW) return FSW;
 @@ -575,6 +588,30 @@
      var x = new WebAssembly.Instance(MODS[fk], {}).exports;
      return (FSW = { x: x, heap: x.__heap_base.value });
