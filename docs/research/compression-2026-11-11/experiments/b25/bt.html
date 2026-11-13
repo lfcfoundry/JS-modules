@@ -1,0 +1,4 @@
+<!doctype html><meta charset=utf-8><script>var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script><script>
+async function run() { var L = LfcPack; await L.init(); var R = (await (await fetch(__h[1] + '.ndjson')).text()).trim().split('\n').map(function (l) { return JSON.parse(l); });
+ var out = []; for (var i = 0; i < 5; i++) { globalThis.__BT = []; var t = performance.now(); L.packRows(R); out.push([+(performance.now() - t).toFixed(1), globalThis.__BT]); } return out; }
+</script>

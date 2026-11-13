@@ -1092,3 +1092,13 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 - Rival comparisons used each library's defaults as of 2026-11-11 and research builds; Parquet files came from pyarrow (one row group). DuckDB did not run in Firefox (no network for its extension).
 - E12 sizes leave frames stored without zstd as they are, so the delta numbers for files with many such frames (orders with the null plane) are pessimistic. Node jobs ran beside some browser runs; the noisy cell was rerun on its own.
 - Upstream items marked "not re-fetched this session" are cited from earlier knowledge. Recheck the exact lines before a design is built on them.
+
+### 2026-11-13 E31: B25 wasm number kernel + B26 folded gate check (saves)
+
+11:21 PM to 12:00 AM Detroit time, part 2 thread. Full write-up: `RESULTS-B25-B26-2026.11.13.md`; diffs `experiments/b25-b26-on-b21-0.10.1.diff` and `experiments/b21-b25-b26-on-0.10.1.diff`; raw timings `results/b25/`.
+- One wasm call per number column (`numcol` in flatscan.c) replaces the typed number passes; `b21Flags` and the zone min/max move into wasm too (B25b/c). B26 drops the `flatScalars` pass from `packRows` and checks per column in the writer, throwing back to the text path on the first non-scalar.
+- Byte-identical to B21 on 19 files x 3 save modes and 15 odd-row cases; all lfc-pack checks pass.
+- packRows, share of B21, weighted 60/15/25: taxi 300k 0.64 first save / 0.58 repeat; sensors 0.66 / 0.66; logs (text) 0.98 / 0.96. No cell slower beyond 2x SE.
+- Taxi save 0.38 to 0.59 of parquet-wasm 0.9.0 in 3 browsers, file 0.79 of its size.
+- Stack: adds to B21 + P13 + P14 (in base); byte-identical with an approximate B22 head block on the row path. Finding: B22 on row saves costs Chromium 1.16 to 1.20x on a 10 MB table for the first saves on a page (JIT re-optimization after the small block), fading by the 5th save.
+- Next free: B27, E32.

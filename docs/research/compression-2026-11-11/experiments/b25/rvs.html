@@ -1,0 +1,11 @@
+<!doctype html><meta charset=utf-8><title>save vs parquet-wasm</title>
+<script src="nm2/apache-arrow/Arrow.es2015.min.js"></script>
+<script type="module">
+// B25 research: parquet-wasm 0.9.0 save (Arrow JS 21.2.0 tableFromJSON, then zstd Parquet) of the same row objects sv2.html saves. hash = file
+import init, { writeParquet, Table as PTable, WriterPropertiesBuilder, Compression } from './nm2/parquet-wasm/esm/parquet_wasm.js';
+const A = window.Arrow;
+window.run = async () => { await init(); const R = (await (await fetch(location.hash.slice(1) + '.ndjson')).text()).trim().split('\n').map(l => JSON.parse(l));
+  const save = () => writeParquet(PTable.fromIPCStream(A.tableToIPC(A.tableFromJSON(R), 'stream')), new WriterPropertiesBuilder().setCompression(Compression.ZSTD).build());
+  let t = performance.now(), f = save(); const cold = performance.now() - t, w = [];
+  for (let i = 0; i < 3; i++) { t = performance.now(); save(); w.push(performance.now() - t); } w.sort((a, b) => a - b); return { cold, warm: w[1], bytes: f.length }; };
+</script>
