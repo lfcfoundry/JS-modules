@@ -992,6 +992,7 @@
         for (i = lo; i < hi; i++) { sq = ordList[ordIds[i]]; o = {}; for (j = 0; j < sq.length; j++) { kk = sq[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i - lo] = o; }
         return out;
       }
+      if (!hasProto && m) { var sr = new Int32Array(m); for (i = 0; i < m; i++) sr[i] = lo + i; if (sparseV8(F, K, n, sr, m)) return selRows(F, vals, sr, m); }
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         var v = vals[j]; if (!v) continue;
@@ -1017,6 +1018,7 @@
       if (m * 2 > n) { F.cols[jr].pre = rv; return assembleKeep(F, want, rk, min, max); }   // more than half the rows match: the whole-block path (with its engine fast paths) is quicker; the range column is not decoded twice
       var out = new Array(m); if (!m) return out;
       for (j = 0; j < K; j++) if (j !== jr) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+      if (sparseV8(F, K, n, sel, m)) return selRows(F, vals, sel, m);
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         v = vals[j]; if (!v) continue;
@@ -1062,6 +1064,15 @@
       if (m * 2 > n) { if (codes) frBlock(F); if (rv) col.pre = rv; return eqKeep(F, want, rk, val); }
       if (rv === false && !m) return [];
       var out = new Array(m), vals = new Array(K), v; if (!m) return out;
+      if (sparseV8(F, K, n, sel, m)) {
+        for (j = 0; j < K; j++) {
+          if (F.cols[j] === null) { vals[j] = null; continue; }
+          if (j === jr && rv === false) { var gv = new Array(m); for (i = 0; i < m; i++) gv[i] = val; gv.m = 1; gv.sp = 0; vals[j] = gv; continue; }
+          if (codes && !F.cols[j].pre && !(j === jr && rv)) { var sv0 = selAt(meta.cols[j], frAll(F.cols[j]), pl, j * pb, n, sel, m); if (sv0) { sv0[1].m = 1; sv0[1].sp = meta.cols[j].n !== n; vals[j] = sv0[1]; continue; } }
+          vals[j] = F.cols[j].pre ? F.cols[j].pre : (j === jr && rv) ? rv : decodeColumn(meta.cols[j], zs, codes ? frAll(F.cols[j]) : F.cols[j].fr);
+        }
+        return selRows(F, vals, sel, m);
+      }
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         if (F.cols[j] === null) continue;
@@ -1101,6 +1112,16 @@
       else { var R2 = rc.row; for (i = 0; i < n; i++) if (R2[i] === val && (val !== undefined)) sel[m++] = i; }
       var out = new Array(m), v; if (!m) return out;
       if (m * 2 > n) { frBlock(F); for (j = 0; j < K; j++) if (F.cols[j] !== null && !F.cols[j].pre) F.cols[j].pre = colOf(j); var all = assemble(F, want), oo = new Array(m); for (i = 0; i < m; i++) oo[i] = all[sel[i]]; return oo; }
+      if (sparseV8(F, K, n, sel, m)) {
+        var cv = new Array(K);
+        for (j = 0; j < K; j++) {
+          if (F.cols[j] === null) { cv[j] = null; continue; }
+          if (j === jr && pk >= 0) { var gw = new Array(m); for (i = 0; i < m; i++) gw[i] = val; gw.m = 1; gw.sp = 0; cv[j] = gw; continue; }
+          if (bc.vals[j] === undefined && !F.cols[j].pre) { bc.hits = bc.hits || []; if (!bc.hits[j]) { bc.hits[j] = 1; var sw = selAt(meta.cols[j], frAll(F.cols[j]), pl, j * pb, n, sel, m); if (sw) { sw[1].m = 1; sw[1].sp = meta.cols[j].n !== n; cv[j] = sw[1]; continue; } } }
+          cv[j] = colOf(j);
+        }
+        return selRows(F, cv, sel, m);
+      }
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         if (F.cols[j] === null) continue;
@@ -1120,6 +1141,25 @@
       else { for (i = 0, c = 0, q = 0; q < m; i++) { var has = (pl[base + (i >> 3)] >> (i & 7)) & 1; if (i === sel[q]) { if (has) { vi[k] = c; mi[q] = k++; } else mi[q] = -1; q++; } if (has) c++; } }
       var got = decodeAt(cm, frames, vi, k); if (!got) return null;
       var pos = new Int32Array(m), out = new Array(m); for (q = 0; q < m; q++) { pos[q] = mi[q]; out[q] = mi[q] >= 0 ? got[mi[q]] : undefined; } return [pos, out];
+    }
+    // P13e, V8 only: the selected rows of a block whose rows lack some keys (from 20 wanted keys, gated as P13d: with 16 keys row windows were 1.10-1.15 warm) are made one row at a time from per-row value lists, as P13d does for whole blocks (assigning one key at a time down the selected rows gave each row a long chain of shape changes, so a 40% match read took longer than reading every row). Same objects, same key order
+    function sparseV8(F, K, n, sel, m) { if (!V8 || K < 20 || K > 250 || F.ordList) return false; var j, nk = 0, sp = false, pv = new Array(K); for (j = 0; j < K; j++) if (F.cols[j] !== null) { nk++; pv[j] = { length: F.cols[j].pre ? F.cols[j].pre.length : F.meta.cols[j].n }; if (pv[j].length !== n) sp = true; } return sp && nk >= 20 && rowWise(pv, K, n, F.pl, (n + 7) >> 3, sel, m); }
+    function gatherCol(v, pl, base, n, sel, m) { var G = new Array(m), i, c, q; if (v.length === n) { for (q = 0; q < m; q++) G[q] = v[sel[q]]; return G; } for (q = 0; q < m; q++) G[q] = undefined; for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) G[q] = v[c]; c++; } if (i === sel[q]) q++; } return G; }
+    function rowsFromCols(m, keys, K, Gs) {
+      var RK = [], RG = [], SG = [], nb = 0, ns = 0, ts = '{', i, j, o, x, all, out = new Array(m);
+      for (j = 0; j < K; j++) if (Gs[j]) { RK[nb] = keys[j]; RG[nb] = Gs[j]; if (Gs[j].sp) SG[ns++] = Gs[j]; ts += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
+      var tp = JSON.parse(ts + '}'), toHash = nb >= 24;
+      for (i = 0; i < m; i++) { all = true; for (j = 0; j < ns && all; j++) all = SG[j][i] !== undefined;
+        if (all) { o = { ...tp }; for (j = 0; j < nb; j++) o[RK[j]] = RG[j][i]; out[i] = o; continue; }
+        o = {}; if (toHash) { o.__h = 0; delete o.__h; }
+        for (j = 0; j < nb; j++) { x = RG[j][i]; if (x !== undefined) o[RK[j]] = x; }
+        out[i] = o; }
+      return out;
+    }
+    function selRows(F, vals, sel, m) {   // vals[j]: the decoded column (block-wide, dense or packed), an m-long list (.m set: values of the selected rows), or null
+      var keys = F.meta.keys, K = keys.length, n = F.n, pb = (n + 7) >> 3, Gs = new Array(K), j, v, g;
+      for (j = 0; j < K; j++) { v = vals[j]; if (!v) { Gs[j] = null; continue; } if (v.m) { g = v; g.sp = v.sp; } else { g = gatherCol(v, F.pl, j * pb, n, sel, m); g.sp = v.length !== n; } Gs[j] = g; }
+      return rowsFromCols(m, keys, K, Gs);
     }
     // matching rows of a wide dense block start as clones of one template, as whole-block reads do (from 16 keys), so building only the matches never costs more than building every row
     function lateInit(out, m, F, keys, K, n) {

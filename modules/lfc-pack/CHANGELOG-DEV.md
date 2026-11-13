@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.7 · API 0 · 2026-11-13
+
+### Quick
+Selected rows (equals, range, row windows) of sparse tables with 20 or more keys are built one row at a time in Chrome and Edge, only when the selected rows look like they benefit. Owner laptop Chrome 157, share of 0.10.6 (first/warm): 40% filter on 27 keys 1.16/0.93 to 0.83/0.63, on 40 keys 1.72/0.88 to 0.81/0.82, row window 1.10/1.01 to 0.77/0.72, id range 0.50/0.50 to 0.44/0.30. Firefox and Safari run the same code. Same rows, same files.
+
+### Details
+P13e (owner-approved after laptop test, 2026-11-13 9:57 AM Detroit). V8 only, from 20 wanted keys, gated by the same rowWise() check as 0.10.6. Laptop Firefox 160: same code, warm 0.36 to 1.05 with the same spread as 0.10.5 against 0.10.6. Cloud Chromium 156, 5 to 15 pairs: sparse range reads 0.88 to 1.04, logs 1% range 0.71, dense cells within the 1.05 to 1.14 same-build noise floor (reruns 0.99 and 1.04). 170 exact selective reads 0 differ vs 0.10.6.
+
+### Deep
+lfc-pack 0.10.7: P13e selected-row assembly (flat.js, uses rowWise from 0.10.6). Byte-identical (r4cmp.cjs 170 checks 0 differ). No new setting.
+
 ## 0.10.6 · API 0 · 2026-11-13
 
 ### Quick

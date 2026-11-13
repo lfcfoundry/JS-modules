@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.7 · API 0 · 2026-11-13
+- Filtered, range and row-window reads of tables with 20 or more keys where some rows lack keys are faster in Chrome and Edge.
+
 ## 0.10.6 · API 0 · 2026-11-13
 - Fixes a slowdown in 0.10.5 for tables with 16 to 23 keys where most rows lack some keys.
 
