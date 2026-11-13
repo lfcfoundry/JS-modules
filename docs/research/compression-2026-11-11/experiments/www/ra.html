@@ -1,0 +1,12 @@
+<!doctype html><meta charset=utf-8><title>idle read-ahead</title><script>var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');</script><script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research: idle read-ahead after the first screen. hash = build:file:mode. mode none = first screen, 400 ms pause, 1% range, full read; ahead = same, but the pause first reads 50 rows of the second block (Blob reader)
+async function run() { var L = LfcPack, o = {}, t, blob = await (await fetch('hb/' + __h[1])).blob(), u = new Uint8Array(await blob.arrayBuffer()), mode = __h[2]; await L.init();
+  t = performance.now(); var R = await L.open(blob), r = await R.rows({ from: 0, count: 50 }); o.first = performance.now() - t;
+  var b0 = R.blocks[0].rows;   // rows in the first block
+  if (mode === 'ahead') { await new Promise(function (res) { setTimeout(res, 50); }); t = performance.now(); await R.rows({ from: b0, count: 50 }); o.ahead = performance.now() - t; }
+  await new Promise(function (res) { setTimeout(res, 400); });
+  t = performance.now(); var rg = L.unpackRows(u, { from: 150000, count: 3000 }); o.range = performance.now() - t;
+  t = performance.now(); var rs = await R.rows({ from: 200000, count: 50 }); o.jump = performance.now() - t;
+  t = performance.now(); var all = L.unpack(u); o.full = performance.now() - t; o.n = all.length; o.b0 = b0; return o; }
+</script>
