@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.14 · API 0 · 2026-11-13
+- Reading whole tables or row ranges is faster in Firefox and Safari-family engines: rows are built in chunks of 1,024. Chrome and Edge are unchanged.
+
 ## 0.10.13 · API 0 · 2026-11-13
 - Saving sparse tables and tables of repeated labels is faster: packRows now picks its route by how many strings are new, not how many are strings. Logs and other tables of many different strings are unchanged.
 

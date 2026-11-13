@@ -1102,6 +1102,7 @@
         return out;
       }
       if (!hasProto && m) { var sr = new Int32Array(m); for (i = 0; i < m; i++) sr[i] = lo + i; if (sparseV8(F, K, n, sr, m)) return selRows(F, vals, sr, m); }
+      if (!V8 && !hasProto && !F.ordList && b36Dense(vals, K, n)) return b36Rows(out, m, F, keys, K, n, vals, lo, hi);
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         var v = vals[j]; if (!v) continue;
@@ -1271,6 +1272,18 @@
       return rowsFromCols(m, keys, K, Gs);
     }
     // matching rows of a wide dense block start as clones of one template, as whole-block reads do (from 16 keys), so building only the matches never costs more than building every row
+    // B36: outside V8, a dense block (every present key in every row) is built 1,024 rows at a time: the rows of a chunk are made, then each column is assigned down the chunk.
+    // Same objects and key order as lateInit plus the column loop below; the rows are filled while they are still young, and the chunk's slice of each column stays in cache.
+    function b36Dense(vals, K, n) { var j, nk = 0; for (j = 0; j < K; j++) if (vals[j]) { nk++; if (vals[j].length !== n) return false; } return nk > 0; }
+    function b36Rows(out, m, F, keys, K, n, vals, lo, hi) {
+      var i, j, i0, i1, nk = 0, ts = '{', tpl = null, v, key;
+      for (j = 0; j < K; j++) if (vals[j]) { ts += (nk ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nk++; }
+      if (K <= 250 && nk >= CLONE_KEYS && (nk === K || V8)) tpl = JSON.parse(ts + '}');
+      for (i0 = lo; i0 < hi; i0 = i1) { i1 = i0 + 1024 < hi ? i0 + 1024 : hi;
+        if (tpl) for (i = i0; i < i1; i++) out[i - lo] = { ...tpl }; else for (i = i0; i < i1; i++) out[i - lo] = {};
+        for (j = 0; j < K; j++) { v = vals[j]; if (!v) continue; key = keys[j]; for (i = i0; i < i1; i++) out[i - lo][key] = v[i]; } }
+      return out;
+    }
     function lateInit(out, m, F, keys, K, n) {
       var i, j, ok = K <= 250 && !F.ordList && keys.indexOf('__proto__') < 0, ts, tpl, nk = 0, f = 1;
       for (j = 0; j < K && ok; j++) if (F.cols[j] !== null) { nk++; ok = F.cols[j].pre ? F.cols[j].pre.length === n : F.meta.cols[j].n === n; }
