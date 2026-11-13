@@ -1106,3 +1106,7 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 ### 2026-11-13 E32: B28 packRowsParallel (helpers encode big number columns)
 
 9:07 to 9:35 AM Detroit time. Write-up: `RESULTS-B28-packRowsParallel-2026.11.13.md`. Same bytes as packRows. On 300k taxi rows: later calls 0.54 weighted of packRows (B25 + B26), first call 0.87 with auto start; always-helpers first call up to 1.39x in WebKitGTK at 200k rows. Under about 52 MB of row text it calls packRows. Next free: B29, E33.
+
+## E33 (B29, 2026.11.13 5:10 PM): column-by-column row scatter, PARKED
+
+Same bytes. Taxi first save 0.85 weighted, but repeat 0.99, and sensors repeat 1.09 (fails the 5% rule). See RESULTS-B29-column-scatter-2026.11.13.md. Next free B30 / E34.
