@@ -45,6 +45,8 @@ Single-file offline apps cannot load code from a server, so any library has to b
 
 ## Compared with the usual choice
 
+lfc-pack 0.10.1 against Parquet readers in the browser, 100,000 rows each, measured 2026-11-12 in cloud Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (shared 4-core machine). Files are 28 to 69% smaller than Parquet at zstd level 3. Turning the file into plain row objects takes 0.18 to 0.59 of the time of parquet-wasm, hyparquet and DuckDB-WASM (taxi trips in Chromium 156: 38.7 ms against 92.6 to 147 ms). Twelve equality queries on one column: lfc-pack was ahead of the fastest Parquet reader in every cell (taxi trips in Chromium 156: 244 ms against 386 for DuckDB-WASM). Details and every cell: [lfc-pack README](modules/lfc-pack/README.md#how-it-compares).
+
 lfc-pack 0.4.0 on 260 MB of real FHIR records, measured 2026.10.31 in cloud Chromium 153, Firefox 158 and WebKitGTK 2.52.6 (shared 4-core machine). Parquet written natively by pyarrow 26 after a DuckDB 2.0 read (zstd 3, 4 threads).
 
 | Measure (260 MB of FHIR records) | Parquet | lfc-pack 0.4.0 |

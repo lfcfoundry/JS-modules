@@ -3,10 +3,10 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.10.3 · API 0 · 2026-11-13
-- Opening a big file in blocks uses about a third less memory at 1 to 4 MB blocks.
+- Opening a big file in blocks uses 32 to 39% less memory at 1 to 4 MB blocks (counted by the module's memory counters, same in every browser).
 
 ## 0.10.2 · API 0 · 2026-11-12
-- Saves are up to 11% faster, big files show their first rows much sooner, searching for several values at once is one call, and some filtered reads are faster.
+- Saves are up to 11% faster (Chromium, Firefox, WebKitGTK), big files show their first rows in 6 to 15% of the time, searching for several values at once is one call, and some filtered reads are faster.
 
 ## 0.10.1 · API 0 · 2026-11-12
 - Searching a file for rows with one exact text, ID or address value is about twice as fast.

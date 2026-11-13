@@ -61,11 +61,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-- 2026-11-13 · **lfc-pack** 0.10.3 · API 0: Opening a big file in blocks uses about a third less memory at 1 to 4 MB blocks.
+- 2026-11-13 · **lfc-pack** 0.10.3 · API 0: Opening a big file in blocks uses 32 to 39% less memory at 1 to 4 MB blocks (counted by the module's memory counters, same in every browser).
 - 2026-11-12 · **lfc-pack** 0.9.6 · API 0: Saving a small change can write only what changed (opt-in delta saves).
 - 2026-11-12 · **lfc-pack** 0.9.5 · API 0: Asking for the rows with one exact value is faster (unpack with equals), and reading columns is faster.
 - 2026-11-12 · **lfc-pack** 0.9.4 · API 0: Packs NDJSON into small column files and reads the rows back, exactly if you ask.
-- 2026-11-12 · **lfc-pack** 0.10.2 · API 0: Saves are up to 11% faster, big files show their first rows much sooner, searching for several values at once is one call, and some filtered reads are faster.
+- 2026-11-12 · **lfc-pack** 0.10.2 · API 0: Saves are up to 11% faster (Chromium, Firefox, WebKitGTK), big files show their first rows in 6 to 15% of the time, searching for several values at once is one call, and some filtered reads are faster.
 - 2026-11-12 · **lfc-pack** 0.10.1 · API 0: Searching a file for rows with one exact text, ID or address value is about twice as fast.
 - 2026-11-11 · **netflow-plot** 2.17.0 · API 2: A real category named Other, Others or Others, average keeps its own bar, line or wedge and its own name; the folded rest gets a name no shown category has. Very small donut shares are drawn at least 1 px wide at the rim and say so when pointed at; their text keeps the true value. Small donuts (under about 200 px tall) keep a real ring instead of one a few px across or drawn inside out; the total leaves the hole when it would cover the ring; a share of 99.5% or more reads ">99%" while other shares exist.
 - 2026-11-11 · **lfc-pack** 0.9.3 · API 0: Reading a time range is faster: only the matching rows are built.
