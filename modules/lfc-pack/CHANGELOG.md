@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.10.8 · API 0 · 2026-11-13
-- New packRowsParallel(rows): saves big row arrays with number columns on helper workers, same bytes as packRows, later saves take 0.54 to 0.64 of the time in Chromium, Firefox and WebKitGTK (cloud runs). Nested range reads and row windows build only the rows they need.
+- New packRowsParallel(rows) saves big row arrays on helper workers: later saves take 0.54 to 0.64 of the time in Chromium, Firefox and WebKitGTK (cloud). Nested range reads are faster.
 
 ## 0.10.7 · API 0 · 2026-11-13
 - Filtered, range and row-window reads of tables with 20 or more keys where some rows lack keys are faster in Chrome and Edge.

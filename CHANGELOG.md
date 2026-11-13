@@ -61,7 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-- 2026-11-13 · **lfc-pack** 0.10.8 · API 0: New packRowsParallel(rows): saves big row arrays with number columns on helper workers, same bytes as packRows, later saves take 0.54 to 0.64 of the time in Chromium, Firefox and WebKitGTK (cloud runs). Nested range reads and row windows build only the rows they need.
+- 2026-11-13 · **lfc-pack** 0.10.8 · API 0: New packRowsParallel(rows) saves big row arrays on helper workers: later saves take 0.54 to 0.64 of the time in Chromium, Firefox and WebKitGTK (cloud). Nested range reads are faster.
 - 2026-11-13 · **lfc-pack** 0.10.7 · API 0: Filtered, range and row-window reads of tables with 20 or more keys where some rows lack keys are faster in Chrome and Edge.
 - 2026-11-13 · **lfc-pack** 0.10.6 · API 0: Fixes a slowdown in 0.10.5 for tables with 16 to 23 keys where most rows lack some keys.
 - 2026-11-13 · **lfc-pack** 0.10.5 · API 0: Reading whole tables of 24 or more keys where some rows lack some keys is up to five times faster in Chrome and Edge. Tables of 16 to 23 keys with few complete rows could be up to 1.4 times slower; 0.10.6 fixes that.
