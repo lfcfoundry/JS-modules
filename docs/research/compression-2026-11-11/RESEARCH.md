@@ -986,6 +986,21 @@ Each page does this: first screen; then, in the read-ahead variant, `R.rows({ fr
 - The cost is one 61 to 71 ms task during idle time. That is about the size of today's first screen, but it runs after the user already sees rows.
 - **Decision:** the owner decides the shape. Either an opt-in reader call (for example `R.readAhead()`, which reads the next block on idle), or a documented pattern that apps follow. Both are new behavior, so neither ships without a card.
 
+### 2026-11-12 E30: where save time goes after B21 (profile only)
+
+11:19 PM Detroit time. Chromium 156, `packRows` on 300,000 taxi rows with the B21 build (`v-100wc`), 4 saves profiled at 100 us sampling (`experiments/prprof.cjs`). The time is counted only under `packRows` (`experiments/under.py`). Shares of save time:
+
+| Part | Share | Functions |
+|---|---|---|
+| Typed number passes | **about 46%** | `varintsT` 12%, `numDeltaZz` 5.6%, `b21Flags` 5.6%, `vlenSum` 4.9%, `decimalScale` 4.5%, `numFirst` 3.9%, `bitpack` 3.8%, `numStats` 3.6%, `numOff` 2.6% |
+| Rows into columns (B21 scatter) | 23% | `writeFlatBlock0` and `writeFlatBlock` self |
+| Gate checks before the row path | 12% | `packRows` self (the `b18Pays` JSON sample) 6.8%, `flatScalars` 5% |
+| zstd (wasm) | about 11% | |
+
+- **Next lead (B25): one wasm kernel per number column.** A single call would take the scaled whole numbers (Float64Array) and return everything the candidates need: monotone flag, min and max, both varint forms with their lengths, and the bit-packed offsets. It must give the same bytes as the JS. clang 18 and wasm-ld are in the container, and `wasm/build-flatscan.sh` shows the flags. The fast writer's `numCands` and the general writer's `numGeneral` both call these passes, so both writers gain. If the kernel runs 3 to 4 times faster than the JS loops, saves would take about 0.65 of B21's time.
+- **Smaller lead:** `flatScalars` and `b18Pays` scan every row before the save starts (12%). The B21 scatter could check scalar kinds as it goes and fall back to the text path on the first non-scalar, which removes the separate pass.
+- `decimalScale` (4.5%) uses `String(x)` per value; it stays in JS unless the same bytes can be proven another way.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -1033,6 +1048,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B22. Small first block (64 KiB) for a fast first screen.** Source: the Codex review thread (own lead 1). E28: first screen 0.06 to 0.15 of today, viewer session 0.79 to 0.94, a cold full read even; the "cold penalty" was warm-up moving to the next big read. Writer only, size +0.03 to 0.12% above 4 MiB of text. **ADOPT CANDIDATE.**
 
 **B24. Idle read-ahead after the first screen.** Source: E28 and E29. Pairs with B22. The next big read goes from 1.17 to 1.55 of today's time back to 0.93 to 1.16, at the cost of one 61 to 71 ms idle task. **OWNER CARD** (opt-in API or documented pattern).
+
+**B25. One wasm kernel per number column for saves.** Source: E30 profile (number passes are about 46% of a taxi save after B21). Same bytes required. Expected about 0.65 of B21's save time. **NEXT EXPERIMENT.**
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 
