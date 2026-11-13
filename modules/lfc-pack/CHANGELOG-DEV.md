@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.11 · API 0 · 2026-11-13
+
+### Quick
+equality reads skip blocks on random-access files
+
+### Details
+NX A: random-preset files (blocks of 1 MB or less, 2 or more blocks) keep a Bloom filter per text column per block in a compressed area after the blocks, pointed to by optional footer section 18. Absent lookups 0.24 weighted; random-preset saves 0.95 to 1.03 of 0.10.10 on logs and sensors in three browsers; default saves unchanged; filters also written by packRowsParallel and packParallel; packStream writes none.
+
+### Deep
+Block skipping A (owner Send to code thread). Exact checks on the release build: acheck 5,211, check 38,088, rawcheck 56, all 0 bad; 0.10.1 reads the files. Hand merge for the B28 writer; helper stitching carries the filters; hidden option _noeq for tests. All lfc-pack checks pass.
+
 ## 0.10.10 · API 0 · 2026-11-13
 
 ### Quick

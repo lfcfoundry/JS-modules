@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.10 (API 0)
+ * Version 0.10.11 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1028,6 +1028,7 @@
     r = b.next;
     if (r && r.size <= b.size * 1.02 && (!b.z || !r.z)) { fullOf(zs, level, b); fullOf(zs, level, r); if (r.size < b.size || (r.size === b.size && r.ord < b.ord)) b = r; }
     else fullOf(zs, level, b);
+    if (b.t === 's' || b.t === 'D') { b.r0 = b.fr[0]; b.dl = b.fr.dl; }   // NX A: the uncompressed values (or labels), for the block filter
     b.fr = null; b.next = null; return b;
   }
   function encodeColumn(v, zs, level, tmode, sj, key) { var nb = nullBest(v, zs, level, tmode, key); if (nb) return nb; return settle(zs, level, encodeColumn0(v, zs, level, tmode, sj, key)); }
@@ -1054,7 +1055,7 @@
     var pl = fz.pl, pz = zs.compress(pl, level), pzz = pz.length < pl.length ? [pl.length, pz, 1] : [pl.length, pl, 0], size = pzz[1].length, i;
     for (i = 0; i < inner.z.length; i++) size += inner.z[i][1].length;
     if (NULL_MODE === 'both') { var j = settle(zs, level, encodeColumn0(v, zs, level, tmode, undefined, key)); if (j.size <= size) return j; }
-    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: fz.m }, n: n, z: [pzz].concat(inner.z), size: size, nn: fz.nn };
+    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: fz.m }, n: n, z: [pzz].concat(inner.z), size: size, nn: fz.nn, r0: inner.r0, dl: inner.dl };
   }
   function nullBest(v, zs, level, tmode, key) {
     var n = v.length, i, x, k = null, m = 0, kind;
@@ -1068,7 +1069,7 @@
     var pz = zs.compress(pl, level), pzz = pz.length < pl.length ? [pl.length, pz, 1] : [pl.length, pl, 0];
     var size = pzz[1].length; for (i = 0; i < inner.z.length; i++) size += inner.z[i][1].length;
     if (NULL_MODE === 'both') { var j = settle(zs, level, encodeColumn0(v, zs, level, tmode, undefined, key)); if (j.size <= size) return j; }
-    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: m }, n: n, z: [pzz].concat(inner.z), size: size, nn: nn };
+    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: m }, n: n, z: [pzz].concat(inner.z), size: size, nn: nn, r0: inner.r0, dl: inner.dl };
   }
   // the V and B candidates of a number column held as scaled whole numbers (base), by the general writer's rules: the delta form only when its varints are not clearly longer (5%), the bit-packed form when the range is under 2^24
   function numGeneral(cand, bestOf, base, n, scale) {
@@ -1126,7 +1127,7 @@
         var map = new Map(), labels = [], codes = new Array(n), c;
         if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
         else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
-        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [sj || te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || te.encode(v.join('\0'))], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
         if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { best = settle(zs, level, best); var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
@@ -1331,6 +1332,78 @@
   function b21Generic(c) { var a = new Array(c.c), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }   // B21c: back to a generic array (values in order)
   function b21Flags(a, m) { if (m >= NK_MIN) return nkFlags(a, m); return b21FlagsJ(a, m); }
   function b21FlagsJ(a, m) { var nz = 0, ai = 1, nf = 0, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; if (x - x !== 0) nf = 1; } return { nz: nz, ai: ai, nf: nf }; }
+
+  // NX A: per flat block, a Bloom filter of each text column's stored values (UTF-8 text and labels), so an equality read skips blocks that cannot hold the value.
+  // Built in the writer from the column's uncompressed bytes (labels for a dictionary: their count is the distinct count, no fold)
+  var NX_A = 8, NX_A_BUDGET = 0.02, NX_A_MAXB = 1048576;
+  function eqHash(b, s0, e0) {   // FNV-1a of the bytes (long values: first, middle and last 8 bytes), then the length
+    var h = 2166136261, i, mid, L = e0 - s0;
+    if (L <= 24) for (i = s0; i < e0; i++) h = Math.imul(h ^ b[i], 16777619);
+    else { mid = (s0 + e0 - 8) >> 1; for (i = s0; i < s0 + 8; i++) h = Math.imul(h ^ b[i], 16777619); for (i = mid; i < mid + 8; i++) h = Math.imul(h ^ b[i], 16777619); for (i = e0 - 8; i < e0; i++) h = Math.imul(h ^ b[i], 16777619); }
+    return Math.imul(h ^ L, 16777619) >>> 0;
+  }
+  function eqH2(h) { h = Math.imul(h ^ (h >>> 16), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) | 1) >>> 0; }
+  function b64e(u) { var s = '', i; for (i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(s); }
+  function b64d(s) { var t = atob(s), u = new Uint8Array(t.length), i; for (i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; }
+  function eqWant(opts) { return NX_A && !opts._noeq && (opts.blockBytes || BLOCK_BYTES) <= NX_A_MAXB; }
+  function eqBloomCols(keys, es, blen) {   // es[j]: the chosen encoding of column j (with r0 for text columns); -> {key: [b64 bits, k, inner type, has null]} within the byte budget
+    var j, cs = [], res = {}, tot = 0, cap = NX_A_BUDGET * blen, k = Math.max(1, Math.round(NX_A * 0.5)), any = false;
+    var ord = [], lb = 0;
+    for (j = 0; j < keys.length; j++) {   // smallest possible filter of each text column (dictionary: exact; text: from a lower bound on its distinct count), so columns that cannot fit are not hashed
+      var e = es[j], it = e.t === 'N' ? e.p.t : e.t, mm = 64, dd;
+      if ((it !== 's' && it !== 'D') || !e.r0) continue;
+      dd = it === 'D' ? dictCount(e) : (e.dl || 1); while (mm < NX_A * dd && mm < 1048576) mm <<= 1;
+      ord.push([mm >> 3, j, dd, e.r0.length / (e.t === 'N' ? e.p.m : e.n)]);
+    }
+    ord.sort(function (a, b) { return a[0] - b[0] || a[3] - b[3]; });   // ties: shorter values first (more often few distinct values, and cheaper to hash)
+    for (var oi = 0; oi < ord.length; oi++) {
+      if (lb + ord[oi][0] > cap) break; lb += ord[oi][0]; j = ord[oi][1];
+      var e = es[j], it = e.t === 'N' ? e.p.t : e.t, f = e.r0, m = 64, bits, i, a, h1, h2, q, x, cnt, ones = 0, fl;
+      if (it === 'D') cnt = ord[oi][2]; else cnt = e.t === 'N' ? e.p.m : e.n;
+      while (m < NX_A * cnt && m < 1048576) m <<= 1;
+      if (it === 'D' && m >> 3 > cap) continue;   // a dictionary filter is final size: too big for the budget
+      bits = new Uint8Array(m >> 3);
+      for (a = 0, fl = f.length; a <= fl; a = i + 1) {   // each value's end found natively, then its hash
+        i = f.indexOf(0, a); if (i < 0) i = fl;
+        h1 = eqHash(f, a, i); h2 = eqH2(h1);
+        for (q = 0; q < k; q++) { x = (h1 + Math.imul(q, h2)) & (m - 1); bits[x >> 3] |= 1 << (x & 7); } }
+      if (it === 's') { for (i = 0; i < bits.length; i++) ones += popc8[bits[i]];
+        var dist = ones >= m ? cnt : -m * Math.log(1 - ones / m) / k, want = 64; while (want < NX_A * dist && want < m) want <<= 1;
+        while (m > want) { m >>= 1; var lo = bits.subarray(0, m >> 3), hi = bits.subarray(m >> 3, m >> 2); for (i = 0; i < lo.length; i++) lo[i] |= hi[i]; bits = lo; } }
+      lb += bits.length - ord[oi][0];   // the real size once known
+      cs.push([keys[j], bits, it, e.t === 'N' && e.p.m < e.n ? 1 : 0]);
+    }
+    cs.sort(function (a, b) { return a[1].length - b[1].length; });
+    for (j = 0; j < cs.length; j++) { if (tot + cs[j][1].length > cap) break; tot += cs[j][1].length; res[cs[j][0]] = [cs[j][1].slice(), k, cs[j][2], cs[j][3]]; any = true; }
+    return any ? res : 0;
+  }
+  function eqRegion(eqf) {   // the filters of all blocks, stored after the blocks (not in the footer, which every open reads): u32 index length, index JSON, filter bits
+    var idx = [], parts = [], at = 0, i, k, e, o;
+    for (i = 0; i < eqf.length; i++) { if (!eqf[i]) { idx.push(0); continue; } o = {}; for (k in eqf[i]) { e = eqf[i][k]; o[k] = [at, e[0].length, e[1], e[2], e[3]]; parts.push(e[0]); at += e[0].length; } idx.push(o); }
+    var ij = te.encode(JSON.stringify(idx)); return concat([u32le(ij.length), ij].concat(parts));
+  }
+  function eqRegionRead(r) {   // -> per block {key: [bits, k, type, has null]}
+    var il = rd32(r, 0), idx = JSON.parse(tdr.decode(r.subarray(4, 4 + il))), b0 = 4 + il, i, k, e;
+    for (i = 0; i < idx.length; i++) if (idx[i]) for (k in idx[i]) { e = idx[i][k]; idx[i][k] = [r.subarray(b0 + e[0], b0 + e[0] + e[1]), e[2], e[3], e[4]]; }
+    return idx;
+  }
+  function eqOf(blk) { var q = blk.eqf; return q ? eqBloomCols(q[0], q[1], q[2]) : 0; }
+  function dlOf(fr, dl) { fr.dl = dl; return fr; }
+  function dictCount(e) { var f = e.r0, i, c = 1; for (i = 0; i < f.length; i++) if (f[i] === 0) c++; return c; }
+  function eqNeedles(ev) {   // once per query: each value's two hashes (null: matches only a column with nulls; not text: no text column holds it)
+    var vs = ev instanceof AnyOf ? ev.list : [ev], out = [], i, v, nd, h1;
+    for (i = 0; i < vs.length; i++) { v = vs[i]; if (v === null) out.push(null); else if (typeof v === 'string') { nd = te.encode(v); h1 = eqHash(nd, 0, nd.length); out.push([h1, eqH2(h1)]); } }
+    return out;
+  }
+  function eqSkipBlock(z, key, nds) {   // true when block filter z proves no row has key equal to any needle's value
+    if (!z) return false; var e = Object.prototype.hasOwnProperty.call(z, key) ? z[key] : null, i, q, x, h, bits, m;
+    if (!e) return false;
+    bits = e[0]; m = bits.length << 3;
+    for (i = 0; i < nds.length; i++) { h = nds[i]; if (h === null) { if (e[3] === 1) return false; continue; }
+      for (q = 0; q < e[1]; q++) { x = (h[0] + Math.imul(q, h[1])) & (m - 1); if (!((bits[x >> 3] >> (x & 7)) & 1)) break; }
+      if (q === e[1]) return false; }
+    return true;
+  }
   function writeFlatBlock0(ctx, input, opts) {
     var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, rowsIn = input && input.rowsIn, text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
     if (!rowsIn) {   // B18b: row objects given, no text to parse
@@ -1377,7 +1450,7 @@
     if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
     var mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
-    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
+    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), eqf: !ord && eqWant(opts) && out.length <= NX_A_MAXB ? [keys, es.map(function (x) { return x.e; }), out.length] : 0 };   // built only for the block that is kept (eqOf)
     }
     if (wait) return { wait: Promise.all(wait).then(finish) };
     return finish();
@@ -1561,6 +1634,7 @@
       if (b7 === 0) colv[j] = pv7; else for (q7 = 0; q7 < pv7.length; q7++) colv[j][b7 + q7] = pv7[q7];
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
+    var ENCS = [];
     function cand(tn, p, fr, n) { best = addCand(zs, level, best, tn, p, fr, n); }
     function numCands(base, c, scale, key, zc) {   // the candidates of a number column held as scaled whole numbers (mantissas), as the general writer would try them
         if (c >= NK_MIN) { var R = nkRun(base, c, scale > 100 ? 0 : 1), a = R.a, dd = R.d, bb = R.b, mnk = R.mn, mxk = R.mx, wk = R.w, monok = R.mono;
@@ -1594,10 +1668,10 @@
       if (hexL[j] === 3600) cand('U', {}, [colv[j]], c);   // as encodeColumn writes a UUID column
       else if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column
       else if (ipK[j]) cand('I', {}, [sdOut[j]], c);   // as encodeColumn writes an IPv4 column
-      else if (sOnly[j]) cand('s', {}, [sdMany[j]], c);   // as encodeColumn writes a many-value string column without templates
+      else if (sOnly[j]) cand('s', {}, dlOf([sdMany[j]], (c >> 1) + 1), c);   // as encodeColumn writes a many-value string column without templates
       else if (sdD[j]) {   // as encodeColumn writes a string column of at most n / 2 distinct values
         var D3 = sdD[j], cds = sdCodes[j];
-        if (!cds) cand('s', {}, [sdOut[j]], c);
+        if (!cds) cand('s', {}, dlOf([sdOut[j]], sdMany[j] ? (c >> 1) + 1 : D3 || (c >> 2)), c);
         else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : new Uint8Array(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
       }
       else if (elig && elig[j] >= 0) {   // the typed nullable-number path
@@ -1613,12 +1687,12 @@
         var ln = colv[j], dl = coll[j], t2 = dl.length, asc = listAsc(ln, dl, c);
         cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(listDeltas(ln, dl, c, asc), t2)], c);
       }
-      best = settle(zs, level, best); meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }), st: best.st, _z: best.z });
+      best = settle(zs, level, best); ENCS.push(best); meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }), st: best.st, _z: best.z });
       for (i = 0; i < best.z.length; i++) frames.push(best.z[i][1]);
     }
     var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: nrows, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
-    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), k67 = false; for (j = 0; j < nk; j++) if (ktype[j] >= 6) k67 = true; return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), k67: k67 };   // k67: some key needed the per-column fallback (long numbers, mixed kinds); see api.js
+    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), k67 = false; for (j = 0; j < nk; j++) if (ktype[j] >= 6) k67 = true; return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), k67: k67, eqf: eqWant(opts) && out.length <= NX_A_MAXB ? [meta.keys, ENCS, out.length] : 0 };   // k67: some key needed the per-column fallback (long numbers, mixed kinds); see api.js
   }
   // with { check: 'xxh64' }: each column gets `o` (where its first frame starts, counted from the first column frame) and `x` (the XXH64 of its frames, 16 hex digits), so a reader that wants a few columns goes straight to them and checks only their bytes
   function colBytes(meta) { var t = 0, j, i; for (j = 0; j < meta.cols.length; j++) for (i = 0; i < meta.cols[j].f.length; i++) t += meta.cols[j].f[i][1]; return t; }
@@ -1989,8 +2063,8 @@
 
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
-  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15, SEC_SHARED = 16, SEC_DELTA = 17;
-  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1, 16: 1, 17: 1 };   // 15 is the number-spelling section, 16 the shared tables of nested blocks   // 8 and 13 are reserved
+  var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15, SEC_SHARED = 16, SEC_DELTA = 17, SEC_EQF = 18;
+  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1 };   // 18: NX A equality filters (optional)   // 15 is the number-spelling section, 16 the shared tables of nested blocks   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress, minor) {   // minor: 1 when a null-plane (N) column was written, else the file stays minor 0 and 0.8.x readers open it
     var parts = [], i, s, h;
     for (i = 0; i < sections.length; i++) { s = sections[i]; h = new Uint8Array(8); h[0] = s.id; h[1] = s.id >> 8; h[2] = s.flags; h[3] = s.flags >> 8; h.set(u32le(s.payload.length), 4); parts.push(h, s.payload); }
@@ -2143,7 +2217,7 @@
   }
   function packManyNow(inputs, opts) {
     opts = opts || {}; need(true);
-    var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true, nm0 = NMARK;
+    var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], eqf = [], eqAny = false, off = 0, rows = 0, tail = true, nm0 = NMARK;
     var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
     // paths: 'auto' (opt-in): an input of PATHS_TRY blocks or more picks the string layout of its big nested blocks from a 128 KB sample (samplePick)
@@ -2156,7 +2230,7 @@
     if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
       var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl, cnt;
       for (ra = 0, cnt = stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
-        blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
+        blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
       tail = true; continue;
     }
     b = inputs[ti].bytes; p = 0; var hd = !opts._nohead && headOn(b.length, bb); tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
@@ -2164,7 +2238,7 @@
       if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
       else { s0 = p; e = Math.min(b.length, p + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } p = e; }
       chunk = b.subarray(s0, e); kind = opts.block; blk = null; if (st) st.j = null;
-      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
+      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); eqf.push(0); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
       try {
         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
         if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk && blk.k67 && !kind && !(chunk.length > 262144 && looksFlat(chunk))) blk = null; if (blk) kind = 'flat'; }   // a block the fast writer kept only through the per-column fallback goes the old way when auto would have compared it with the nested layout, so the same layout wins   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
@@ -2182,16 +2256,19 @@
         retry.push([mid + 1, e], [s0, mid + 1]); continue;
       }
       if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) { if (ex.raw.length) exc[blocks.length] = ex.raw; if (ex.spell.length) spl[blocks.length] = ex.spell; } }
-      blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone); parts.push(blk.bytes);
+      blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone); var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows;
     }
     }
+    if (opts._eqout) for (var eqi = 0; eqi < eqf.length; eqi++) opts._eqout.push(eqf[eqi]);   // a helper's run: the caller joins the filters
+    var eqs = null; if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }   // NX A
     var secs = [
       { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
     ];
+    if (eqs) secs.push(eqs);
     secs = secs.concat(metaSecs(opts));
     if (st && !opts._st && st.used) secs.push(sharedSection(st));
     if (exact && Object.keys(exc).length) secs.push(excSection(exc));
@@ -2467,12 +2544,22 @@
   function cacheLimit(n) { if (n !== undefined) { EQ_LIMIT = Math.max(0, +n || 0); eqTouchAll(); } return EQ_LIMIT; }
   function eqTouchAll() { var k, e; for (k of EQ_LRU.keys()) { if (EQ_TOTAL <= EQ_LIMIT) break; e = EQ_LRU.get(k); EQ_LRU.delete(k); EQ_TOTAL -= e.size; delete e.EC[e.ck]; } }
   function cacheBytes() { return EQ_TOTAL; }
+  var EQF_CACHE = new WeakMap();
+  function eqfOf(arg, file) {   // NX A: the block filters (section 18), parsed once per file bytes
+    var k = arg !== null && typeof arg === 'object' ? arg : null, v = k ? EQF_CACHE.get(k) : undefined;
+    if (v === undefined) { var q = file.footer.sec[SEC_EQF] ? jsonSec(file.footer.sec[SEC_EQF]) : null, rg; v = null;
+      if (Array.isArray(q) && q[0] >= 0 && q[0] + q[1] <= file.footer.bodyEnd) { rg = file.bytes.subarray(q[0], q[0] + q[1]); if (crcJS(rg, 0) === q[2]) { try { v = eqRegionRead(q[3] ? S.zdec.decompress(rg, q[3]).slice() : rg); } catch (e) { v = null; } } }   // damaged filters: read without them
+      if (k) EQF_CACHE.set(k, v); }
+    return v;
+  }
   function unpackEq(bytes, opts) {
     var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, eq = opts.equals, evOk = !eq.anyOf || NX_C === 'on', ev = eq.anyOf && NX_C === 'on' ? new AnyOf(eq.anyOf) : eq.value, mode = opts._eq || 'codes', useCache = !eq.anyOf && !!opts.cache && mode === 'codes' && bytes !== null && typeof bytes === 'object';
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; want[eq.key] = 1; }
+    var EQF = evOk && file.blocks.length > 1 ? eqfOf(bytes, file) : null; var EQN = EQF ? eqNeedles(ev) : null;
     for (i = 0; i < file.blocks.length; i++) {
       if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
       kd = file.blocks[i][4]; r = null;
+      if (kd === 'f' && EQF && EQF[i] && eqSkipBlock(EQF[i], eq.key, EQN)) continue;   // NX A
       if (kd === 'f' && mode !== 'off') {
         var pbk = want ? partialBytes(file, i) : null, bc = null, ent = null;
         if (useCache) {
@@ -2741,7 +2828,7 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.10', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.11', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -2879,9 +2966,9 @@
   function runJob(m) {   // in a helper: { id, kind, buf, crc, want } -> { msg, transfer }
     try {
       if (m.kind === 'p') {   // pack one run of whole blocks: the slice is dropped as soon as it is packed
-        var out = packMany([{ name: null, bytes: m.buf }], m.opts); m.buf = null;
+        var eqo = []; var out = packMany([{ name: null, bytes: m.buf }], Object.assign({}, m.opts, { _eqout: eqo })); m.buf = null;
         var f = openFile(out);
-        return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked }, transfer: [out.buffer] };
+        return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.sec[SEC_EQF] ? JSON.parse(tdr.decode(f.footer.sec[SEC_EQF]))[0] : f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked, eqf: eqo }, transfer: [out.buffer] };
       }
       if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };
       if (m.kind === 'c') return b28Job(m);   // B28: one number column of a packRowsParallel block   // helper start-up only: the wasm is loaded by the time this answers
@@ -3110,14 +3197,15 @@
       one();
     });
     function b31Join(waits) { return Promise.all(waits).then(function (bs) {
-      var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b;
-      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0)); zone.push(b.zone); parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
+      var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b, eqf = [], eqAny = false, eqb;
+      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0)); zone.push(b.zone); eqb = b.kind === 'f' ? eqOf(b) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
+      var eqs = null; if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }   // NX A, as packManyNow
       var secs = [
         { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
         { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
         { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
         { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: true })) }
-      ].concat(metaSecs(opts));
+      ].concat(eqs ? [eqs] : [], metaSecs(opts));
       parts.push(writeFooter(S.zfull, secs, true, NMARK > nm0 ? 1 : 0));
       return concat(parts);
     }); }
@@ -3231,19 +3319,21 @@
     return w;
   }
   function stitch(results, inLen, jopts) {   // join the packed runs, renumber the block table, write the footer as pack does
-    var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl, fmin = 0;
+    var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl, fmin = 0, eqf = [], eqAny = false;
     for (i = 0; i < results.length; i++) {
-      r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd)); if (r.bytes[r.bytes.length - 6] > fmin) fmin = r.bytes[r.bytes.length - 6];
+      r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd));
+      for (j = 0; j < r.blocks.length; j++) { var eqb = r.eqf && r.eqf[j] || 0; eqf.push(eqb); if (eqb) eqAny = true; }   // NX A: the helper's own block filters if (r.bytes[r.bytes.length - 6] > fmin) fmin = r.bytes[r.bytes.length - 6];
       for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off].concat(bl.slice(1))); rows += bl[3]; zone.push(r.zone[j]); }
       off += r.bodyEnd;
     }
-    var tail = results[results.length - 1].tail;
+    var tail = results[results.length - 1].tail, eqs = null;
+    if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }
     parts.push(writeFooter(S.zfull, [
       { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }
-    ].concat(metaSecs(jopts)), true, fmin));
+    ].concat(eqs ? [eqs] : [], metaSecs(jopts)), true, fmin));
     return concat(parts);
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
