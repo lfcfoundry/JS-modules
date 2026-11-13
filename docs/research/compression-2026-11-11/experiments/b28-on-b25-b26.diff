@@ -80,13 +80,13 @@
 +  // columns (B28_MIN values or more) move to pack helpers (their Float64Arrays are transferred), which encode and compress them while this thread encodes the other columns.
 +  // Inputs packRows would not send down the row path (exact, block, share, small or not flat) are packed by packRows itself.
 +  var B28_TEXT = (typeof globalThis !== 'undefined' && globalThis.__B28TEXT !== undefined) ? globalThis.__B28TEXT : 4;
-+  var B28_AUTO = !(typeof globalThis !== 'undefined' && globalThis.__B28AUTO === 0);
++  var B28_AUTO = !(typeof globalThis !== 'undefined' && globalThis.__B28AUTO === 0), b28Starting = false, B28_MAXW = (typeof globalThis !== 'undefined' && globalThis.__B28MAXW) || 4;   // more than 4 helpers: fewer jobs each, so their code stays cold longer
 +  function packRowsParallel(rows, opts) {
 +    return init().then(function () {
-+      var po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), 8);
++      var po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
 +      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || !b18Pays(rows)) return packRows(rows, opts);
 +      if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return packRows(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
-+      if (B28_AUTO && !idleHelpers.length) { clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); return packRows(rows, opts); }   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
++      if (B28_AUTO && !idleHelpers.length) { var out0 = packRows(rows, opts); if (!b28Starting) { b28Starting = true; setTimeout(function () { b28Starting = false; if (idleHelpers.length) return; clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); }, 0); } return out0; }   // no helpers yet: save this call on this thread first, then start them (laptop Firefox: starting them before the save made it 1.06x)   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
 +      var hs = [], k, nextId = 0;
 +      function helperQ(h) {   // answers come back in the order the jobs were posted; a helper goes back to the idle list only once its last answer is in
 +        var x = { h: h, q: [], drain: false, dead: false };

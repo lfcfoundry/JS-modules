@@ -66,3 +66,21 @@ Research, 2026.11.13 9:07 to 9:35 AM Detroit time. The owner named the call `pac
 - `B28-packRowsParallel-options.png`
 
 Catalog: B28 packRowsParallel (E32), plus the finding that helpers need about 4+ blocks before they pay.
+
+## Laptop round 1 (owner, 11:01 AM Detroit): Firefox 160 on Windows, 16 cores
+
+| Save | packRows | packRowsParallel | Ratio |
+|---|---|---|---|
+| First save | 590 ms | 627 ms | 1.06 |
+| Later saves | 553 ms | 400 ms | 0.72 |
+
+- The file bytes are the same.
+- What I think caused it:
+  - Auto start launched 8 helpers (16 cores, capped at 8) *before* the first save, so their start-up competed with that save.
+  - With 8 helpers, each one gets fewer jobs, so its code stays cold longer.
+- **Fix (v2, `b28e`):**
+  - Auto start now runs the first save on the calling thread first, then starts the helpers on the next task.
+  - The default helper count is capped at 4 (`B28_MAXW`).
+- Cloud check of tester v2 (2 rounds): later saves 0.52 in Firefox 158 and 0.58 in Chromium 156; the first save wasn't slower. Bytes are the same.
+- New tester: `helper-saves-tester-v2-2026.11.13.html`.
+- Note: in a loop that calls `await packRowsParallel` back to back with no break in between, the helpers start only once the loop gives up a turn.
