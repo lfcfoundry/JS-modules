@@ -918,6 +918,8 @@
     var out = new Array(n), i; for (i = 0; i < n; i++) out[i] = new R(i);
     return out;
   }
+  // P13d gate (0.10.6, shared with P13e): row-at-a-time runs from 24 wanted keys, or when at least 1 row in 8 of the first 1,024 has every key; with 16 to 23 keys and almost no complete rows the clone never applies and plain objects were up to 1.4x slower in Chromium
+  function rowWise(vals, K, n, pl, pb, sel, m) { var nb = 0, sj = [], ns = 0, j, i, r, all, t = m < 1024 ? m : 1024, c = 0; for (j = 0; j < K; j++) if (vals[j]) { nb++; if (vals[j].length !== n) sj[ns++] = j * pb; } if (nb >= 24) return true; for (i = 0; i < t; i++) { r = sel ? sel[i] : i; all = true; for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + (r >> 3)] >> (r & 7)) & 1) === 1; if (all) c++; } return c * 8 >= t; }
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
     var gen = false, lazyOn = false;
@@ -955,6 +957,7 @@
         for (j = 0; j < K; j++) if (vals[j]) { RB[nb] = j * pb; RV[nb] = vals[j]; RK[nb] = keys[j]; ts2 += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
         var full = new Uint8Array(nb), pt = new Int32Array(nb), tp2 = JSON.parse(ts2 + '}'), toHash = nb >= 24;
         for (j = 0; j < nb; j++) { full[j] = RV[j].length === n ? 1 : 0; if (!full[j]) sj[ns++] = RB[j]; }
+        if (rowWise(vals, K, n, pl, pb, null, n)) {   // P13d gate (0.10.6)
         for (i = 0; i < n; i++) { var by = i >> 3, bt = i & 7, all = true;
           for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + by] >> bt) & 1) === 1;
           if (all) { o = { ...tp2 }; for (j = 0; j < nb; j++) o[RK[j]] = full[j] ? RV[j][i] : RV[j][pt[j]++]; out[i] = o; continue; }
@@ -962,6 +965,7 @@
           for (j = 0; j < nb; j++) { if (full[j]) o[RK[j]] = RV[j][i]; else if ((pl[RB[j] + by] >> bt) & 1) o[RK[j]] = RV[j][pt[j]++]; }
           out[i] = o; }
         return out;
+        }
       }
       if (useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};

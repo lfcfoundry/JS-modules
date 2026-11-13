@@ -2,8 +2,11 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.6 · API 0 · 2026-11-13
+- Fixes a slowdown in 0.10.5 for tables with 16 to 23 keys where most rows lack some keys.
+
 ## 0.10.5 · API 0 · 2026-11-13
-- Reading whole tables where some rows lack some keys is up to five times faster in Chrome.
+- Reading whole tables of 24 or more keys where some rows lack some keys is up to five times faster in Chrome and Edge. Tables of 16 to 23 keys with few complete rows could be up to 1.4 times slower; 0.10.6 fixes that.
 
 ## 0.10.4 · API 0 · 2026-11-13
 - Saving big number tables is up to twice as fast.

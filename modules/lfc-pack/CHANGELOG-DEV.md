@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.6 · API 0 · 2026-11-13
+
+### Quick
+0.10.5's row-at-a-time build for tables with missing keys could be up to 1.1 to 1.4x slower in Chrome on tables of 16 to 23 keys where almost no row has every key. It now runs only from 24 keys, or when at least 1 row in 8 of the first 1,024 has every key. Tables of 24 or more keys keep the gain. Same rows, same files.
+
+### Details
+Chromium 156, 60,000 rows, full read, share of 0.10.4 time (0.10.5 / 0.10.6): 16 keys 60% present 1.12 / 1.04, 20 keys 60% 1.11 / 0.93, 22 keys 50% 0.87 / 0.92, 27 keys 99% 0.52 / 0.52, 40 keys 50% 0.21 / 0.21. The dictionary-path research thread measured up to 1.4x on the loss cases with fresh pages. 196 exact checks 0 differ vs 0.10.5.
+
+### Deep
+lfc-pack 0.10.6: P13d gate rowWise() (shared with P13e): nb >= 24 or at least 1 in 8 of the first 1,024 rows complete. Found by the dictionary-path research thread (round 4). 0.10.5 plain changelog line corrected: the gain is for tables of 24 or more keys.
+
 ## 0.10.5 · API 0 · 2026-11-13
 
 ### Quick
