@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.3 · API 0 · 2026-11-13
+
+### Quick
+Block reads from open() now decode into the WebAssembly output buffer instead of a second JavaScript copy: memory 32 to 39% lower at 1 to 4 MB blocks. Same rows, same files.
+
+### Details
+P15: same-page A/B in WebKitGTK 2.52.6 (12 pages x 30 pairs) P15 on 1.038 +- 0.041 vs off 1.072 +- 0.054 of 0.10.1; Chromium 156 0.994 and Firefox 158 1.019 (research thread, 8 pages each). Fresh-page WebKitGTK runs of one 1 MB-block cell swing 0.92 to 1.14.
+
+### Deep
+lfc-pack 0.10.3: P15 wasm arena for open() block reads on by default (LFC_WA=0 turns it off in Node). Owner approved 'ship after A/B' 2026-11-12 10:39 PM Detroit; same-page A/B within noise.
+
 ## 0.10.2 · API 0 · 2026-11-12
 
 ### Quick
