@@ -968,6 +968,24 @@ Decision: no add-on needed.
 - **Next lead (idle read-ahead):** after the first screen, decode the next block during idle time. The warm-up then happens before the user asks for more. This pairs with the Codex thread's lead 3 (capped read-ahead).
 - **Decision:** ADOPT CANDIDATE, for the owner. Proposed rule: all writers cut the first block at 64 KiB when the input is over 4 MiB of text, which keeps the size cost at 0.12% or less. Only `packStream` was measured; `pack`, `packRows` and `packTables` cut blocks in `packMany`, so the code thread would add the same rule there.
 
+### 2026-11-12 E29: idle read-ahead after a fast first screen (pairs with B22)
+
+11:00 to 11:07 PM Detroit time. E28 showed that a small first block moves the browser's warm-up cost onto the next big read. This test reads the next block during idle time instead. Page `ra.html`, driver `radrive.cjs`, 300,000 log rows, 0.10.0 reader, fresh page per run (4 rounds; 5 in Chromium).
+
+Each page does this: first screen; then, in the read-ahead variant, `R.rows({ from: R.blocks[0].rows, count: 50 })` 50 ms later; a 400 ms pause; a 1% range; a jump to row 200,000; a full read. Shares of today's time (today = a 13 MB first block, no read-ahead):
+
+| | Chromium | Firefox | WebKitGTK |
+|---|---|---|---|
+| First screen | 0.10 | 0.07 | 0.12 to 0.14 |
+| Next big read, no read-ahead | 1.49 | 1.17 | 1.55 |
+| Next big read, with read-ahead | **1.09** | 1.16 | **0.93** |
+| Jump to row 200,000, no read-ahead / with | 1.39 / 1.07 | 1.16 / 1.09 | 1.33 / 0.90 |
+| Idle work (one task) | 71 ms | 61 ms | 68 ms |
+
+- Reading ahead while idle brings the next read back to today's speed in Chromium and WebKitGTK. Firefox has little warm-up to move.
+- The cost is one 61 to 71 ms task during idle time. That is about the size of today's first screen, but it runs after the user already sees rows.
+- **Decision:** the owner decides the shape. Either an opt-in reader call (for example `R.readAhead()`, which reads the next block on idle), or a documented pattern that apps follow. Both are new behavior, so neither ships without a card.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -1013,6 +1031,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B21. Saves from row objects: number columns gathered as typed arrays.** Source: our own profile (E27). Target: `writeFlatBlock0` (the `packRows` row path and the JSON.parse fallback). Weighted save time 0.77 to 0.90 on five tables; taxi saves now beat parquet-wasm in Chromium. Same bytes, no format change. Stacks additively with P13 and P14. **ADOPT CANDIDATE.**
 
 **B22. Small first block (64 KiB) for a fast first screen.** Source: the Codex review thread (own lead 1). E28: first screen 0.06 to 0.15 of today, viewer session 0.79 to 0.94, a cold full read even; the "cold penalty" was warm-up moving to the next big read. Writer only, size +0.03 to 0.12% above 4 MiB of text. **ADOPT CANDIDATE.**
+
+**B24. Idle read-ahead after the first screen.** Source: E28 and E29. Pairs with B22. The next big read goes from 1.17 to 1.55 of today's time back to 0.93 to 1.16, at the cost of one 61 to 71 ms idle task. **OWNER CARD** (opt-in API or documented pattern).
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 
