@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.2 · API 0 · 2026-11-12
+- Saves are up to 11% faster, big files show their first rows much sooner, searching for several values at once is one call, and some filtered reads are faster.
+
 ## 0.10.1 · API 0 · 2026-11-12
 - Searching a file for rows with one exact text, ID or address value is about twice as fast.
 

@@ -18,7 +18,19 @@
       if (X.is_error(r) || r !== outLen) throw new Error('zstd: damaged data');
       return view(outP, outLen);
     }
+    // W-arena: decompress into the output buffer at byte offset `at` (the caller has reserved room with reserve()); the view stays valid while the wasm memory does not move
+    function decompressAt(src, outLen, at) {
+      ensureIn(src.length); view(inP, src.length).set(src);
+      var r = X.decompress(outP + at, outLen, inP, src.length);
+      if (X.is_error(r) || r !== outLen) throw new Error('zstd: damaged data');
+      return view(outP + at, outLen);
+    }
     var api = {
+      decompressAt: decompressAt,
+      reserve: function (inN, outN) { if (inN > inCap) { if (inP) X.free(inP); inCap = 0; inP = 0; ensureIn(inN); } if (outN > outCap) { if (outP) X.free(outP); outCap = 0; outP = 0; ensureOut(outN); } },
+      outCap: function () { return outCap; },
+      inCap: function () { return inCap; },
+      memBuf: function () { return mem.buffer; },
       contentSize: contentSize,
       decompressView: decompressView,
       decompress: function (src, outLen) { return decompressView(src, outLen).slice(); },

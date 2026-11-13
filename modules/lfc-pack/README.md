@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.1 · API 0**
+**Version 0.10.2 · API 0**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6 (cloud)
+**Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -68,6 +68,8 @@ LfcPack.unpack(file, { keys: ['ts', 'status'] });
 LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });
 // rows where one key equals a value (strict ===; a missing key never matches null); same rows and key order as unpack(file).filter(...), without building the other rows
 LfcPack.unpack(file, { equals: { key: 'level', value: 'ERROR' } });
+// anyOf (since 0.10.2): several values in one pass, rows in file order, a missing key never matches; 5 values take about a third of the time of 5 separate calls
+LfcPack.unpack(file, { equals: { key: 'level', anyOf: ['WARN', 'ERROR', 'FATAL'] } });
 // asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
 LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
 LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
@@ -117,9 +119,10 @@ Text that arrives in pieces (since 0.8.0): `const ps = LfcPack.packParallelStrea
 
 Reading part of a file: `LfcPack.unpackRows(bytes, { from, count })` decodes only the blocks that hold those rows, `LfcPack.stats(bytes)` reads per-column facts from the footer, and `LfcPack.hash(bytes, kind)` gives `'crc32'` or `'xxh64'`.
 
-Files too big to hold in memory (since 0.5.0): `const R = await LfcPack.open(file)` takes a `File` or `Blob` (or a function `read(offset, length)` with its `size` set, or bytes) and reads only the 16-byte trailer and the footer. Then `await R.rows({ from, count, table })` and `await R.block(i)` fetch just the byte ranges of the blocks they need and give the same rows as `unpackRows`; `R.info`, `R.meta` and `R.blocks` (`{ offset, length, rows, kind, table, first }`) describe the file. Memory is bounded by the footer and one block. Files with raw blocks (byte-exact text that is not plain rows) are still read whole on the first call. Each block is checked against its checksum when it is read. Since 0.5.9 the reader adds two calls for column work:
+Files too big to hold in memory (since 0.5.0): `const R = await LfcPack.open(file)` takes a `File` or `Blob` (or a function `read(offset, length)` with its `size` set, or bytes) and reads only the 16-byte trailer and the footer. Then `await R.rows({ from, count, table })` and `await R.block(i)` fetch just the byte ranges of the blocks they need and give the same rows as `unpackRows`; `R.info`, `R.meta` and `R.blocks` (`{ offset, length, rows, kind, table, first }`) describe the file. Memory is bounded by the footer and one block. Saves of more than 4 MiB of text start with a 64 KiB first block (since 0.10.2), so a viewer shows its first rows at once. Files with raw blocks (byte-exact text that is not plain rows) are still read whole on the first call. Each block is checked against its checksum when it is read. Since 0.5.9 the reader adds two calls for column work:
 
 - `await R.columns(i, { keys })` gives block `i` as typed columns, the same entry `unpackColumns` gives for that block, while fetching only that block. It works on flat-row blocks only; nested and raw blocks throw and are read with `R.block(i)`.
+- `R.readAhead()` (since 0.10.2, opt-in): call it after showing the first rows; when the page is idle it reads and decodes the next block that has not been read, so the next big read does not pay the browser's warm-up. One block per call, one at a time. It returns a promise: `true` when it read a block, `false` for a raw-block file, a file already fully read, or an error (it is only a hint).
 - `R.zone(i, key)` gives `{ min, max, count }` of a number column in block `i` from the footer, without decoding anything, or `null`. A filter such as `id >= 7000000` can skip a block whose `max` is lower.
 
 `viewer.html` is a single-file viewer for `.json.lfc` files (open it in a browser and drop a file on it).

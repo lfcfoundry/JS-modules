@@ -126,12 +126,12 @@
       var T0 = Date.now(), b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
       if (opts.balance && !opts.blockBytes) bb = Math.max(4 << 20, Math.min(bb, Math.ceil(b.length / Math.min(opts.workers || hc, 8))));   // experimental: about one block per helper; the file differs from pack() unless pack gets the same blockBytes
       if (opts.balance === 'even' && !opts.blockBytes) { var nb0 = Math.ceil(b.length / bb), w0 = Math.min(opts.workers || hc, 8); if (w0 > 1 && nb0 > 1) bb = Math.ceil(b.length / (Math.ceil(nb0 / w0) * w0)); }   // experimental: as many blocks as a whole number of rounds for the helpers, so none waits alone at the end; the file differs from pack() unless pack gets the same blockBytes
-      while (q < b.length) { e = Math.min(b.length, q + bb); if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
+      var hd = headOn(b.length, bb); while (q < b.length) { e = Math.min(b.length, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
       var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g, dyn = opts.dynamic !== false;
       if (opts.exact || opts.share || w < 2) return pack(b, opts);   // exact mode, shared tables (one table built block after block) and small inputs stay on one thread
       if (dyn) for (g = 0; g < nb; g++) groups.push([cuts[g], cuts[g + 1]]);   // one job per block; a helper that finishes takes the next block, so the run does not wait on one slow run of blocks
       else for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
-      var jopts = {}, k, tm = opts.timing; for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
+      var jopts = {}, k, tm = opts.timing; for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k]; jopts._nohead = true; jopts._nohead = true;   // B22: chunks are single blocks, the head rule is applied where they are cut
       // per-path strings (see packMany): in a long input, groups sent before group 0 answers each try both layouts on their first big block;
       // once group 0's pick is known, later groups follow it and an early group that picked the other way is packed again, so the file is the one pack() writes
       var pickWait = false, curPick = 1, sentWith = [], redo = [], parked = [], picked = [];
@@ -186,8 +186,8 @@
     if (opts.share) throw new Error('LfcPack: packParallelStream does not support share (each helper would build its own tables); pass share: false');
     var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
     var bb = opts.blockBytes || BLOCK_BYTES, maxW = Math.max(1, Math.min(opts.workers || hc, 8)), jopts = {}, k;
-    for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k];
-    var acc = new Uint8Array(0), plen = 0, scan = 0, total = 0, queue = [], results = [], jobs = 0, left = 0, helpers = [], free = [], failed = null, done = false, finishing = null, resolveFn = null, rejectFn = null;
+    for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k]; jopts._nohead = true;   // B22: chunks are single blocks, the head rule is applied where they are cut
+    var acc = new Uint8Array(0), plen = 0, scan = 0, headP = true, total = 0, queue = [], results = [], jobs = 0, left = 0, helpers = [], free = [], failed = null, done = false, finishing = null, resolveFn = null, rejectFn = null;
     function release(ok) {
       if (!ok) { helpers.forEach(function (x) { x.kill(); }); helpers = []; free = []; }
       else { free.forEach(function (x) { idleHelpers.push(x); }); free = []; helpers = []; armIdle(3000); }
@@ -224,6 +224,10 @@
         var need = plen + b.length;
         if (need > acc.length) { var g = new Uint8Array(Math.max(need, Math.min(bb + (bb >> 2) + 65536, Math.max(acc.length * 2, 65536)))); g.set(acc.subarray(0, plen)); acc = g; }   // grows to about one block; the text is copied once, here
         acc.set(b, plen); plen = need;
+        if (headP && bb > HEAD_MIN && plen > HEAD_MIN) {   // B22: the first block is cut at the first line end at or after HEAD_BYTES once more than HEAD_MIN bytes wait
+          headP = false; var hn = acc.indexOf(10, HEAD_BYTES);
+          if (hn >= 0 && hn < plen) { var hc2 = hn + 1, hr = plen - hc2, hx = new Uint8Array(Math.max(hr, 0) + 65536); hx.set(acc.subarray(hc2, plen)); send(acc.subarray(0, hc2)); acc = hx; plen = hr; scan = 0; }
+        }
         while (plen >= bb) {
           var nl = acc.indexOf(10, Math.max(bb, scan));
           if (nl < 0 || nl >= plen) { scan = plen; return; }     // no line end yet: keep waiting, and do not look at these bytes again

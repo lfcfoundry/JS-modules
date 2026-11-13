@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.2 · API 0 · 2026-11-12
+
+### Quick
+Faster saves (B21), a 64 KiB first block for saves over 4 MiB of text (B22), equals with anyOf, faster mixed-type column searches, faster key-subset and nested equality reads, and an opt-in open().readAhead(). Same file format; old files and old readers work as before.
+
+### Details
+Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: save time 0.89 to 1.00 of 0.10.1 on 300,000-row tables; the first screen of a big file takes 6 to 15% of the time; equality reads equal or better than 0.10.1 in all three. File size grows 0.04 to 0.26% on saves over 4 MiB.
+
+### Deep
+lfc-pack 0.10.2: B21 faster save writer (byte-identical), B22 small first block over 4 MiB, P13b/P13c key-subset and nested equality reads, P14 B (mixed-type equality) and C (anyOf), B24 readAhead(). Owner-approved 2026-11-12. P15 small-read memory patch held: 1.11 to 1.14 on WebKitGTK 1 MB one-row reads in fresh-page runs (a same-page check by the research thread found none), code kept off by default.
+
 ## 0.10.1 · API 0 · 2026-11-12
 
 ### Quick
