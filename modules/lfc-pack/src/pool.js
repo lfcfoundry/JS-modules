@@ -199,12 +199,32 @@
   // Inputs packRows would not send down the row path (exact, block, share, small or not flat) are packed by packRows itself.
   var B28_TEXT = (typeof globalThis !== 'undefined' && globalThis.__B28TEXT !== undefined) ? globalThis.__B28TEXT : 4;
   var B28_AUTO = !(typeof globalThis !== 'undefined' && globalThis.__B28AUTO === 0), b28Starting = false, B28_MAXW = (typeof globalThis !== 'undefined' && globalThis.__B28MAXW) || 4;   // more than 4 helpers: fewer jobs each, so their code stays cold longer
+  // B34: packColumnsParallel({ key: array, ... }) -> Promise of the file packRowsParallel writes for the rows { key: array[i], ... }, without building row objects or scattering them.
+  // Arrays: plain arrays (any flat values) or number typed arrays (not BigInt), all the same length. The rows view below is only read for the gates, samples and fallbacks.
+  function packColumnsParallel(obj, opts) {
+    var keys = Object.keys(obj || {}), A = [], n = -1, j, a;
+    for (j = 0; j < keys.length; j++) { a = obj[keys[j]];
+      if (!Array.isArray(a) && !(ArrayBuffer.isView(a) && !(a instanceof DataView) && !(typeof BigInt64Array !== 'undefined' && (a instanceof BigInt64Array || a instanceof BigUint64Array)))) return Promise.reject(new Error('LfcPack: packColumnsParallel needs an array or number typed array for "' + keys[j] + '"'));
+      if (n < 0) n = a.length; else if (a.length !== n) return Promise.reject(new Error('LfcPack: packColumnsParallel columns must all have the same length')); A.push(a); }
+    if (n < 0) n = 0;
+    function rowsOf(i0, i1) { var out = new Array(Math.max(0, i1 - i0)), i, r, q; for (i = i0; i < i1; i++) { r = {}; for (q = 0; q < keys.length; q++) r[keys[q]] = A[q][i]; out[i - i0] = r; } return out; }
+    var CT = { __ct: { keys: keys, A: A }, length: n, slice: function (s0, s1) { if (s0 < 0) s0 = Math.max(0, n + s0); if (s1 == null || s1 > n) s1 = n; return rowsOf(s0, s1); } }, z;
+    for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0];
+    if (!keys.length || n === 0) return packRowsParallel(rowsOf(0, n), opts);
+    return packRowsParallel(CT, opts);
+  }
+  function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
+    if (!rows.__ct) return packRows(rows, opts);
+    var po = packOpts(opts), out; try { out = packRowsBlocks(rows, Object.assign({}, po, { _b26: 1 })); } catch (e) { if (e === B26_BAIL) return pack(rowsBytes(rows.slice(0, rows.length)), opts); throw e; }
+    if (out === null) return pack(rowsBytes(rows.slice(0, rows.length)), opts);
+    return out.then(function (b) { return b === null ? pack(rowsBytes(rows.slice(0, rows.length)), opts) : b; }, function (e) { if (e === B26_BAIL) return pack(rowsBytes(rows.slice(0, rows.length)), opts); throw e; });
+  }
   function packRowsParallel(rows, opts) {
     return init().then(function () {
       var po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
-      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || !b18Pays(rows)) return packRows(rows, opts);
-      if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return packRows(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
-      if (B28_AUTO && !idleHelpers.length) { var out0 = packRows(rows, opts); if (!b28Starting) { b28Starting = true; setTimeout(function () { b28Starting = false; if (idleHelpers.length) return; clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); }, 0); } return out0; }   // no helpers yet: save this call on this thread first, then start them (laptop Firefox: starting them before the save made it 1.06x)   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
+      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || (!rows.__ct && !b18Pays(rows))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);
+      if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return b34Plain(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
+      if (B28_AUTO && !idleHelpers.length) { var out0 = b34Plain(rows, opts); if (!b28Starting) { b28Starting = true; setTimeout(function () { b28Starting = false; if (idleHelpers.length) return; clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); }, 0); } return out0; }   // no helpers yet: save this call on this thread first, then start them (laptop Firefox: starting them before the save made it 1.06x)   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
       var hs = [], k, nextId = 0;
       function helperQ(h) {   // answers come back in the order the jobs were posted; a helper goes back to the idle list only once its last answer is in
         var x = { h: h, q: [], drain: false, dead: false };
@@ -220,9 +240,9 @@
       }
       function release(ok) { hs.forEach(function (x) { if (!ok || x.dead) x.h.kill(); else if (x.q.length) x.drain = true; else idleHelpers.push(x.h); }); hs = []; armIdle(3000); }
       var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol }), out;
-      try { out = packRowsBlocks(rows, jo); } catch (e) { release(true); if (e === B26_BAIL) return pack(rowsBytes(rows), opts); throw e; }
-      if (out === null) { release(true); return pack(rowsBytes(rows), opts); }
-      return out.then(function (b) { release(true); return b === null ? pack(rowsBytes(rows), opts) : b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows), opts); throw e; });
+      try { out = packRowsBlocks(rows, jo); } catch (e) { release(true); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; }
+      if (out === null) { release(true); return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); }
+      return out.then(function (b) { release(true); return b === null ? pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts) : b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; });
     });
   }
   function packRowsBlocks(RA, opts) {   // packManyNow's row path, with blocks that may wait on helpers -> Promise of bytes, or null when a block cannot take the row path
@@ -234,10 +254,10 @@
     var est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;
-    if (!y31) { for (ra = 0; ra < RA.length; ra += stp) { sl = RA.slice(ra, ra + stp); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
+    if (!y31) { for (ra = 0; ra < RA.length; ra += stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + stp, RA.length) } } : { rowsIn: RA.slice(ra, ra + stp) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
     ra = 0;
     return new Promise(function (res, rej) {
-      function one() { try { sl = RA.slice(ra, ra + stp); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += stp; if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
+      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + stp, RA.length) } } : { rowsIn: RA.slice(ra, ra + stp) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += stp; if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
       one();
     });
     function b31Join(waits) { return Promise.all(waits).then(function (bs) {

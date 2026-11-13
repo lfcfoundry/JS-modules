@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.12 · API 0 · 2026-11-13
+
+### Quick
+packColumnsParallel saves columns directly
+
+### Details
+B34: packColumnsParallel(columns, opts) returns a promise of the file for the rows the columns describe; plain or number typed arrays, same length; skips the string-share gate; same gates and fallbacks as packRowsParallel. 300,000 rows vs packRowsParallel, later saves: taxi 0.66 Chromium, 0.42 Firefox, 0.74 WebKitGTK; sensors 0.73, 0.71; logs 0.93, 0.96, 0.90; first call 0.67 to 0.97. Number tables same bytes as packRows; text-heavy tables can differ by about 0.04% and read back exactly.
+
+### Deep
+B34 packColumnsParallel (owner Always column path, named by the owner). Hand merge of two hunks for 0.10.11. New test b34.cjs, 58 checks. All lfc-pack checks pass.
+
 ## 0.10.11 · API 0 · 2026-11-13
 
 ### Quick
