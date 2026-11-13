@@ -892,6 +892,40 @@ Findings:
 
 Decision: no add-on needed.
 
+### 2026-11-12 E27 (B21): saves from row objects, number columns gathered as typed arrays
+
+10:02 to 10:27 PM Detroit time. Base: lfc-pack 0.10.0 (main `0c1e35b`), which already ships B18b, B19, B20 and the null plane.
+
+- **Where 0.10.0 still loses.** Same 300,000 taxi rows against parquet-wasm 0.9.0 and Arrow JS 21.2.0 (`rvdrive.cjs`, Chromium, 3 rounds): rows 258 ms against 615, columns 111 against 125, but **saves 787 ms against 736 (1.07x)**. Saves are the one remaining loss.
+- **Profile** (Node 22, `packRows` on taxi rows): `writeFlatBlock0` 24% self, `encodeColumn0` 17%, `nullBest` 8%, `varintsT` 7%. By line, the row-to-column loop (`for (k in r) { seen.get(k) ... cols[jx].push(r[k]) }`) was 43% of the writer's own time. A micro-benchmark (`mb21.cjs`, 65,536 rows) split it: `for...in` costs 1.5 ms, reading the values 10 ms, and storing them about 30 ms. The stores are slow because a generic array that holds doubles and nulls boxes every double as a heap number.
+- **B21 (`experiments/b21-patch-writer.py`), same bytes:**
+  - (a) one pass over the rows instead of two, matching each key against the same position in the previous row before the Map lookup;
+  - (b) an all-null column's `j` frame is filled as bytes;
+  - (c) number columns (numbers and nulls) are gathered straight into a `Float64Array` plus a null bit plane. The null-plane pass (`nullNumbers`) and the number checks then run on typed data. A column that meets any other kind of value turns into a generic array at that point.
+- **Same output.** Byte-identical files for `packRows`, `pack` and `packRows(exact)` on 19 files, including a shuffled-key table (`same21.cjs`). The full `test/run.js` passes (40 checks), and P14's `check.js` passes on the P13 + P14 + B21 stack (9,688 checks).
+- **Gate** (`prdrive.cjs`, `packRows`, fresh page, 3 rounds, 6 on the WebKit re-run, `results/b21-pr21*`):
+
+| Table | Chromium | Firefox | WebKitGTK | Weighted (60/15/25) |
+|---|---|---|---|---|
+| Taxi 300k | 0.74 | 0.77 | 0.92 | 0.79 |
+| Sensors with nulls 300k | 0.76 | 0.90 | 0.94 (re-run; first run 1.04) | 0.82 |
+| Orders 100k | 0.72 | 0.90 | 0.79 | 0.77 |
+| GitHub events, flattened 200k | 0.83 | 0.95 | 0.85 | 0.86 |
+| Logs 300k | 0.85 | 0.92 | 0.98 | 0.90 |
+
+  Nested events (another writer) measured 1.04 in Chromium and 0.97 to 1.04 in Node, so that is noise. Same page as the rival run (`rvdrive.cjs`, 10:30 PM, `results/b21-rv-chromium.json`): taxi saves take 583 ms with B21 against 826 ms for 0.10.0 and 744 ms for parquet-wasm. That is 0.78 of parquet-wasm's time, from 1.11 before.
+- **Stack with P13 + P14** (the equality reads going into 0.10.1; `svdrive.cjs`, one page: save, 7 equality queries, 12 cached queries, full read; `results/b21-sv*`). Taxi session time, as a share of 0.10.0's:
+
+| Browser | B21 | P13 + P14 | All three | If the gains just added |
+|---|---|---|---|---|
+| Chromium | 0.89 | 0.96 | 0.84 | 0.85 |
+| Firefox | 0.90 | 0.99 | 0.89 | 0.89 |
+| WebKitGTK | 0.87 | 0.97 | 0.86 | 0.84 |
+
+  The gains add up. They don't multiply, because B21 changes only the writer and P13 and P14 only the reader, and the files are identical. On P14's own 50k-log fixture, `packRows` takes the text path (string-heavy and under 16 MB), so B21 doesn't run: 1.01, noise. Firefox's full read measured 1.09 to 1.21 in this session on identical bytes, which is garbage-collection timing after the queries, not B21.
+- **Left on the table:** the remaining save time is the typed number passes (`numStats`, `varintsT`, `vlenSum`, `b21Flags`), which the fast writer shares. Fusing them into one pass, or moving them into wasm, is the next step.
+- **Decision:** ADOPT CANDIDATE. Writer only, same bytes, no format or API change.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
@@ -933,6 +967,8 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 **B19d. Common values take today's path (no cache).** E25: no gain, because the loss is garbage-collection timing in the query cycle, not B19. **REJECTED.**
 
 **B20. Faster column reads: JSON cells and one-pass zigzag.** Source: our own profile against parquet-wasm (E17, E23). Target: `unpackColumns` and `unpack` on tables with nullable or money columns (Netflow, Workbench). Taxi columns take 0.57 to 0.80 of the time, and rows 0.70 to 0.88. With the null plane, columns are faster than parquet-wasm in Firefox and WebKit. Same values, no format change. Difficulty: low. Risk: an engine-specific branch, which lfc-pack already uses for address and list columns. **ADOPT CANDIDATE**, owner card 12:50 AM Eastern 11.12.
+
+**B21. Saves from row objects: number columns gathered as typed arrays.** Source: our own profile (E27). Target: `writeFlatBlock0` (the `packRows` row path and the JSON.parse fallback). Weighted save time 0.77 to 0.90 on five tables; taxi saves now beat parquet-wasm in Chromium. Same bytes, no format change. Stacks additively with P13 and P14. **ADOPT CANDIDATE.**
 
 **B8. Page-level indexes and string zone maps or Bloom filters for random access.** Sources: Parquet page index ([PageIndex.md](https://github.com/apache/parquet-format/blob/master/PageIndex.md)); ORC row index (10,000-row stride) and Bloom filters. Not re-fetched this session. Target: LFC-pack footer sections 3 and 4 (reserved), Workbench filters. Advantage: query throughput and less read amplification. LFC-pack already has number zone maps (section 5), `keys` reads and XXH64 prefix checks. Evidence: none locally (no query workload yet). **DEFER**, with a design ready: measure the bytes read per filtered query on a 1 GB Workbench file with and without block skipping.
 

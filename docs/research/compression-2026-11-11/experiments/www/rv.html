@@ -1,5 +1,5 @@
 <!doctype html><meta charset="utf-8"><title>LFC-pack vs Parquet and Arrow readers</title>
-<script>document.write('<script src="' + (location.hash === '#lfcall' ? 'v-all.js' : 'v-r83.js') + '"><\/script>');</script>
+<script>document.write('<script src="' + (location.hash === '#lfcall' ? 'v-all.js' : location.hash === '#lfc100' ? 'v-100.js' : location.hash === '#lfc100w' ? 'v-100wc.js' : 'v-r83.js') + '"><\/script>');</script>
 <script src="nm/apache-arrow/Arrow.es2015.min.js"></script>
 <script type="module">
 // Copyright (c) 2026 LFC Foundry. MIT License.
@@ -19,7 +19,7 @@ function arrowRows(t) {
 window.run = async (lib, reps) => { await window.ready; const get = async f => new Uint8Array(await (await fetch('rv/' + f)).arrayBuffer());
   const T = async fn => { await fn(); const r = []; for (let k = 0; k < reps; k++) { const t = performance.now(); await fn(); r.push(performance.now() - t); } return +med(r).toFixed(1); };
   const o = {};
-  if (lib === 'lfc83' || lib === 'lfcall') { const b = await get(lib === 'lfc83' ? 'taxis-r83.lfc' : 'taxis-all.lfc'), L = window.LfcPack; o.size = b.length; o.rows = await T(() => L.unpack(b)); o.cols = await T(() => L.unpackColumns(b));
+  if (lib === 'lfc83' || lib === 'lfcall' || lib === 'lfc100' || lib === 'lfc100w') { const b = await get(lib === 'lfc83' ? 'taxis-r83.lfc' : lib.startsWith('lfc100') ? 'taxis-100.lfc' : 'taxis-all.lfc'), L = window.LfcPack; o.size = b.length; o.rows = await T(() => L.unpack(b)); o.cols = await T(() => L.unpackColumns(b));
     const rows = L.unpack(b); o.save = await T(() => L.packRows(rows)); }
   if (lib === 'pqwasm') { const b = await get('taxis-z3.parquet'); o.size = b.length; o.cols = await T(() => A.tableFromIPC(readParquet(b).intoIPCStream())); o.rows = await T(() => arrowRows(A.tableFromIPC(readParquet(b).intoIPCStream())));
     const rows = arrowRows(A.tableFromIPC(readParquet(b).intoIPCStream())), props = new WriterPropertiesBuilder().setCompression(Compression.ZSTD).build();

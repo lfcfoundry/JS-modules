@@ -1,0 +1,11 @@
+<!doctype html><meta charset=utf-8><title>save then query</title><script src="genb.js"></script><script>
+// Copyright (c) 2026 LFC Foundry. MIT License.
+// research B21 stack: in one page, packRows (timed), then the P14 equality query set (first call each), then 12 cached queries. hash = build:N
+var __h = location.hash.slice(1).split(':'); document.write('<script src="v-' + __h[0] + '.js"><\/script>');
+</script><script>
+async function run() { var L = LfcPack, N = +__h[1], TX = isNaN(N); await L.init(); var R = TX ? (await (await fetch(__h[1])).text()).trim().split('\n').map(function (l) { return JSON.parse(l); }) : genRows(N); N = R.length, res = {}, t = performance.now(), f = L.packRows(R); res.save = performance.now() - t; res.bytes = f.length;
+  var qs = TX ? [['PULocationID', 74], ['VendorID', 1], ['payment_type', 3], ['RatecodeID', 5], ['DOLocationID', 999], ['passenger_count', 6], ['total_amount', R[N >> 1].total_amount]] : [['uuid', R[N >> 1].uuid], ['sha', R[N >> 1].sha], ['email', R[N >> 1].email], ['level', 'ERROR'], ['city', R[1].city], ['ip', '1.2.3.999'], ['msg', R[N >> 1].msg]], tot = 0, rows = 0;
+  for (var a = 0; a < qs.length; a++) { t = performance.now(); var r = L.unpack(f, { equals: { key: qs[a][0], value: qs[a][1] } }); var d = performance.now() - t; tot += d; rows += r.length; res[qs[a][0]] = d; }
+  res.queries = tot; res.rows = rows; L.clearCache(); t = performance.now(); for (var c = 0; c < 12; c++) L.unpack(f, { equals: { key: qs[c % 5][0], value: qs[c % 5][1] }, cache: true }); res.cached12 = performance.now() - t;
+  t = performance.now(); var all = L.unpack(f); res.full = performance.now() - t; res.session = res.save + res.queries + res.cached12 + res.full; return res; }
+</script>
