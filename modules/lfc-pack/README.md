@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.5 · API 0**
+**Version 0.10.7 · API 0**
 
-**Tested in:** Firefox 158 and 160, ungoogled Chromium 156, Chrome 157, WebKitGTK 2.52.6
+**Tested in:** Chrome 157, Firefox 160, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -73,6 +73,7 @@ LfcPack.unpack(file, { equals: { key: 'level', anyOf: ['WARN', 'ERROR', 'FATAL']
 // asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
 LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
 LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
+// since 0.10.6 and 0.10.7, reads of tables with 20 or more keys where some rows lack keys build rows one at a time in Chrome and Edge only (whole tables, filtered, range and row-window reads); Chrome 157 laptop: whole tables 0.20 to 0.82 and filtered reads 0.44 to 0.93 of the 0.10.4 / 0.10.6 time; Firefox and Safari run the same code as before
 // opt-in lazy rows (see "Lazy rows" below): values are read when a key is first used
 LfcPack.unpack(file, { rows: 'lazy' });      // columns decoded at unpack, rows made cheaply
 LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when some row reads its key

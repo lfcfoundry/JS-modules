@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.5 (API 0)
+ * Version 0.10.7 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1678,6 +1678,8 @@
     var out = new Array(n), i; for (i = 0; i < n; i++) out[i] = new R(i);
     return out;
   }
+  // P13d gate (0.10.6, shared with P13e): row-at-a-time runs from 24 wanted keys, or when at least 1 row in 8 of the first 1,024 has every key; with 16 to 23 keys and almost no complete rows the clone never applies and plain objects were up to 1.4x slower in Chromium
+  function rowWise(vals, K, n, pl, pb, sel, m) { var nb = 0, sj = [], ns = 0, j, i, r, all, t = m < 1024 ? m : 1024, c = 0; for (j = 0; j < K; j++) if (vals[j]) { nb++; if (vals[j].length !== n) sj[ns++] = j * pb; } if (nb >= 24) return true; for (i = 0; i < t; i++) { r = sel ? sel[i] : i; all = true; for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + (r >> 3)] >> (r & 7)) & 1) === 1; if (all) c++; } return c * 8 >= t; }
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
     var gen = false, lazyOn = false;
@@ -1715,6 +1717,7 @@
         for (j = 0; j < K; j++) if (vals[j]) { RB[nb] = j * pb; RV[nb] = vals[j]; RK[nb] = keys[j]; ts2 += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
         var full = new Uint8Array(nb), pt = new Int32Array(nb), tp2 = JSON.parse(ts2 + '}'), toHash = nb >= 24;
         for (j = 0; j < nb; j++) { full[j] = RV[j].length === n ? 1 : 0; if (!full[j]) sj[ns++] = RB[j]; }
+        if (rowWise(vals, K, n, pl, pb, null, n)) {   // P13d gate (0.10.6)
         for (i = 0; i < n; i++) { var by = i >> 3, bt = i & 7, all = true;
           for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + by] >> bt) & 1) === 1;
           if (all) { o = { ...tp2 }; for (j = 0; j < nb; j++) o[RK[j]] = full[j] ? RV[j][i] : RV[j][pt[j]++]; out[i] = o; continue; }
@@ -1722,6 +1725,7 @@
           for (j = 0; j < nb; j++) { if (full[j]) o[RK[j]] = RV[j][i]; else if ((pl[RB[j] + by] >> bt) & 1) o[RK[j]] = RV[j][pt[j]++]; }
           out[i] = o; }
         return out;
+        }
       }
       if (useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
@@ -1748,6 +1752,7 @@
         for (i = lo; i < hi; i++) { sq = ordList[ordIds[i]]; o = {}; for (j = 0; j < sq.length; j++) { kk = sq[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i - lo] = o; }
         return out;
       }
+      if (!hasProto && m) { var sr = new Int32Array(m); for (i = 0; i < m; i++) sr[i] = lo + i; if (sparseV8(F, K, n, sr, m)) return selRows(F, vals, sr, m); }
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         var v = vals[j]; if (!v) continue;
@@ -1773,6 +1778,7 @@
       if (m * 2 > n) { F.cols[jr].pre = rv; return assembleKeep(F, want, rk, min, max); }   // more than half the rows match: the whole-block path (with its engine fast paths) is quicker; the range column is not decoded twice
       var out = new Array(m); if (!m) return out;
       for (j = 0; j < K; j++) if (j !== jr) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+      if (sparseV8(F, K, n, sel, m)) return selRows(F, vals, sel, m);
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         v = vals[j]; if (!v) continue;
@@ -1818,6 +1824,15 @@
       if (m * 2 > n) { if (codes) frBlock(F); if (rv) col.pre = rv; return eqKeep(F, want, rk, val); }
       if (rv === false && !m) return [];
       var out = new Array(m), vals = new Array(K), v; if (!m) return out;
+      if (sparseV8(F, K, n, sel, m)) {
+        for (j = 0; j < K; j++) {
+          if (F.cols[j] === null) { vals[j] = null; continue; }
+          if (j === jr && rv === false) { var gv = new Array(m); for (i = 0; i < m; i++) gv[i] = val; gv.m = 1; gv.sp = 0; vals[j] = gv; continue; }
+          if (codes && !F.cols[j].pre && !(j === jr && rv)) { var sv0 = selAt(meta.cols[j], frAll(F.cols[j]), pl, j * pb, n, sel, m); if (sv0) { sv0[1].m = 1; sv0[1].sp = meta.cols[j].n !== n; vals[j] = sv0[1]; continue; } }
+          vals[j] = F.cols[j].pre ? F.cols[j].pre : (j === jr && rv) ? rv : decodeColumn(meta.cols[j], zs, codes ? frAll(F.cols[j]) : F.cols[j].fr);
+        }
+        return selRows(F, vals, sel, m);
+      }
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         if (F.cols[j] === null) continue;
@@ -1857,6 +1872,16 @@
       else { var R2 = rc.row; for (i = 0; i < n; i++) if (R2[i] === val && (val !== undefined)) sel[m++] = i; }
       var out = new Array(m), v; if (!m) return out;
       if (m * 2 > n) { frBlock(F); for (j = 0; j < K; j++) if (F.cols[j] !== null && !F.cols[j].pre) F.cols[j].pre = colOf(j); var all = assemble(F, want), oo = new Array(m); for (i = 0; i < m; i++) oo[i] = all[sel[i]]; return oo; }
+      if (sparseV8(F, K, n, sel, m)) {
+        var cv = new Array(K);
+        for (j = 0; j < K; j++) {
+          if (F.cols[j] === null) { cv[j] = null; continue; }
+          if (j === jr && pk >= 0) { var gw = new Array(m); for (i = 0; i < m; i++) gw[i] = val; gw.m = 1; gw.sp = 0; cv[j] = gw; continue; }
+          if (bc.vals[j] === undefined && !F.cols[j].pre) { bc.hits = bc.hits || []; if (!bc.hits[j]) { bc.hits[j] = 1; var sw = selAt(meta.cols[j], frAll(F.cols[j]), pl, j * pb, n, sel, m); if (sw) { sw[1].m = 1; sw[1].sp = meta.cols[j].n !== n; cv[j] = sw[1]; continue; } } }
+          cv[j] = colOf(j);
+        }
+        return selRows(F, cv, sel, m);
+      }
       lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         if (F.cols[j] === null) continue;
@@ -1876,6 +1901,25 @@
       else { for (i = 0, c = 0, q = 0; q < m; i++) { var has = (pl[base + (i >> 3)] >> (i & 7)) & 1; if (i === sel[q]) { if (has) { vi[k] = c; mi[q] = k++; } else mi[q] = -1; q++; } if (has) c++; } }
       var got = decodeAt(cm, frames, vi, k); if (!got) return null;
       var pos = new Int32Array(m), out = new Array(m); for (q = 0; q < m; q++) { pos[q] = mi[q]; out[q] = mi[q] >= 0 ? got[mi[q]] : undefined; } return [pos, out];
+    }
+    // P13e, V8 only: the selected rows of a block whose rows lack some keys (from 20 wanted keys, gated as P13d: with 16 keys row windows were 1.10-1.15 warm) are made one row at a time from per-row value lists, as P13d does for whole blocks (assigning one key at a time down the selected rows gave each row a long chain of shape changes, so a 40% match read took longer than reading every row). Same objects, same key order
+    function sparseV8(F, K, n, sel, m) { if (!V8 || K < 20 || K > 250 || F.ordList) return false; var j, nk = 0, sp = false, pv = new Array(K); for (j = 0; j < K; j++) if (F.cols[j] !== null) { nk++; pv[j] = { length: F.cols[j].pre ? F.cols[j].pre.length : F.meta.cols[j].n }; if (pv[j].length !== n) sp = true; } return sp && nk >= 20 && rowWise(pv, K, n, F.pl, (n + 7) >> 3, sel, m); }
+    function gatherCol(v, pl, base, n, sel, m) { var G = new Array(m), i, c, q; if (v.length === n) { for (q = 0; q < m; q++) G[q] = v[sel[q]]; return G; } for (q = 0; q < m; q++) G[q] = undefined; for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) G[q] = v[c]; c++; } if (i === sel[q]) q++; } return G; }
+    function rowsFromCols(m, keys, K, Gs) {
+      var RK = [], RG = [], SG = [], nb = 0, ns = 0, ts = '{', i, j, o, x, all, out = new Array(m);
+      for (j = 0; j < K; j++) if (Gs[j]) { RK[nb] = keys[j]; RG[nb] = Gs[j]; if (Gs[j].sp) SG[ns++] = Gs[j]; ts += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
+      var tp = JSON.parse(ts + '}'), toHash = nb >= 24;
+      for (i = 0; i < m; i++) { all = true; for (j = 0; j < ns && all; j++) all = SG[j][i] !== undefined;
+        if (all) { o = { ...tp }; for (j = 0; j < nb; j++) o[RK[j]] = RG[j][i]; out[i] = o; continue; }
+        o = {}; if (toHash) { o.__h = 0; delete o.__h; }
+        for (j = 0; j < nb; j++) { x = RG[j][i]; if (x !== undefined) o[RK[j]] = x; }
+        out[i] = o; }
+      return out;
+    }
+    function selRows(F, vals, sel, m) {   // vals[j]: the decoded column (block-wide, dense or packed), an m-long list (.m set: values of the selected rows), or null
+      var keys = F.meta.keys, K = keys.length, n = F.n, pb = (n + 7) >> 3, Gs = new Array(K), j, v, g;
+      for (j = 0; j < K; j++) { v = vals[j]; if (!v) { Gs[j] = null; continue; } if (v.m) { g = v; g.sp = v.sp; } else { g = gatherCol(v, F.pl, j * pb, n, sel, m); g.sp = v.length !== n; } Gs[j] = g; }
+      return rowsFromCols(m, keys, K, Gs);
     }
     // matching rows of a wide dense block start as clones of one template, as whole-block reads do (from 16 keys), so building only the matches never costs more than building every row
     function lateInit(out, m, F, keys, K, n) {
@@ -2658,7 +2702,7 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.5', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.7', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
