@@ -75,7 +75,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.12 (API 0)
+ * Version 0.10.13 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -2254,15 +2254,16 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     b[e] = 10; return b.subarray(1);
   }
   var B26 = !(typeof globalThis !== 'undefined' && globalThis.__B26 === 0);
-  function packRows(rows, opts) { var po = packOpts(opts);
-    if (B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) && b18Pays(rows)) {   // B26: the row scatter checks the rest
-      try { return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _b26: 1 })); } catch (e) { if (e !== B26_BAIL) throw e; return pack(rowsBytes(rows), opts); } }
-    if (!B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && b18Pays(rows)) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], po); return pack(rowsBytes(rows), opts); }
+  function packRows(rows, opts) { var po = packOpts(opts), pay;
+    if (B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) && (pay = b18Pays(rows))) {   // B26: the row scatter checks the rest
+      try { return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _b26: 1, _hb: pay === 2 })); } catch (e) { if (e !== B26_BAIL) throw e; return pack(rowsBytes(rows), opts); } }
+    if (!B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && (pay = b18Pays(rows))) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _hb: pay === 2 })); return pack(rowsBytes(rows), opts); }
   // B18b gate (Chromium 156 sweep on 0.9.3, 15 files): the row path wins when the rows would make more than 16 MB of text (the text path then leaves the wasm scanner), or when fewer than 40% of the cells are strings; string-heavy tables under 16 MB pack faster through the wasm text scanner (1.1 to 1.5 times slower otherwise)
   function b18Pays(rows) { var n = rows.length, k = Math.min(1024, n), est = JSON.stringify(rows.slice(0, k)).length / k * n, i, r, c = 0, st = 0;
     if (est > 16 * 1048576) return true;
-    for (i = 0; i < Math.min(256, n); i++) { r = rows[i]; for (var q in r) { c++; if (typeof r[q] === 'string') st++; } }
-    return st < c * 0.4; }
+    var seen = {}, v, sk, all = 0;   // P13i: what slows the row path is many different strings (the wasm text scanner makes those faster; logs with long unique strings were 1.29-1.38x on laptop Chrome 157 and Firefox 160); repeated labels are quicker on the row path in all three engines, so the share counted is of strings seen for the first time under their key
+    for (i = 0; i < Math.min(256, n); i++) { r = rows[i]; for (var q in r) { c++; v = r[q]; if (typeof v === 'string') { all++; sk = seen[q] || (seen[q] = new Map()); if (!sk.has(v)) { sk.set(v, 1); st++; } } } }
+    return st >= c * 0.4 ? false : all >= c * 0.4 ? 2 : true; }   // 2: the row path, for a table the 0.10.8 rule sent to the text path (it keeps that path's B22 head block)
   // B18b: true when every row is a plain object whose values are strings, booleans, null or finite numbers other than -0 (so JSON.stringify would write each value as is and keep every key)
   function flatScalars(rows) { var i, r, k, v, t, P = Object.prototype; for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) return false; t = Object.getPrototypeOf(r); if (t !== P && t !== null) return false;
     for (k in r) { v = r[k]; t = typeof v; if (t === 'number') { if (v !== v || v === Infinity || v === -Infinity || (v === 0 && 1 / v < 0)) return false; } else if (t !== 'string' && t !== 'boolean' && v !== null) return false; } } return true; }
@@ -2312,7 +2313,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     for (ti = 0; ti < inputs.length; ti++) {
     if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
       var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl, cnt;
-      for (ra = 0, cnt = stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
+      var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0;   // P13i: the B22 head block for tables that took the text path before
+      for (ra = 0, cnt = hb0 || stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
         blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
       tail = true; continue;
     }
@@ -2911,7 +2913,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.12', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.13', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -3260,8 +3262,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   }
   function packRowsParallel(rows, opts) {
     return init().then(function () {
-      var po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
-      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || (!rows.__ct && !b18Pays(rows))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);
+      var pay = 1, po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
+      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);
       if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return b34Plain(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
       if (B28_AUTO && !idleHelpers.length) { var out0 = b34Plain(rows, opts); if (!b28Starting) { b28Starting = true; setTimeout(function () { b28Starting = false; if (idleHelpers.length) return; clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); }, 0); } return out0; }   // no helpers yet: save this call on this thread first, then start them (laptop Firefox: starting them before the save made it 1.06x)   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
       var hs = [], k, nextId = 0;
@@ -3278,7 +3280,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
         return new Promise(function (res, rej) { best.q.push([res, rej]); best.h.post(msg, tr); });
       }
       function release(ok) { hs.forEach(function (x) { if (!ok || x.dead) x.h.kill(); else if (x.q.length) x.drain = true; else idleHelpers.push(x.h); }); hs = []; armIdle(3000); }
-      var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol }), out;
+      var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol, _hb: pay === 2 }), out;
       try { out = packRowsBlocks(rows, jo); } catch (e) { release(true); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; }
       if (out === null) { release(true); return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); }
       return out.then(function (b) { release(true); return b === null ? pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts) : b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; });
@@ -3292,11 +3294,12 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
     var est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
+    var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0, cnt = hb0 || stp;   // P13i: the B22 head block, as packRows cuts it
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;
-    if (!y31) { for (ra = 0; ra < RA.length; ra += stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + stp, RA.length) } } : { rowsIn: RA.slice(ra, ra + stp) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
+    if (!y31) { for (ra = 0; ra < RA.length; ra += cnt, cnt = stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length) } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
     ra = 0;
     return new Promise(function (res, rej) {
-      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + stp, RA.length) } } : { rowsIn: RA.slice(ra, ra + stp) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += stp; if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
+      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length) } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += cnt; cnt = stp; if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
       one();
     });
     function b31Join(waits) { return Promise.all(waits).then(function (bs) {

@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.16.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.10.12 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.13 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-13 · **lfc-pack** 0.10.5 · API 0: Reading whole tables of 24 or more keys where some rows lack some keys is up to five times faster in Chrome and Edge. Tables of 16 to 23 keys with few complete rows could be up to 1.4 times slower; 0.10.6 fixes that.
 - 2026-11-13 · **lfc-pack** 0.10.4 · API 0: Saving big number tables is up to twice as fast.
 - 2026-11-13 · **lfc-pack** 0.10.3 · API 0: Opening a big file in blocks uses about a third less memory at 1 to 4 MB blocks.
+- 2026-11-13 · **lfc-pack** 0.10.13 · API 0: Saving sparse tables and tables of repeated labels is faster: packRows now picks its route by how many strings are new, not how many are strings. Logs and other tables of many different strings are unchanged.
 - 2026-11-13 · **lfc-pack** 0.10.12 · API 0: New packColumnsParallel({ key: array }): saves columns you already have without building row objects, on the same helpers as packRowsParallel. Later saves of number-heavy tables take about 0.4 to 0.75 of packRowsParallel.
 - 2026-11-13 · **lfc-pack** 0.10.11 · API 0: Random-access files now skip blocks that cannot hold the value in equality reads: a value that is not in the file comes back in about a quarter of the time. Files grow about 0.4% and older readers still read them.
 - 2026-11-13 · **lfc-pack** 0.10.10 · API 0: packRowsParallel hands control back to the page between blocks, so the longest pause on the main thread drops from about 200 ms to 30 to 55 ms.

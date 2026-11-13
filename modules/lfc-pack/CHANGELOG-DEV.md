@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.13 · API 0 · 2026-11-13
+
+### Quick
+faster saves for sparse and label tables
+
+### Details
+P13i: packRows counts strings seen for the first time under their key in the first 256 rows; 40% or more of values new keeps the text route, otherwise 40% or more strings takes the row path with the 64 KiB head block. Owner laptop, warm saves on sparse and label tables 0.46 to 0.93 of 0.10.8 (Chrome 157, Firefox 160); cloud sparse sets 0.85 to 1.04, logs and sensors unchanged, same bytes. packRowsParallel cuts the same head block.
+
+### Deep
+P13i packRows route (owner Send P13i, laptop Chrome 157 and Firefox 160 passed tester v7b). Hand merge of the head block hunk for 0.10.12; packRowsParallel and packRowsBlocks cut the same head block so bytes equal packRows. New check in b28.cjs, 30 checks. All lfc-pack checks pass.
+
 ## 0.10.12 · API 0 · 2026-11-13
 
 ### Quick
