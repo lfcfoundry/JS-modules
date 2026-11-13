@@ -1039,7 +1039,7 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 | Built-in zstd dictionary for small files (B7) | Saves 120 to 320 bytes per file (real zstd: 11 to 24% of a 10-row file); format change | this log, E9, E12 |
 | Trained (`ZDICT`) dictionary from one app's earlier rows | Lost to a raw-content dictionary on almost every small file (too few samples) | this log, E12 |
 | 1 MB blocks | Range reads faster still, but pack up to 1.24x and nested full reads up to 1.21x slower | this log, E10 |
-| B23: skip `varintsT`'s length-counting pass when the lengths were already summed (on top of B21) | Same bytes. Chromium 0.99 to 1.03 on 4 tables (noise); in-process Node A/B swung 0.82 to 1.13 with load order, so it can't be trusted | this log, E27 note, `results/b23-pr23-chromium.json` |
+| B23: skip `varintsT`'s length-counting pass when the lengths were already summed (on top of B21) | Same bytes. Chromium 0.99 to 1.03 on 4 tables (noise); in-process Node A/B swung 0.82 to 1.13 with load order, so it can't be trusted | this log, `results/b23-pr23-chromium.json` |
 | Raw block for tiny inputs | Smaller below about 20 rows, but `unpackColumns` refuses it and it loses at 100 rows | this log, E9 |
 
 ## Reproduce
