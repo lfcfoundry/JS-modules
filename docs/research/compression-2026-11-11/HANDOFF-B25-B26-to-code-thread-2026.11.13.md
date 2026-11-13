@@ -43,3 +43,11 @@ All of it is in `RESULTS-B25-B26-2026.11.13.md`. Weighted 60/15/25, as a share o
   - Measure this before adding B22 to the row path. One option is to keep the head block on the text path only.
 - **Memory:** the kernel instance grows to about 35 bytes per value of the largest number column (about 10 MB for a 300k-row block), and `trim()` should drop it.
   - `dropSmallWasm()` (used by `trim()`) now drops it: `NKW`, `NK_SRC` and `NKZ` are reset.
+
+## Update 12:10 AM: B25d is included
+
+The diffs now take the number checks just before each column is encoded, so each column is copied into wasm once, not twice.
+
+- Files are byte-identical, and all checks pass.
+- Against the card's B25 + B26 build, weighted: taxi 0.965 on a first save and 0.958 on repeat saves.
+- That puts taxi at about 0.62 / 0.56 of B21.
