@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.8 · API 0 · 2026-11-13
+
+### Quick
+packRowsParallel is new; nested range and window reads are faster
+
+### Details
+B28: packRowsParallel(rows, opts) returns a promise of the same bytes packRows writes; number columns of 8,192 values or more are encoded in up to 4 helpers; first call saves on the calling thread. 300,000 taxi-like rows, later saves 0.54 Chromium, 0.58 Firefox, 0.64 WebKitGTK, first call 0.84 to 1.04. P13f: nested range reads and part-block windows build only matching rows (laptop Chrome 0.93 to 0.55, Firefox 1.00 to 0.62).
+
+### Deep
+B28 packRowsParallel (research thread, owner chose auto start) and P13f nested ranges and windows (owner laptop test passed). Gate vs 0.10.7: bytes identical on 4 sets and a 76 MB taxi-like table; tables under the 52 MB rule unchanged. New test b28.cjs, 23 checks. All lfc-pack checks pass.
+
 ## 0.10.7 · API 0 · 2026-11-13
 
 ### Quick

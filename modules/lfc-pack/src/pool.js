@@ -14,7 +14,8 @@
         var f = openFile(out);
         return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked }, transfer: [out.buffer] };
       }
-      if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };   // helper start-up only: the wasm is loaded by the time this answers
+      if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };
+      if (m.kind === 'c') return b28Job(m);   // B28: one number column of a packRowsParallel block   // helper start-up only: the wasm is loaded by the time this answers
       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
       var F = m.kind === 'f' ? flatFrames(S.zdec, b, m.want, true) : nestedFrames(S.zdec, b);
       return { msg: { id: m.id, F: F }, transfer: m.kind === 'f' ? flatTransfer(F) : nestedTransfer(F) };
@@ -177,6 +178,58 @@
     });
   }
   var idleHelpers = [], idleTimer = null, trimTimer = null, HELPER_TRIM_MS = -1, packUrl = null;
+  // packRowsParallel(rows, opts) -> Promise of the same bytes packRows writes. B28 (research): the rows are scattered into columns on this thread as packRows does; big number
+  // columns (B28_MIN values or more) move to pack helpers (their Float64Arrays are transferred), which encode and compress them while this thread encodes the other columns.
+  // Inputs packRows would not send down the row path (exact, block, share, small or not flat) are packed by packRows itself.
+  var B28_TEXT = (typeof globalThis !== 'undefined' && globalThis.__B28TEXT !== undefined) ? globalThis.__B28TEXT : 4;
+  var B28_AUTO = !(typeof globalThis !== 'undefined' && globalThis.__B28AUTO === 0), b28Starting = false, B28_MAXW = (typeof globalThis !== 'undefined' && globalThis.__B28MAXW) || 4;   // more than 4 helpers: fewer jobs each, so their code stays cold longer
+  function packRowsParallel(rows, opts) {
+    return init().then(function () {
+      var po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
+      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || !b18Pays(rows)) return packRows(rows, opts);
+      if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return packRows(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
+      if (B28_AUTO && !idleHelpers.length) { var out0 = packRows(rows, opts); if (!b28Starting) { b28Starting = true; setTimeout(function () { b28Starting = false; if (idleHelpers.length) return; clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); }, 0); } return out0; }   // no helpers yet: save this call on this thread first, then start them (laptop Firefox: starting them before the save made it 1.06x)   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
+      var hs = [], k, nextId = 0;
+      function helperQ(h) {   // answers come back in the order the jobs were posted; a helper goes back to the idle list only once its last answer is in
+        var x = { h: h, q: [], drain: false, dead: false };
+        h.listen(function (m) { if (m.warm) return; var f = x.q.shift(); if (f) { if (m.error) f[1](new Error(m.error)); else f[0](m); } if (x.drain && !x.q.length) { x.drain = false; idleHelpers.push(h); armIdle(3000); } },
+          function (er) { x.dead = true; while (x.q.length) x.q.shift()[1](er); });
+        return x; }
+      function rcol(j, pre, col, key, level, tm, chk) {
+        var best = hs[0], i; for (i = 1; i < hs.length; i++) if (hs[i].q.length < best.q.length) best = hs[i];
+        if (!best || best.q.length >= 2) { if (hs.length < w) { best = helperQ(takeHelper()); hs.push(best); } }
+        var nb = pre === 2 ? col.nb : col, msg = { id: nextId++, kind: 'c', pre: pre, nb: nb, np: pre === 2 ? col.np : null, m: pre === 2 ? col.m : 0, c: pre === 2 ? col.c : nb.length, key: key, level: level, tm: tm, chk: chk }, tr = [nb.buffer];
+        if (pre === 2 && col.np) tr.push(col.np.buffer);
+        return new Promise(function (res, rej) { best.q.push([res, rej]); best.h.post(msg, tr); });
+      }
+      function release(ok) { hs.forEach(function (x) { if (!ok || x.dead) x.h.kill(); else if (x.q.length) x.drain = true; else idleHelpers.push(x.h); }); hs = []; armIdle(3000); }
+      var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol }), out;
+      try { out = packRowsBlocks(rows, jo); } catch (e) { release(true); if (e === B26_BAIL) return pack(rowsBytes(rows), opts); throw e; }
+      if (out === null) { release(true); return pack(rowsBytes(rows), opts); }
+      return out.then(function (b) { release(true); return b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows), opts); throw e; });
+    });
+  }
+  function packRowsBlocks(RA, opts) {   // packManyNow's row path, with blocks that may wait on helpers -> Promise of bytes, or null when a block cannot take the row path
+    need(true);
+    var bb = opts.blockBytes || BLOCK_BYTES, nm0 = NMARK, ctx = { zs: S.zfull, sh: S.sh, st: null, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, waits = [], ra, sl, blk;
+    if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;
+    if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;
+    if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
+    var est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
+    for (ra = 0; ra < RA.length; ra += stp) { sl = RA.slice(ra, ra + stp); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); }
+    return Promise.all(waits).then(function (bs) {
+      var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b;
+      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0)); zone.push(b.zone); parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
+      var secs = [
+        { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
+        { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
+        { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
+        { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: true })) }
+      ].concat(metaSecs(opts));
+      parts.push(writeFooter(S.zfull, secs, true, NMARK > nm0 ? 1 : 0));
+      return concat(parts);
+    });
+  }
   // packParallelStream(opts): block-parallel pack for text that arrives in pieces (a parser, a download). push(bytes) any number of times; finish() -> Promise of the file, the same bytes pack() writes.
   // A block is cut where pack cuts it (first line end at or after blockBytes), sent to a helper at once, and packed while later text is still being read; finish() joins the blocks behind one footer.
   // opts as packParallel (workers, blockBytes, level, meta, ...); exact and share are not supported (one table built block after block). push copies what it keeps, so the caller may reuse its buffer.
