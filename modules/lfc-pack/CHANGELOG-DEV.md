@@ -2,6 +2,28 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.5 · API 0 · 2026-11-13
+
+### Quick
+Full reads of tables with 20 or more keys where rows have different key sets build rows row by row in Chrome and Edge: 0.20 to 0.82 of 0.10.4's time on the owner's laptop. Firefox and Safari run the same code as before. Same rows, same files.
+
+### Details
+P13d (owner-approved after laptop test, 2026-11-13 9:10 AM Detroit): V8-only row-at-a-time assembly of sparse blocks (template clone for complete rows, hash-form objects from 24 keys). Laptop Chrome 157, 60,000 rows, share of read-all: 27 keys 99% present 0.93 to 0.50 first read, 40 keys 50% present 0.97 to 0.20, 12 keys unchanged (0.98). Laptop Firefox 160: warm reads 0.97 to 1.03 (code gated off). Cloud check 3 browsers, dense full reads: nothing slower beyond the 0.91 to 1.05 same-build noise floor. 196 exact checks 0 differ vs 0.10.4.
+
+### Deep
+lfc-pack 0.10.5: P13d sparse-block row-at-a-time assembly (V8 only, K >= 8 keys). Byte-identical reads (spcmp.cjs 196 checks 0 differ), new test sparseread.cjs.
+
+## 0.10.4 · API 0 · 2026-11-13
+
+### Quick
+packRows saves number-heavy tables 0.45 to 0.72 of 0.10.3's time on 100,000-row sets (a wasm number kernel and one row check instead of two). Files are byte-identical.
+
+### Details
+B25 + B26 (owner-approved 2026-11-13 8:56 AM Detroit). packRows, 100,000 rows, share of 0.10.3 save time, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: taxi 0.45 / 0.46 / 0.67, sensors 0.72 / 0.63 / 0.94, logs 0.84 / 0.98 / 0.98, events 1.03 / 0.84 / 0.98. Same bytes on every test set and 15 bail cases.
+
+### Deep
+lfc-pack 0.10.4: B25 number kernel (wasm numcol in flatscan, one pass for stats and every candidate frame, 64+ values), B26 folded row check (first and last 1,024 rows up front, the writer bails to the text path on a non-scalar), B25d (checks just before each column is encoded). Files byte-identical to 0.10.3 (same21.cjs, same1.cjs, bail.cjs: 0 diffs). New test numkernel.cjs. B22 stays off the row path (1.2x slower first saves there).
+
 ## 0.10.3 · API 0 · 2026-11-13
 
 ### Quick

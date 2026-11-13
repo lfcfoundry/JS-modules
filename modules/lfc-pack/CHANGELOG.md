@@ -2,6 +2,12 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.5 · API 0 · 2026-11-13
+- Reading whole tables where some rows lack some keys is up to five times faster in Chrome.
+
+## 0.10.4 · API 0 · 2026-11-13
+- Saving big number tables is up to twice as fast in Chromium and Firefox (cloud runs).
+
 ## 0.10.3 · API 0 · 2026-11-13
 - Opening a big file in blocks uses 32 to 39% less memory at 1 to 4 MB blocks (counted by the module's memory counters, same in every browser).
 

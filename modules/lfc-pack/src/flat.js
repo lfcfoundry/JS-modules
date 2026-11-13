@@ -298,6 +298,11 @@
   }
   // the V and B candidates of a number column held as scaled whole numbers (base), by the general writer's rules: the delta form only when its varints are not clearly longer (5%), the bit-packed form when the range is under 2^24
   function numGeneral(cand, bestOf, base, n, scale) {
+    if (n >= NK_MIN) { var R = nkRun(base, n, 0), a = R.a, dd = R.d, bb = R.b, mn0 = R.mn, w0 = R.w;
+      if (a) cand('V', { mono: R.mono, scale: scale }, [a]);
+      if (dd) cand('V', { mono: false, scale: scale, delta: true }, [dd]);
+      if (bb) cand('B', { mn: mn0, w: w0, scale: scale }, [bb]);
+      return; }
     numStats(base, n, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2], d = numFirst(base, n, mono), dz2 = null, sa = 0, sb = 0;
     if (!mono && n > 1) { dz2 = numDeltaZz(base, n); sa = vlenSum(d, n); sb = vlenSum(dz2, n); }
     if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, n)]);
@@ -314,6 +319,7 @@
       if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScale(v); base = scale ? DS_INTS : null; DS_INTS = null; if (!base) { scale = 1; base = null; } }
       if (base && n > 0) {   // scaled whole numbers: the typed-array passes the fast writer uses (same candidates, same rules, same bytes)
         numGeneral(cand, function () { return best; }, base instanceof Float64Array ? base : new Float64Array(base), n, scale);
+        if (n >= NK_MIN) { NKZ.v = v; NKZ.mn = NKR.mn / scale; NKZ.mx = NKR.mx / scale; }
       } else if (base) {
         var mono = base.length === 0 || base[0] >= 0, mn = Infinity, mx = -Infinity;
         for (i = 0; i < n; i++) { if (i && base[i] < base[i - 1]) mono = false; if (base[i] < mn) mn = base[i]; if (base[i] > mx) mx = base[i]; }
@@ -543,9 +549,14 @@
   function jnulls(f, n) { if (f.length !== n * 5 - 1) return false; for (var i = 0; i < f.length; i += 5) if (f[i] !== 110 || f[i + 1] !== 117 || f[i + 2] !== 108 || f[i + 3] !== 108 || (i + 4 < f.length && f[i + 4] !== 10)) return false; return true; }
   function jcell(s) { var c0 = s.charCodeAt(0), L = s.length, i, v, d; if (c0 === 110 && s === 'null') return null; if (c0 === 116 && s === 'true') return true; if (c0 === 102 && s === 'false') return false; if (L <= 15) { i = c0 === 45 ? 1 : 0; if (i < L && (s.charCodeAt(i) !== 48 || L === i + 1)) { v = 0; for (; i < L; i++) { d = s.charCodeAt(i) - 48; if (d < 0 || d > 9) break; v = v * 10 + d; } if (i === L) return c0 === 45 ? -v : v; } } return JSON.parse(s); }
   // returns null when the input is not flat rows (some line is not a JSON object)
+  // B26 (research): packRows skips its flatScalars pass; the row scatter checks each row and value the same way and throws B26_BAIL on the first one that is not a flat scalar (packRows then takes the text path, as before)
+  var B26_BAIL = { b26: 1 }, OP26 = Object.prototype;
+  function b26Rows(rows, n) { for (var i = 0, r, t; i < n; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null)) throw B26_BAIL; } }
+  function b26Vals(a) { for (var i = 0, x, t; i < a.length; i++) { x = a[i]; t = typeof x; if (t === 'number') { if (x - x !== 0 || (x === 0 && 1 / x < 0)) throw B26_BAIL; } else if (t !== 'string' && t !== 'boolean' && x !== null) throw B26_BAIL; } }
   function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && input.rowsIn); try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; } }
   function b21Generic(c) { var a = new Array(c.c), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }   // B21c: back to a generic array (values in order)
-  function b21Flags(a, m) { var nz = 0, ai = 1, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; } return { nz: nz, ai: ai }; }
+  function b21Flags(a, m) { if (m >= NK_MIN) return nkFlags(a, m); return b21FlagsJ(a, m); }
+  function b21FlagsJ(a, m) { var nz = 0, ai = 1, nf = 0, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; if (x - x !== 0) nf = 1; } return { nz: nz, ai: ai, nf: nf }; }
   function writeFlatBlock0(ctx, input, opts) {
     var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, rowsIn = input && input.rowsIn, text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
     if (!rowsIn) {   // B18b: row objects given, no text to parse
@@ -559,7 +570,8 @@
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
     }
     var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
-    var pb = (n + 7) >> 3, ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq, pk = [], px = [], q, pls = [], cs21 = [], c21, x21, pre21 = [];
+    var chk26 = !!(rowsIn && opts._b26), t26, pb = (n + 7) >> 3, ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq, pk = [], px = [], q, pls = [], cs21 = [], c21, x21, pre21 = [];
+    if (chk26) b26Rows(rows, n);
     for (i = 0; i < n; i++) {   // B21a: one pass; a key at the same position as in the previous row is matched by a string compare, not a Map lookup
       r = rows[i]; sq = ord ? [] : null; q = 0;
       for (k in r) { if (pk[q] === k) jx = px[q]; else { jx = seen.get(k); if (jx === undefined) { jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; }
@@ -569,21 +581,23 @@
       if (ord) { var sk = sq.join(','), oid = ord.map.get(sk); if (oid === undefined) { oid = ord.list.length; ord.map.set(sk, oid); ord.list.push(sq); } ord.ids[i] = oid; }
     }
     var planes = new Uint8Array(pb * keys.length); for (j = 0; j < pls.length; j++) planes.set(pls[j], j * pb);
-    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.a !== null) { cols[j] = c21.a; continue; }   // B21c: number columns, typed
-      if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = b21Flags(cols[j], c21.c); }
-      else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = b21Flags(c21.nb, c21.m); }
-      else cols[j] = b21Generic(c21); }
+    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.a !== null) { cols[j] = c21.a; if (chk26) b26Vals(c21.a); continue; }   // B21c: number columns, typed
+      if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = 1; }   // B25d: flags are taken just before the column is encoded, so the kernel reads the column once
+      else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
+      else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
     for (j = 0; j < cols.length; j++) {
       var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, e;
+      if (pre21[j] === 1) pre21[j] = b21Flags(cols[j], cols[j].length); else if (pre21[j] === 2) pre21[j] = b21Flags(cols[j].nb, cols[j].m);
+      if (chk26 && pre21[j] && (pre21[j].nz || pre21[j].nf)) throw B26_BAIL;
       if (pre21[j] && cols[j].nb) { c21 = cols[j]; NN_FLAGS[0] = pre21[j].nz; NN_FLAGS[1] = pre21[j].ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: pre21[j].nz, ai: pre21[j].ai }, null, c21.c, zs, level, tm21, keys[j]); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, keys[j]); cols[j] = []; }
       else if (pre21[j]) e = settle(zs, level, encodeColumn0(cols[j], zs, level, tm21, undefined, keys[j], pre21[j]));
       else e = encodeColumn(cols[j], zs, level, tm21, undefined, keys[j]);
-      enc.push(e);
+      enc.push(e); NK_BUF = null;
       meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
       for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
-      if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { var mnN = Infinity, mxN = -Infinity; for (i = 0; i < e.nn.length; i++) { if (e.nn[i] < mnN) mnN = e.nn[i]; if (e.nn[i] > mxN) mxN = e.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, e.n]); }
-      if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; for (i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
+      if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { var mnN = Infinity, mxN = -Infinity; if (NKZ.v === e.nn) { mnN = NKZ.mn; mxN = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mnN) mnN = e.nn[i]; if (e.nn[i] > mxN) mxN = e.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, e.n]); }
+      if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
     }
     if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
     var mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
@@ -591,7 +605,7 @@
     var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
-  function dropSmallWasm() { TPLW = null; FSW = null; }   // trim(): the template and flat-scan helpers start again small when next needed
+  function dropSmallWasm() { TPLW = null; FSW = null; NKW = null; NK_SRC = null; NK_N = -1; NK_BUF = null; NKZ.v = null; }   // trim(): the template and flat-scan helpers start again small when next needed
   var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/", FSP64 = "/*FP:BEGIN*//*FP:END*/";
   function fsw() {
     if (FSW) return FSW;
@@ -599,6 +613,33 @@
     if (!MODS[fk]) MODS[fk] = new WebAssembly.Module(fromB64(fk === 'FSB64' ? FSB64 : FSP64));
     var x = new WebAssembly.Instance(MODS[fk], {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
+  }
+  // B25 (research): number-column kernel (numcol in flatscan.c) on its own instance of the flat-scan module, so it never meets the fast writer's memory
+  var NKW = null, NK_MIN = (typeof globalThis !== 'undefined' && globalThis.__NKMIN !== undefined) ? globalThis.__NKMIN : 64, NKR = { mono: false, mn: 0, mx: 0, a: null, d: null, b: null, w: 0 };
+  function nkw() {
+    if (NKW) return NKW;
+    fsw(); var fk = hasSimd() ? 'FSB64' : 'FSP64', x = new WebAssembly.Instance(MODS[fk], {}).exports;
+    return (NKW = { x: x, heap: (x.__heap_base.value + 7) & ~7, f: null, r: null });
+  }
+  var NK_SRC = null, NK_N = -1, NK_BUF = null, NK_OFF = -1, NKZ = { v: null, mn: 0, mx: 0 };   // the array (and length) now in the kernel's input, and the last kernel column's min and max in its own units (for the zone maps)
+  function nkLoad(a, n) {
+    var K = nkw(), mem = K.x.memory, need = K.heap + n * 35 + 256, have = mem.buffer.byteLength;
+    if (need > have) mem.grow(Math.ceil((need - have) / 65536));
+    if (a !== NK_SRC || n !== NK_N) {   // B25d: the same typed array memory (a view of it) is not copied again; the cache is cleared after each column
+      if (a.buffer !== undefined && a.buffer === NK_BUF && a.byteOffset === NK_OFF && n === NK_N) NK_SRC = a;
+      else { new Float64Array(mem.buffer, K.heap, n).set(n === a.length ? a : a.subarray(0, n)); NK_SRC = a; NK_N = n; NK_BUF = a.buffer !== undefined ? a.buffer : null; NK_OFF = a.byteOffset; } }
+    return K;
+  }
+  function nkFlags(a, m) { var K = nkLoad(a, m), resP = K.heap + m * 8; K.x.numflags(K.heap, m, resP); var r = new Float64Array(K.x.memory.buffer, resP, 3); return { nz: r[0], ai: r[1], nf: r[2] }; }
+  function nkRun(base, n, mode) {   // -> NKR filled: the stats and the candidate frames (copies)
+    var K = nkLoad(base, n), x = K.x, mem = x.memory, inP = K.heap, resP = inP + n * 8, outP = resP + 128;
+    var tot = x.numcol(inP, n, outP, resP, mode), r = new Float64Array(mem.buffer, resP, 11), u = new Uint8Array(mem.buffer, outP, tot), A = r[3], B = r[4], oa = r[8], od = r[9], ob = r[10];
+    NKR.mono = r[0] === 1; NKR.mn = r[1]; NKR.mx = r[2]; NKR.w = r[5];
+    NKR.a = A >= 0 ? u.slice(oa, oa + A) : null;
+    NKR.d = B >= 0 ? u.slice(od, od + B) : null;
+    NKR.b = NKR.w ? u.slice(ob, tot) : null;
+    NK_SRC = null; NK_BUF = null;   // the input is only reused between a column's flags and its kernel call
+    return NKR;
   }
   // FD: a number column's scale is 10 to its largest fraction digit count, at least 100 for 1 or 2 digits (as before: same files), up to 9 digits like the JSON.parse path
   var P10 = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9], FD = [0, 2, 2, 3, 4, 5, 6, 7, 8, 9], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
@@ -723,6 +764,14 @@
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
     function cand(tn, p, fr, n) { best = addCand(zs, level, best, tn, p, fr, n); }
     function numCands(base, c, scale, key, zc) {   // the candidates of a number column held as scaled whole numbers (mantissas), as the general writer would try them
+        if (c >= NK_MIN) { var R = nkRun(base, c, scale > 100 ? 0 : 1), a = R.a, dd = R.d, bb = R.b, mnk = R.mn, mxk = R.mx, wk = R.w, monok = R.mono;
+          if (a) cand('V', { mono: monok, scale: scale }, [a], c);
+          if (dd) cand('V', { mono: false, scale: scale, delta: true }, [dd], c);
+          if (bb) cand('B', { mn: mnk, w: wk, scale: scale }, [bb], c);
+          if (scale > 100) { if (!best || best.size > c * 4) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c); }
+          else if (c > 1 && !monok && best.size > c * 0.25 && repeats(base, c)) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);
+          zone.push([fnvStr('.' + key), mnk / scale, mxk / scale, zc === undefined ? c : zc]);
+          return; }
         numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
         var d = numFirst(base, c, mono);
         if (scale > 100) {   // 3 to 9 fraction digits (columns the JSON.parse path used to write): the same candidates as encodeColumn there, so the same bytes and no extra compressions
@@ -900,6 +949,20 @@
       var useClone = dense && nk2 >= CLONE_KEYS && (allK || V8);
       if (dense && allK && lazyOk && n >= 1) return lazyRows(keys, vals, n);
       if (dense && allK && gen && n >= 1) { var mk = rowBuilder(keys); if (mk) { for (i = 0; i < n; i++) out[i] = mk(vals, i); return out; } }
+      // V8 only, a block whose rows lack some keys (from 8 keys): one key at a time down every column gives each row a long chain of shape changes. Here each row is made at once, its keys in file order: rows with every key start as a clone of one template, the others are plain objects, which from 24 keys start in V8's hash-table form (one key added and removed) instead of walking up to 24+ shapes. Same objects, same key order. Firefox and WebKitGTK were slower this way, so they keep the column-at-a-time path
+      if (V8 && !dense && !hasProto && K >= 8) {
+        var RB = [], RV = [], RK = [], nb = 0, ns = 0, sj = [], ts2 = '{';
+        for (j = 0; j < K; j++) if (vals[j]) { RB[nb] = j * pb; RV[nb] = vals[j]; RK[nb] = keys[j]; ts2 += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
+        var full = new Uint8Array(nb), pt = new Int32Array(nb), tp2 = JSON.parse(ts2 + '}'), toHash = nb >= 24;
+        for (j = 0; j < nb; j++) { full[j] = RV[j].length === n ? 1 : 0; if (!full[j]) sj[ns++] = RB[j]; }
+        for (i = 0; i < n; i++) { var by = i >> 3, bt = i & 7, all = true;
+          for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + by] >> bt) & 1) === 1;
+          if (all) { o = { ...tp2 }; for (j = 0; j < nb; j++) o[RK[j]] = full[j] ? RV[j][i] : RV[j][pt[j]++]; out[i] = o; continue; }
+          o = {}; if (toHash) { o.__h = 0; delete o.__h; }
+          for (j = 0; j < nb; j++) { if (full[j]) o[RK[j]] = RV[j][i]; else if ((pl[RB[j] + by] >> bt) & 1) o[RK[j]] = RV[j][pt[j]++]; }
+          out[i] = o; }
+        return out;
+      }
       if (useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
       for (j = 0; j < K; j++) {

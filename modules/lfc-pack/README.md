@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.3 · API 0**
+**Version 0.10.5 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6
+**Tested in:** Firefox 158 and 160, ungoogled Chromium 156, Chrome 157, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -73,6 +73,7 @@ LfcPack.unpack(file, { equals: { key: 'level', anyOf: ['WARN', 'ERROR', 'FATAL']
 // asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
 LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
 LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
+// since 0.10.5, reading whole tables where rows lack some keys is faster in Chrome and Edge (0.20 to 0.82 of the 0.10.4 time on a Chrome 157 laptop; Firefox and Safari run the same code as before)
 // opt-in lazy rows (see "Lazy rows" below): values are read when a key is first used
 LfcPack.unpack(file, { rows: 'lazy' });      // columns decoded at unpack, rows made cheaply
 LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when some row reads its key
@@ -96,7 +97,7 @@ LfcPack.pool({ workers: 3 }).then(function (pool) {
 Row objects in, row objects out (no NDJSON text), and whole documents made of several tables plus plain values (a map with nodes, links, states and view settings):
 
 ```js
-// array of objects -> file bytes
+// array of objects -> file bytes (since 0.10.4, number-heavy tables of 100,000 rows save in 0.45 to 0.72 of the 0.10.3 time in Chromium 156 and Firefox 158; same bytes)
 var bytes = LfcPack.packRows([{ id: 1, name: 'a' }, { id: 2 }]);
 // the same rows back
 var rows = LfcPack.unpack(bytes);
@@ -186,7 +187,7 @@ First call after warm(), compared with no warm-up (fresh browser per run, median
 - **Worker pool**: a helper does CRC32, zstd and the number columns for a block and sends typed arrays back (transferred, not copied); strings and row objects are made on the calling thread because objects cannot cross threads cheaply. Full row objects are built on the calling thread, so on a 106 MB events file 1 to 4 helpers all took about the same time (laptop: 704, 948, 923 ms; container: about 500 ms each); helpers pay off for packing and for reading only some keys.
 
 ## How it compares
-**Against Parquet readers in the browser** (lfc-pack 0.10.1, measured 2026-11-12 on a shared 4-core cloud machine in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; the 0.10.2 and 0.10.3 releases changed none of the file bytes). Parquet files are written by pyarrow 26.0.1 with zstd level 3, and every reader opens that same file. The readers are parquet-wasm 0.9.0 with Arrow JS 21.2.0, hyparquet 1.33.0 and DuckDB-WASM 1.33.1 (it did not run in Firefox 158). Full charts: `js-modules-research/lfc-pack-vs-parquet-readers-2026.11.12` (KB M147).
+**Against Parquet readers in the browser** (lfc-pack 0.10.1, measured 2026-11-12 on a shared 4-core cloud machine in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; the file format is unchanged through 0.10.5). Parquet files are written by pyarrow 26.0.1 with zstd level 3, and every reader opens that same file. The readers are parquet-wasm 0.9.0 with Arrow JS 21.2.0, hyparquet 1.33.0 and DuckDB-WASM 1.33.1 (it did not run in Firefox 158). Full charts: `js-modules-research/lfc-pack-vs-parquet-readers-2026.11.12` (KB M147).
 
 File size, 100,000 rows each, MB (lower is better):
 
