@@ -14,3 +14,8 @@ Send this only after the owner picks an option on the B28 card.
 - A helper error should reject the call.
 - Calls overlapping each other (two `packRowsParallel` at once).
 - Node `worker_threads` and browser Workers.
+
+## Update after the laptop rounds (b28e, 4:55 PM Detroit)
+
+- The diff is now b28e. With auto start, the first call saves on the main thread and starts helpers afterward through setTimeout, which keeps the first save even. Helpers are capped at 4 (`B28_MAXW`).
+- Owner laptop, 16 cores, 300k taxi rows: Chrome 157 later saves 0.70, first 1.03; Firefox 160 later 0.73, first 1.02. Same bytes, both PASS.

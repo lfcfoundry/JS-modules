@@ -96,3 +96,15 @@ Catalog: B28 packRowsParallel (E32), plus the finding that helpers need about 4+
 - The first save is now within noise: per-round first saves were 549 to 603 ms for packRowsParallel against 552 to 602 ms for packRows. That's down from 1.06 in round 1.
 - Later saves on the laptop (0.73) gain less than in the cloud (0.52). Note that packRows on the laptop barely speeds up after its first save (582 to 543 ms), so main-thread work is a bigger share there.
 - Chrome on the laptop: not run yet.
+
+## Laptop round 3 (owner, 4:55 PM Detroit): tester v2, Chrome 157 on Windows, 16 cores
+
+| Save | packRows | packRowsParallel | Ratio |
+|---|---|---|---|
+| First save | 538 ms | 553 ms | 1.03 |
+| Later saves | 480 ms | 337 ms | **0.70** |
+
+- Verdict: PASS. The file bytes are the same (4,306,870).
+- First saves per round: packRowsParallel 501 to 602 ms, packRows 494 to 597 ms. They overlap, so the first save is even within noise.
+- Both laptop browsers now pass: later saves take 0.70 (Chrome) and 0.73 (Firefox), and the first save comes in at 1.02 to 1.03.
+- Card picture: `B28-laptop-send-options.png`.
