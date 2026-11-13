@@ -1110,3 +1110,7 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 ## E33 (B29, 2026.11.13 5:10 PM): column-by-column row scatter, PARKED
 
 Same bytes. Taxi first save 0.85 weighted, but repeat 0.99, and sensors repeat 1.09 (fails the 5% rule). See RESULTS-B29-column-scatter-2026.11.13.md. Next free B30 / E34.
+
+## E34 (B30, 2026.11.13 5:26 PM): Blob-range pack jobs
+
+packParallel(blob): helpers read their own ranges. Same bytes. Taxi 121 MB 0.90 weighted, peak -31 to -109 MB, Chromium stall 71 to 8 ms. Stacks additively with B28. See RESULTS-B30-blob-range-pack-2026.11.13.md. Next free B31 / E35.
