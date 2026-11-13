@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.9 · API 0 · 2026-11-13
+
+### Quick
+packParallel(file) and faster nested equality and range reads
+
+### Details
+B30: packParallel(File or Blob): block cuts come from 64 KB windows, helpers read their own ranges; same bytes, 0.83 to 0.95 Firefox, 0.87 to 0.92 WebKitGTK, faster Chromium; peak memory 31 to 109 MB lower on a 121 MB file. P13g: nested equality and range reads in one pass (laptop Firefox 0.59 to 0.41, Chrome 0.58 to 0.45).
+
+### Deep
+B30 Blob-range pack jobs (owner Send B30) and P13g nested one-pass reads (owner laptop test passed). Gate vs 0.10.8: bytes identical in three browsers. New test b30.cjs, 40 checks. All lfc-pack checks pass.
+
 ## 0.10.8 · API 0 · 2026-11-13
 
 ### Quick

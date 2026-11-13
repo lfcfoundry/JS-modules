@@ -5,7 +5,7 @@
     return 'var JF = (' + jfFactory.toString() + ')(), ready = JF.init(' + (full ? '{}' : '{ readOnly: true }') + '), send, onMsg;\n' +
       'if (typeof self === "undefined" && typeof require === "function") { var wt = require("worker_threads"); send = function (m, t) { wt.parentPort.postMessage(m, t); }; wt.parentPort.on("message", function (m) { onMsg(m); }); }\n' +
       'else { send = function (m, t) { self.postMessage(m, t); }; self.onmessage = function (e) { onMsg(e.data); }; }\n' +
-      'onMsg = function (m) { ready.then(function () { if (m.kind === "t") { JF._trimPacker(); return; } if (m.kind === "p") send({ id: m.id, started: true }, []); var r = JF._job(m); send(r.msg, r.transfer); }); };\n';
+      'onMsg = function (m) { ready.then(function () { if (m.kind === "t") { JF._trimPacker(); return; } if (m.kind === "p") send({ id: m.id, started: true }, []); var go = function () { var r = JF._job(m); send(r.msg, r.transfer); }; if (m.blob) m.blob.slice(m.a, m.e).arrayBuffer().then(function (x) { m.buf = new Uint8Array(x); m.blob = null; go(); }, function (er) { send({ id: m.id, error: "blob read failed: " + (er && er.message || er) }, []); }); else go(); }); };\n';
   }
   function runJob(m) {   // in a helper: { id, kind, buf, crc, want } -> { msg, transfer }
     try {
@@ -121,14 +121,29 @@
   }
 
   // ---- block-parallel pack (opt-in): consecutive blocks are cut exactly where one thread would cut them, each helper packs its run, and the parts are joined behind one footer; the file is the same bytes the single-thread pack writes
+  // B30: Blob-range jobs. A Blob or File input is never read whole on the calling thread: block cuts come from 64 KB windows (same rule: the first newline at or after the cut point,
+  // with the B22 head block cut first), and each helper reads its own byte range. Same bytes as packParallel on the bytes.
+  function b30Cuts(blob, bb) {
+    var n = blob.size, cuts = [0], q = 0, hd = headOn(n, bb);
+    function win(at) { return blob.slice(at, Math.min(n, at + 65536)).arrayBuffer().then(function (x) { var u = new Uint8Array(x), k = u.indexOf(10); if (k >= 0) return at + k + 1; if (at + u.length >= n || !u.length) return n; return win(at + u.length); }); }
+    function step() { if (q >= n) return cuts; var e = Math.min(n, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e >= n) { cuts.push(n); q = n; return cuts; } return win(e).then(function (e2) { cuts.push(e2); q = e2; return step(); }); }
+    return Promise.resolve(step());
+  }
   function packParallel(input, opts) {   // -> Promise of bytes
     opts = packOpts(opts);
+    var isBlob = typeof Blob !== 'undefined' && input instanceof Blob;
+    if (isBlob && (opts.exact || opts.share || opts.balance || (opts.paths === 'auto' && !PATHS_RULE))) return input.arrayBuffer().then(function (x) { return packParallel(new Uint8Array(x), opts); });
+    if (isBlob) return init().then(function () { return b30Cuts(input, opts.blockBytes || BLOCK_BYTES); }).then(function (c) { return packParallel0(input, opts, c); });
+    return packParallel0(input, opts, null);
+  }
+  function packParallel0(input, opts, bcuts) {
     return init().then(function () {
-      var T0 = Date.now(), b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      var T0 = Date.now(), blob = bcuts ? input : null, b = blob ? { length: blob.size } : bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
       if (opts.balance && !opts.blockBytes) bb = Math.max(4 << 20, Math.min(bb, Math.ceil(b.length / Math.min(opts.workers || hc, 8))));   // experimental: about one block per helper; the file differs from pack() unless pack gets the same blockBytes
       if (opts.balance === 'even' && !opts.blockBytes) { var nb0 = Math.ceil(b.length / bb), w0 = Math.min(opts.workers || hc, 8); if (w0 > 1 && nb0 > 1) bb = Math.ceil(b.length / (Math.ceil(nb0 / w0) * w0)); }   // experimental: as many blocks as a whole number of rounds for the helpers, so none waits alone at the end; the file differs from pack() unless pack gets the same blockBytes
-      var hd = headOn(b.length, bb); while (q < b.length) { e = Math.min(b.length, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
+      var hd = headOn(b.length, bb); if (blob) cuts = bcuts; else while (q < b.length) { e = Math.min(b.length, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
       var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g, dyn = opts.dynamic !== false;
+      if (blob && w < 2) return blob.arrayBuffer().then(function (x) { return pack(new Uint8Array(x), opts); });
       if (opts.exact || opts.share || w < 2) return pack(b, opts);   // exact mode, shared tables (one table built block after block) and small inputs stay on one thread
       if (dyn) for (g = 0; g < nb; g++) groups.push([cuts[g], cuts[g + 1]]);   // one job per block; a helper that finishes takes the next block, so the run does not wait on one slow run of blocks
       else for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
@@ -163,11 +178,12 @@
         function give(w2, nx) {   // hand this helper the next job, or keep it for later calls when none is left
           if (failed) return;
           if (nextGroup >= groups.length && !redo.length) { if (w2) parked.push(w2); if (nx) nx(); return; }
-          var i = redo.length ? redo.shift() : nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
-          if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: slice.length };
+          var i = redo.length ? redo.shift() : nextGroup++, t1 = Date.now(), slice = blob ? null : Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
+          if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: groups[i][1] - groups[i][0] };
           w2.listen(function (m) { onMsg(i, m, nx, w2); }, fail);
           var jo = jopts; if (pickWait) { jo = Object.assign({}, jopts, { _tryFirst: true }); sentWith[i] = 't'; } else if (jopts._pick == null && jopts.paths === 'auto' && !PATHS_RULE) { jo = Object.assign({}, jopts, { _pick: curPick }); sentWith[i] = curPick; }
-          w2.post({ id: i, kind: 'p', buf: slice, opts: jo }, [slice.buffer]);
+          if (blob) w2.post({ id: i, kind: 'p', buf: null, blob: blob, a: groups[i][0], e: groups[i][1], opts: jo }, []);
+          else w2.post({ id: i, kind: 'p', buf: slice, opts: jo }, [slice.buffer]);
         }
         function start() {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
           if (helpersStarted >= w || nextGroup >= groups.length || failed) return;

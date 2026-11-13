@@ -75,7 +75,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.8 (API 0)
+ * Version 0.10.9 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -797,6 +797,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       }
       return v;
     }
+    function eqOff(p, ix) { if (ix < 0) return -1; for (var j = 0, o = 0; j < ix; j++) { if (p.kind[j] === 1) o++; else if (p.kind[j] === 0) return -1; } return o; }   // P13g: plain strings before key ix (-1: an object or list comes first)
     function rowsOf(b, want, eqk, eqv, rng) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i, c;
       if (b.g) { var L = b.L, GS = tables.s; for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); } }
@@ -821,7 +822,14 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       }
       if (eqk !== undefined) {    // P13c: find the matching rows first (no objects), then build only those. P13f: rng set, eqv is [min, max] and a row matches when its number under eqk is inside (as keepRows tests)
         var planAt = function (i) { var d = ids[i]; return d < LK ? fnById[d] : GPL[d - LK]; }, sel = [], pl, ix;
-        for (i = 0; i < b.n; i++) { pl = planAt(i); if (pl.t !== 7) { skipP(pl); continue; } ix = pl.eqk === eqk ? pl.eqi : (pl.eqk = eqk, pl.eqi = pl.keys.indexOf(eqk)); if (ix < 0) { skipP(pl); continue; } var pv = peekRow(pl, ix); if (rng ? typeof pv === 'number' && pv >= eqv[0] && pv <= eqv[1] : pv === eqv) sel.push(i); }
+        // P13g: one pass. The key's value is read where it sits without moving any cursor (a number, true/false or per-path string column at its own cursor; a plain string at TI plus the strings of the keys before it, when only plain values come before it), then the row is built or skipped. A row whose key follows an object or list falls back to the two passes below
+        var one = [], ok1 = true, kk, cq, pv1;
+        for (i = 0; i < b.n; i++) { pl = planAt(i); if (pl.t !== 7) { skipP(pl); continue; } if (pl.eqk !== eqk) { pl.eqk = eqk; pl.eqi = pl.keys.indexOf(eqk); pl.eqo = eqOff(pl, pl.eqi); } ix = pl.eqi; if (ix < 0) { skipP(pl); continue; }
+          kk = pl.kind[ix]; if (kk === 1) { if (pl.eqo < 0) { ok1 = false; break; } pv1 = STRS[TI + pl.eqo]; } else if (kk === 8 || kk === 2) { cq = pl.cc[ix]; pv1 = cq.a[cq.i]; } else if (kk === 3) { cq = pl.cc[ix]; pv1 = cq.a[cq.i] === 1; } else if (kk === 4) pv1 = null; else pv1 = undefined;
+          if (rng ? typeof pv1 === 'number' && pv1 >= eqv[0] && pv1 <= eqv[1] : pv1 === eqv) { if (want) { var o1 = b.g ? null : buildW(pl, want); one.push(o1 === null ? projectRows([build(pl)], want)[0] : o1); } else one.push(build(pl)); } else skipP(pl); }
+        if (ok1) { if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); } return one; }
+        TI = 0; COLS.forEach(function (c) { c.i = 0; }); if (tab) for (i = 0, c = 0; i < tab.length; i++) { SCOLS.get(tab[i][0]).i = c; c += tab[i][2]; }
+        for (i = 0; i < b.n; i++) { pl = planAt(i); if (pl.t !== 7) { skipP(pl); continue; } if (pl.eqk !== eqk) { pl.eqk = eqk; pl.eqi = pl.keys.indexOf(eqk); pl.eqo = eqOff(pl, pl.eqi); } ix = pl.eqi; if (ix < 0) { skipP(pl); continue; } var pv = peekRow(pl, ix); if (rng ? typeof pv === 'number' && pv >= eqv[0] && pv <= eqv[1] : pv === eqv) sel.push(i); }
         if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
         var m = sel.length, res = new Array(m); if (!m) return res;
         TI = 0; COLS.forEach(function (c) { c.i = 0; }); if (tab) for (i = 0, c = 0; i < tab.length; i++) { SCOLS.get(tab[i][0]).i = c; c += tab[i][2]; }
@@ -2806,7 +2814,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.8', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.9', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -2939,7 +2947,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     return 'var JF = (' + jfFactory.toString() + ')(), ready = JF.init(' + (full ? '{}' : '{ readOnly: true }') + '), send, onMsg;\n' +
       'if (typeof self === "undefined" && typeof require === "function") { var wt = require("worker_threads"); send = function (m, t) { wt.parentPort.postMessage(m, t); }; wt.parentPort.on("message", function (m) { onMsg(m); }); }\n' +
       'else { send = function (m, t) { self.postMessage(m, t); }; self.onmessage = function (e) { onMsg(e.data); }; }\n' +
-      'onMsg = function (m) { ready.then(function () { if (m.kind === "t") { JF._trimPacker(); return; } if (m.kind === "p") send({ id: m.id, started: true }, []); var r = JF._job(m); send(r.msg, r.transfer); }); };\n';
+      'onMsg = function (m) { ready.then(function () { if (m.kind === "t") { JF._trimPacker(); return; } if (m.kind === "p") send({ id: m.id, started: true }, []); var go = function () { var r = JF._job(m); send(r.msg, r.transfer); }; if (m.blob) m.blob.slice(m.a, m.e).arrayBuffer().then(function (x) { m.buf = new Uint8Array(x); m.blob = null; go(); }, function (er) { send({ id: m.id, error: "blob read failed: " + (er && er.message || er) }, []); }); else go(); }); };\n';
   }
   function runJob(m) {   // in a helper: { id, kind, buf, crc, want } -> { msg, transfer }
     try {
@@ -3055,14 +3063,29 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   }
 
   // ---- block-parallel pack (opt-in): consecutive blocks are cut exactly where one thread would cut them, each helper packs its run, and the parts are joined behind one footer; the file is the same bytes the single-thread pack writes
+  // B30: Blob-range jobs. A Blob or File input is never read whole on the calling thread: block cuts come from 64 KB windows (same rule: the first newline at or after the cut point,
+  // with the B22 head block cut first), and each helper reads its own byte range. Same bytes as packParallel on the bytes.
+  function b30Cuts(blob, bb) {
+    var n = blob.size, cuts = [0], q = 0, hd = headOn(n, bb);
+    function win(at) { return blob.slice(at, Math.min(n, at + 65536)).arrayBuffer().then(function (x) { var u = new Uint8Array(x), k = u.indexOf(10); if (k >= 0) return at + k + 1; if (at + u.length >= n || !u.length) return n; return win(at + u.length); }); }
+    function step() { if (q >= n) return cuts; var e = Math.min(n, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e >= n) { cuts.push(n); q = n; return cuts; } return win(e).then(function (e2) { cuts.push(e2); q = e2; return step(); }); }
+    return Promise.resolve(step());
+  }
   function packParallel(input, opts) {   // -> Promise of bytes
     opts = packOpts(opts);
+    var isBlob = typeof Blob !== 'undefined' && input instanceof Blob;
+    if (isBlob && (opts.exact || opts.share || opts.balance || (opts.paths === 'auto' && !PATHS_RULE))) return input.arrayBuffer().then(function (x) { return packParallel(new Uint8Array(x), opts); });
+    if (isBlob) return init().then(function () { return b30Cuts(input, opts.blockBytes || BLOCK_BYTES); }).then(function (c) { return packParallel0(input, opts, c); });
+    return packParallel0(input, opts, null);
+  }
+  function packParallel0(input, opts, bcuts) {
     return init().then(function () {
-      var T0 = Date.now(), b = bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      var T0 = Date.now(), blob = bcuts ? input : null, b = blob ? { length: blob.size } : bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
       if (opts.balance && !opts.blockBytes) bb = Math.max(4 << 20, Math.min(bb, Math.ceil(b.length / Math.min(opts.workers || hc, 8))));   // experimental: about one block per helper; the file differs from pack() unless pack gets the same blockBytes
       if (opts.balance === 'even' && !opts.blockBytes) { var nb0 = Math.ceil(b.length / bb), w0 = Math.min(opts.workers || hc, 8); if (w0 > 1 && nb0 > 1) bb = Math.ceil(b.length / (Math.ceil(nb0 / w0) * w0)); }   // experimental: as many blocks as a whole number of rounds for the helpers, so none waits alone at the end; the file differs from pack() unless pack gets the same blockBytes
-      var hd = headOn(b.length, bb); while (q < b.length) { e = Math.min(b.length, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
+      var hd = headOn(b.length, bb); if (blob) cuts = bcuts; else while (q < b.length) { e = Math.min(b.length, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
       var nb = cuts.length - 1, w = Math.min(opts.workers || hc, 8, nb), per = Math.ceil(nb / Math.max(1, w)), groups = [], g, dyn = opts.dynamic !== false;
+      if (blob && w < 2) return blob.arrayBuffer().then(function (x) { return pack(new Uint8Array(x), opts); });
       if (opts.exact || opts.share || w < 2) return pack(b, opts);   // exact mode, shared tables (one table built block after block) and small inputs stay on one thread
       if (dyn) for (g = 0; g < nb; g++) groups.push([cuts[g], cuts[g + 1]]);   // one job per block; a helper that finishes takes the next block, so the run does not wait on one slow run of blocks
       else for (g = 0; g < nb; g += per) groups.push([cuts[g], cuts[Math.min(nb, g + per)]]);
@@ -3097,11 +3120,12 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
         function give(w2, nx) {   // hand this helper the next job, or keep it for later calls when none is left
           if (failed) return;
           if (nextGroup >= groups.length && !redo.length) { if (w2) parked.push(w2); if (nx) nx(); return; }
-          var i = redo.length ? redo.shift() : nextGroup++, t1 = Date.now(), slice = Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
-          if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: slice.length };
+          var i = redo.length ? redo.shift() : nextGroup++, t1 = Date.now(), slice = blob ? null : Uint8Array.prototype.slice.call(b, groups[i][0], groups[i][1]);
+          if (tm) tm.groups[i] = { takeMs: 0, copyMs: Date.now() - t1, posted: Date.now() - T0, bytes: groups[i][1] - groups[i][0] };
           w2.listen(function (m) { onMsg(i, m, nx, w2); }, fail);
           var jo = jopts; if (pickWait) { jo = Object.assign({}, jopts, { _tryFirst: true }); sentWith[i] = 't'; } else if (jopts._pick == null && jopts.paths === 'auto' && !PATHS_RULE) { jo = Object.assign({}, jopts, { _pick: curPick }); sentWith[i] = curPick; }
-          w2.post({ id: i, kind: 'p', buf: slice, opts: jo }, [slice.buffer]);
+          if (blob) w2.post({ id: i, kind: 'p', buf: null, blob: blob, a: groups[i][0], e: groups[i][1], opts: jo }, []);
+          else w2.post({ id: i, kind: 'p', buf: slice, opts: jo }, [slice.buffer]);
         }
         function start() {   // helpers start one at a time: the next one starts when this one has its slice and has begun packing
           if (helpersStarted >= w || nextGroup >= groups.length || failed) return;
