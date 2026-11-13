@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.1 · API 0 · 2026-11-12
+
+### Quick
+Equality reads (unpack with equals) on text, UUID, hex and IP columns now match in the stored bytes and build only the matching rows: 100,000 log rows, 24 queries took 0.18 to 0.40 of read-then-filter in three browsers (0.42 to 0.70 in 0.10.0). Same rows out, same file format.
+
+### Details
+P14 matches the asked value in the stored bytes of text, UUID, hex and IP columns (including nullable ones) and decodes only those rows; P13 builds late-row objects in wide tables from a clone, which also helps range reads. Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, logs 100,000 rows, 24 queries, share of read-then-filter, 0.10.0 to 0.10.1: ip 0.42 to 0.25 / 0.70 to 0.32 / 0.67 to 0.39, id 0.42 to 0.18 / 0.50 to 0.28 / 0.58 to 0.31, msg 0.49 to 0.23 / 0.62 to 0.36 / 0.69 to 0.40; with cache 0.07 to 0.15. 9,688 exact checks pass.
+
+### Deep
+lfc-pack 0.10.1: P14 byte-space equality for text, UUID, hex and IP keys and P13 late-row clone (research threads on text matching and dictionary path choice, owner-approved 2026-11-12 10:15 PM Detroit). Equality gate on the combined build vs 0.10.0 in 3 browsers: equals 0.18-0.40 of read-then-filter vs 0.42-0.70; first query 0.20-0.52; cache unchanged or better. check.js 9,688 checks 0 bad. New test eqbytes.cjs.
+
 ## 0.10.0 · API 0 · 2026-11-11
 
 ### Quick
