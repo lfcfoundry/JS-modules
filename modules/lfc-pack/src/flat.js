@@ -949,6 +949,20 @@
       var useClone = dense && nk2 >= CLONE_KEYS && (allK || V8);
       if (dense && allK && lazyOk && n >= 1) return lazyRows(keys, vals, n);
       if (dense && allK && gen && n >= 1) { var mk = rowBuilder(keys); if (mk) { for (i = 0; i < n; i++) out[i] = mk(vals, i); return out; } }
+      // V8 only, a block whose rows lack some keys (from 8 keys): one key at a time down every column gives each row a long chain of shape changes. Here each row is made at once, its keys in file order: rows with every key start as a clone of one template, the others are plain objects, which from 24 keys start in V8's hash-table form (one key added and removed) instead of walking up to 24+ shapes. Same objects, same key order. Firefox and WebKitGTK were slower this way, so they keep the column-at-a-time path
+      if (V8 && !dense && !hasProto && K >= 8) {
+        var RB = [], RV = [], RK = [], nb = 0, ns = 0, sj = [], ts2 = '{';
+        for (j = 0; j < K; j++) if (vals[j]) { RB[nb] = j * pb; RV[nb] = vals[j]; RK[nb] = keys[j]; ts2 += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
+        var full = new Uint8Array(nb), pt = new Int32Array(nb), tp2 = JSON.parse(ts2 + '}'), toHash = nb >= 24;
+        for (j = 0; j < nb; j++) { full[j] = RV[j].length === n ? 1 : 0; if (!full[j]) sj[ns++] = RB[j]; }
+        for (i = 0; i < n; i++) { var by = i >> 3, bt = i & 7, all = true;
+          for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + by] >> bt) & 1) === 1;
+          if (all) { o = { ...tp2 }; for (j = 0; j < nb; j++) o[RK[j]] = full[j] ? RV[j][i] : RV[j][pt[j]++]; out[i] = o; continue; }
+          o = {}; if (toHash) { o.__h = 0; delete o.__h; }
+          for (j = 0; j < nb; j++) { if (full[j]) o[RK[j]] = RV[j][i]; else if ((pl[RB[j] + by] >> bt) & 1) o[RK[j]] = RV[j][pt[j]++]; }
+          out[i] = o; }
+        return out;
+      }
       if (useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
       for (j = 0; j < K; j++) {

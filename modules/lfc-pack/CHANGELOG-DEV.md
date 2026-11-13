@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.5 · API 0 · 2026-11-13
+
+### Quick
+Full reads of tables with 20 or more keys where rows have different key sets build rows row by row in Chrome and Edge: 0.20 to 0.82 of 0.10.4's time on the owner's laptop. Firefox and Safari run the same code as before. Same rows, same files.
+
+### Details
+P13d (owner-approved after laptop test, 2026-11-13 9:10 AM Detroit): V8-only row-at-a-time assembly of sparse blocks (template clone for complete rows, hash-form objects from 24 keys). Laptop Chrome 157, 60,000 rows, share of read-all: 27 keys 99% present 0.93 to 0.50 first read, 40 keys 50% present 0.97 to 0.20, 12 keys unchanged (0.98). Laptop Firefox 160: warm reads 0.97 to 1.03 (code gated off). Cloud check 3 browsers, dense full reads: nothing slower beyond the 0.91 to 1.05 same-build noise floor. 196 exact checks 0 differ vs 0.10.4.
+
+### Deep
+lfc-pack 0.10.5: P13d sparse-block row-at-a-time assembly (V8 only, K >= 8 keys). Byte-identical reads (spcmp.cjs 196 checks 0 differ), new test sparseread.cjs.
+
 ## 0.10.4 · API 0 · 2026-11-13
 
 ### Quick
