@@ -2,6 +2,7 @@
 <script>
 // Copyright (c) 2026 LFC Foundry. MIT License.
 // research B19: unpack(file, { equals }) on one packed file. hash = build:file:mode (off | plain | codes). The first query is timed alone (a page's first read), then 24 queries cycling through the list
+// TOP-ORG and TOP-REPO stand for the most frequent org login and repository name in the GitHub Archive hour (real public accounts, not written into the repository); fill them in from the data
 const Q = { ghf: [['type', 'ReleaseEvent'], ['type', 'nope'], ['org', 'TOP-ORG'], ['actor', 'github-actions[bot]'], ['repo', 'TOP-REPO'], ['type', 'PushEvent']],
   ordersn: [['status', 'cancelled'], ['status', 'refunded'], ['status', 'nope'], ['status', 'paid']], logs: [['level', 'ERROR'], ['level', 'nope'], ['level', 'DEBUG']],
   sensnull: [['dev', 'dev-13'], ['dev', 'nope'], ['dev', 'dev-7']], sensrare: [['dev', 'rare-dev']], allnull: [['tag', null], ['tag', 'x']], empty: [['a', 1]], taxis: [['store_and_fwd_flag', 'Y'], ['store_and_fwd_flag', 'N'], ['store_and_fwd_flag', null]] };
