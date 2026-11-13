@@ -1130,3 +1130,7 @@ Later saves 1.17 / 1.41 / 1.33 (C / F / W). The E36 WebKit tail was an instrumen
 ## E38 (B34, 2026.11.13 6:08 PM): packColumnsParallel (owner-named)
 
 Columns in, packRowsParallel machinery. Later saves 0.60 taxi, 0.72 sensors, 0.76 logs, 0.73 ids (always-column option). On a card. Next free B35 / E39.
+
+## E39 (B35, 2026.11.13 6:21 PM): unpackColumnsParallel (owner-named)
+
+Whole-table column read with helpers and auto start. Later reads 0.30 taxi, 0.68 logs, 0.45 sensors of unpackRows weighted; same values. On a card. Next free B36 / E40.
