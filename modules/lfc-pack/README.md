@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.10.2 · API 0**
+**Version 0.10.3 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6
 

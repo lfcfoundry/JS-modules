@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.3 · API 0 · 2026-11-13
+- Opening a big file in blocks uses about a third less memory at 1 to 4 MB blocks.
+
 ## 0.10.2 · API 0 · 2026-11-12
 - Saves are up to 11% faster, big files show their first rows much sooner, searching for several values at once is one call, and some filtered reads are faster.
 
