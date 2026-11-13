@@ -1060,6 +1060,7 @@ Each entry: technique · source · LFC Foundry target · expected advantage · e
 | Trained (`ZDICT`) dictionary from one app's earlier rows | Lost to a raw-content dictionary on almost every small file (too few samples) | this log, E12 |
 | 1 MB blocks | Range reads faster still, but pack up to 1.24x and nested full reads up to 1.21x slower | this log, E10 |
 | B23: skip `varintsT`'s length-counting pass when the lengths were already summed (on top of B21) | Same bytes. Chromium 0.99 to 1.03 on 4 tables (noise); in-process Node A/B swung 0.82 to 1.13 with load order, so it can't be trusted | this log, `results/b23-pr23-chromium.json` |
+| Codex review lead 2: size the decode buffers from the footer at open | Upper-bound test (arena and wasm in/out buffers presized to 8 MB at load; logs 300k, Chromium, 5 rounds): first screen 0.88 to 1.10, next read 0.90 to 0.93, jump 1.04, mixed and inside noise. The arena is only 5.5 MB per logs block (2 MB taxi), so fresh-memory first touch is about 4 ms of a 250 ms read | this log (E29 follow-up), `results/readahead-arena-bound-chromium.json` |
 | Raw block for tiny inputs | Smaller below about 20 rows, but `unpackColumns` refuses it and it loses at 100 rows | this log, E9 |
 
 ## Reproduce
