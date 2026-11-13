@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.11 · API 0 · 2026-11-13
+- Random-access files now skip blocks that cannot hold the value in equality reads: a value that is not in the file comes back in about a quarter of the time. Files grow about 0.4% and older readers still read them.
+
 ## 0.10.10 · API 0 · 2026-11-13
 - packRowsParallel hands control back to the page between blocks, so the longest pause on the main thread drops from about 200 ms to 30 to 55 ms.
 

@@ -10,9 +10,9 @@
   function runJob(m) {   // in a helper: { id, kind, buf, crc, want } -> { msg, transfer }
     try {
       if (m.kind === 'p') {   // pack one run of whole blocks: the slice is dropped as soon as it is packed
-        var out = packMany([{ name: null, bytes: m.buf }], m.opts); m.buf = null;
+        var eqo = []; var out = packMany([{ name: null, bytes: m.buf }], Object.assign({}, m.opts, { _eqout: eqo })); m.buf = null;
         var f = openFile(out);
-        return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked }, transfer: [out.buffer] };
+        return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.sec[SEC_EQF] ? JSON.parse(tdr.decode(f.footer.sec[SEC_EQF]))[0] : f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked, eqf: eqo }, transfer: [out.buffer] };
       }
       if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };
       if (m.kind === 'c') return b28Job(m);   // B28: one number column of a packRowsParallel block   // helper start-up only: the wasm is loaded by the time this answers
@@ -241,14 +241,15 @@
       one();
     });
     function b31Join(waits) { return Promise.all(waits).then(function (bs) {
-      var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b;
-      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0)); zone.push(b.zone); parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
+      var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b, eqf = [], eqAny = false, eqb;
+      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0)); zone.push(b.zone); eqb = b.kind === 'f' ? eqOf(b) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
+      var eqs = null; if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }   // NX A, as packManyNow
       var secs = [
         { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
         { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
         { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
         { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: true })) }
-      ].concat(metaSecs(opts));
+      ].concat(eqs ? [eqs] : [], metaSecs(opts));
       parts.push(writeFooter(S.zfull, secs, true, NMARK > nm0 ? 1 : 0));
       return concat(parts);
     }); }
@@ -362,18 +363,20 @@
     return w;
   }
   function stitch(results, inLen, jopts) {   // join the packed runs, renumber the block table, write the footer as pack does
-    var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl, fmin = 0;
+    var parts = [], blocks = [], zone = [], off = 0, rows = 0, i, j, r, bl, fmin = 0, eqf = [], eqAny = false;
     for (i = 0; i < results.length; i++) {
-      r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd)); if (r.bytes[r.bytes.length - 6] > fmin) fmin = r.bytes[r.bytes.length - 6];
+      r = results[i]; parts.push(r.bytes.subarray(0, r.bodyEnd));
+      for (j = 0; j < r.blocks.length; j++) { var eqb = r.eqf && r.eqf[j] || 0; eqf.push(eqb); if (eqb) eqAny = true; }   // NX A: the helper's own block filters if (r.bytes[r.bytes.length - 6] > fmin) fmin = r.bytes[r.bytes.length - 6];
       for (j = 0; j < r.blocks.length; j++) { bl = r.blocks[j]; blocks.push([bl[0] + off].concat(bl.slice(1))); rows += bl[3]; zone.push(r.zone[j]); }
       off += r.bodyEnd;
     }
-    var tail = results[results.length - 1].tail;
+    var tail = results[results.length - 1].tail, eqs = null;
+    if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }
     parts.push(writeFooter(S.zfull, [
       { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }
-    ].concat(metaSecs(jopts)), true, fmin));
+    ].concat(eqs ? [eqs] : [], metaSecs(jopts)), true, fmin));
     return concat(parts);
   }
