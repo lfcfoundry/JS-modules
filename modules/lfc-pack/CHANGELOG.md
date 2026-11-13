@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.9 · API 0 · 2026-11-13
+- packParallel now takes a File or Blob without reading it whole first (less memory, shorter main-thread pause). Nested equality and range reads take one pass instead of two.
+
 ## 0.10.8 · API 0 · 2026-11-13
 - New packRowsParallel(rows): saves big row arrays with number columns on helper workers, same bytes as packRows, later saves about 0.55 to 0.65 of the time. Nested range reads and row windows build only the rows they need.
 
