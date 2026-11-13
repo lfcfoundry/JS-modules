@@ -1118,3 +1118,7 @@ packParallel(blob): helpers read their own ranges. Same bytes. Taxi 121 MB 0.90 
 ## E35 (B31, 2026.11.13 5:34 PM): packRowsParallel yields between blocks
 
 Stall 210 to 53 ms (C), 214 to 29 (F), 178 to 27 (W); later saves 1.05 weighted. Same bytes. On a card. Next free B32 / E36.
+
+## E36 (2026.11.13 5:50 PM): save profile on 0.10.10
+
+Scatter about 70% of main thread; text route 1.5-2.5x slower, leaner scatter G no gain (WebKit 1.37x), dropped. WebKitGTK helper tail 163 ms is the next lead. Column-input call on an owner card. Next free B32 / E37.
