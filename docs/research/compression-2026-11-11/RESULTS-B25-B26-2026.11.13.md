@@ -92,6 +92,26 @@ parquet-wasm 0.9.0 with Arrow JS 21.2.0 `tableFromJSON`, writing zstd Parquet:
 - GC is under 4%.
 - The next big lead is the scatter itself: a `for...in` over each row costs this much in every engine.
 
+
+## Follow-ups after the card (12:00 to 12:10 AM)
+
+- **B25d (folded into the diffs, byte-identical):** the number checks (`numflags`) used to run on every column before encoding, so each column was copied into wasm twice. Now they run just before the column is encoded, and the kernel reuses the copy. The cache is cleared after every kernel call and every column, so the fast writer's reused wasm views can never hit stale data.
+  - Against B26b, weighted: taxi 0.965 on a first save and 0.958 on repeat saves. Sensors gained in Firefox and WebKitGTK (0.89 to 0.94).
+  - Logs in Chromium were rechecked over 8 rounds: 0.98 / 1.02, which is noise.
+  - The handoff diffs now include it, which puts taxi at about 0.62 / 0.56 of B21.
+- **B27, parked:** a row that holds every key sets one bit, instead of one presence-plane write per value.
+  - Dense tables: 0.96 weighted.
+  - Sparse 9k rows in Chromium: 1.05 to 1.15, small and noisy.
+  - Not worth a card alone. Retry it with B28.
+- **Where a taxi save spends its time now** (Chromium, B26b, instrumented, `ph.html`), about 390 ms in all:
+  - Row scatter: 145 ms (37%).
+  - Number checks: 24 ms (6%), before B25d.
+  - Column encoding (kernel, zstd, candidates, strings): 200 ms (52%).
+  - The rest: about 20 ms.
+- **Next lead, B28: column-parallel saves.** After the scatter, number columns are Float64Arrays, which can move to pool workers without a copy. Each worker would run its own kernel and zstd per column.
+  - The encode phase is 52% of a big save, so 3 helpers could take a 300k-row save to about 0.70. Worker start (20 to 35 ms in Chromium) limits this to big saves.
+  - String columns would need their arrays copied (structured clone) or joined bytes; measure that cost first.
+
 ## Files (this folder)
 
 - `b25-b26-on-b21-0.10.1.diff`: what to apply on top of B21.

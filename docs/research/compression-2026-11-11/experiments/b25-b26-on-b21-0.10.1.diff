@@ -46,22 +46,28 @@
      for (i = 0; i < n; i++) {   // B21a: one pass; a key at the same position as in the previous row is matched by a string compare, not a Map lookup
        r = rows[i]; sq = ord ? [] : null; q = 0;
        for (k in r) { if (pk[q] === k) jx = px[q]; else { jx = seen.get(k); if (jx === undefined) { jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; }
-@@ -544,10 +556,11 @@
+@@ -544,21 +556,23 @@
        if (ord) { var sk = sq.join(','), oid = ord.map.get(sk); if (oid === undefined) { oid = ord.list.length; ord.map.set(sk, oid); ord.list.push(sq); } ord.ids[i] = oid; }
      }
      var planes = new Uint8Array(pb * keys.length); for (j = 0; j < pls.length; j++) planes.set(pls[j], j * pb);
 -    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.a !== null) { cols[j] = c21.a; continue; }   // B21c: number columns, typed
-+    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.a !== null) { cols[j] = c21.a; if (chk26) b26Vals(c21.a); continue; }   // B21c: number columns, typed
-       if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = b21Flags(cols[j], c21.c); }
-       else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = b21Flags(c21.nb, c21.m); }
+-      if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = b21Flags(cols[j], c21.c); }
+-      else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = b21Flags(c21.nb, c21.m); }
 -      else cols[j] = b21Generic(c21); }
-+      else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); }
-+      if (chk26 && pre21[j] && (pre21[j].nz || pre21[j].nf)) throw B26_BAIL; }
++    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.a !== null) { cols[j] = c21.a; if (chk26) b26Vals(c21.a); continue; }   // B21c: number columns, typed
++      if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = 1; }   // B25d: flags are taken just before the column is encoded, so the kernel reads the column once
++      else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
++      else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
      var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
      for (j = 0; j < cols.length; j++) {
        var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, e;
-@@ -557,8 +570,8 @@
-       enc.push(e);
++      if (pre21[j] === 1) pre21[j] = b21Flags(cols[j], cols[j].length); else if (pre21[j] === 2) pre21[j] = b21Flags(cols[j].nb, cols[j].m);
++      if (chk26 && pre21[j] && (pre21[j].nz || pre21[j].nf)) throw B26_BAIL;
+       if (pre21[j] && cols[j].nb) { c21 = cols[j]; NN_FLAGS[0] = pre21[j].nz; NN_FLAGS[1] = pre21[j].ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: pre21[j].nz, ai: pre21[j].ai }, null, c21.c, zs, level, tm21, keys[j]); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, keys[j]); cols[j] = []; }
+       else if (pre21[j]) e = settle(zs, level, encodeColumn0(cols[j], zs, level, tm21, undefined, keys[j], pre21[j]));
+       else e = encodeColumn(cols[j], zs, level, tm21, undefined, keys[j]);
+-      enc.push(e);
++      enc.push(e); NK_BUF = null;
        meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
        for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
 -      if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { var mnN = Infinity, mxN = -Infinity; for (i = 0; i < e.nn.length; i++) { if (e.nn[i] < mnN) mnN = e.nn[i]; if (e.nn[i] > mxN) mxN = e.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, e.n]); }
@@ -71,16 +77,16 @@
      }
      if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
      var mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
-@@ -566,7 +579,7 @@
+@@ -566,7 +580,7 @@
      var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
    }
    // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
 -  function dropSmallWasm() { TPLW = null; FSW = null; }   // trim(): the template and flat-scan helpers start again small when next needed
-+  function dropSmallWasm() { TPLW = null; FSW = null; NKW = null; NK_SRC = null; NK_N = -1; NKZ.v = null; }   // trim(): the template and flat-scan helpers start again small when next needed
++  function dropSmallWasm() { TPLW = null; FSW = null; NKW = null; NK_SRC = null; NK_N = -1; NK_BUF = null; NKZ.v = null; }   // trim(): the template and flat-scan helpers start again small when next needed
    var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/", FSP64 = "/*FP:BEGIN*//*FP:END*/";
    function fsw() {
      if (FSW) return FSW;
-@@ -575,6 +588,30 @@
+@@ -575,6 +589,33 @@
      var x = new WebAssembly.Instance(MODS[fk], {}).exports;
      return (FSW = { x: x, heap: x.__heap_base.value });
    }
@@ -91,11 +97,13 @@
 +    fsw(); var fk = hasSimd() ? 'FSB64' : 'FSP64', x = new WebAssembly.Instance(MODS[fk], {}).exports;
 +    return (NKW = { x: x, heap: (x.__heap_base.value + 7) & ~7, f: null, r: null });
 +  }
-+  var NK_SRC = null, NK_N = -1, NKZ = { v: null, mn: 0, mx: 0 };   // the array (and length) now in the kernel's input, and the last kernel column's min and max in its own units (for the zone maps)
++  var NK_SRC = null, NK_N = -1, NK_BUF = null, NK_OFF = -1, NKZ = { v: null, mn: 0, mx: 0 };   // the array (and length) now in the kernel's input, and the last kernel column's min and max in its own units (for the zone maps)
 +  function nkLoad(a, n) {
 +    var K = nkw(), mem = K.x.memory, need = K.heap + n * 35 + 256, have = mem.buffer.byteLength;
 +    if (need > have) mem.grow(Math.ceil((need - have) / 65536));
-+    if (a !== NK_SRC || n !== NK_N) { new Float64Array(mem.buffer, K.heap, n).set(n === a.length ? a : a.subarray(0, n)); NK_SRC = a; NK_N = n; }
++    if (a !== NK_SRC || n !== NK_N) {   // B25d: the same typed array memory (a view of it) is not copied again; the cache is cleared after each column
++      if (a.buffer !== undefined && a.buffer === NK_BUF && a.byteOffset === NK_OFF && n === NK_N) NK_SRC = a;
++      else { new Float64Array(mem.buffer, K.heap, n).set(n === a.length ? a : a.subarray(0, n)); NK_SRC = a; NK_N = n; NK_BUF = a.buffer !== undefined ? a.buffer : null; NK_OFF = a.byteOffset; } }
 +    return K;
 +  }
 +  function nkFlags(a, m) { var K = nkLoad(a, m), resP = K.heap + m * 8; K.x.numflags(K.heap, m, resP); var r = new Float64Array(K.x.memory.buffer, resP, 3); return { nz: r[0], ai: r[1], nf: r[2] }; }
@@ -106,12 +114,13 @@
 +    NKR.a = A >= 0 ? u.slice(oa, oa + A) : null;
 +    NKR.d = B >= 0 ? u.slice(od, od + B) : null;
 +    NKR.b = NKR.w ? u.slice(ob, tot) : null;
++    NK_SRC = null; NK_BUF = null;   // the input is only reused between a column's flags and its kernel call
 +    return NKR;
 +  }
    // FD: a number column's scale is 10 to its largest fraction digit count, at least 100 for 1 or 2 digits (as before: same files), up to 9 digits like the JSON.parse path
    var P10 = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9], FD = [0, 2, 2, 3, 4, 5, 6, 7, 8, 9], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
    function varintsT(a, m) {   // a: typed array of non-negative whole numbers (first m entries) -> varint bytes
-@@ -698,6 +735,14 @@
+@@ -698,6 +739,14 @@
      var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
      function cand(tn, p, fr, n) { best = addCand(zs, level, best, tn, p, fr, n); }
      function numCands(base, c, scale, key, zc) {   // the candidates of a number column held as scaled whole numbers (mantissas), as the general writer would try them
