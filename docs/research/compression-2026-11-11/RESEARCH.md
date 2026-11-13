@@ -864,6 +864,34 @@ Decision: **ADOPT CANDIDATE as an add-on to the approved B19 + cache.** It adds 
 - The 24-query totals stay at 0.45 to 0.71 of today either way. B19d made some totals worse (WebKit events 0.52 → 0.60).
 - Decision: **REJECT B19d.** Keep B19c. In a report, give the common-value query its run-alone time (0.89 to 0.94 of today) next to the cycle time, and say why they differ.
 
+### 2026-11-12 E26: Codex cautions for B19, rare-present values, empty files and all-null columns (no loss)
+
+**Why.** The Codex rescan (KB M110 update 2, Phases 13 to 16) raised two cautions:
+- Phase 12 saw values present in about 1 row per block run 6 to 7% slower on D blocks. Our label check skips only blocks where the value is absent.
+- Phase 14's wrapper made empty files 17.7% slower, because it parsed twice.
+
+**Files** (default blocks, both builds; `experiments/www/eq.html` entries `sensrare`, `allnull`, `empty`):
+- 300,000 sensor rows where `dev = 'rare-dev'` in exactly 1 row per block (3 blocks).
+- 100,000 rows whose `tag` is null in every row (stored as JSON cells).
+- An empty file (`packRows([])`).
+
+Rows matched a full read on 48 checks (off, codes and cache). Builds: B19 + B19b + B19c + B20 (`93b19z`, `b19z`). 4 fresh pages per cell, 3 browsers (`results/eq-caut-*.json`), shown as Chromium 156 / Firefox 158 / WebKitGTK 2.52.6:
+
+| Case | Codes, per query | Cache, per query |
+|---|---|---|
+| Value in 1 row per block, 0.9.3 | **0.24 / 0.30 / 0.33** | 0.02 / 0.03 / 0.03 |
+| Same, null plane | **0.13 / 0.17 / 0.18** | 0.02 / 0.03 / 0.04 |
+| All-null column, `tag = 'x'` (absent) | 0.14 / 0.16 to 0.25 / 0.20 to 0.24 | 0.04 / 0.11 to 0.12 / 0.10 to 0.12 |
+| All-null column, `tag = null` (every row matches) | 1.05 to 1.12 / 1.04 / 1.09 to 1.13 | 0.66 / 0.74 to 0.76 / 0.82 to 0.83 |
+| Empty file, 24 queries in all | 0.82 to 1.05 / 0.75 / 0.82 to 1.20 | 0.86 to 0.90 / 0.50 to 1.00 / 0.82 to 1.40 |
+
+Findings:
+- **A value present in 1 row per block is no loss here.** Only the matching row is built, so a query takes 0.13 to 0.33 of today. Codex's 6 to 7% came from its Workbench query path, not from the codes.
+- **Empty files have no double parse.** All 24 queries together take 1 to 5.5 ms. The ratios move between 0.50 and 1.40 because Firefox and WebKit time in 1 ms steps; Chromium, with its finer timer, shows 0.82 to 1.05.
+- **The one small cost:** without the cache, when every row matches, a query takes 1.04 to 1.13 of today, or 0.5 to 1.3 ms on an 11 ms read. That also holds for the first query on a fresh page (1.00 to 1.11). It is the extra compare-and-select pass before the whole-block path, the same family as E25. With the cache, it is 0.66 to 0.83.
+
+Decision: no add-on needed.
+
 ## Backlog (prioritized)
 
 Each entry: technique · source · LFC Foundry target · expected advantage · evidence strength · difficulty · compatibility risk · experiment · measured result · decision.
