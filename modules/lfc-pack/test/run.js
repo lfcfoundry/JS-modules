@@ -51,6 +51,8 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('warm() opt-in warm-up', 'node', ['warm.cjs']);
   step('one huge JSON document', 'node', ['bigdoc.cjs']);
   step('open(): block-at-a-time reads from a Blob or read()', 'node', ['open.cjs']);
+  step('first block of a big save is small (B22)', 'node', ['headblock.cjs']);
+  step('open().readAhead()', 'node', ['readahead.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   step('python writer', 'python3', ['-I', 'pywriter.py', dir]);
   step('python writer files in JS', 'node', ['pywriter.cjs', dir]);

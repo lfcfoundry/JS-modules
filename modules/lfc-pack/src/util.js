@@ -39,6 +39,6 @@
   function guard(fn) {
     return function () {
       try { return fn.apply(this, arguments); }
-      catch (e) { var m = e && e.message; if (typeof m === 'string' && /^(zstd|LfcPack|damaged|not an LFC|block |footer)/.test(m)) throw e; throw new Error('damaged block: ' + m); }
+      catch (e) { if (e && e.wa) throw e; var m = e && e.message; if (typeof m === 'string' && /^(zstd|LfcPack|damaged|not an LFC|block |footer)/.test(m)) throw e; throw new Error('damaged block: ' + m); }
     };
   }
