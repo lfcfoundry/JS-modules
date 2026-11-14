@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.22 · API 0 · 2026-11-14
+
+### Quick
+first-call speedup; per-column XXH64 checks by default
+
+### Details
+check: 'crc32' writes the old table; older, Python and Go readers read the files unchanged
+
+### Deep
+lfc-pack 0.10.22: B43 warm() covers aggregate and typed column reads in three small tasks, aggregate remembers each block's check across keys; B44 per-column XXH64 checks by default (+85 bytes per block; crc32 still written, older readers unchanged; check: 'crc32' for the old table). Owner approved the default change on the laptop-test card; v2 laptop test 11.14 10:50 AM PASS (Firefox 161 first call 0.50, second 0.50, save 0.85; Chrome 157 0.63, 0.49, 1.03). Cloud first call 13.3/13/12 ms (Chromium/WebKitGTK/Firefox), save cost weighted 1.02. Verified here: suite passes; lfc-pack 0.10.18 and 0.10.19 read a new-default file (rows, equals, unpackColumns) with the same results; 60,000 log rows 1,268,231 bytes vs 1,267,924 with crc32 (+307). Handoff HANDOFF-B43-B44-first-call-to-code-thread-2026.11.14.md. One rejected hunk (warm tail, moved by B39k) applied by hand.
+
 ## 0.10.21 · API 0 · 2026-11-14
 
 ### Quick

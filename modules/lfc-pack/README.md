@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.21 · API 0**
+**Version 0.10.22 · API 0**
 
-**Tested in:** Node suite incl. aggregate.cjs (242 checks) and nullsnan.cjs; aggregate sums and per-zone groups checked against a plain loop on 200,000 taxi rows; bdec.wasm rebuilt from bdec.c identical; owner laptop Firefox 161 and Chrome 157 PASS
+**Tested in:** Node suite incl. xxh.cjs (new default checks); files read unchanged by lfc-pack 0.10.18 and 0.10.19; owner laptop Firefox 161 and Chrome 157 first-call test v2 PASS
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -52,6 +52,7 @@ Options for `pack(input, options)`:
 | `exact: true` | the byte-exact switch: `unpackText(file)` returns the input bytes unchanged (spacing, key order, escapes, `1.0` spelled as written, CRLF, blank lines, invalid UTF-8). Costs size: rows whose text is not the canonical form keep their original line. Default is value-exact (same values, keys in first-seen order). |
 | `level: 19` | the archive setting: slower to write (about 15x), about 12% smaller. Default is 3. |
 | `block: 'nested' \| 'flat'` | force one layout. Default: each block is written as nested columns and, when it could win, as flat columns too, and the smaller one is kept. |
+| `check: 'crc32'` | since 0.10.22 files carry the faster XXH64 checks by default (a whole-block check and one per column, so reading one column checks only that column's bytes; about 85 bytes more per block); `check: 'crc32'` writes the older table. The crc32 is written either way, so older readers, the Python and Go readers read both kinds unchanged. |
 | `blockBytes` | block size, default 13 MB (faster parallel pack than 21 MB, same size). |
 | `share: true` | shared string and shape tables for nested blocks: a string or row shape seen again in a later block is kept once in the footer. Smaller files with small blocks (100,000 GeoJSON points: -17% at 32 KB blocks, -12% at 256 KB); about the same at the default block size (a few hundred bytes either way). `packParallel` packs on one thread with it. Off by default. |
 | `paths: false` | switch off per-path strings for nested blocks (on by default): each string path (`.properties.name`, `.items[].sku`) keeps its own dictionary run and repeat numbers, which are small and compress well. 100,000 GeoJSON points -11% at the default block size, -14% at 256 KB blocks; 100,000 orders -6% and -5%. Each block keeps whichever layout is smaller. With `share: true` too (stacked): 256 KB blocks GeoJSON -22%, orders -4%. Pack and read speed within noise of the old layout in Chromium, Firefox and WebKit. |

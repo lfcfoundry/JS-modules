@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.22 · API 0 · 2026-11-14
+- Faster first aggregate and column read on a page (warm() covers them, a second column skips re-checking the file); files now carry per-column XXH64 checks by default (about 85 bytes more per block)
+
 ## 0.10.21 · API 0 · 2026-11-14
 - New LfcPack.aggregate (sum, count, average of a number column, by group, 0.05 to 0.15 of the column-loop time); unpackColumns nulls: 'NaN'; faster bit-packed number reads in Chrome, Edge and Firefox
 
