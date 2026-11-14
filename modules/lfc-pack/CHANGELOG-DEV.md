@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.33 · API 0 · 2026-11-14
+
+### Quick
+unpackColumns(bytes, { into: { key: Float64Array } }) writes number columns straight into caller arrays (no fresh 8 MB array per call).
+
+### Deep
+unpackColumns(bytes, { into: { key: Float64Array } }) writes number columns straight into caller arrays (no fresh 8 MB array per call). Warm 1M taxi rows: fare 12.6 to 9.4 ms Chromium 156 (0.75), 11 to 9 Firefox 158 (0.82), WebKitGTK 19 to 21 (noise, whole-ms timer); tip 13.4 to 10.8 (0.81), 16 to 13 (0.87), 26 to 21 (0.84). Same sums. Opt-in, no change without it. New test/into.cjs.
+
 ## 0.10.32 · API 0 · 2026-11-14
 
 ### Quick
