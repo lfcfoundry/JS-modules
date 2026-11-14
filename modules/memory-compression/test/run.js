@@ -293,6 +293,16 @@ t('text patterns: random strings built from a few pieces', function () {
     rt(col, { mode: round % 2 ? 'small' : 'fast' }, 'random pattern column ' + round);
   }
 });
+t('pattern columns that differ only in a constant part decode right in the same instance (2.16.3: the decoder cache key left the constant out)', function () {
+  var P = function (v, w) { return ('0000' + v).slice(-w); }, r = D.rng(9), bad = 0, cases = 0;
+  var shapes = [function (c) { return function (i) { return '2025-' + P(1 + i % 12, 2) + '-' + P(1 + i % 28, 2) + 'T' + P(c % 24, 2) + ':00:00Z'; }; }, function (c) { return function (i) { return 'user-' + c + '-' + i; }; },
+    function (c) { return function (i) { return 'v' + (i % 50) + '.' + c; }; }, function (c) { return function (i) { return c + ':' + P(i % 60, 2) + ':' + P(i % 7, 2); }; }, function (c) { return function (i) { return '2025-' + P(1 + c % 12, 2) + '-' + P(1 + i % 28, 2); }; }];
+  for (var round = 0; round < 60; round++) {
+    var f = shapes[round % shapes.length](Math.floor(r() * 1000)), n = [20, 100, 500, 5000][round % 4], col = many(n, f), rows = many(n, function (i) { return { t: col[i], k: i }; });
+    ['fast', 'small'].forEach(function (m) { cases += 2; rt(col, { mode: m }, 'constant pattern ' + round + ' ' + m); rt(rows, { mode: m }, 'constant pattern rows ' + round + ' ' + m); });
+  }
+  assert(cases === 240 && bad === 0);
+});
 t('date-time columns: one number per timestamp, exact text back, bad dates fall back', function () {
   var P2 = function (v) { return ('0' + v).slice(-2); };
   var fmts = {

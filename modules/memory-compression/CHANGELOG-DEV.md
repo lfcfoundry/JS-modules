@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.3 · API 2 · 2026-11-14
+
+### Quick
+Decode fix: a second pattern column with another constant part no longer gets the first one's; sorted ISO timestamps pack 2.1-2.5x faster, same bytes
+
+### Details
+Bug: buildTemplate folds constant slots into the generated decoder, and the GEN_CACHE key left them out, so a later column of the same shape reused the first decoder (for example 'user-432-' + i read back as 'user-405-' + i, or T01 hours read back as T00). Packed bytes were always right; only unpacking in the same instance was wrong. Present since the folding came in (2026-11-11). Fix: the constants are part of the key. Plus fixed-width ISO timestamp read (tsFixed) and ts_pack in wasm, with a small-column step-pricing fix found in review.
+
+### Deep
+Data-correctness fix found by memory-compression research; the timestamps work came from the rivals research (fixed-width timestamps brief).
+
 ## 2.16.2 · API 2 · 2026-11-14
 
 ### Quick
