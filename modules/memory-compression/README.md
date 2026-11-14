@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.16.2 · API 2**
+**Version 2.16.3 · API 2**
 
-**Tested in:** Node suite, JS-only mode, min held-out checks (noeval); packed bytes identical to 2.16.1 on 80 cases; Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** memory-compression suite (92 checks, full fuzz); same-instance pattern fuzz 1,600 cases right (2.16.2: 288 wrong), with and without eval; 2,160 timestamp cases byte-identical to 2.16.2
 
 ## What it is and how it works
 
@@ -184,6 +184,8 @@ The pager keeps 4.9 times fewer bytes than msgpackr with records and opens a pag
 | fflate 0.8.3, level 6 | 51.8% | 12979 and 1549 |
 
 Fast mode restores faster than lz4-wasm in Firefox 158.0 and Chromium 155 but not in WebKitGTK 2.52.6 (123 ms against 221 ms), and it restores faster than zstd-wasm and fflate everywhere; it is the only one here that understands floats and records, so it is far smaller than plain LZ4. `mode: 'balanced'` on 100,000 numbers: ids 1,635 B to 121 B, timestamps 71,052 B to 20,548 B, prices 132,045 B to 97,214 B (sizes are identical in all three browsers). Restoring 300,000 links through `keeper().restore()` takes 81 to 138 ms with the longest page freeze 21 to 31 ms, against a 53 to 76 ms freeze for `get()`. The 2.0.3 change in numbers: a page that loads the module but never packs uses about 5.8 MB less (14.96 to 9.12 MB, Chromium 155); the first pack takes up to 10 ms longer.
+
+**Timestamps (2.16.3):** a text column of ISO date-times in the fixed shapes `YYYY-MM-DDTHH:MM:SSZ` or `YYYY-MM-DDTHH:MM:SS.mmmZ` (32 rows or more) is read by character position. Each value is checked as a real date, and goes straight to one number per row. Other date shapes (space separator, date only, minutes) are checked in the WebAssembly helper for lists of 4,096 rows or more. The bytes are identical to 2.16.2. Packing 100,000 sorted timestamps took 7.4 / 6.9 / 5.7 ms in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, against 15.8 / 17.3 / 14.0 before, msgpackr 2.1.4 at 9.1 / 9.2 / 5.9 and cbor-x 1.6.9 at 12.6 / 11.5 / 7.1 (median of 3 alternating runs).
 
 ## What it is not
 

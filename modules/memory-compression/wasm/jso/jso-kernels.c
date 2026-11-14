@@ -292,3 +292,50 @@ EXPORT u32 alp_enc(const double *a, u32 n, double Fe, double Ff, double *ints, u
   }
   return k;
 }
+
+/* The numbers of a date-time column (see tsPack in jso-layer.js) as one number per row, with the checks and the sampled ranges and steps that JavaScript prices.
+ *   f: g arrays of n doubles one after another (year, month, day, then hour, minute, second, millisecond); g is 3, 5, 6 or 7.
+ *   out: n doubles (days, minutes, seconds or milliseconds since 1970-01-01).
+ *   st: 3 * g + 3 doubles: per number the smallest, the biggest and the biggest step between sampled rows; then the same three for the result.
+ * Returns 0 when a row is not a real date and time (out and st are then not meant to be used), 1 otherwise. */
+static const unsigned char TS_DIM[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+static inline double ts_abs(double x) { return x < 0 ? -x : x; }
+EXPORT int ts_pack(const double *f, u32 n, u32 g, double *out, double *st) {
+  u32 i, j, mask = 0;
+  double inf = __builtin_inf(), tmin = inf, tmax = -inf, tdm = 0;
+  while ((n >> (mask + 1)) > 1024) mask++;
+  mask = (1u << mask) - 1;
+  for (j = 0; j < g; j++) { st[j] = inf; st[g + j] = -inf; st[2 * g + j] = 0; }
+  for (i = 0; i < n; i++) {
+    double y = f[i], mo = f[n + i], d = f[2 * n + i], v, x;
+    long long yi = (long long)y, era, yoe, doy, days; int moi = (int)mo, di = (int)d;
+    int leap = (yi % 4 == 0) && (yi % 100 != 0 || yi % 400 == 0);
+    if (mo < 1 || mo > 12 || d < 1 || d > (moi == 2 && leap ? 29 : TS_DIM[moi - 1])) return 0;
+    { long long yy = yi; if (moi <= 2) yy--; era = yy >= 0 ? yy / 400 : -((399 - yy) / 400); yoe = yy - era * 400;
+      doy = (153 * (moi + (moi > 2 ? -3 : 9)) + 2) / 5 + di - 1;
+      days = era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468; }
+    if (g == 3) v = (double)days;
+    else {
+      double h = f[3 * n + i], mi = f[4 * n + i];
+      if (h > 23 || mi > 59) return 0;
+      if (g == 5) v = (double)days * 1440 + h * 60 + mi;
+      else {
+        double sec = f[5 * n + i];
+        if (sec > 59) return 0;
+        v = (double)days * 86400 + h * 3600 + mi * 60 + sec;
+        if (g == 7) v = v * 1000 + f[6 * n + i];
+      }
+    }
+    out[i] = v;
+    if ((i & mask) != 0) continue;
+    if (v < tmin) tmin = v;
+    if (v > tmax) tmax = v;
+    if (i > 0) { x = ts_abs(v - out[i - 1]); if (x > tdm) tdm = x; }
+    for (j = 0; j < g; j++) {
+      x = f[j * n + i]; if (x < st[j]) st[j] = x; if (x > st[g + j]) st[g + j] = x;
+      if (i > 0) { x = ts_abs(x - f[j * n + i - 1]); if (x > st[2 * g + j]) st[2 * g + j] = x; }
+    }
+  }
+  st[3 * g] = tmin; st[3 * g + 1] = tmax; st[3 * g + 2] = tdm;
+  return 1;
+}
