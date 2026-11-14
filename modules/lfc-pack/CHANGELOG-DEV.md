@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.37 · API 0 · 2026-11-14
+
+### Quick
+Saving rows is a little faster again in Chromium (about 3-4%, same files).
+
+### Deep
+Saving rows is a little faster again in Chromium (about 3-4%, same files). A key in the same position as in the row before reuses that position's column state.
+
 ## 0.10.36 · API 0 · 2026-11-14
 
 ### Quick

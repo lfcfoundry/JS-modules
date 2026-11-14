@@ -670,17 +670,17 @@
   function b61Fold(full, pls, pb) { for (var j = 0; j < pls.length; j++) { var pl = pls[j]; for (var b = 0; b < pb; b++) pl[b] |= full[b]; } full.fill(0); }
   function b61Gen(c, n) { var a = new Array(n), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }
   function b61Loop(rows, n, pb, keys, seen, cols, cs21, pls) {
-    var full = new Uint8Array(pb), any = 0, pk = [], px = [], rj = [], i, r, k, q, jx, dev, x21, c21, t, nk;
+    var full = new Uint8Array(pb), any = 0, pk = [], pc = [], px = [], i, r, k, q, jx, dev, x21, c21, t, nk;
     for (i = 0; i < n; i++) {
       r = rows[i]; q = 0; dev = false; nk = keys.length;
       for (k in r) {
-        if (pk[q] === k) jx = px[q];
-        else { dev = true; jx = seen.get(k); if (jx === undefined) { if (any) { b61Fold(full, pls, pb); any = 0; } jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; }
-        rj[q++] = jx; x21 = r[k]; c21 = cs21[jx];
+        if (pk[q] === k) c21 = pc[q];   // B64: the column state is cached per key position too
+        else { dev = true; jx = seen.get(k); if (jx === undefined) { if (any) { b61Fold(full, pls, pb); any = 0; } jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; pc[q] = c21 = cs21[jx]; }
+        q++; x21 = r[k];
         if (c21.a !== null) { if (B61I) c21.a[c21.c++] = x21; else c21.a.push(x21); } else if (typeof x21 === 'number') { c21.nb[c21.m++] = x21; c21.c++; } else if (x21 === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = B61I ? b61Gen(c21, n) : b21Generic(c21); c21.nb = null; if (B61I) c21.a[c21.c++] = x21; else c21.a.push(x21); }
       }
       if (!dev && q === nk && q === keys.length) { full[i >> 3] |= 1 << (i & 7); any = 1; }
-      else for (t = 0; t < q; t++) pls[rj[t]][i >> 3] |= 1 << (i & 7);
+      else for (t = 0; t < q; t++) pls[px[t]][i >> 3] |= 1 << (i & 7);
     }
     if (any) b61Fold(full, pls, pb);
     if (B61I) for (t = 0; t < cs21.length; t++) { c21 = cs21[t]; if (c21.a !== null) c21.a.length = c21.c; }

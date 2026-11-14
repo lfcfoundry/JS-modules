@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.37 · API 0 · 2026-11-14
+- saving rows a little faster in Chromium
+
 ## 0.10.36 · API 0 · 2026-11-14
 - Saving rows is up to 8% faster in Firefox and 4% faster in Chromium (same files).
 
