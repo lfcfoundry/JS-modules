@@ -75,15 +75,16 @@
     b[e] = 10; return b.subarray(1);
   }
   var B26 = !(typeof globalThis !== 'undefined' && globalThis.__B26 === 0);
-  function packRows(rows, opts) { var po = packOpts(opts);
-    if (B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) && b18Pays(rows)) {   // B26: the row scatter checks the rest
-      try { return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _b26: 1 })); } catch (e) { if (e !== B26_BAIL) throw e; return pack(rowsBytes(rows), opts); } }
-    if (!B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && b18Pays(rows)) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], po); return pack(rowsBytes(rows), opts); }
+  function packRows(rows, opts) { var po = packOpts(opts), pay;
+    if (B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) && (pay = b18Pays(rows))) {   // B26: the row scatter checks the rest
+      try { return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _b26: 1, _hb: pay === 2 })); } catch (e) { if (e !== B26_BAIL) throw e; return pack(rowsBytes(rows), opts); } }
+    if (!B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && (pay = b18Pays(rows))) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _hb: pay === 2 })); return pack(rowsBytes(rows), opts); }
   // B18b gate (Chromium 156 sweep on 0.9.3, 15 files): the row path wins when the rows would make more than 16 MB of text (the text path then leaves the wasm scanner), or when fewer than 40% of the cells are strings; string-heavy tables under 16 MB pack faster through the wasm text scanner (1.1 to 1.5 times slower otherwise)
   function b18Pays(rows) { var n = rows.length, k = Math.min(1024, n), est = JSON.stringify(rows.slice(0, k)).length / k * n, i, r, c = 0, st = 0;
     if (est > 16 * 1048576) return true;
-    for (i = 0; i < Math.min(256, n); i++) { r = rows[i]; for (var q in r) { c++; if (typeof r[q] === 'string') st++; } }
-    return st < c * 0.4; }
+    var seen = {}, v, sk, all = 0;   // P13i: what slows the row path is many different strings (the wasm text scanner makes those faster; logs with long unique strings were 1.29-1.38x on laptop Chrome 157 and Firefox 160); repeated labels are quicker on the row path in all three engines, so the share counted is of strings seen for the first time under their key
+    for (i = 0; i < Math.min(256, n); i++) { r = rows[i]; for (var q in r) { c++; v = r[q]; if (typeof v === 'string') { all++; sk = seen[q] || (seen[q] = new Map()); if (!sk.has(v)) { sk.set(v, 1); st++; } } } }
+    return st >= c * 0.4 ? false : all >= c * 0.4 ? 2 : true; }   // 2: the row path, for a table the 0.10.8 rule sent to the text path (it keeps that path's B22 head block)
   // B18b: true when every row is a plain object whose values are strings, booleans, null or finite numbers other than -0 (so JSON.stringify would write each value as is and keep every key)
   function flatScalars(rows) { var i, r, k, v, t, P = Object.prototype; for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) return false; t = Object.getPrototypeOf(r); if (t !== P && t !== null) return false;
     for (k in r) { v = r[k]; t = typeof v; if (t === 'number') { if (v !== v || v === Infinity || v === -Infinity || (v === 0 && 1 / v < 0)) return false; } else if (t !== 'string' && t !== 'boolean' && v !== null) return false; } } return true; }
@@ -121,7 +122,7 @@
   }
   function packManyNow(inputs, opts) {
     opts = opts || {}; need(true);
-    var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], off = 0, rows = 0, tail = true, nm0 = NMARK;
+    var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], eqf = [], eqAny = false, off = 0, rows = 0, tail = true, nm0 = NMARK;
     var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
     // paths: 'auto' (opt-in): an input of PATHS_TRY blocks or more picks the string layout of its big nested blocks from a 128 KB sample (samplePick)
@@ -133,8 +134,9 @@
     for (ti = 0; ti < inputs.length; ti++) {
     if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
       var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl, cnt;
-      for (ra = 0, cnt = stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
-        blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
+      var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0;   // P13i: the B22 head block for tables that took the text path before
+      for (ra = 0, cnt = hb0 || stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts);
+        blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti)); zone.push(blk.zone); var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
       tail = true; continue;
     }
     b = inputs[ti].bytes; p = 0; var hd = !opts._nohead && headOn(b.length, bb); tail = b.length === 0 || b[b.length - 1] === 10; retry.length = 0;
@@ -142,7 +144,7 @@
       if (retry.length) { r0 = retry.pop(); s0 = r0[0]; e = r0[1]; }
       else { s0 = p; e = Math.min(b.length, p + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { var nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } p = e; }
       chunk = b.subarray(s0, e); kind = opts.block; blk = null; if (st) st.j = null;
-      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
+      if (exact && !exactSafe(chunk, fatal)) { blk = writeRawBlock(ctx.zs, chunk, opts); blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, 'r', ti)); zone.push([]); eqf.push(0); parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; continue; }
       try {
         // auto: big blocks whose first rows are all flat objects go straight to the flat layout (it won on every flat-object set measured, and skipping the nested pass saves about 30% of pack time)
         if ((!kind || kind === 'flat') && !exact) { blk = writeFlatBlockFast(ctx, chunk, kind ? opts : Object.assign({}, opts, { noLists: true })); if (blk && blk.k67 && !kind && !(chunk.length > 262144 && looksFlat(chunk))) blk = null; if (blk) kind = 'flat'; }   // a block the fast writer kept only through the per-column fallback goes the old way when auto would have compared it with the nested layout, so the same layout wins   // auto leaves rows with list columns to the nested layout (lists read faster there); { block: 'flat' } takes them
@@ -160,16 +162,19 @@
         retry.push([mid + 1, e], [s0, mid + 1]); continue;
       }
       if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) { if (ex.raw.length) exc[blocks.length] = ex.raw; if (ex.spell.length) spl[blocks.length] = ex.spell; } }
-      blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone); parts.push(blk.bytes);
+      blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone); var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows;
     }
     }
+    if (opts._eqout) for (var eqi = 0; eqi < eqf.length; eqi++) opts._eqout.push(eqf[eqi]);   // a helper's run: the caller joins the filters
+    var eqs = null; if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }   // NX A
     var secs = [
       { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify(inputs[0].name === null ? { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' } : { rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.1', tables: inputs.map(function (x) { return [x.name, x.kind]; }) })) },
       { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
       { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
       { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: exact, tail: tail })) }
     ];
+    if (eqs) secs.push(eqs);
     secs = secs.concat(metaSecs(opts));
     if (st && !opts._st && st.used) secs.push(sharedSection(st));
     if (exact && Object.keys(exc).length) secs.push(excSection(exc));
@@ -445,12 +450,22 @@
   function cacheLimit(n) { if (n !== undefined) { EQ_LIMIT = Math.max(0, +n || 0); eqTouchAll(); } return EQ_LIMIT; }
   function eqTouchAll() { var k, e; for (k of EQ_LRU.keys()) { if (EQ_TOTAL <= EQ_LIMIT) break; e = EQ_LRU.get(k); EQ_LRU.delete(k); EQ_TOTAL -= e.size; delete e.EC[e.ck]; } }
   function cacheBytes() { return EQ_TOTAL; }
+  var EQF_CACHE = new WeakMap();
+  function eqfOf(arg, file) {   // NX A: the block filters (section 18), parsed once per file bytes
+    var k = arg !== null && typeof arg === 'object' ? arg : null, v = k ? EQF_CACHE.get(k) : undefined;
+    if (v === undefined) { var q = file.footer.sec[SEC_EQF] ? jsonSec(file.footer.sec[SEC_EQF]) : null, rg; v = null;
+      if (Array.isArray(q) && q[0] >= 0 && q[0] + q[1] <= file.footer.bodyEnd) { rg = file.bytes.subarray(q[0], q[0] + q[1]); if (crcJS(rg, 0) === q[2]) { try { v = eqRegionRead(q[3] ? S.zdec.decompress(rg, q[3]).slice() : rg); } catch (e) { v = null; } } }   // damaged filters: read without them
+      if (k) EQF_CACHE.set(k, v); }
+    return v;
+  }
   function unpackEq(bytes, opts) {
     var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, eq = opts.equals, evOk = !eq.anyOf || NX_C === 'on', ev = eq.anyOf && NX_C === 'on' ? new AnyOf(eq.anyOf) : eq.value, mode = opts._eq || 'codes', useCache = !eq.anyOf && !!opts.cache && mode === 'codes' && bytes !== null && typeof bytes === 'object';
     if (opts.keys) { want = {}; for (i = 0; i < opts.keys.length; i++) want[opts.keys[i]] = 1; want[eq.key] = 1; }
+    var EQF = evOk && file.blocks.length > 1 ? eqfOf(bytes, file) : null; var EQN = EQF ? eqNeedles(ev) : null;
     for (i = 0; i < file.blocks.length; i++) {
       if (opts.table != null && (file.blocks[i][5] || 0) !== opts.table) continue;
       kd = file.blocks[i][4]; r = null;
+      if (kd === 'f' && EQF && EQF[i] && eqSkipBlock(EQF[i], eq.key, EQN)) continue;   // NX A
       if (kd === 'f' && mode !== 'off') {
         var pbk = want ? partialBytes(file, i) : null, bc = null, ent = null;
         if (useCache) {
@@ -719,4 +734,4 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.10', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.15', apiVersion: 0 };

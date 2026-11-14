@@ -28,6 +28,10 @@ const J = require('../lfc-pack.js');
   }
   { const o = { workers: 2, blockBytes: 300000 }, [p, q] = await Promise.all([J.packRowsParallel(base(), o), J.packRowsParallel(base(25000), o)]); ok(eq(p, J.packRows(base(), o)) && eq(q, J.packRows(base(25000), o)), 'two overlapping calls, several blocks each'); }
   { const cp = require('child_process'), code = "globalThis.__B28TEXT=0.01;globalThis.__B28AUTO=0;const J=require(" + JSON.stringify(require('path').resolve(__dirname, '../lfc-pack.js')) + ");(async()=>{await J.init();await J.packRowsParallel(Array.from({length:20000},(_,i)=>({id:i,x:i*.5})),{workers:2,blockBytes:100000});console.log('call done')})();", out = cp.spawnSync(process.execPath, ['-e', code], { encoding: 'utf8', timeout: 60000 }); ok(/call done/.test(out.stdout), 'a plain script waits for the yielding writer and then ends on its own'); }
+  { // P13i: label tables (many repeated short strings, above 4 MiB of text) take the row path with the head block; the helper path cuts the same blocks
+    const lab = (len) => Array.from({ length: len }, (_, i) => { const o = { id: i, v: i * 0.25 }; for (let k = 0; k < 24; k++) o['label' + k] = 'value-' + ((i * (k + 3)) % 7) + '-' + 'abcdefgh'.slice(0, 1 + (k % 8)); return o; });
+    const a = lab(30000), b = lab(30000); ok(JSON.stringify(a).length > 4 << 20, 'label table is above 4 MiB of text');
+    ok(eq(J.packRows(a), await J.packRowsParallel(b, { workers: 2 })), 'label table: packRowsParallel same bytes as packRows (head block)'); }
   J.trim && J.trim();
   console.log(bad ? 'b28: ' + bad + ' bad of ' + n : 'b28 ok, ' + n + ' checks'); process.exit(bad ? 1 : 0);
 })();

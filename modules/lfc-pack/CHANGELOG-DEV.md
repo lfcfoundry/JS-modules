@@ -2,6 +2,61 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.15 · API 0 · 2026-11-13
+
+### Quick
+unpackColumnsParallel reads whole tables as columns
+
+### Details
+B35: unpackColumnsParallel(bytes, { keys, workers }) resolves to { key: array }; helpers decode blocks, the calling thread joins; typed arrays stay typed, a missing key gives undefined; flat-row files only; first call reads on the calling thread and starts helpers after. 300,000 rows vs unpackRows, first/later: taxi Chromium 0.49/0.30, Firefox 0.55/0.37, WebKitGTK 0.54/0.41; logs 0.74/0.67, 0.83/0.73, 0.80/0.66; sensors 0.41/0.38, 0.61/0.51. Owner laptop Firefox 160 taxi later 0.29, Chrome 157 0.31; longest pause 354 to 46 ms.
+
+### Deep
+B35 unpackColumnsParallel (owner named it, laptop Firefox 160 and Chrome 157 passed). API export added by hand; b35.cjs 32 checks (values equal unpackRows by Object.is, first and second call, block sizes, sparse and mixed tables, keys option, nested rejected). All lfc-pack checks pass.
+
+## 0.10.14 · API 0 · 2026-11-13
+
+### Quick
+faster row reads in Firefox and WebKit
+
+### Details
+B36: outside V8, dense blocks (every key present in every row) are built 1,024 rows at a time, then each column is assigned down the chunk. unpackRows 100,000 rows vs 0.10.13: Firefox 0.85 to 1.02, WebKitGTK taxi later reads 0.82; WebKitGTK sensors first read 1.20 in the cloud test (owner accepted). Identical output on 9 sets x 4 ways of writing in Firefox and WebKitGTK; Chromium unchanged.
+
+### Deep
+B36 dense chunked rows, non-V8 only (owner Send B36, then Ship B36 as is after the WebKitGTK sensors first-read card). Output identical to 0.10.13 in Firefox and WebKitGTK. All lfc-pack checks pass.
+
+## 0.10.13 · API 0 · 2026-11-13
+
+### Quick
+faster saves for sparse and label tables
+
+### Details
+P13i: packRows counts strings seen for the first time under their key in the first 256 rows; 40% or more of values new keeps the text route, otherwise 40% or more strings takes the row path with the 64 KiB head block. Owner laptop, warm saves on sparse and label tables 0.46 to 0.93 of 0.10.8 (Chrome 157, Firefox 160); cloud sparse sets 0.85 to 1.04, logs and sensors unchanged, same bytes. packRowsParallel cuts the same head block.
+
+### Deep
+P13i packRows route (owner Send P13i, laptop Chrome 157 and Firefox 160 passed tester v7b). Hand merge of the head block hunk for 0.10.12; packRowsParallel and packRowsBlocks cut the same head block so bytes equal packRows. New check in b28.cjs, 30 checks. All lfc-pack checks pass.
+
+## 0.10.12 · API 0 · 2026-11-13
+
+### Quick
+packColumnsParallel saves columns directly
+
+### Details
+B34: packColumnsParallel(columns, opts) returns a promise of the file for the rows the columns describe; plain or number typed arrays, same length; skips the string-share gate; same gates and fallbacks as packRowsParallel. 300,000 rows vs packRowsParallel, later saves: taxi 0.66 Chromium, 0.42 Firefox, 0.74 WebKitGTK; sensors 0.73, 0.71; logs 0.93, 0.96, 0.90; first call 0.67 to 0.97. Number tables same bytes as packRows; text-heavy tables can differ by about 0.04% and read back exactly.
+
+### Deep
+B34 packColumnsParallel (owner Always column path, named by the owner). Hand merge of two hunks for 0.10.11. New test b34.cjs, 58 checks. All lfc-pack checks pass.
+
+## 0.10.11 · API 0 · 2026-11-13
+
+### Quick
+equality reads skip blocks on random-access files
+
+### Details
+NX A: random-preset files (blocks of 1 MB or less, 2 or more blocks) keep a Bloom filter per text column per block in a compressed area after the blocks, pointed to by optional footer section 18. Absent lookups 0.24 weighted; random-preset saves 0.95 to 1.03 of 0.10.10 on logs and sensors in three browsers; default saves unchanged; filters also written by packRowsParallel and packParallel; packStream writes none.
+
+### Deep
+Block skipping A (owner Send to code thread). Exact checks on the release build: acheck 5,211, check 38,088, rawcheck 56, all 0 bad; 0.10.1 reads the files. Hand merge for the B28 writer; helper stitching carries the filters; hidden option _noeq for tests. All lfc-pack checks pass.
+
 ## 0.10.10 · API 0 · 2026-11-13
 
 ### Quick

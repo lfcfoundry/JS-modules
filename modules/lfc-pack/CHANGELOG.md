@@ -2,6 +2,21 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.15 · API 0 · 2026-11-13
+- New unpackColumnsParallel(bytes) reads a table as columns on helper workers, no row objects: later reads take 0.30 to 0.67 of unpackRows in Chromium, Firefox and WebKitGTK (cloud, 300,000 rows).
+
+## 0.10.14 · API 0 · 2026-11-13
+- Reading whole tables is up to 15% faster in Firefox 158 (rows built in chunks of 1,024); a WebKitGTK sensors first read is 1.2 times slower. Chrome and Edge are unchanged.
+
+## 0.10.13 · API 0 · 2026-11-13
+- Saving sparse tables and tables of repeated labels is 0.46 to 0.93 of the old time on an owner laptop (Chrome, Firefox). Tables of many different strings are unchanged.
+
+## 0.10.12 · API 0 · 2026-11-13
+- New packColumnsParallel({ key: array }) saves columns you hold without row objects: later saves of number tables take 0.42 to 0.74 of packRowsParallel in Chromium, Firefox and WebKitGTK (cloud).
+
+## 0.10.11 · API 0 · 2026-11-13
+- Random-access files skip blocks that cannot hold the value: a value not in the file returns in about a quarter of the time (Chromium, Firefox, WebKitGTK). Files grow about 0.4%; older readers still open them.
+
 ## 0.10.10 · API 0 · 2026-11-13
 - packRowsParallel hands control back to the page between blocks: the longest pause on the main thread drops from 178 to 214 ms to 27 to 53 ms in Chromium, Firefox and WebKitGTK (cloud).
 

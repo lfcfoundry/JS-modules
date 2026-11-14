@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.16.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.10.10 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.15 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -68,6 +68,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-13 · **lfc-pack** 0.10.5 · API 0: Reading whole tables of 24 or more keys where some rows lack some keys is up to five times faster in Chrome and Edge. Tables of 16 to 23 keys with few complete rows could be up to 1.4 times slower; 0.10.6 fixes that.
 - 2026-11-13 · **lfc-pack** 0.10.4 · API 0: Saving big number tables is up to twice as fast in Chromium and Firefox (cloud runs).
 - 2026-11-13 · **lfc-pack** 0.10.3 · API 0: Opening a big file in blocks uses 32 to 39% less memory at 1 to 4 MB blocks (counted by the module's memory counters, same in every browser).
+- 2026-11-13 · **lfc-pack** 0.10.15 · API 0: New unpackColumnsParallel(bytes) reads a table as columns on helper workers, no row objects: later reads take 0.30 to 0.67 of unpackRows in Chromium, Firefox and WebKitGTK (cloud, 300,000 rows).
+- 2026-11-13 · **lfc-pack** 0.10.14 · API 0: Reading whole tables is up to 15% faster in Firefox 158 (rows built in chunks of 1,024); a WebKitGTK sensors first read is 1.2 times slower. Chrome and Edge are unchanged.
+- 2026-11-13 · **lfc-pack** 0.10.13 · API 0: Saving sparse tables and tables of repeated labels is 0.46 to 0.93 of the old time on an owner laptop (Chrome, Firefox). Tables of many different strings are unchanged.
+- 2026-11-13 · **lfc-pack** 0.10.12 · API 0: New packColumnsParallel({ key: array }) saves columns you hold without row objects: later saves of number tables take 0.42 to 0.74 of packRowsParallel in Chromium, Firefox and WebKitGTK (cloud).
+- 2026-11-13 · **lfc-pack** 0.10.11 · API 0: Random-access files skip blocks that cannot hold the value: a value not in the file returns in about a quarter of the time (Chromium, Firefox, WebKitGTK). Files grow about 0.4%; older readers still open them.
 - 2026-11-13 · **lfc-pack** 0.10.10 · API 0: packRowsParallel hands control back to the page between blocks: the longest pause on the main thread drops from 178 to 214 ms to 27 to 53 ms in Chromium, Firefox and WebKitGTK (cloud).
 - 2026-11-12 · **lfc-pack** 0.9.6 · API 0: Saving a small change can write only what changed (opt-in delta saves).
 - 2026-11-12 · **lfc-pack** 0.9.5 · API 0: Asking for the rows with one exact value is faster (unpack with equals), and reading columns is faster.
