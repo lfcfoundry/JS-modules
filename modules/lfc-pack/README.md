@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.14 · API 0**
+**Version 0.10.15 · API 0**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6, owner laptop Chrome 157 and Firefox 160
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -118,6 +118,8 @@ Packing a file without reading it first (since 0.10.9): `LfcPack.packParallel(fi
 Skipping blocks in equality reads (since 0.10.11): files written with the random-access preset (blocks of 1 MB or less, two or more blocks) also keep a small Bloom filter for each text column of each block, in their own compressed area after the blocks (about 0.4% more bytes). `unpack(file, { equals: { key, value } })` (or `anyOf`) then skips every block whose filter shows the value is not there; a value that is not in the file at all comes back in about a quarter of the time. Saves with the default settings are unchanged. Older readers ignore the area and read the file as before. Files written by `packStream` carry no filters yet.
 
 Saving columns you already have (since 0.10.12): `LfcPack.packColumnsParallel({ id: ids, price: prices, name: names }, opts)` returns a promise of the file for the rows `{ id: ids[i], price: prices[i], name: names[i] }`, without building row objects. Each value is a plain array or a number typed array (`Float64Array`, `Int32Array`, ...; not BigInt), all the same length; a wrong type or unequal lengths reject the call. It uses the same helpers, first-call rule and gates as `packRowsParallel`, and later saves of number-heavy tables take about 0.6 to 0.75 of the `packRowsParallel` time. Number tables give the same bytes as `packRows`; on tables that `packRows` sends down the text path (many string columns) the file can differ by a few hundredths of a percent, and it reads back exactly.
+
+Reading a whole table as columns (since 0.10.15): `await LfcPack.unpackColumnsParallel(bytes, { keys, workers })` resolves to `{ key: array }` with no row objects: blocks are decoded in helper workers and each key's pieces are joined on the calling thread. Number columns of one kind come back as typed arrays of that kind (mixed kinds as `Float64Array`), everything else as plain arrays, and a key some rows lack gives `undefined` at those rows. It works on flat-row files (not nested blocks), and the result can go straight to `packColumnsParallel`. The first call reads on the calling thread and starts the helpers afterwards (they close after 10 seconds idle); one-block files never use helpers. Later reads of number-heavy tables took 0.3 to 0.7 of the `unpackRows` time and the longest pause on the page dropped to a fraction.
 
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 
