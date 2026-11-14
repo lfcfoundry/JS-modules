@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.21 · API 0 · 2026-11-14
+
+### Quick
+aggregate, nulls: 'NaN', wasm bit-unpack
+
+### Details
+No format change; B40 aggregate, B41 wasm bit-unpack (Chromium, Gecko only), B42 nulls NaN
+
+### Deep
+lfc-pack 0.10.21: B40 LfcPack.aggregate, B41 wasm bit-unpack for Chrome, Edge and Firefox (Safari-family keeps the JS loop: WebKitGTK 1.19x slower in wasm), B42 nulls: 'NaN' on unpackColumns, unpackColumnsParallel and R.columns; names picked by the owner on cards. Research thread compression part 3 (E43). Handoff HANDOFF-B40-B42-aggregate-to-code-thread-2026.11.14.md. Owner laptop test 11.14 10:21 AM PASS (Firefox 161: aggregate 0.09-0.15 of column loop, row reads 0.75; Chrome 157: 0.05-0.08, 0.92). Verified here: full suite passes, aggregate vs plain loop on 200k taxi rows equal (sums within 1e-6 relative, 260 groups), bdec.wasm reproduces byte-identical from bdec.c.
+
 ## 0.10.20 · API 0 · 2026-11-14
 
 ### Quick

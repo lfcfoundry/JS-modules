@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 0.10.20 (API 0)
+# Version 0.10.21 (API 0)
 # Concatenates src/*.js into lfc-pack.js and embeds the wasm modules (the four big ones deflated, then base64; lfc-pack-read.js keeps plain base64). Run from anywhere.
 import base64, os, struct, sys, zlib
 here = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +15,7 @@ a, b = '/*WASM:BEGIN*/', '/*WASM:END*/'
 i = src.index(a); j = src.index(b)
 tpl = base64.b64encode(open(os.path.join(here, 'wasm/tpl4.wasm'), 'rb').read()).decode()
 src = src.replace('/*TPL:BEGIN*//*TPL:END*/', tpl)
+src = src.replace('/*BD:BEGIN*//*BD:END*/', base64.b64encode(open(os.path.join(here, 'wasm/bdec.wasm'), 'rb').read()).decode())   # B40/B41: bit-packed column kernels (aggregate, wasm unpack), both builds
 src = src.replace('/*FS:BEGIN*//*FS:END*/', base64.b64encode(open(os.path.join(here, 'wasm/flatscan.wasm'), 'rb').read()).decode())
 fp = base64.b64encode(open(os.path.join(here, 'wasm/flatscan-plain.wasm'), 'rb').read()).decode()   # no-SIMD copy of the flat scanner: only the full build (it packs) carries it
 src = src.replace('/*RS:BEGIN*//*RS:END*/', base64.b64encode(open(os.path.join(here, 'wasm/rowscan.wasm'), 'rb').read()).decode())
