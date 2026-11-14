@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.19 · API 0**
+**Version 0.10.20 · API 0**
 
-**Tested in:** Node suite and positions.cjs (725 checks, same row numbers as unpack(file) filtering); Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Node suite; 156 equal-read checks vs 0.10.19 (0 value or key-order differences); files of 100 rows or more byte-identical; Chromium 156, Firefox 158 and owner laptop Chrome 157, Firefox 161
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -127,6 +127,8 @@ Reading a whole table as columns (since 0.10.15): `await LfcPack.unpackColumnsPa
 Reading a whole table as rows (since 0.10.18): `await LfcPack.unpackRowsParallel(bytes, { workers })` resolves to the same rows as `unpackRows(bytes)`. Helper workers decode the blocks and the calling thread builds each block's rows in order, pausing between blocks, so the longest page pause during a 300,000-row read falls from 186-305 ms to 34-64 ms (Chromium 156, Firefox 158 and WebKitGTK 2.52.6 container runs). The first call reads on this thread and then starts helpers (at most 4, closed after 10 s idle); later reads took 0.78 of `unpackRows` in Chromium 156 and 0.77 to 0.93 in Firefox 158 (taxi-like table). WebKit browsers, other options, one-block files and non-flat files use plain `unpackRows`.
 
 Row numbers instead of rows (since 0.10.19): `LfcPack.unpack(file, { equals: { key, value }, positions: true })` (also `anyOf` and `range`) returns a `Uint32Array` of the numbers of the matching rows, in file order, without building any row object, for callers that keep their own columns. The numbers are the same as the indexes of the rows `unpack(file)` gives, so `unpack(file)[positions[i]]` is the i-th match. Measured on 200,000-row tables in cloud Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (median of 5 fresh pages, 9 runs each): a common or rare value takes 0.10 to 0.28 of the time the row read takes, a range that keeps half the rows 0.14 to 0.31, a value that is not there the same time. Without `positions` nothing changes.
+
+Small tables (since 0.10.20): a table of 32 rows or fewer that is one block is also written as plain text in one raw block (kind `r`, zstd level 3), and whichever is smaller is kept, so tiny files come out about 20 to 50% smaller (taxi rows: 1 row 0.51, 5 rows 0.56, 20 rows 0.82 of the 0.10.19 size; at 100 rows and more nothing changes and the bytes are the same). Rows read back with the same values and the same key order as before. Writing a table under 32 rows takes about 10 to 60 microseconds more; reading a 5-row table is 0.59 to 0.75 of the time. Not used with `exact`, `share`, a set `block` layout or `level`. Also, a one-block file under 100 rows carries no zone maps (they cost 60 to 200 bytes and one block has nothing to skip), so `open().zone(i, key)` returns `null` for those files. `unpackColumns` and `unpackColumnsParallel` read these raw blocks as well.
 
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 
