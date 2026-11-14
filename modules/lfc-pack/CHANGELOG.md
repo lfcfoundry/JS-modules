@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.16 · API 0 · 2026-11-13
+- pool().unpack with equals or anyOf now returns only the matching rows, as unpack does
+
 ## 0.10.15 · API 0 · 2026-11-13
 - New unpackColumnsParallel(bytes) reads a table as columns on helper workers, no row objects: later reads take 0.30 to 0.67 of unpackRows in Chromium, Firefox and WebKitGTK (cloud, 300,000 rows).
 
