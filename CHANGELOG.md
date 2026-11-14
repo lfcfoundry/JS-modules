@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.16.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.10.21 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.22 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -63,6 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-11-14 · **memory-compression** 2.16.2 · API 2: Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
 - 2026-11-14 · **memory-compression** 2.16.1 · API 2: Unpacking lists with decimal numbers is about 10 to 15% faster
+- 2026-11-14 · **lfc-pack** 0.10.22 · API 0: Faster first aggregate and column read on a page (warm() covers them, a second column skips re-checking the file); files now carry per-column XXH64 checks by default (about 85 bytes more per block)
 - 2026-11-14 · **lfc-pack** 0.10.21 · API 0: New LfcPack.aggregate (sum, count, average of a number column, by group, 0.05 to 0.15 of the column-loop time); unpackColumns nulls: 'NaN'; faster bit-packed number reads in Chrome, Edge and Firefox
 - 2026-11-14 · **lfc-pack** 0.10.20 · API 0: Tables of 32 rows or fewer are stored about 20 to 50% smaller; one-block files under 100 rows have no zone maps, so zone() returns null for them
 - 2026-11-14 · **lfc-pack** 0.10.19 · API 0: unpack(file, { equals or range, positions: true }) returns row numbers instead of rows

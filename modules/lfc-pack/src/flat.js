@@ -446,6 +446,8 @@
       e.cols[k] = o; e.present[k] = null; }
     return e;
   }
+  // B44 (research): files carry per-column XXH64 checks by default (as { check: 'xxh64' } did), so a read of a few columns checks only those; { check: 'crc32' } keeps the old whole-block-only table
+  var B44_DEFAULT = true; function chkX(o) { return o && o.check ? o.check === 'xxh64' : B44_DEFAULT; }
   function colB(frames, n, p) { if (BD_DEC && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p); if (ow) return p.scale === 1 ? narrow(ow) : ow; } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
   function colD(frames, n, p) { var i, u, o; var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
@@ -952,7 +954,7 @@
   function colBytes(meta) { var t = 0, j, i; for (j = 0; j < meta.cols.length; j++) for (i = 0; i < meta.cols[j].f.length; i++) t += meta.cols[j].f[i][1]; return t; }
   function xhex(zs, b) { var h = zs.xxh64(b); return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1); }
   function withColumnInfo(meta, opts, zs) {
-    var o = 0, j, c, check = opts && opts.check === 'xxh64';
+    var o = 0, j, c, check = chkX(opts) && !!(zs && zs.xxh64);
     for (j = 0; j < meta.cols.length; j++) {
       c = meta.cols[j];
       if (check) { c.o = o; c.x = xhex(zs, concat(c._z.map(function (z) { return z[1]; }))); o += c.f.reduce(function (a, f) { return a + f[1]; }, 0); }
