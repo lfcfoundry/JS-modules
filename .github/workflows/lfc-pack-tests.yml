@@ -1,0 +1,25 @@
+# Runs the lfc-pack Node pass/fail suite (modules/lfc-pack/test/run.js) when lfc-pack changes. No speed numbers, no browsers.
+# Cost: about 30 seconds per run (the suite takes under a minute; most of the rest is runner start and checkout).
+name: lfc-pack-tests
+on:
+  pull_request:
+    paths:
+      - 'modules/lfc-pack/**'
+      - '.github/workflows/lfc-pack-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'modules/lfc-pack/**'
+      - '.github/workflows/lfc-pack-tests.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - run: node modules/lfc-pack/test/run.js
