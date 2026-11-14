@@ -96,7 +96,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-11 · **lfc-pack** 0.10.0 · API 0: Columns with some empty (null) values are stored compactly: such files are smaller and faster to read. Older versions cannot open these files.
 - 2026-11-08 · **ppmd-decode** 1.7.0 · API 1: New optional ppmd7Decode.warm({ order, memSize }) makes the first plain-JavaScript decode about 0.6 to 0.75 times as long.
 - 2026-11-08 · **ppmd-decode** 1.6.1 · API 1: First decode a little faster in Chromium; same output.
-- 2026-11-08 · **netflow-scene** 1.13.0 · API 1: Area bands are drawn as one shape instead of one per step: area charts are 1.2 to 7.7 times as fast (15 to 87% less time) to show, and the fill looks a little darker on long data (the true fill color).
+- 2026-11-08 · **netflow-scene** 1.13.0 · API 1: Area bands are drawn as one shape instead of one per step: area charts show 1.2 to 7.7 times as fast as SVG. Only the SVG export changed: seams are gone, the file is 0.38 times the size, canvas drawing is unchanged.
 - 2026-11-08 · **netflow-scene** 1.12.1 · API 1: SVG export: dots in short same-color runs no longer get a group each, so big scatters with mixed colors load 25-40% faster, same picture.
 - 2026-11-08 · **netflow-scene** 1.12.0 · API 1: Three groups get mauve, light green and orange (color-vision safe)
 - 2026-11-08 · **netflow-plot** 2.16.1 · API 2: Big area charts build 9 to 11% faster sooner: pointing text is made when you point.
