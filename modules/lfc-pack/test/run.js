@@ -69,6 +69,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('fast: true saves (0.10.34)', 'node', ['fast.cjs']);
   step('Firefox text counts forced on (B59/B60, 0.10.35)', 'node', ['b59.cjs']);
   step('faster row loop gives the same bytes (B61, 0.10.36)', 'node', ['b61.cjs']);
+  step('packBlock dictionary columns give the same bytes as text (0.10.38)', 'node', ['dictcol.cjs']);
   step('wasm template builder gives the same files (B57)', 'node', ['b57.cjs']);
   step('positions (W1)', 'node', ['positions.cjs']);
   step('nested equality: P13g late fallback', 'node', ['p13g-late-fallback.cjs']);

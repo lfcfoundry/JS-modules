@@ -279,10 +279,13 @@
   function colTable(obj, who) {
     var keys = Object.keys(obj || {}), A = [], G = [], n = -1, j, a;
     for (j = 0; j < keys.length; j++) { a = obj[keys[j]];
-      if (isByteCol(a)) { for (var i9 = 0, BL9 = a.bytes.length, s9, e9; i9 < a.start.length; i9++) { s9 = a.start[i9]; e9 = a.end[i9]; if (!(s9 >= 0 && e9 >= s9 && e9 <= BL9)) return new Error('LfcPack: text column "' + keys[j] + '": value ' + i9 + ' has offsets outside its bytes'); } G.push(function (bc) { return function (i) { return td.decode(bc.bytes.subarray(bc.start[i], bc.end[i])); }; }(a)); }
+      if (isDictCol(a)) { for (var i8 = 0, NL8 = a.labels.start.length, BL8 = a.labels.bytes.length, s8, e8; i8 < NL8; i8++) { s8 = a.labels.start[i8]; e8 = a.labels.end[i8]; if (!(s8 >= 0 && e8 >= s8 && e8 <= BL8)) return new Error('LfcPack: text column "' + keys[j] + '": label ' + i8 + ' has offsets outside its bytes'); }
+        for (i8 = 0; i8 < a.ids.length; i8++) if (!(a.ids[i8] >= 0 && a.ids[i8] < NL8)) return new Error('LfcPack: text column "' + keys[j] + '": id out of range at row ' + i8); }
+      if (isDictCol(a)) { G.push(function (dc) { var cache = []; return function (i) { var c = dc.ids[i]; return cache[c] !== undefined ? cache[c] : (cache[c] = td.decode(dc.labels.bytes.subarray(dc.labels.start[c], dc.labels.end[c]))); }; }(a)); }
+      else if (isByteCol(a)) { for (var i9 = 0, BL9 = a.bytes.length, s9, e9; i9 < a.start.length; i9++) { s9 = a.start[i9]; e9 = a.end[i9]; if (!(s9 >= 0 && e9 >= s9 && e9 <= BL9)) return new Error('LfcPack: text column "' + keys[j] + '": value ' + i9 + ' has offsets outside its bytes'); } G.push(function (bc) { return function (i) { return td.decode(bc.bytes.subarray(bc.start[i], bc.end[i])); }; }(a)); }
       else if (!Array.isArray(a) && !(ArrayBuffer.isView(a) && !(a instanceof DataView) && !(typeof BigInt64Array !== 'undefined' && (a instanceof BigInt64Array || a instanceof BigUint64Array)))) return new Error('LfcPack: ' + who + ' needs an array, a number typed array or { bytes, start, end } for "' + keys[j] + '"');
       else G.push(null);
-      var len = isByteCol(a) ? a.start.length : a.length;
+      var len = isDictCol(a) ? a.ids.length : isByteCol(a) ? a.start.length : a.length;
       if (n < 0) n = len; else if (len !== n) return new Error('LfcPack: ' + who + ' columns must all have the same length'); A.push(a); }
     if (n < 0) n = 0;
     function rowsOf(i0, i1) { var out = new Array(Math.max(0, i1 - i0)), i, r, q; for (i = i0; i < i1; i++) { r = {}; for (q = 0; q < keys.length; q++) r[keys[q]] = G[q] ? G[q](i) : A[q][i]; out[i - i0] = r; } return out; }

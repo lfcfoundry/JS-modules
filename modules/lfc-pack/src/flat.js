@@ -824,6 +824,33 @@
   function isByteCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start != null && x.end != null && typeof x.start.length === 'number' && x.start.length === x.end.length; }
   function byteColStrings(bc, a, n) { var out = new Array(n), B = bc.bytes, S = bc.start, E = bc.end, i; for (i = 0; i < n; i++) out[i] = td.decode(B.subarray(S[a + i], E[a + i])); return out; }
   var BC_UTF8 = null;
+  // dictionary column input { kind: 'dict', labels: { bytes, start, end }, ids: Uint8Array|Uint16Array|Int32Array (one label number per row) }; the block's labels are renumbered in first-seen order so the bytes equal packing the same text. Idea and first version: the parse-research thread
+  function isDictCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.kind === 'dict' && isByteCol(x.labels) && x.ids && ArrayBuffer.isView(x.ids) && typeof x.ids.length === 'number'; }
+  function dictStrings(dc, a, n) { var D = dc.labels, B = D.bytes, out = new Array(n), cache = new Array(D.start.length), i, c; for (i = 0; i < n; i++) { c = dc.ids[a + i]; out[i] = cache[c] !== undefined ? cache[c] : (cache[c] = td.decode(B.subarray(D.start[c], D.end[c]))); } return out; }
+  function byteColDict(dc, a, n, zs, level, tmode, key) {
+    var D = dc.labels, B = D.bytes, S = D.start, E = D.end, NL = S.length, codes = dc.ids, i, k, s, e, hi = 0, best = null;
+    var fb = function () { return encodeColumn(dictStrings(dc, a, n), zs, level, tmode, undefined, key); };
+    if (!n || tmode === 2) return fb();
+    for (i = 0; i < NL; i++) { s = S[i]; e = E[i]; if (!(s >= 0 && e >= s && e <= B.length)) throw new Error('LfcPack: text column "' + key + '": label ' + i + ' has offsets outside its bytes'); for (k = s; k < e; k++) { if (B[k] === 0) return fb(); hi |= B[k]; } }
+    var c0 = codes[a]; if (!(c0 >= 0 && c0 < NL)) throw new Error('LfcPack: text column "' + key + '": code out of range');
+    s = S[c0]; e = E[c0]; var L0 = e - s, ip = L0 >= 7 && L0 <= 15, dots = 0;
+    for (k = s; k < e && ip; k++) { if (B[k] === 46) dots++; else if (B[k] < 48 || B[k] > 57) ip = false; }
+    if ((L0 >= 16 && (L0 & 1) === 0) || L0 === 36 || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return fb(); }
+    var cap = tmode && n >= 16 && !(tmode === 1 && tmplSlow) ? 2 : 4;
+    if (cap === 2) return fb();
+    var map = new Int32Array(NL).fill(-1), lab = [], cc = new Int32Array(n), c;
+    for (i = 0; i < n; i++) { c = codes[a + i]; if (!(c >= 0 && c < NL)) throw new Error('LfcPack: text column "' + key + '": code out of range'); if (map[c] < 0) { if (lab.length * 4 > n) return fb(); map[c] = lab.length; lab.push(c); } cc[i] = map[c]; }
+    var nl = lab.length; if (nl * 4 > n || nl >= 65536) return fb();
+    if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); for (i = 0; i < nl; i++) try { BC_UTF8.decode(B.subarray(S[lab[i]], E[lab[i]])); } catch (er) { throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); } }
+    var len = 0, j, p = 0, o; for (j = 0; j < nl; j++) len += E[lab[j]] - S[lab[j]]; o = new Uint8Array(len + (nl ? nl - 1 : 0)); for (j = 0; j < nl; j++) { if (j) o[p++] = 0; o.set(B.subarray(S[lab[j]], E[lab[j]]), p); p += E[lab[j]] - S[lab[j]]; }
+    var lb = o, wd = Math.max(1, 32 - Math.clz32(nl - 1)), cb, ca = new Array(n);
+    for (i = 0; i < n; i++) ca[i] = cc[i];
+    if (nl > 256) { var u16 = new Uint16Array(n); for (i = 0; i < n; i++) u16[i] = cc[i]; cb = new Uint8Array(u16.buffer); } else { cb = new Uint8Array(n); for (i = 0; i < n; i++) cb[i] = cc[i]; }
+    function cand(t, p2, frames, st) { best = addCand(zs, level, best, t, p2, frames, n, st); }
+    cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
+    cand('D', { w: wd, wide: false }, [lb.slice(), bitpack(ca, wd)], { distinct: nl });
+    return settle(zs, level, best);
+  }
   function byteCol(bc, a, n, zs, level, tmode, key) {
     var B = bc.bytes, S = bc.start, E = bc.end, BL = B.length, i, k, s, e, tot = 0, hi = 0, best = null;
     for (i = 0; i < n; i++) { s = S[a + i]; e = E[a + i]; if (!(s >= 0 && e >= s && e <= BL)) throw new Error('LfcPack: text column "' + key + '": value ' + (a + i) + ' has offsets outside its bytes'); for (k = s; k < e; k++) { if (B[k] === 0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); hi |= B[k]; } tot += e - s; }
@@ -860,6 +887,7 @@
   function b34Fill(ci, n, pb, keys, seen, cols, cs21, pls) {
     var full = new Uint8Array(pb), j, i, x, c21, arr, a = ci.a; full.fill(255); if (n & 7) full[pb - 1] = (1 << (n & 7)) - 1;
     for (j = 0; j < ci.keys.length; j++) { keys.push(ci.keys[j]); seen.set(ci.keys[j], j); cols.push(null); pls.push(full); arr = ci.A[j];
+      if (isDictCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a, dc: true }); continue; }
       if (isByteCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a }); continue; }   // a text column as UTF-8 bytes plus value offsets: encoded from the bytes (byteCol), no strings
       if (!Array.isArray(arr)) { if (ci.view && arr instanceof Float64Array) { cs21.push({ a: null, nb: arr.subarray(a, a + n), np: null, m: n, c: n }); continue; } c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); cs21.push(c21); continue; }   // ci.view (packBlock(columns), no helpers): a Float64Array is read in place, not copied   // a typed number column: one copy, no per-value work
       c21 = { a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }; cs21.push(c21);
@@ -872,7 +900,7 @@
     if (pre === 1) fl = b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
     if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
     if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
-    else if (pre === 3) e = byteCol(a.bc, a.a0, a.c, zs, level, tm21, key);
+    else if (pre === 3) e = a.dc ? byteColDict(a.bc, a.a0, a.c, zs, level, tm21, key) : byteCol(a.bc, a.a0, a.c, zs, level, tm21, key);
     else if (pre === 1) e = settle(zs, level, encodeColumn0(a, zs, level, tm21, undefined, key, fl));
     else e = encodeColumn(a, zs, level, tm21, undefined, key);
     NK_BUF = null;

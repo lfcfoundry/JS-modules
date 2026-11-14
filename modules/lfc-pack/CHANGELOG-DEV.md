@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.38 · API 0 · 2026-11-14
+
+### Quick
+packBlock(columns) takes a text column as { kind: 'dict', labels: { bytes, start, end }, ids } (one label number per row; Uint8, Uint16 or Int32 array).
+
+### Deep
+packBlock(columns) takes a text column as { kind: 'dict', labels: { bytes, start, end }, ids } (one label number per row; Uint8, Uint16 or Int32 array). The file bytes are the same as packing the same text; packing ten low-variety columns of a 21,800-row block takes about a quarter of the time (Chromium 156, Firefox 158, WebKitGTK 2.52.6). Idea and first version from the LFCP Workbench parse research.
+
 ## 0.10.37 · API 0 · 2026-11-14
 
 ### Quick
