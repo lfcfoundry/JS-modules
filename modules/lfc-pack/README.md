@@ -59,6 +59,7 @@ Options for `pack(input, options)`:
 | `paths: 'auto'` | same as the default since 0.4.6 (kept so older code still works). Each big nested block keeps per-path strings unless the string text they would store twice is more than 11% of the block's text; then it uses the plain layout. This helps records with many paths that each hold few strings, like FHIR: 48 MB of real FHIR is 6% smaller, and all 260 MB is 12% smaller and reads 13 to 22% faster. There is no trial or sample, so pack and packParallel write the same bytes. |
 | `access: 'random'` | the read-friendly preset: 256 KB blocks plus `share: true` (options given next to it win; per-path strings are on as everywhere). Reading 100 rows with `unpackRows` decodes one small block (20 to 60 times faster in tests); files 4 to 10% larger than at the default block size (GeoJSON and orders +10%, three flat test sets +4 to +5%). `'whole'` (default) changes nothing. |
 | `templates: false` | switch the automatic log templates off. |
+| `templates: true` | try the log-template layout on every long text column (it is not tried on every column by default). Since 0.10.32 the template layout is built in WebAssembly: a save with it takes 0.52 (Chromium 156), 0.57 (Firefox 158) and 0.60 (WebKitGTK 2.52.6) of the 0.10.31 time, with the same file bytes. |
 
 Reading:
 
