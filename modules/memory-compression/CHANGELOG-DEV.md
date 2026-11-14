@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.5 · API 2 · 2026-11-14
+
+### Quick
+One-pass list dictionary (Enc.fusedArrays + listDict): same bytes in 240 cases (research) and on a 100k-row tags/roles list in all three browsers; pack 0.95 / 0.94 / 0.88 of main in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6 (medians of…
+
+### Deep
+One-pass list dictionary (Enc.fusedArrays + listDict): same bytes in 240 cases (research) and on a 100k-row tags/roles list in all three browsers; pack 0.95 / 0.94 / 0.88 of main in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6 (medians of 5 pages). Skipped when refs, report or defer is on.
+
 ## 2.16.4 · API 2 · 2026-11-14
 
 ### Quick
