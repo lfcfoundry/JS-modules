@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.7 · API 2 · 2026-11-14
+
+### Quick
+One-pattern text column path (strings()): writes the same CT_TEMPLATE record as the pattern path; same bytes (279 + 70 cases, research).
+
+### Deep
+One-pattern text column path (strings()): writes the same CT_TEMPLATE record as the pattern path; same bytes (279 + 70 cases, research). pack(rows) Chromium 156 0.86-0.93x, Firefox 158 0.92-0.95x; email-style column Firefox 0.52x, Chromium 0.74x. OP_NATIVE gate (Firefox startsWith/endsWith).
+
 ## 2.16.6 · API 2 · 2026-11-14
 
 ### Quick
