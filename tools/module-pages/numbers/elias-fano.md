@@ -114,3 +114,16 @@ Compared: elias-fano against roaring-wasm on decoding everything into a reused a
 | elias-fano, flat lists | 2.7 | 2.7 | 3.0 |
 
 Cloud-browser runs (shared machine, not the laptop), one page per browser, median of 11 rounds; intersect and decode times are since 2.1.2. The WebKitGTK intersect cells come from fresh frames with one library each (with all libraries on one page that browser showed a 10 to 40% order bias either way). Where roaring-wasm still wins: decoding everything on spread-out values (default block lists 1.1 to 1.3 times as long, flat lists 1.6 to 3.3 times). With arrays: true the lists are bigger than roaring-wasm's on spread-out values (2,072,584 against 2,030,536 bytes). FastIntegerCompression has no lookups or intersecting.
+
+**Against roaring-wasm 1.1.0 on a phone: Chrome 157 (Android), 8 cores, 2026.11.14, 8:57 AM Eastern.** One run on one phone, medians in ms, lower is faster; same answers from all three. Phone timings are noisy, so read this as direction.
+
+| work (spread-out, then dense values) | elias-fano, default block lists | elias-fano, arrays: true | roaring-wasm |
+|---|---:|---:|---:|
+| spread-out: intersect | 2.2 | 1.2 | 2.7 |
+| spread-out: present | 2.3 | 1.8 | 2.5 |
+| spread-out: decode everything | 2.5 | 1.9 | 2.1 |
+| dense: intersect | 0.63 | 0.70 | 2.0 |
+| dense: present | 0.37 | 0.37 | 0.77 |
+| dense: decode everything | 4.6 | 4.7 | 4.4 |
+
+elias-fano is ahead on intersecting and presence checks (dense 2 to 3 times faster); roaring-wasm is ahead on decoding everything, by 1.2 times on spread-out values with default block lists and 1.06 on dense values.
