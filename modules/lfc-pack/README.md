@@ -220,33 +220,37 @@ First call after warm(), compared with no warm-up (fresh browser per run, median
 ## How it compares
 **Text columns (0.10.30):** in Chromium and WebKitGTK, a text column whose values are all ASCII (no 0 chars) is written straight to bytes, with no joined string and no TextEncoder pass. Saving a log table took 0.90 of the 0.10.29 time in Chromium 156 and 0.94 in WebKitGTK 2.52.6 (same-page A/B). Firefox keeps the old path, because its TextEncoder is fast. The bytes are identical.
 
-**Against Parquet readers in the browser** (lfc-pack 0.10.1, measured 2026-11-12 on a shared 4-core cloud machine in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; the file format is unchanged through 0.10.5). Parquet files are written by pyarrow 26.0.1 with zstd level 3, and every reader opens that same file. The readers are parquet-wasm 0.9.0 with Arrow JS 21.2.0, hyparquet 1.33.0 and DuckDB-WASM 1.33.1 (it did not run in Firefox 158). Full charts: `js-modules-research/lfc-pack-vs-parquet-readers-2026.11.12` (KB M147).
+**Against Parquet readers in the browser** (lfc-pack 0.10.35, measured 2026-11-14 on a shared 4-core cloud machine in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; gaps under about 15% are noise). Parquet files are written by pyarrow 26.0.1 with zstd level 3 (whole numbers as int32, so every reader returns plain numbers), and every reader opens that same file. The readers are parquet-wasm 0.9.0 with Arrow JS 21.2.0 and hyparquet 1.33.0 with hyparquet-compressors 1.1.3. The data sets are 100,000 rows each from a fixed seed. DuckDB-WASM was not re-run (it loads a 36 MB WebAssembly file); its 0.10.1 numbers are kept below, marked as such. Every reader returned the same row count and first row. Raw data and the harness: `js-modules-research/readme-reruns-2026.11.14`.
 
 File size, 100,000 rows each, MB (lower is better):
 
-| Data | Parquet zstd 3 | Parquet zstd 19 | lfc-pack |
-|---|---|---|---|
-| Taxi trips, 7 numeric columns | 1.0 | 0.9 | **0.6** |
-| Orders, nullable text, dates, money | 1.4 | 1.3 | **0.4** |
-| Logs, text, ids, addresses | 2.9 | 2.5 | **2.1** |
+| Data | Parquet zstd 3 | lfc-pack |
+|---|---|---|
+| Taxi trips, 7 numeric columns | 1.11 | **0.64** |
+| Orders, nullable text, dates, money | 1.20 | **0.60** |
+| Logs, text, ids, addresses | 0.87 | **0.59** |
 
-Rows as plain JavaScript objects, median of 7 reads in a warm page, ms (lower is better; lfc-pack is 0.18 to 0.59 of the time of the Parquet readers):
+lfc-pack files are 0.50 to 0.68 of the Parquet zstd 3 size. These data sets differ from the ones measured on 0.10.1, so the sizes are not comparable row for row with the older table.
 
-| Data | Browser | lfc-pack | parquet-wasm + Arrow JS | hyparquet | DuckDB-WASM |
-|---|---|---|---|---|---|
-| Logs | Chromium 156 | **68.0** | 356 | 260 | 373 |
-| | Firefox 158 | **51.0** | 257 | 189 | n/a |
-| | WebKitGTK 2.52.6 | **51.0** | 249 | 167 | 259 |
-| Orders | Chromium 156 | **47.6** | 176 | 144 | 209 |
-| | Firefox 158 | **35.0** | 177 | 128 | n/a |
-| | WebKitGTK 2.52.6 | **34.0** | 115 | 89.0 | 170 |
-| Taxi | Chromium 156 | **38.7** | 117 | 92.6 | 147 |
-| | Firefox 158 | **35.0** | 115 | 91.0 | n/a |
-| | WebKitGTK 2.52.6 | **34.0** | 82.0 | 58.0 | 96.0 |
+Rows as plain JavaScript objects, median of 7 warm reads, ms (lower is better; lfc-pack takes 0.24 to 0.62 of the time of the faster reader, hyparquet, and 0.10 to 0.45 of parquet-wasm's):
+
+| Data | Browser | lfc-pack | parquet-wasm + Arrow JS | hyparquet |
+|---|---|---|---|---|
+| Logs | Chromium 156 | **53.1** | 348 | 186 |
+| | Firefox 158 | **32.0** | 222 | 130 |
+| | WebKitGTK 2.52.6 | **35.0** | 166 | 135 |
+| Orders | Chromium 156 | **16.9** | 172 | 57.6 |
+| | Firefox 158 | **25.0** | 175 | 71.0 |
+| | WebKitGTK 2.52.6 | **17.0** | 119 | 71.0 |
+| Taxi | Chromium 156 | **37.1** | 93.2 | 60.2 |
+| | Firefox 158 | **22.0** | 84.0 | 64.0 |
+| | WebKitGTK 2.52.6 | **21.0** | 47.0 | 44.0 |
+
+From here to the end of this comparison the numbers are lfc-pack 0.10.1 from 2026-11-12 on the older data sets, not re-run. DuckDB-WASM 1.33.1 read taxi trips in 147 ms (Chromium 156) and 96 ms (WebKitGTK 2.52.6), orders in 209 and 170 ms, and logs in 373 and 259 ms, and did not run in Firefox 158.
 
 Fresh page to first rows (library start-up plus one read, taxi trips, ms): lfc-pack 81.4 / 53.0 / 79.0 (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6), hyparquet 120 / 118 / 103, parquet-wasm 250 / 262 / 280, DuckDB-WASM 1,716 (Chromium) and 6,155 (WebKitGTK), which loads a 36 MB WebAssembly file.
 
-Rows with one value, 12 equality queries, total ms (taxi `rate`, 5 values; lfc-pack `equals` and, in brackets, with `cache: true`), against the fastest Parquet reader (DuckDB-WASM `SELECT ... WHERE` where it ran, else parquet-wasm filtering the Arrow column):
+Rows with one value, 12 equality queries, total ms (0.10.1; taxi `rate`, 5 values; lfc-pack `equals` and, in brackets, with `cache: true`), against the fastest Parquet reader (DuckDB-WASM `SELECT ... WHERE` where it ran, else parquet-wasm filtering the Arrow column):
 
 | Browser | lfc-pack | fastest Parquet reader |
 |---|---|---|
