@@ -336,3 +336,15 @@ Compared: lfc-pack against the fastest Parquet reader on rows with one value (12
 | fastest Parquet reader | 386 | 798 | 492 |
 
 Cloud-browser runs (shared 4-core machine; lfc-pack 0.10.1, file format unchanged through 0.10.15). DuckDB-WASM did not run in Firefox 158. Fresh page to first rows on taxi trips: lfc-pack 81.4, 53.0 and 79.0 ms (Chromium, Firefox, WebKitGTK), hyparquet 120, 118 and 103, parquet-wasm 250, 262 and 280; DuckDB-WASM takes 1,716 ms in Chromium and 6,155 in WebKitGTK because it loads a 36 MB WebAssembly file. Every reader returned the same rows.
+
+**Against DuckDB-WASM on sums and averages, cloud-browser runs.**
+
+Compared: lfc-pack aggregate against DuckDB-WASM on its own loaded table (average tip per zone over 1,000,000 taxi-like rows, repeat calls, ms, lower is faster; DuckDB-WASM is at its best here, because loading the table is not counted).
+
+<!-- title: Averaging tips per zone over 1,000,000 rows, lfc-pack takes 4 to 6.2 ms against 9.1 to 17 for DuckDB-WASM on its own table -->
+| way | Chromium 156 | WebKitGTK 2.52.6 |
+|---|---:|---:|
+| lfc-pack aggregate | 6.2 | 4.0 |
+| DuckDB-WASM | 9.1 | 17.0 |
+
+Sum of fare takes 1.6 ms against 4.3 for DuckDB-WASM in Chromium and 2 against 9 in WebKitGTK; sum of tip 3.0 against 5.4 and 2 against 11. Sums are exact decimal sums. Flat-row and small raw files only. Cloud runs on a shared 4-core machine, lfc-pack 0.10.21.

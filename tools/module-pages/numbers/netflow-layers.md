@@ -24,3 +24,15 @@ Compared: netflow-layers against dagre 0.8.5 and ELK 0.12.1 (row crossings, lowe
 | dagre | 5374 | 23965 |
 
 Counted in Node, so the numbers do not depend on the browser. The default layout takes about 35 to 120 ms on these maps in the cloud browsers, far under dagre, which took about 0.8 s at 400 items and 7.2 s at 1,000 in the cloud.
+
+**Crossings against Graphviz with the opt-in sift option.** A layered test map, row crossings, lower is tidier. `sift` is off by default; without it the same map gives 4,679 and 28,035 crossings.
+
+Compared: netflow-layers with sift: true against Graphviz (crossings, lower is tidier).
+
+<!-- title: With the opt-in sift option, netflow-layers draws 6 to 9% fewer crossings than Graphviz on a layered test map -->
+| way | 1,000 items | 3,000 items |
+|---|---:|---:|
+| netflow-layers, sift: true | 4222 | 24390 |
+| Graphviz | 4494 | 26894 |
+
+Layout takes 1.19 to 1.37 times as long as without sift, in the three cloud browsers (Chromium 156, Firefox 158, WebKitGTK 2.52.6).
