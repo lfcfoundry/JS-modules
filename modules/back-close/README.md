@@ -112,11 +112,11 @@ Call `watch` once per panel at start-up, after the panel element exists, and kee
 
 ## Prior art and credits
 
-- `<dialog>.showModal()` and `popover` (built into browsers): use them when you can.
-- `CloseWatcher` (HTML Standard, WICG explainer; the explainer repository was archived in August 2025 and its content merged into the HTML Standard): the browser feature itself, used through its own API; idea only, no code. This module is a thin wrapper around it. No maintained standalone CloseWatcher polyfill was found (one search, not exhaustive).
-- The plain History API pattern (`pushState` when opening, `popstate` to close) works in every browser, including Safari; it is a common technique and what the opt-in fallback does, with undo-on-normal-close and stack handling written once. Idea only, no code.
-- Ariakit (a React dialog library) has an open feature request to use CloseWatcher with no decision recorded, so the wider ecosystem has not adopted it yet.
-- Browser support dates came from caniuse and the WebKit blog (webkit.org/blog/18182), read, not copied.
+- [`<dialog>.showModal()`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement/showModal) and [`popover`](https://developer.mozilla.org/en-US/docs/Web/API/Popover_API) (built into browsers): use them when you can.
+- [`CloseWatcher`](https://developer.mozilla.org/en-US/docs/Web/API/CloseWatcher) ([HTML Standard](https://html.spec.whatwg.org/multipage/interaction.html#close-requests-and-close-watchers), [WICG explainer](https://github.com/WICG/close-watcher); the explainer repository was archived in August 2025 and its content merged into the HTML Standard): the browser feature itself, used through its own API; idea only, no code. This module is a thin wrapper around it. No maintained standalone CloseWatcher polyfill was found (one search, not exhaustive).
+- The plain [History API](https://developer.mozilla.org/en-US/docs/Web/API/History_API) pattern (`pushState` when opening, `popstate` to close) works in every browser, including Safari; it is a common technique and what the opt-in fallback does, with undo-on-normal-close and stack handling written once. Idea only, no code.
+- [Ariakit](https://ariakit.org/) (a React dialog library) has an [open feature request](https://github.com/ariakit/ariakit/issues/3243) to use CloseWatcher with no decision recorded, so the wider ecosystem has not adopted it yet.
+- Browser support dates came from [caniuse](https://caniuse.com/mdn-api_closewatcher) and the WebKit blog ([Safari Technology Preview 249 notes](https://webkit.org/blog/18182/)), read, not copied.
 - First cut from Apple Press 1.27 (same maker, LFC Foundry).
 - No code from others; the ideas above are theirs.
 
