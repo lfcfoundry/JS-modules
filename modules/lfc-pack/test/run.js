@@ -66,6 +66,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('column reads of files with nested blocks', 'node', ['nestedcols.cjs']);
   step('per-column checks on row saves (B55)', 'node', ['b55.cjs']);
   step('unpackColumns into (0.10.33)', 'node', ['into.cjs']);
+  step('fast: true saves (0.10.34)', 'node', ['fast.cjs']);
   step('wasm template builder gives the same files (B57)', 'node', ['b57.cjs']);
   step('positions (W1)', 'node', ['positions.cjs']);
   step('nested equality: P13g late fallback', 'node', ['p13g-late-fallback.cjs']);

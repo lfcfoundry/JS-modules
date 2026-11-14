@@ -2,6 +2,10 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.34 · API 0 · 2026-11-14
+- New fast: true option: quicker saves of text-heavy rows.
+- Saves with templates: true are 5-12% faster.
+
 ## 0.10.33 · API 0 · 2026-11-14
 - unpackColumns({ into }) fills number columns into arrays you keep: 1M-row reads 0.75-0.87 of the time in Chromium and Firefox
 

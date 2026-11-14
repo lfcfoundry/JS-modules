@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.10.33 · API 0**
+**Version 0.10.34 · API 0**
 
 **Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158, WebKitGTK 2.52.6
 
@@ -60,6 +60,7 @@ Options for `pack(input, options)`:
 | `access: 'random'` | the read-friendly preset: 256 KB blocks plus `share: true` (options given next to it win; per-path strings are on as everywhere). Reading 100 rows with `unpackRows` decodes one small block (20 to 60 times faster in tests); files 4 to 10% larger than at the default block size (GeoJSON and orders +10%, three flat test sets +4 to +5%). `'whole'` (default) changes nothing. |
 | `templates: false` | switch the automatic log templates off. |
 | `templates: true` | try the log-template layout on every long text column (it is not tried on every column by default). Since 0.10.32 the template layout is built in WebAssembly: a save with it takes 0.52 (Chromium 156), 0.57 (Firefox 158) and 0.60 (WebKitGTK 2.52.6) of the 0.10.31 time, with the same file bytes. |
+| `fast: true` (0.10.34) | saves text-heavy rows faster; files may be slightly larger (logs +0.2%) or smaller (Workbench-style rows 0.60). Text columns are compressed at zstd level 1, and a text column of 4,096 or more values that is nearly all different skips the dictionary count. Default saves are unchanged. Same page, logs: 0.95 / 0.99 / 0.98 of the default save time in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6 |
 
 Reading:
 
