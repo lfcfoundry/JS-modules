@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.14 (API 0)
+ * Version 0.10.15 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -2853,7 +2853,7 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.14', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.15', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -3077,6 +3077,7 @@
             : file.bytes.slice(b[0], b[0] + b[1]);
         };
         results[i] = submit({ kind: kd, buf: null, crc: b[2], want: kd === 'f' ? want : null }, b[1], makeCopy, lazy, call).then(function (F) {
+          if (o._columns) return [rf.columns(F, want)];   // B35: columns of this block, no rows
           var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
           r = keepRows(r, range);
@@ -3182,6 +3183,42 @@
   var B28_AUTO = !(typeof globalThis !== 'undefined' && globalThis.__B28AUTO === 0), b28Starting = false, B28_MAXW = (typeof globalThis !== 'undefined' && globalThis.__B28MAXW) || 4;   // more than 4 helpers: fewer jobs each, so their code stays cold longer
   // B34: packColumnsParallel({ key: array, ... }) -> Promise of the file packRowsParallel writes for the rows { key: array[i], ... }, without building row objects or scattering them.
   // Arrays: plain arrays (any flat values) or number typed arrays (not BigInt), all the same length. The rows view below is only read for the gates, samples and fallbacks.
+  // B35: unpackColumnsParallel(bytes, { keys, workers }) -> Promise of { key: array } for the whole table, with no row objects.
+  // Helpers decode the blocks (as pool reads do); the calling thread joins each key's block arrays: typed arrays of one kind stay that kind, mixed typed kinds become Float64Array, anything else a plain array.
+  // A key missing from some rows gives undefined at those rows. Flat-row blocks only, like unpackColumns.
+  var B35_POOL = null, B35_TIMER = null, B35_W = 0;
+  function b35Join(blocks, n) {
+    var keys = [], seen = {}, i, j, k, out = {}, b, v, T, off, a;
+    for (i = 0; i < blocks.length; i++) for (j = 0; j < blocks[i].keys.length; j++) { k = blocks[i].keys[j]; if (!seen[k]) { seen[k] = 1; keys.push(k); } }
+    for (j = 0; j < keys.length; j++) { k = keys[j]; T = undefined;
+      for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; if (!v || b.present[k]) { T = Array; break; } var C = Array.isArray(v) ? Array : v.constructor; if (T === undefined) T = C; else if (T !== C) T = (T === Array || C === Array) ? Array : Float64Array; }
+      if (T !== Array) { a = new T(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } out[k] = a; continue; }
+      a = new Array(n); off = 0;
+      for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; var pr = b.present[k], m = b.n, q, z = 0;
+        if (!v) { for (q = 0; q < m; q++) a[off + q] = undefined; }
+        else if (!pr) { for (q = 0; q < m; q++) a[off + q] = v[q]; }
+        else for (q = 0; q < m; q++) a[off + q] = (pr[q >> 3] >> (q & 7)) & 1 ? v[z++] : undefined;
+        off += m; }
+      out[k] = a; }
+    return out;
+  }
+  function unpackColumnsParallel(bytes, opts) {
+    opts = opts || {};
+    return init({ readOnly: true }).then(function () {
+      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
+      for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumnsParallel needs flat-row blocks'); n += file.blocks[i][3]; }
+      if (nb < 2 || w < 1) return b35Join(unpackColumns(bytes, opts.keys ? { keys: opts.keys } : undefined), n);
+      if (!B35_POOL && !(globalThis.__B35AUTO === 0)) {   // B35b auto start: the first read joins on this thread (no helper start-up to wait for), then helpers start for the next read
+        var out0 = b35Join(unpackColumns(bytes, opts.keys ? { keys: opts.keys } : undefined), n);
+        setTimeout(function () { if (!B35_POOL) { B35_W = w; B35_POOL = makePool({ workers: w }); clearTimeout(B35_TIMER); B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref(); } }, 0);
+        return out0; }
+      clearTimeout(B35_TIMER);
+      var pp = B35_POOL && B35_W === w ? B35_POOL : (B35_POOL ? B35_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B35_W = w; return (B35_POOL = makePool({ workers: w })); });
+      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, stable: true, keys: opts.keys }); }).then(function (blocks) {
+        B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
+        return b35Join(blocks, n); });
+    });
+  }
   function packColumnsParallel(obj, opts) {
     var keys = Object.keys(obj || {}), A = [], n = -1, j, a;
     for (j = 0; j < keys.length; j++) { a = obj[keys[j]];

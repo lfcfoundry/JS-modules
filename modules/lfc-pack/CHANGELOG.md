@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.15 · API 0 · 2026-11-13
+- New unpackColumnsParallel(bytes): reads a whole table as columns on helper workers with no row objects. Later reads of number-heavy tables take about 0.3 to 0.7 of unpackRows and pause the page far less.
+
 ## 0.10.14 · API 0 · 2026-11-13
 - Reading whole tables or row ranges is faster in Firefox and Safari-family engines: rows are built in chunks of 1,024. Chrome and Edge are unchanged.
 

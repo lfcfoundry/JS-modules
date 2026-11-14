@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.15 · API 0 · 2026-11-13
+
+### Quick
+unpackColumnsParallel reads whole tables as columns
+
+### Details
+B35: unpackColumnsParallel(bytes, { keys, workers }) resolves to { key: array }; helpers decode blocks, the calling thread joins; typed arrays stay typed, a missing key gives undefined; flat-row files only; first call reads on the calling thread and starts helpers after. 300,000 rows vs unpackRows, first/later: taxi Chromium 0.49/0.30, Firefox 0.55/0.37, WebKitGTK 0.54/0.41; logs 0.74/0.67, 0.83/0.73, 0.80/0.66; sensors 0.41/0.38, 0.61/0.51. Owner laptop Firefox 160 taxi later 0.29, Chrome 157 0.31; longest pause 354 to 46 ms.
+
+### Deep
+B35 unpackColumnsParallel (owner named it, laptop Firefox 160 and Chrome 157 passed). API export added by hand; b35.cjs 32 checks (values equal unpackRows by Object.is, first and second call, block sizes, sparse and mixed tables, keys option, nested rejected). All lfc-pack checks pass.
+
 ## 0.10.14 · API 0 · 2026-11-13
 
 ### Quick
