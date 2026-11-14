@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.18 · API 0 · 2026-11-14
+- unpackRowsParallel reads a whole table as rows on helper workers with short page pauses
+
 ## 0.10.17 · API 0 · 2026-11-13
 - Equality reads are 8 to 18% faster in Chromium on files with many small blocks
 

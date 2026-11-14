@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.17 · API 0**
+**Version 0.10.18 · API 0**
 
-**Tested in:** Node suite, 100 equality reads match 0.10.15; Chrome 157 and Firefox 161 on the owner's laptop, cloud Chromium 156
+**Tested in:** Node suite and b38.cjs (40 checks); same rows as unpackRows; Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -121,6 +121,8 @@ Skipping blocks in equality reads (since 0.10.11): files written with the random
 Saving columns you already have (since 0.10.12): `LfcPack.packColumnsParallel({ id: ids, price: prices, name: names }, opts)` returns a promise of the file for the rows `{ id: ids[i], price: prices[i], name: names[i] }`, without building row objects. Each value is a plain array or a number typed array (`Float64Array`, `Int32Array`, ...; not BigInt), all the same length; a wrong type or unequal lengths reject the call. It uses the same helpers, first-call rule and gates as `packRowsParallel`, and later saves of number-heavy tables take 0.66 (Chromium 156), 0.42 (Firefox 158) and 0.74 (WebKitGTK 2.52.6) of the `packRowsParallel` time on 300,000 taxi-like rows, 0.71 to 0.73 for sensor rows in Chromium and Firefox, and 0.90 to 0.96 for logs (cloud runs). Number tables give the same bytes as `packRows`; on tables that `packRows` sends down the text path (many string columns) the file can differ by a few hundredths of a percent, and it reads back exactly.
 
 Reading a whole table as columns (since 0.10.15): `await LfcPack.unpackColumnsParallel(bytes, { keys, workers })` resolves to `{ key: array }` with no row objects: blocks are decoded in helper workers and each key's pieces are joined on the calling thread. Number columns of one kind come back as typed arrays of that kind (mixed kinds as `Float64Array`), everything else as plain arrays, and a key some rows lack gives `undefined` at those rows. It works on flat-row files (not nested blocks), and the result can go straight to `packColumnsParallel`. The first call reads on the calling thread and starts the helpers afterwards (they close after 10 seconds idle); one-block files never use helpers. Later reads took 0.30 (Chromium 156), 0.37 (Firefox 158) and 0.41 (WebKitGTK 2.52.6) of the `unpackRows` time on 300,000 taxi-like rows, and 0.66 to 0.73 on logs (cloud runs); on an owner laptop the longest pause on the page fell from 354 to 46 ms. Since 0.10.14, `unpackRows` in Firefox and Safari-family engines builds dense blocks in chunks of 1,024 rows (0.85 to 1.02 of the 0.10.13 time in Firefox 158; Chrome and Edge are unchanged).
+
+Reading a whole table as rows (since 0.10.18): `await LfcPack.unpackRowsParallel(bytes, { workers })` resolves to the same rows as `unpackRows(bytes)`. Helper workers decode the blocks and the calling thread builds each block's rows in order, pausing between blocks, so the longest page pause during a 300,000-row read falls from 186-305 ms to 34-64 ms (Chromium 156, Firefox 158 and WebKitGTK 2.52.6 container runs). The first call reads on this thread and then starts helpers (at most 4, closed after 10 s idle); later reads took 0.78 of `unpackRows` in Chromium 156 and 0.77 to 0.93 in Firefox 158 (taxi-like table). WebKit browsers, other options, one-block files and non-flat files use plain `unpackRows`.
 
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 

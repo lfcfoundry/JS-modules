@@ -58,6 +58,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('packParallel(Blob) (B30)', 'node', ['b30.cjs']);
   step('packColumnsParallel (B34)', 'node', ['b34.cjs']);
   step('unpackColumnsParallel (B35)', 'node', ['b35.cjs']);
+  step('unpackRowsParallel (B38)', 'node', ['b38.cjs']);
   step('sparse tables (rows with missing keys)', 'node', ['sparseread.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   step('python writer', 'python3', ['-I', 'pywriter.py', dir]);

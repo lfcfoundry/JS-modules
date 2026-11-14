@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.18 · API 0 · 2026-11-14
+
+### Quick
+New unpackRowsParallel: same rows as unpackRows, later reads 0.78 in Chromium and 0.77 to 0.93 in Firefox, longest page pause 34-64 ms instead of 186-305 ms
+
+### Details
+Helpers decode blocks; the calling thread builds each block's rows in order with a pause between blocks. The first call reads on this thread and starts helpers for the next call. WebKit browsers, other options, one-block and non-flat files use unpackRows (WebKitGTK helper reads were 1.28 of unpackRows).
+
+### Deep
+New unpackRowsParallel(bytes, { workers }): the same rows as unpackRows, with helper-worker decoding and short page pauses (taxi-like 300,000 rows: later reads 0.78 of unpackRows in Chromium 156, 0.77 to 0.93 in Firefox 158; longest pause 34-64 ms against 186-305 ms). WebKit browsers use plain unpackRows.
+
 ## 0.10.17 · API 0 · 2026-11-13
 
 ### Quick
