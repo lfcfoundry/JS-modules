@@ -12,6 +12,10 @@ Checks:
   2. the README opening size claim ("N KB gzipped (M KB minified and gzipped)") matches the shipped file (gzip -9; terser 5 -c passes=2 -m)
   3. every module README has "What it is and how it works" first and "Why it exists" second
   4. every tester page that has a Run button also has a Copy results button
+
+Site mode, for a single-game Pages repo checkout (version labels, newer build, screenshots, changelog gaps, dead links and assets pages.yml
+does not publish, test-build note, live links, unsourced claims, owner-name scan): python3 tools/docs-check/docs-check.py --site PATH
+  (options and checks are listed in tools/docs-check/site_check.py)
 """
 import gzip, json, os, re, subprocess, sys
 
@@ -101,4 +105,8 @@ def main():
     print("docs-check: %d problem(s)" % len(problems))
     sys.exit(1 if problems else 0)
 
+if "--site" in sys.argv:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import site_check
+    sys.exit(site_check.main(sys.argv[1:]))
 main()
