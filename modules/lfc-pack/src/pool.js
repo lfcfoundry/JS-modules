@@ -100,6 +100,7 @@
         };
         results[i] = submit({ kind: kd, buf: null, crc: b[2], want: kd === 'f' ? want : null }, b[1], makeCopy, lazy, call).then(function (F) {
           if (o._columns) return [rf.columns(F, want)];   // B35: columns of this block, no rows
+          if (o._frames) return F;   // B38 (research): the decoded block itself; the caller builds its rows
           var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
           r = keepRows(r, range);
@@ -109,6 +110,7 @@
         });
       })(i2);
       results.forEach(function (r) { r.catch(function () {}); });   // a cancelled call rejects once, below; its other block promises must not report unhandled
+      if (o._frames) return Promise.resolve(results);
       var all0 = signal ? null : Promise.all(results);
       if (signal) all0 = new Promise(function (res, rej) {
         var onAbort = function () { var e = abortError(signal); cancel(call, e); rej(e); };
@@ -239,6 +241,33 @@
       return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, stable: true, keys: opts.keys }); }).then(function (blocks) {
         B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
         return b35Join(blocks, n); });
+    });
+  }
+  // B38 (research): unpackRowsParallel(bytes, { workers }) -> Promise of the rows unpackRows returns, for whole-table reads of flat-row files.
+  // Helpers decode the blocks; the calling thread builds each block's rows in block order, with a yield between blocks (as B31 does for saves), so no single pause holds the page for the whole table.
+  // Auto start like B35b: the first call reads on this thread and then starts helpers for the next call; they close after 10 s idle. Any other option, a one-block file or a non-flat block goes to unpackRows.
+  var B38_POOL = null, B38_TIMER = null, B38_W = 0;
+  function b38Arm() { clearTimeout(B38_TIMER); B38_TIMER = setTimeout(function () { var q = B38_POOL; B38_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B38_TIMER.unref) B38_TIMER.unref(); }
+  // WebKit (not V8, UA says AppleWebKit; Chromium has Chrome/ and is V8): helper reads came out 1.28 of unpackRows in WebKitGTK 2.52.6 (owner card, 11.14), so WebKit reads on this thread
+  var B38_WK = !V8 && typeof navigator === 'object' && navigator !== null && /AppleWebKit/.test(navigator.userAgent);
+  function unpackRowsParallel(bytes, opts) {
+    opts = opts || {};
+    if (B38_WK && !opts._b38) return init({ readOnly: true }).then(function () { var r = {}, k, o = false; for (k in opts) if (k !== 'workers') { r[k] = opts[k]; o = true; } return unpackRows(bytes, o ? r : undefined); });
+    return init({ readOnly: true }).then(function () {
+      var rest = {}, k, other = false; for (k in opts) if (k !== 'workers') { rest[k] = opts[k]; other = true; }
+      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, flat = true, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
+      for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f') flat = false; n += file.blocks[i][3]; }
+      if (other || !flat || nb < 2 || w < 1) return unpackRows(bytes, other ? rest : undefined);
+      if (!B38_POOL) { var out0 = unpackRows(bytes); setTimeout(function () { if (!B38_POOL) { B38_W = w; B38_POOL = makePool({ workers: w }); b38Arm(); } }, 0); return out0; }
+      clearTimeout(B38_TIMER);
+      var pp = B38_POOL && B38_W === w ? B38_POOL : (B38_POOL ? B38_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B38_W = w; return (B38_POOL = makePool({ workers: w })); });
+      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _frames: true, stable: true }); }).then(function (rs) {
+        var rf = makeFlatReader(S.zdec), out = new Array(n), q = 0, b = 0;
+        return new Promise(function (res, rej) {
+          function next() { if (b >= rs.length) { b38Arm(); out.length = q; res(out); return; }
+            rs[b].then(function (F) { try { var r = rf.assemble(F, null), j; for (j = 0; j < r.length; j++) out[q++] = r[j]; b++; if (b < rs.length) b31Yield(next); else next(); } catch (e) { rej(e); } }, function (e) { b38Arm(); rej(e); }); }
+          next(); });
+      });
     });
   }
   function packColumnsParallel(obj, opts) {
