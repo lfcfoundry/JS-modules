@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.4 · API 2 · 2026-11-14
+
+### Quick
+WebKit only: all-ASCII text goes straight to bytes (no TextEncoder pass); WebKitGTK 0.92-0.96x; Chromium and Firefox unchanged
+
+### Details
+joinText writes an all-ASCII column straight to bytes when the user agent is WebKit (AppleWebKit/ and no Chrome/, Chromium/ or Edg/); Chromium measured 1.03-1.07x slower with it and Firefox's TextEncoder is fast, so both keep the old path. Same technique as lfc-pack B51 (0.10.30).
+
+### Deep
+From memory-compression research part 2 (handoff 4:42 PM).
+
 ## 2.16.3 · API 2 · 2026-11-14
 
 ### Quick

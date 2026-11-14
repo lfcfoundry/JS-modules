@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.4 · API 2 · 2026-11-14
+- Faster packing of plain-English text in Safari-family browsers, same bytes
+
 ## 2.16.3 · API 2 · 2026-11-14
 - Fixes wrong text back from pattern columns that differ only in a constant part when unpacked in the same page (2.16.1-2.16.2 and earlier); faster ISO timestamp packing
 

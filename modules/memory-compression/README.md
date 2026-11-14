@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.16.3 · API 2**
+**Version 2.16.4 · API 2**
 
-**Tested in:** memory-compression suite (92 checks, full fuzz); same-instance pattern fuzz 1,600 cases right (2.16.2: 288 wrong), with and without eval; 2,160 timestamp cases byte-identical to 2.16.2
+**Tested in:** memory-compression suite (93 checks); new test/ascii.js: ASCII path forced on and off give the same bytes on every data set and 7 edge cases (63 cases); research: same bytes on 48 cases, WebKitGTK 2.52.6 pack(rows) 0.92-0.94x, packColumns 0.93-0.96x
 
 ## What it is and how it works
 
