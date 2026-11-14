@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 V=1.5.7; SHA=eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3
-W=${ZSTD_WORK:-/tmp/lfc-lfc-pack-zstd}; mkdir -p "$W"
+W=${ZSTD_WORK:-/tmp/lfc-zstd-kit-zstd}; mkdir -p "$W"
 if [ ! -d "$W/zstd-$V" ]; then
   curl -fsSL -o "$W/zstd-$V.tar.gz" "https://github.com/facebook/zstd/releases/download/v$V/zstd-$V.tar.gz"
   echo "$SHA  $W/zstd-$V.tar.gz" | sha256sum -c -

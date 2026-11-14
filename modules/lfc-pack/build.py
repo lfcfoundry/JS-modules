@@ -5,8 +5,9 @@
 import base64, os, struct, sys, zlib
 here = os.path.dirname(os.path.abspath(__file__))
 order = ['head', 'util', 'wasm', 'zstd', 'shred', 'nested', 'flat', 'container', 'api', 'delta', 'pool', 'tail']
-src = ''.join(open(os.path.join(here, 'src', n + '.js'), encoding='utf-8').read() for n in order)
-mods = {'zstd-dec': 'wasm/zstd-dec.wasm', 'zstd-full': 'wasm/zstd-full.wasm', 'core': 'wasm/core.wasm', 'core-plain': 'wasm/core-plain.wasm'}
+kit = os.path.join(here, '..', 'zstd-kit')   # zstd-kit holds the Zstandard WebAssembly build and its JavaScript wrapper (split out 0.10.26)
+src = ''.join(open(os.path.join(kit, 'src', 'zstd-core.js') if n == 'zstd' else os.path.join(here, 'src', n + '.js'), encoding='utf-8').read() for n in order)
+mods = {'zstd-dec': '../zstd-kit/wasm/zstd-dec.wasm', 'zstd-full': '../zstd-kit/wasm/zstd-full.wasm', 'core': 'wasm/core.wasm', 'core-plain': 'wasm/core-plain.wasm'}
 def packed(path):   # 4-byte size, then raw DEFLATE (level 9), then base64; src/wasm.js unpacks it
     raw = open(os.path.join(here, path), 'rb').read(); c = zlib.compressobj(9, zlib.DEFLATED, -15, 9)
     return base64.b64encode(struct.pack('<I', len(raw)) + c.compress(raw) + c.flush()).decode()

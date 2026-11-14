@@ -8,7 +8,7 @@ Every credit links to the original paper, repository or page; where no online co
 
 | Module | Code | Authors | License |
 |---|---|---|---|
-| [lfc-pack](modules/lfc-pack/README.md) | [Zstandard](https://facebook.github.io/zstd/), compiled unchanged to WebAssembly | Yann Collet and Meta Platforms | BSD-3-Clause ([NOTICE-zstd.txt](modules/lfc-pack/NOTICE-zstd.txt)) |
+| [zstd-kit](modules/zstd-kit/README.md), embedded by [lfc-pack](modules/lfc-pack/README.md) | [Zstandard](https://facebook.github.io/zstd/) 1.5.7 with its XXH64, compiled unchanged to WebAssembly | Yann Collet and Meta Platforms | BSD-3-Clause ([NOTICE-zstd.txt](modules/zstd-kit/NOTICE-zstd.txt)) |
 | [pcodec-js](modules/pcodec-js/README.md) | Pcodec 1.0.4, compiled to WebAssembly, plus one small patch | Martin Loncaric and contributors ([github.com/pcodec/pcodec](https://github.com/pcodec/pcodec)) | Apache-2.0 ([NOTICE-pcodec.txt](modules/pcodec-js/NOTICE-pcodec.txt)) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | PPMd variant H, ported to JavaScript | Dmitry Shkarin; cleaned up by Igor Pavlov in the [LZMA SDK](https://www.7-zip.org/sdk.html) | Public domain |
 
@@ -16,10 +16,10 @@ Every credit links to the original paper, repository or page; where no online co
 
 | Idea | Original authors and source | Used in |
 |---|---|---|
-| Zstandard format | Collet and Kucherawy, [RFC 8878](https://www.rfc-editor.org/rfc/rfc8878) | lfc-pack |
-| XXH64 hash | Yann Collet, [xxhash.com](https://xxhash.com/) | lfc-pack |
+| Zstandard format | Collet and Kucherawy, [RFC 8878](https://www.rfc-editor.org/rfc/rfc8878) | zstd-kit, lfc-pack |
+| XXH64 hash | Yann Collet, [xxhash.com](https://xxhash.com/) (the copy inside Zstandard) | zstd-kit, lfc-pack |
 | FNV-1a hash | Fowler, Noll and Vo, [FNV page](http://www.isthe.com/chongo/tech/comp/fnv/index.html) | lfc-pack, save-kit |
-| CRC-32 with slicing tables | Peterson and Brown, [1961](https://doi.org/10.1109/JRPROC.1961.287814); Kounavis and Berry (Intel), [2005](https://doi.org/10.1109/ISCC.2005.18) | lfc-pack, zip-open, memory-compression |
+| CRC-32 with slicing tables | Peterson and Brown, [1961](https://doi.org/10.1109/JRPROC.1961.287814); Kounavis and Berry (Intel), [2005](https://doi.org/10.1109/ISCC.2005.18) | zstd-kit, lfc-pack, zip-open, memory-compression |
 | LEB128 varints, ZigZag | [Protocol Buffers encoding](https://protobuf.dev/programming-guides/encoding/) (Google) | lfc-pack, memory-compression |
 | Frame of reference + bit packing | Goldstein, Ramakrishnan and Shaft, [ICDE 1998](https://doi.org/10.1109/ICDE.1998.655800); Lemire and Boytsov, [2015](https://arxiv.org/abs/1209.2137) | lfc-pack |
 | Columns with per-block min/max | [Apache Parquet](https://parquet.apache.org/), [Apache ORC](https://orc.apache.org/), DuckDB [zone maps](https://duckdb.org/2022/10/28/lightweight-compression) | lfc-pack |

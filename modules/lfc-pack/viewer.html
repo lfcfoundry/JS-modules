@@ -198,7 +198,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   // compiled modules are kept, so trim() makes a fresh instance (fresh, small memory) without compiling again: a new compile starts on the browser's first, slower code tier
   var MODS = {};
   function loadSync(name) { return new WebAssembly.Instance(MODS[name] || (MODS[name] = new WebAssembly.Module(wasmBytes(name))), {}); }
-// Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of zstd-kit.js and lfc-pack.js (each joined by its build.py).
 
   // ================================================================ zstd on top of a wasm instance (wasm/zstd-glue.c)
   function makeZstd(inst) {
