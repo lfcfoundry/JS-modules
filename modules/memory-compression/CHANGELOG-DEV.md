@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.9 · API 2 · 2026-11-14
+
+### Quick
+Two same-bytes speedups from research part 2: timestamp sample-first choice (tsParse1, tsChoose, tsSlotsChecked; split date-time columns 0.64-0.70x in Chromium and Firefox; 536 same-bytes cases) and list scan in one walk (listScan, listDic…
+
+### Deep
+Two same-bytes speedups from research part 2: timestamp sample-first choice (tsParse1, tsChoose, tsSlotsChecked; split date-time columns 0.64-0.70x in Chromium and Firefox; 536 same-bytes cases) and list scan in one walk (listScan, listDictEnd; roles-like columns 0.86x Firefox, 0.94x Chromium; 497 cases). Whole 100k list with an ISO date-time column: Chromium 0.78, Firefox 0.86, WebKitGTK 1.00.
+
 ## 2.16.8 · API 2 · 2026-11-14
 
 ### Quick
