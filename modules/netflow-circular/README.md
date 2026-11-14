@@ -62,6 +62,20 @@ Use with netflow-engine: load the files as page scripts (or keep the folders sid
 
 Against d3-chord 3.0.1, measured by Netflow Map on its own copy of this code (the same layouts to the last digit) in the cloud test browsers, random flows with 4 links per item: with the order kept (no search, like d3) it takes 0.3 to 1.0 of d3's time. With the crossing search it takes 3.5 to 15 times d3's time and its bands cross 53%, 16% and 3% less at 20, 60 and 200 items (weighted: two crossing bands count the smaller amount); d3-chord keeps the order it is given. The crossing count was made 3 to 4 times faster before this release.
 
+## Prior art and credits
+
+The code is Netflow Map's own (LFC Foundry), cut out for this module; no code from other projects. [d3-chord](https://github.com/d3/d3-chord) was the speed comparison only.
+
+**Original sources** (links checked 2026-11-14; ideas only):
+
+- Bundles: Danny Holten, ["Hierarchical Edge Bundles"](https://doi.org/10.1109/TVCG.2006.147), IEEE TVCG, 2006
+- Crossing counting in n log n: Barth, Junger and Mutzel, ["Simple and Efficient Bilayer Cross Counting"](https://doi.org/10.7155/jgaa.00088), JGAA 2004, with a Fenwick tree (Peter Fenwick, ["A new data structure for cumulative frequency tables"](https://doi.org/10.1002/spe.4380240306), 1994)
+
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- Bundles: Danny Holten, ["Hierarchical Edge Bundles"](https://doi.org/10.1109/TVCG.2006.147), IEEE TVCG, 2006
+- Crossing counting in n log n: Barth, Junger and Mutzel, ["Simple and Efficient Bilayer Cross Counting"](https://doi.org/10.7155/jgaa.00088), JGAA 2004, with a Fenwick tree (Peter Fenwick, ["A new data structure for cumulative frequency tables"](https://doi.org/10.1002/spe.4380240306), 1994)
+
 ## For AI agents
 
 One file, global `NetflowCircular` (also `module.exports`); needs netflow-hierarchy (global `NetflowHierarchy`, or `../netflow-hierarchy/netflow-hierarchy.js` in Node). Tests: `node modules/netflow-circular/test/run.js` (runs the shared 925 checks).

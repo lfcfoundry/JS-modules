@@ -151,6 +151,10 @@ Rows to an SVG on the page, each library drawing the same rows (cloud test machi
 
 netflow-plot is the fastest of the four on bars, histograms, box plots and density charts at both sizes (at 20,000 rows it ties Observable Plot on bars in Chromium). Lines take up to 1.2 times the fastest library's time. Hexbins are the fastest at 20,000 rows and take 1.25 to 1.33 times Observable Plot's time at 2,000. Scatters are slower: at 2,000 rows up to 1.4 times Observable Plot (faster in WebKitGTK), and at 20,000 rows 1.9 to 3.2 times ECharts. Most of that time is the page reading 20,000 dots of SVG text; building the chart itself takes about 6 ms.
 
+## Prior art and credits
+
+The code is Netflow Map's own (LFC Foundry); no code from other projects. The chart types are the common ones of plotting libraries; the Voronoi cells are cut by half-planes with a grid of nearby dots, a textbook method.
+
 ## For AI agents
 
 One file, global `NetflowPlot` (also `module.exports`). Load netflow-scene first and pass it as the fourth argument. Tests: `node modules/netflow-plot/test/run.js` (314 checks: every type at 0, 1, 7 and 2,000 rows and with missing columns draws finite shapes; pointer lookup; ticks, density and the normal quantile).

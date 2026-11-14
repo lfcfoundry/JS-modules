@@ -66,6 +66,16 @@ Use with netflow-engine: load the files as page scripts (or keep the folders sid
 
 Against d3-hierarchy 3.1.2, measured by Netflow Map on its own copy of this code (the same layouts to the last digit) in the cloud test browsers, one at a time, early-stop A/B: ahead on 35 of 36 cases (treemap, icicle, pack and tree at 1,000, 10,000 and 100,000 items), at 0.29 to 0.98 of d3's time; one tie (WebKitGTK icicle at 1,000 items, 1.03, range 0.86 to 1.20). At 100,000 items: 0.29 to 0.78 of d3's time.
 
+## Prior art and credits
+
+The code is Netflow Map's own (LFC Foundry), cut out for this module; no code from other projects.
+
+**Original sources** (links checked 2026-11-14; ideas only):
+
+- Treemap: Bruls, Huizing and van Wijk, ["Squarified Treemaps"](https://doi.org/10.1007/978-3-7091-6783-0_4), 2000
+- Tree: Reingold and Tilford, ["Tidier Drawings of Trees"](https://doi.org/10.1109/TSE.1981.234519), IEEE TSE, 1981, in the linear-time form of Buchheim, Junger and Leipert, ["Improving Walker's Algorithm to Run in Linear Time"](https://doi.org/10.1007/3-540-36151-0_32), Graph Drawing 2002
+- Circle pack: Wang, Wang, Dai and Wang, ["Visualization of large hierarchical data by circle packing"](https://doi.org/10.1145/1124772.1124851), CHI 2006, with the smallest enclosing circle by Emo Welzl, ["Smallest enclosing disks (balls and ellipsoids)"](https://doi.org/10.1007/BFb0038202), 1991
+
 ## For AI agents
 
 One file, global `NetflowHierarchy` (also `module.exports`). Tests: `node modules/netflow-hierarchy/test/run.js` (925 checks with netflow-circular: no overlaps, children inside parents, tidy rows apart, chord totals, the same layout with and without `eA`/`eB`, the fast chord crossing count equals a plain count, on 0 to 2,000 items).
