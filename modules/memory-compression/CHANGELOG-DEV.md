@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.6 · API 2 · 2026-11-14
+
+### Quick
+Bucket text dictionary (bucketScan, strings(), listDict): same bytes in 247 cases (research) and on a 100k-row list in all three browsers.
+
+### Deep
+Bucket text dictionary (bucketScan, strings(), listDict): same bytes in 247 cases (research) and on a 100k-row list in all three browsers. With the list dictionary pack is 0.82 / 0.81 / 0.71 of 2.16.4 in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6.
+
 ## 2.16.5 · API 2 · 2026-11-14
 
 ### Quick

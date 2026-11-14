@@ -525,8 +525,10 @@
     var c = this.ctl, i, s, seen, dict, idx, id, m, sample = n < 256 ? n : 256, d0 = new Set(), pre;
     for (i = 0; i < sample; i++) d0.add(vals[i]);
     if (d0.size * 2 <= sample || n <= 64) {
-      seen = new Map(); dict = []; idx = new Uint16Array(n);
-      for (i = 0; i < n; i++) {
+      dict = []; idx = new Uint16Array(n);
+      i = BUCKETS ? bucketScan(vals, n, idx, dict) : 0;
+      seen = new Map(); for (id = 0; id < dict.length; id++) seen.set(dict[id], id);
+      for (; i < n; i++) {
         s = vals[i];
         id = seen.get(s);                                                  // (a 'same as the last one' shortcut and a compare loop for few values were measured: no gain in V8, 0.8 to 1.6 ms slower to pack in WebKit)
         if (id === undefined) {
@@ -559,6 +561,22 @@
     u = new Uint8Array(total);
     for (i = 0; i < n; i++) { x = vals[i]; l = x.length; for (k = 0; k < l; k++) { c = x.charCodeAt(k); if (c > 127) return null; u[p++] = c; } }
     return { lens: lens, joined: null, bytes: u, ascii: true };
+  }
+  // A text dictionary of up to 256 values found through 4,096 buckets keyed by the length and the first and last char, then a compare:
+  // 2 to 4 times faster than a Map (no hashing of every string, which costs most for separate strings from JSON.parse). The ids are in first-seen order, as with the Map.
+  var BUCKETS = true, BK = null, BKN = null;
+  function bucketScan(vals, n, idx, dict) {                     // fills idx from 0 up to the returned row (n when done; earlier when the 257th value turns up)
+    var bk = BK || (BK = new Int32Array(4096)), nx = BKN || (BKN = new Int32Array(256)), i, x, l, h, id, m = 0;
+    bk.fill(-1);
+    for (i = 0; i < n; i++) {
+      x = vals[i]; l = x.length;
+      h = l ? ((l << 5) ^ x.charCodeAt(0) ^ (x.charCodeAt(l - 1) << 3)) & 4095 : 0;
+      id = bk[h];
+      while (id >= 0 && dict[id] !== x) id = nx[id];
+      if (id < 0) { if (m >= 256) return i; id = m++; dict.push(x); nx[id] = bk[h]; bk[h] = id; }
+      idx[i] = id;
+    }
+    return n;
   }
   function joinText(vals, n) {
     if (JT_ASCII) { var a = asciiText(vals, n); if (a) return a; }
@@ -1155,12 +1173,21 @@
   // when every item is text, there are 2 or more values and the text dictionary would be used; false (nothing written) otherwise
   var LIST_DICT = true;
   Enc.prototype.listDict = function (vals, n, q) {
-    var seen = new Map(), dict = [], idx = new Uint16Array(q), i, j, a, len, s, id, p = 0, sample = q < 256 ? q : 256, top = -1, m, c = this.ctl;
+    var seen = null, dict = [], idx = new Uint16Array(q), i, j, a, len, s, id, p = 0, sample = q < 256 ? q : 256, top = -1, m, c = this.ctl, l, h, bk = null, nx = null;
+    if (BUCKETS) { bk = BK || (BK = new Int32Array(4096)); nx = BKN || (BKN = new Int32Array(256)); bk.fill(-1); } else seen = new Map();
     for (i = 0; i < n; i++) {
       a = vals[i]; len = a.length;
       for (j = 0; j < len; j++) {
         s = a[j];
         if (typeof s !== 'string') return false;
+        if (seen === null) {
+          l = s.length; h = l ? ((l << 5) ^ s.charCodeAt(0) ^ (s.charCodeAt(l - 1) << 3)) & 4095 : 0;
+          id = bk[h];
+          while (id >= 0 && dict[id] !== s) id = nx[id];
+          if (id >= 0) { if (p < sample && id > top) top = id; idx[p++] = id; continue; }
+          if (dict.length < 256) { id = dict.length; dict.push(s); nx[id] = bk[h]; bk[h] = id; if (p < sample && id > top) top = id; idx[p++] = id; continue; }
+          seen = new Map(); for (id = 0; id < dict.length; id++) seen.set(dict[id], id);
+        }
         id = seen.get(s);
         if (id === undefined) {
           id = dict.length;
