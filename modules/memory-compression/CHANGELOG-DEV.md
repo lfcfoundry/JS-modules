@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.2 · API 2 · 2026-11-14
+
+### Quick
+In Chromium the number arrays of tuples, one-pattern text and ISO date-times come from the existing pool and go back after the column (about 4-5% faster packing of lists of records).
+
+### Deep
+In Chromium the number arrays of tuples, one-pattern text and ISO date-times come from the existing pool and go back after the column (about 4-5% faster packing of lists of records). In Firefox the row key check uses Object.keys (about 3-4% faster), with a fall back to the old loop if Object.prototype has enumerable properties. Same bytes, no option.
+
 ## 2.17.1 · API 2 · 2026-11-14
 
 ### Quick

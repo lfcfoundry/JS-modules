@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.17.1 (API 2)
+ * Version 2.17.2 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1921,6 +1921,9 @@
     a = POOL.splice(best, 1)[0]; POOL_BYTES -= a.byteLength;
     return a.length === n ? a : a.subarray(0, n);
   }
+  // the number arrays of tuples, one-pattern text and ISO times come from the pool too, in Chromium only (measured 0.95-0.96x of a whole pack in Chromium 156; Firefox 158 1.01x, WebKitGTK 2.52.6 0.95-1.05x)
+  var POOL_MORE = typeof navigator === 'undefined' || /Chrome\/|Chromium\//.test(navigator.userAgent || '');
+  function takeF64b(n) { return POOL_MORE ? takeF64(n) : new Float64Array(n); }
   function giveF64(cols) {
     var i, c, a;
     if (!POOL_ON) return;
@@ -2662,7 +2665,7 @@
   // has any other kind of row, an impossible date, or that would cost more as one number returns null and goes the pattern way unchanged. The fixed-position read is the idea behind
   // the date fast paths in other JSON/CBOR/MessagePack parsers; the layout of the result is this module's own.
   function tsFixed(vals, n, g) {
-    var L = g === 6 ? 20 : 24, out = new Float64Array(n), mask = 0, i, s, y, mo, d, h, mi, sec, ms = 0, a, b, c, e, days, dk, lk = -1, ld = 0, yy, era, yoe, doy, v, x, j,
+    var L = g === 6 ? 20 : 24, out = takeF64b(n), mask = 0, i, s, y, mo, d, h, mi, sec, ms = 0, a, b, c, e, days, dk, lk = -1, ld = 0, yy, era, yoe, doy, v, x, j,
         mn = [], mx = [], dm = [], pv = [0, 0, 0, 0, 0, 0, 0], cu = [0, 0, 0, 0, 0, 0, 0], tmin = Infinity, tmax = -Infinity, tdm = 0, cost = 0, own;
     while ((n >> (mask + 1)) > 1024) mask++;
     mask = (1 << mask) - 1;
@@ -2829,7 +2832,7 @@
     pre = lits[0]; suf = lits[1]; a = pre.length; b = suf.length; ab = a + b;
     if (!asciiNoDigits(pre) || !asciiNoDigits(suf)) return false;
     var pc = new Int32Array(a), sc = new Int32Array(b); for (k = 0; k < a; k++) pc[k] = pre.charCodeAt(k); for (k = 0; k < b; k++) sc[k] = suf.charCodeAt(k);
-    f = new Float64Array(n);
+    f = takeF64b(n);                                               // every row is written before it is read; handed back after its column
     if (!OP_NATIVE && CAN_EVAL) {                                  // Chromium and WebKit: the words as constants in generated code (one compare per char, no table reads)
       if (!opCheck(pre, suf)(vals, n, f, OPS)) return false;
       lead = OPS.lead; total = OPS.total; minL = OPS.minL; maxL = OPS.maxL;
@@ -2850,6 +2853,7 @@
     if (w < 0) return false;
     c.u8(CT_TEMPLATE); c.varint(1); c.varint(1); c.str(pre); c.str(suf); c.varint(w);
     this.column(f, n);
+    if (!this.defer) giveF64([f]);
     return true;
   };
   Enc.prototype.timesFixed = function (vals, n) {
@@ -2877,6 +2881,7 @@
       c.u8(CT_TIMES); c.u8(g); c.varint(g);
       for (j = 0; j <= g; j++) c.str(lits[j]);
       this.column(ts, n);
+      if (!this.defer) giveF64([ts]);
       return true;
     }
     lead = new Uint8Array(g); f = tsSlots(vals, n, g, lead);                // the separate numbers, as the pattern path would have made them
@@ -3177,6 +3182,7 @@
     if (!cols) return false;
     c.u8(CT_TUPLE); c.varint(k);
     for (j = 0; j < k; j++) this.column(cols[j], n);
+    if (!this.defer) giveF64(cols);
     return true;
   };
   Enc.prototype.fusedArrays = function (vals, n) {
@@ -3499,13 +3505,16 @@
     function(rows,from,to,ks,ty,cols){var i,o,q,p,v,k0=ks[0],c0=cols[0],n0=ty[0]==='n',k1=ks[1],c1=cols[1],n1=ty[1]==='n',k2=ks[2],c2=cols[2],n2=ty[2]==='n',k3=ks[3],c3=cols[3],n3=ty[3]==='n',k4=ks[4],c4=cols[4],n4=ty[4]==='n',k5=ks[5],c5=cols[5],n5=ty[5]==='n',k6=ks[6],c6=cols[6],n6=ty[6]==='n',k7=ks[7],c7=cols[7],n7=ty[7]==='n',k8=ks[8],c8=cols[8],n8=ty[8]==='n',k9=ks[9],c9=cols[9],n9=ty[9]==='n',k10=ks[10],c10=cols[10],n10=ty[10]==='n',k11=ks[11],c11=cols[11],n11=ty[11]==='n',k12=ks[12],c12=cols[12],n12=ty[12]==='n',k13=ks[13],c13=cols[13],n13=ty[13]==='n';for(i=from;i<to;i++){o=rows[i];if(typeof o!=='object'||o===null||Object.getPrototypeOf(o)!==OP)return -1;q=0;for(p in o){if(p!==ks[q++])return -1;}if(q!==14)return -1;v=o[k0];if(n0&&typeof v!=='number')return -2;c0[i]=v;v=o[k1];if(n1&&typeof v!=='number')return -3;c1[i]=v;v=o[k2];if(n2&&typeof v!=='number')return -4;c2[i]=v;v=o[k3];if(n3&&typeof v!=='number')return -5;c3[i]=v;v=o[k4];if(n4&&typeof v!=='number')return -6;c4[i]=v;v=o[k5];if(n5&&typeof v!=='number')return -7;c5[i]=v;v=o[k6];if(n6&&typeof v!=='number')return -8;c6[i]=v;v=o[k7];if(n7&&typeof v!=='number')return -9;c7[i]=v;v=o[k8];if(n8&&typeof v!=='number')return -10;c8[i]=v;v=o[k9];if(n9&&typeof v!=='number')return -11;c9[i]=v;v=o[k10];if(n10&&typeof v!=='number')return -12;c10[i]=v;v=o[k11];if(n11&&typeof v!=='number')return -13;c11[i]=v;v=o[k12];if(n12&&typeof v!=='number')return -14;c12[i]=v;v=o[k13];if(n13&&typeof v!=='number')return -15;c13[i]=v;}return 0;},
     function(rows,from,to,ks,ty,cols){var i,o,q,p,v,k0=ks[0],c0=cols[0],n0=ty[0]==='n',k1=ks[1],c1=cols[1],n1=ty[1]==='n',k2=ks[2],c2=cols[2],n2=ty[2]==='n',k3=ks[3],c3=cols[3],n3=ty[3]==='n',k4=ks[4],c4=cols[4],n4=ty[4]==='n',k5=ks[5],c5=cols[5],n5=ty[5]==='n',k6=ks[6],c6=cols[6],n6=ty[6]==='n',k7=ks[7],c7=cols[7],n7=ty[7]==='n',k8=ks[8],c8=cols[8],n8=ty[8]==='n',k9=ks[9],c9=cols[9],n9=ty[9]==='n',k10=ks[10],c10=cols[10],n10=ty[10]==='n',k11=ks[11],c11=cols[11],n11=ty[11]==='n',k12=ks[12],c12=cols[12],n12=ty[12]==='n',k13=ks[13],c13=cols[13],n13=ty[13]==='n',k14=ks[14],c14=cols[14],n14=ty[14]==='n';for(i=from;i<to;i++){o=rows[i];if(typeof o!=='object'||o===null||Object.getPrototypeOf(o)!==OP)return -1;q=0;for(p in o){if(p!==ks[q++])return -1;}if(q!==15)return -1;v=o[k0];if(n0&&typeof v!=='number')return -2;c0[i]=v;v=o[k1];if(n1&&typeof v!=='number')return -3;c1[i]=v;v=o[k2];if(n2&&typeof v!=='number')return -4;c2[i]=v;v=o[k3];if(n3&&typeof v!=='number')return -5;c3[i]=v;v=o[k4];if(n4&&typeof v!=='number')return -6;c4[i]=v;v=o[k5];if(n5&&typeof v!=='number')return -7;c5[i]=v;v=o[k6];if(n6&&typeof v!=='number')return -8;c6[i]=v;v=o[k7];if(n7&&typeof v!=='number')return -9;c7[i]=v;v=o[k8];if(n8&&typeof v!=='number')return -10;c8[i]=v;v=o[k9];if(n9&&typeof v!=='number')return -11;c9[i]=v;v=o[k10];if(n10&&typeof v!=='number')return -12;c10[i]=v;v=o[k11];if(n11&&typeof v!=='number')return -13;c11[i]=v;v=o[k12];if(n12&&typeof v!=='number')return -14;c12[i]=v;v=o[k13];if(n13&&typeof v!=='number')return -15;c13[i]=v;v=o[k14];if(n14&&typeof v!=='number')return -16;c14[i]=v;}return 0;},
     function(rows,from,to,ks,ty,cols){var i,o,q,p,v,k0=ks[0],c0=cols[0],n0=ty[0]==='n',k1=ks[1],c1=cols[1],n1=ty[1]==='n',k2=ks[2],c2=cols[2],n2=ty[2]==='n',k3=ks[3],c3=cols[3],n3=ty[3]==='n',k4=ks[4],c4=cols[4],n4=ty[4]==='n',k5=ks[5],c5=cols[5],n5=ty[5]==='n',k6=ks[6],c6=cols[6],n6=ty[6]==='n',k7=ks[7],c7=cols[7],n7=ty[7]==='n',k8=ks[8],c8=cols[8],n8=ty[8]==='n',k9=ks[9],c9=cols[9],n9=ty[9]==='n',k10=ks[10],c10=cols[10],n10=ty[10]==='n',k11=ks[11],c11=cols[11],n11=ty[11]==='n',k12=ks[12],c12=cols[12],n12=ty[12]==='n',k13=ks[13],c13=cols[13],n13=ty[13]==='n',k14=ks[14],c14=cols[14],n14=ty[14]==='n',k15=ks[15],c15=cols[15],n15=ty[15]==='n';for(i=from;i<to;i++){o=rows[i];if(typeof o!=='object'||o===null||Object.getPrototypeOf(o)!==OP)return -1;q=0;for(p in o){if(p!==ks[q++])return -1;}if(q!==16)return -1;v=o[k0];if(n0&&typeof v!=='number')return -2;c0[i]=v;v=o[k1];if(n1&&typeof v!=='number')return -3;c1[i]=v;v=o[k2];if(n2&&typeof v!=='number')return -4;c2[i]=v;v=o[k3];if(n3&&typeof v!=='number')return -5;c3[i]=v;v=o[k4];if(n4&&typeof v!=='number')return -6;c4[i]=v;v=o[k5];if(n5&&typeof v!=='number')return -7;c5[i]=v;v=o[k6];if(n6&&typeof v!=='number')return -8;c6[i]=v;v=o[k7];if(n7&&typeof v!=='number')return -9;c7[i]=v;v=o[k8];if(n8&&typeof v!=='number')return -10;c8[i]=v;v=o[k9];if(n9&&typeof v!=='number')return -11;c9[i]=v;v=o[k10];if(n10&&typeof v!=='number')return -12;c10[i]=v;v=o[k11];if(n11&&typeof v!=='number')return -13;c11[i]=v;v=o[k12];if(n12&&typeof v!=='number')return -14;c12[i]=v;v=o[k13];if(n13&&typeof v!=='number')return -15;c13[i]=v;v=o[k14];if(n14&&typeof v!=='number')return -16;c14[i]=v;v=o[k15];if(n15&&typeof v!=='number')return -17;c15[i]=v;}return 0;}];
+  var KEYS_CHECK = typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent || '');   // measured: Firefox 158 split 0.79-0.86x with Object.keys; Chromium 156 1.1-1.2x slower, so for-in there
   function fusedExtractor(keys, types) {
     var sig = 'f' + keys.join('\u0001') + '\u0002' + types.join(''), f = GEN_CACHE[sig], j, src, nk = keys.length;
     if (f) return f;
     if (CAN_EVAL) {
       src = 'var r=[],i,o,k,p,v;';
       for (j = 0; j < nk; j++) src += 'var c' + j + '=' + (types[j] === 'n' ? 'T(n)' : 'new Array(n)') + ';r.push(c' + j + ');';
-      src += 'for(i=0;i<n;i++){o=rows[i];if(typeof o!=="object"||o===null||Object.getPrototypeOf(o)!==OP)return -1;k=0;for(p in o){if(p!==keys[k++])return -1;}if(k!==' + nk + ')return -1;';
+      if (KEYS_CHECK) src += 'for(p in OP)return -1;var ks;';      // Firefox: Object.keys is the faster key check; it lists what for-in lists while Object.prototype has nothing enumerable (checked here)
+      src += 'for(i=0;i<n;i++){o=rows[i];if(typeof o!=="object"||o===null||Object.getPrototypeOf(o)!==OP)return -1;';
+      src += KEYS_CHECK ? 'ks=Object.keys(o);if(ks.length!==' + nk + ')return -1;for(k=0;k<' + nk + ';k++)if(ks[k]!==keys[k])return -1;' : 'k=0;for(p in o){if(p!==keys[k++])return -1;}if(k!==' + nk + ')return -1;';
       for (j = 0; j < nk; j++) {
         if (types[j] === 'n') src += 'v=o[' + JSON.stringify(keys[j]) + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[i]=v;';
         else src += 'c' + j + '[i]=o[' + JSON.stringify(keys[j]) + '];';
@@ -3543,14 +3552,15 @@
     if (f) return f;
     if (CAN_EVAL) {
       src = 'var r=[],i,a,v;';
-      for (j = 0; j < k; j++) src += 'var c' + j + '=new ' + (types[j] === 'n' ? 'Float64Array' : 'Array') + '(n);r.push(c' + j + ');';
+      for (j = 0; j < k; j++) src += 'var c' + j + '=' + (types[j] === 'n' ? 'T(n)' : 'new Array(n)') + ';r.push(c' + j + ');';
       src += 'for(i=0;i<n;i++){a=rows[i];if(!Array.isArray(a)||a.length!==' + k + ')return -1;';
       for (j = 0; j < k; j++) {
         if (types[j] === 'n') src += 'v=a[' + j + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[i]=v;';
         else src += 'c' + j + '[i]=a[' + j + '];';
       }
       src += '}return r;';
-      f = new Function('rows', 'n', src);
+      f = new Function('rows', 'n', 'T', src);
+      f = (function (g) { return function (rows, n) { return g(rows, n, takeF64b); }; })(f);
     } else {
       f = function (rows, n) {
         var r = [], i, jj, a, v;
