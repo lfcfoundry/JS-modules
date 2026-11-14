@@ -99,7 +99,7 @@
             : file.bytes.slice(b[0], b[0] + b[1]);
         };
         results[i] = submit({ kind: kd, buf: null, crc: b[2], want: kd === 'f' ? want : null }, b[1], makeCopy, lazy, call).then(function (F) {
-          if (o._columns) return [rf.columns(F, want)];   // B35: columns of this block, no rows
+          if (o._columns) return [rf.columns(F, want, !!o._nan)];   // B35: columns of this block, no rows
           if (o._frames) return F;   // B38 (research): the decoded block itself; the caller builds its rows
           var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
@@ -211,12 +211,15 @@
   // Helpers decode the blocks (as pool reads do); the calling thread joins each key's block arrays: typed arrays of one kind stay that kind, mixed typed kinds become Float64Array, anything else a plain array.
   // A key missing from some rows gives undefined at those rows. Flat-row blocks only, like unpackColumns.
   var B35_POOL = null, B35_TIMER = null, B35_W = 0;
-  function b35Join(blocks, n) {
+  // B42: with nulls: 'NaN' every block's number column is already a typed array of one value per row (nanCols); a key that some block lacks entirely is NaN there
+  function b35Num(blocks, k) { for (var i = 0; i < blocks.length; i++) { var v = blocks[i].cols[k]; if (v && (Array.isArray(v) || blocks[i].present[k])) return false; } return true; }
+  function b35Join(blocks, n, nan) {
     var keys = [], seen = {}, i, j, k, out = {}, b, v, T, off, a;
     for (i = 0; i < blocks.length; i++) for (j = 0; j < blocks[i].keys.length; j++) { k = blocks[i].keys[j]; if (!seen[k]) { seen[k] = 1; keys.push(k); } }
     for (j = 0; j < keys.length; j++) { k = keys[j]; T = undefined;
-      for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; if (!v || b.present[k]) { T = Array; break; } var C = Array.isArray(v) ? Array : v.constructor; if (T === undefined) T = C; else if (T !== C) T = (T === Array || C === Array) ? Array : Float64Array; }
+      for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; if (!v || b.present[k] || Array.isArray(v)) { T = Array; break; } var C = Array.isArray(v) ? Array : v.constructor; if (T === undefined) T = C; else if (T !== C) T = (T === Array || C === Array) ? Array : Float64Array; }
       if (T !== Array) { a = new T(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } out[k] = a; continue; }
+      if (nan && b35Num(blocks, k)) { a = new Float64Array(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; if (v) a.set(v, off); else a.fill(NaN, off, off + blocks[i].n); off += blocks[i].n; } out[k] = a; continue; }
       a = new Array(n); off = 0;
       for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; var pr = b.present[k], m = b.n, q, z = 0;
         if (!v) { for (q = 0; q < m; q++) a[off + q] = undefined; }
@@ -228,19 +231,20 @@
   }
   function unpackColumnsParallel(bytes, opts) {
     opts = opts || {};
+    try { nullsOpt(opts); } catch (e) { return Promise.reject(e); }
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f' && file.blocks[i][4] !== 'r') throw new Error('LfcPack: unpackColumnsParallel needs flat-row blocks'); n += file.blocks[i][3]; }
-      if (nb < 2 || w < 1) return b35Join(unpackColumns(bytes, opts.keys ? { keys: opts.keys } : undefined), n);
+      if (nb < 2 || w < 1) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
       if (!B35_POOL && !(globalThis.__B35AUTO === 0)) {   // B35b auto start: the first read joins on this thread (no helper start-up to wait for), then helpers start for the next read
-        var out0 = b35Join(unpackColumns(bytes, opts.keys ? { keys: opts.keys } : undefined), n);
+        var out0 = b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
         setTimeout(function () { if (!B35_POOL) { B35_W = w; B35_POOL = makePool({ workers: w }); clearTimeout(B35_TIMER); B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref(); } }, 0);
         return out0; }
       clearTimeout(B35_TIMER);
       var pp = B35_POOL && B35_W === w ? B35_POOL : (B35_POOL ? B35_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B35_W = w; return (B35_POOL = makePool({ workers: w })); });
-      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, stable: true, keys: opts.keys }); }).then(function (blocks) {
+      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys }); }).then(function (blocks) {
         B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
-        return b35Join(blocks, n); });
+        return b35Join(blocks, n, opts.nulls === 'NaN'); });
     });
   }
   // B38 (research): unpackRowsParallel(bytes, { workers }) -> Promise of the rows unpackRows returns, for whole-table reads of flat-row files.

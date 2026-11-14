@@ -10,3 +10,5 @@ clang $F -o flatscan-plain.wasm flatscan.c
 clang $F -o tpl4.wasm tpl4.c
 clang --target=wasm32 -O3 -nostdlib -fno-builtin -Wl,--no-entry -Wl,--import-memory -Wl,--strip-all -o rowscan.wasm rowscan.c
 wc -c flatscan.wasm flatscan-plain.wasm tpl4.wasm rowscan.wasm
+clang --target=wasm32 -O3 -nostdlib -fno-builtin -mbulk-memory -Wl,--no-entry -Wl,--export-memory -Wl,--export=__heap_base -Wl,--initial-memory=131072 -Wl,--max-memory=2147483648 -Wl,-z,stack-size=4096 -Wl,--strip-all -o bdec.wasm bdec.c
+wc -c bdec.wasm

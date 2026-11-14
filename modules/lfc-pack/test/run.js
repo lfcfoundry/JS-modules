@@ -58,6 +58,8 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('packParallel(Blob) (B30)', 'node', ['b30.cjs']);
   step('packColumnsParallel (B34)', 'node', ['b34.cjs']);
   step('unpackColumnsParallel (B35)', 'node', ['b35.cjs']);
+  step('aggregate (B40)', 'node', ['aggregate.cjs']);
+  step("nulls: 'NaN' (B42)", 'node', ['nullsnan.cjs']);
   step('unpackRowsParallel (B38)', 'node', ['b38.cjs']);
   step('positions (W1)', 'node', ['positions.cjs']);
   step('nested equality: P13g late fallback', 'node', ['p13g-late-fallback.cjs']);

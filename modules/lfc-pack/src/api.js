@@ -568,11 +568,66 @@
     }
     return out;
   }
+  // B40 aggregate(bytes, { key, by }) (research, name picked by the owner 11.14): sum, count and average of one number column, optionally per group of another column, without building either column.
+  // -> { sum, count, avg } or, with by, { keys, sum, count, avg } (arrays, groups in first-seen order). Values that are not numbers (null, text, missing) are skipped; avg of no values is NaN.
+  // Bit-packed number columns are summed as exact whole-number codes in bdec.wasm and divided once per scale: the result is the decimal sum as written, rounded once (a plain loop can differ in the last digits).
+  // Group keys: whole-number columns of up to 16 bits and text dictionary columns go through the wasm kernel; any other column kind (and any value column that is not bit-packed) takes a plain loop with the same results.
+  // Repeat calls on the same bytes object reuse the checked block headers and frames of that block (AGC), so a block is checked once per bytes object.
+  var AGC = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function aggFrames(file, i, want, wkey) {
+    var c = AGC ? AGC.get(file.bytes) : null; if (AGC && !c) { c = {}; AGC.set(file.bytes, c); }
+    var ck = i + '|' + wkey; if (c && c[ck]) return c[ck];
+    var pbc = partialBytes(file, i), F = flatFrames(S.zdec, pbc || blockBytes(file, i), want, false, !!pbc, true);
+    if (c) c[ck] = F; return F;
+  }
+  function aggFr(col) { if (col.fr) return col.fr; var o = [], q; for (q = 0; q < col.zf.length; q++) o.push(col.zf[q][0][2] ? col.zs.decompress(col.zf[q][1], col.zf[q][0][0]) : col.zf[q][1]); return o; }
+  function aggregate(bytes, o) {
+    o = o || {}; if (typeof o.key !== 'string') throw new Error('LfcPack: aggregate needs { key }');
+    var file = openFile(bytes), key = o.key, by = o.by == null ? null : String(o.by), want = {}, i, X = bdx(), G = by !== null ? new Map() : null, isum = {}, loose = 0, cnt = 0, wkey = key + '\0' + (by === null ? '' : by);
+    want[key] = 1; if (by !== null) want[by] = 1;
+    function gget(k) { var g = G.get(k); if (!g) { g = { s: {}, l: 0, c: 0 }; G.set(k, g); } return g; }
+    for (i = 0; i < file.blocks.length; i++) {
+      if (file.blocks[i][4] === 'r') {   // B39k small raw block (32 rows or fewer): plain loop over its rows
+        var rr = rawRows(readRawBlock(S.zdec, blockBytes(file, i))), ri, rv, rg;
+        for (ri = 0; ri < rr.length; ri++) { rv = rr[ri] !== null && typeof rr[ri] === 'object' ? rr[ri][key] : undefined; if (typeof rv !== 'number') continue; if (by === null) { loose += rv; cnt++; } else { rg = gget(Object.prototype.hasOwnProperty.call(rr[ri], by) ? rr[ri][by] : undefined); rg.l += rv; rg.c++; } }
+        continue; }
+      if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: aggregate needs flat-row blocks');
+      var F = aggFrames(file, i, want, wkey), n = F.n, ks = F.meta.keys, jv = ks.indexOf(key), jb = by !== null ? ks.indexOf(by) : -1;
+      if (F.ordList) throw new Error('LfcPack: aggregate needs a block without key-order lists');
+      if (jv < 0 || !F.cols[jv]) continue;
+      var cm = F.meta.cols[jv], fr = aggFr(F.cols[jv]), vin = null, np = null, vp = null, m = cm.n;
+      if (cm.t === 'B' && cm.p.w <= 24) { vin = fr[0]; vp = cm.p; } else if (cm.t === 'N' && cm.p.t === 'B' && cm.p.p.w <= 24) { vin = fr[1]; np = fr[0]; vp = cm.p.p; }
+      var exact = X && vin && m * (Math.pow(2, vp.w) + Math.abs(vp.mn)) < 4e15;   // whole-number sums stay exact in a double
+      if (by === null) {
+        if (exact) { var L1 = bdLay([vin.length, np ? np.length : 0, 16]), u8 = new Uint8Array(bdMem(L1.end)); bdPut(u8, L1.at[0], vin); if (np) bdPut(u8, L1.at[1], np); var a8 = new Float64Array(X.memory.buffer, L1.at[2], 2); a8[0] = 0; a8[1] = 0; X.sumI(L1.at[0], np ? L1.at[1] : 0, m, vp.w, L1.at[2]); a8 = new Float64Array(X.memory.buffer, L1.at[2], 2); isum[vp.scale] = (isum[vp.scale] || 0) + a8[0] + a8[1] * vp.mn; cnt += a8[1]; }
+        else { var v = decodeColumn(cm, S.zdec, fr), q, y; for (q = 0; q < v.length; q++) { y = v[q]; if (typeof y === 'number') { loose += y; cnt++; } } }
+        continue;
+      }
+      var cb = jb >= 0 && F.cols[jb] ? F.meta.cols[jb] : null, fb = cb ? aggFr(F.cols[jb]) : null, kin = null, kw = 0, lab = null;
+      if (cb && cb.n === n && cb.t === 'B' && cb.p.w <= 16) { kin = fb[0]; kw = cb.p.w; lab = (function (p) { return function (k) { return (k + p.mn) / p.scale; }; })(cb.p); }
+      else if (cb && cb.n === n && cb.t === 'D' && !(cb.p.w === 0 && cb.p.wide)) { var labs = tdr.decode(fb[0]).split('\0'); kin = fb[1]; kw = cb.p.w || 8; lab = function (k) { return labs[k]; }; }
+      if (exact && kin && m === n && kw > 0 && kw <= 16) {
+        var nk = 1 << kw, L2 = bdLay([vin.length, np ? np.length : 0, kin.length, nk * 8, nk * 4]), u = new Uint8Array(bdMem(L2.end)), k, g, c2;
+        bdPut(u, L2.at[0], vin); if (np) bdPut(u, L2.at[1], np); bdPut(u, L2.at[2], kin); u.fill(0, L2.at[3], L2.at[4] + nk * 4);
+        X.grpI(L2.at[0], np ? L2.at[1] : 0, n, vp.w, L2.at[2], kw, L2.at[3], L2.at[4]);
+        var su = new BigUint64Array(X.memory.buffer, L2.at[3], nk), cn = new Uint32Array(X.memory.buffer, L2.at[4], nk);
+        for (k = 0; k < nk; k++) if ((c2 = cn[k])) { g = gget(lab(k)); g.s[vp.scale] = (g.s[vp.scale] || 0) + Number(su[k]) + c2 * vp.mn; g.c += c2; }
+        continue;
+      }
+      // any other kinds: build both columns of this block and loop (rows without the group key group under undefined)
+      var V = decodeColumn(cm, S.zdec, fr), K2 = cb ? decodeColumn(cb, S.zdec, fb) : null, pr = F.pl, pb = (n + 7) >> 3, r, vi = 0, ki = 0, hv, hk, kk, yy, gg;
+      for (r = 0; r < n; r++) { hv = m === n || ((pr[jv * pb + (r >> 3)] >> (r & 7)) & 1); hk = cb && (cb.n === n || ((pr[jb * pb + (r >> 3)] >> (r & 7)) & 1)); yy = hv ? V[vi++] : undefined; kk = hk ? K2[ki++] : undefined; if (typeof yy !== 'number') continue; gg = gget(kk); gg.l += yy; gg.c++; }
+    }
+    function fin(sm, l) { var t = l, s2; for (s2 in sm) t += sm[s2] / +s2; return t; }
+    if (by === null) { var tt = fin(isum, loose); return { sum: tt, count: cnt, avg: cnt ? tt / cnt : NaN }; }
+    var out = { keys: [], sum: [], count: [], avg: [] }; G.forEach(function (g2, k2) { var t2 = fin(g2.s, g2.l); out.keys.push(k2); out.sum.push(t2); out.count.push(g2.c); out.avg.push(t2 / g2.c); }); return out;
+  }
   // unpackColumns(bytes, { keys }): flat-row blocks come back as typed columns, no row objects (experimental): [{ n, keys, cols, present }] one entry per block; other block kinds throw
+  function nullsOpt(o) { var v = o && o.nulls; if (v === undefined || v === null) return false; if (v === 'NaN') return true; throw new Error("LfcPack: nulls must be 'NaN'"); }
   function unpackColumns(bytes, opts) {
-    var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k;
+    var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k, nan = nullsOpt(opts);
     opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
-    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] === 'r') { out.push(b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want)); continue; } if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumns needs flat-row blocks'); { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc)); } }
+    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumns needs flat-row blocks'); { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan)); } }
     return out;
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
@@ -739,7 +794,7 @@
             var b = blocks[i]; if (!b) return Promise.reject(new Error('block ' + i + ' out of range'));
             if (b[4] !== 'f') return Promise.reject(new Error('LfcPack: columns() needs a flat-row block; block ' + i + ' is ' + (b[4] === 'r' ? 'raw (exact mode)' : 'nested') + ': read it with block(i)'));
             var want = null, q; if (o && o.keys) { want = {}; for (q = 0; q < o.keys.length; q++) want[o.keys[q]] = 1; }
-            return fetch(i).then(function (x) { if (!cf) cf = makeFlatReader(S.zdec); return cf.columnsOf(x, want, false); });   /* its own reader, not the shared arena: the arrays stay valid after the next block */
+            var nan2 = nullsOpt(o); return fetch(i).then(function (x) { if (!cf) cf = makeFlatReader(S.zdec); return cf.columnsOf(x, want, false, nan2); });   /* its own reader, not the shared arena: the arrays stay valid after the next block */
           },
           // zone(i, key) (since 0.5.9): { min, max, count } of the number column key in block i, from the footer (nothing is decoded), or null when the block has none for that key. A filter such as id >= 7000000 can skip block i when max < 7000000
           zone: function (i, key) {
@@ -801,4 +856,4 @@
     }); }).then(function (ok) { return ok && later(function () { unpackTables(file); file = null; return true; }); }).then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.20', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.21', apiVersion: 0 };
