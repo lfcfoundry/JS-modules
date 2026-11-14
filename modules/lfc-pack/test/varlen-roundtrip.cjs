@@ -1,6 +1,6 @@
 'use strict';
 
-// Variable-length string round trip, from the LFC Workbench probe (11.08), kept as a regression check for the flat fast path (0.7.1 broke it).
+// Variable-length string round trip, from the LFCP Workbench probe (11.08), kept as a regression check for the flat fast path (0.7.1 broke it).
 // It exits nonzero on any mismatch. Set LFCP_PACK_PATH to run it against another lfc-pack.js. It never writes files.
 
 const path = require('node:path');
