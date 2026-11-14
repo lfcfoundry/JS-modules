@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.16.7 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.16.8 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.10.34 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -64,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-11-14 · **zstd-kit** 1.0.0 · API 1: First release: Zstandard compress and decompress, XXH64 and CRC-32 from one WebAssembly build, split out of lfc-pack with its own tests and credits; a decode-only file too.
 - 2026-11-14 · **netflow-layers** 1.13.0 · API 1: New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
+- 2026-11-14 · **memory-compression** 2.16.8 · API 2: Faster packing of decimal number columns, same bytes.
 - 2026-11-14 · **memory-compression** 2.16.7 · API 2: Faster packing of text like user123@example.org or zip codes, same bytes.
 - 2026-11-14 · **memory-compression** 2.16.6 · API 2: Faster packing of text columns with few values (cities, tags, statuses), same bytes.
 - 2026-11-14 · **memory-compression** 2.16.5 · API 2: Slightly faster packing of lists of tags or roles, same bytes.

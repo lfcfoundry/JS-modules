@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.16.7 (API 2)
+ * Version 2.16.8 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2348,6 +2348,10 @@
     } catch (err) { return null; }
     return { bytes: best, z: z };
   };
+  // decimals scaled straight into the packed offsets (no Float64Array in between): the same test as scaleDecimals, one loop per width
+  function scaleU8(t, vals, n, p, lo) { for (var i = 0, x, y; i < n; i++) { x = vals[i]; y = Math.round(x * p); if (y / p !== x) return false; t[i] = y - lo; } return true; }
+  function scaleU16(t, vals, n, p, lo) { for (var i = 0, x, y; i < n; i++) { x = vals[i]; y = Math.round(x * p); if (y / p !== x) return false; t[i] = y - lo; } return true; }
+  function scaleU32(t, vals, n, p, lo) { for (var i = 0, x, y; i < n; i++) { x = vals[i]; y = Math.round(x * p); if (y / p !== x) return false; t[i] = y - lo; } return true; }
   function scaleDecimals(vals, n, p) {                  // whole numbers = value * p, only when dividing by p gives every value back exactly
     var t = new Float64Array(n), i, x, y;
     for (i = 0; i < n; i++) { x = vals[i]; y = Math.round(x * p); if (y / p !== x) return null; t[i] = y; }
@@ -2366,6 +2370,19 @@
       for (e--; ok && e <= 10; e++) {                                       // a later value may need more digits than the sample: try the next scales
         p = P10[e];
         if (f32 && (max - min) * p >= 65536) break;                         // would be stored as 32-bit floats anyway
+        if (!(this.picker && n >= ADAPT_MIN)) {                // no picker: the offsets are written in the same pass as the exactness test
+          lo = Math.round(min * p); hi = Math.round(max * p);
+          if (!(hi < 4503599627370496 && lo > -4503599627370496 && hi - lo < 4294967296 && (hi - lo < 65536 || !f32))) break;   // a larger scale is only wider
+          t = hi - lo < 256 ? new Uint8Array(n) : hi - lo < 65536 ? new Uint16Array(n) : new Uint32Array(n);
+          if (t.BYTES_PER_ELEMENT === 1 ? scaleU8(t, vals, n, p, lo) : t.BYTES_PER_ELEMENT === 2 ? scaleU16(t, vals, n, p, lo) : scaleU32(t, vals, n, p, lo)) {
+            c.u8(CT_DEC); c.u8(e); c.u8(t.BYTES_PER_ELEMENT); c.zigzag(lo);
+            this.blob(t, 'ints', null, this.chunkInts && n >= CHUNK_MIN && !this.defer ? 65536 : 0);
+            if (this.defer) this.deferEnd();
+            return;
+          }
+          if (e >= 3) break;
+          continue;
+        }
         ints = scaleDecimals(vals, n, p);
         if (ints) {
           lo = Math.round(min * p); hi = Math.round(max * p);
