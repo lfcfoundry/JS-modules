@@ -28,7 +28,7 @@ const JF = require('../lfc-pack.js'), assert = require('assert'), gen = require(
       await Promise.all(cs.map((c, i) => new Promise((res) => { wait[i] = res; ws[i % 2].postMessage({ i, c: new Uint8Array(c), o }); })));
       ws.forEach((w) => w.terminate());
       const s = JF.packStream(o), parts = []; for (const r of got) parts.push(...s.pushPacked(r)); parts.push(...s.finish());
-      assert.ok(Buffer.concat(parts.map(x => Buffer.from(x))).equals(Buffer.from(JF.pack(b, o))), 'worker packBlock: bytes differ');
+      assert.ok(Buffer.concat(parts.map(x => Buffer.from(x))).equals(Buffer.from(JF.pack(b, Object.assign({ _noeq: true }, o)))), 'worker packBlock: bytes differ');
       console.log('2 worker threads,', cs.length, 'chunks: same bytes as pack, ok');
     }
     assert.throws(() => JF.packBlock(Buffer.from('{"a":1}\n'), { share: true }), /share/);

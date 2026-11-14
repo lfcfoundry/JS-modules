@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.16.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.9.3 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.17 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -61,6 +61,26 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-13 · **lfc-pack** 0.10.9 · API 0: packParallel now takes a File or Blob without reading it whole first (less memory, shorter main-thread pause). Nested equality and range reads take one pass instead of two.
+- 2026-11-13 · **lfc-pack** 0.10.8 · API 0: New packRowsParallel(rows) saves big row arrays on helper workers: later saves take 0.54 to 0.64 of the time in Chromium, Firefox and WebKitGTK (cloud). Nested range reads are faster.
+- 2026-11-13 · **lfc-pack** 0.10.7 · API 0: Filtered, range and row-window reads of tables with 20 or more keys where some rows lack keys are faster in Chrome and Edge.
+- 2026-11-13 · **lfc-pack** 0.10.6 · API 0: Fixes a slowdown in 0.10.5 for tables with 16 to 23 keys where most rows lack some keys.
+- 2026-11-13 · **lfc-pack** 0.10.5 · API 0: Reading whole tables of 24 or more keys where some rows lack some keys is up to five times faster in Chrome and Edge. Tables of 16 to 23 keys with few complete rows could be up to 1.4 times slower; 0.10.6 fixes that.
+- 2026-11-13 · **lfc-pack** 0.10.4 · API 0: Saving big number tables is up to twice as fast in Chromium and Firefox (cloud runs).
+- 2026-11-13 · **lfc-pack** 0.10.3 · API 0: Opening a big file in blocks uses 32 to 39% less memory at 1 to 4 MB blocks (counted by the module's memory counters, same in every browser).
+- 2026-11-13 · **lfc-pack** 0.10.17 · API 0: Equality reads are 8 to 18% faster in Chromium on files with many small blocks
+- 2026-11-13 · **lfc-pack** 0.10.16 · API 0: pool().unpack with equals or anyOf now returns only the matching rows, as unpack does
+- 2026-11-13 · **lfc-pack** 0.10.15 · API 0: New unpackColumnsParallel(bytes) reads a table as columns on helper workers, no row objects: later reads take 0.30 to 0.67 of unpackRows in Chromium, Firefox and WebKitGTK (cloud, 300,000 rows).
+- 2026-11-13 · **lfc-pack** 0.10.14 · API 0: Reading whole tables is up to 15% faster in Firefox 158 (rows built in chunks of 1,024); a WebKitGTK sensors first read is 1.2 times slower. Chrome and Edge are unchanged.
+- 2026-11-13 · **lfc-pack** 0.10.13 · API 0: Saving sparse tables and tables of repeated labels is 0.46 to 0.93 of the old time on an owner laptop (Chrome, Firefox). Tables of many different strings are unchanged.
+- 2026-11-13 · **lfc-pack** 0.10.12 · API 0: New packColumnsParallel({ key: array }) saves columns you hold without row objects: later saves of number tables take 0.42 to 0.74 of packRowsParallel in Chromium, Firefox and WebKitGTK (cloud).
+- 2026-11-13 · **lfc-pack** 0.10.11 · API 0: Random-access files skip blocks that cannot hold the value: a value not in the file returns in about a quarter of the time (Chromium, Firefox, WebKitGTK). Files grow about 0.4%; older readers still open them.
+- 2026-11-13 · **lfc-pack** 0.10.10 · API 0: packRowsParallel hands control back to the page between blocks: the longest pause on the main thread drops from 178 to 214 ms to 27 to 53 ms in Chromium, Firefox and WebKitGTK (cloud).
+- 2026-11-12 · **lfc-pack** 0.9.6 · API 0: Saving a small change can write only what changed (opt-in delta saves).
+- 2026-11-12 · **lfc-pack** 0.9.5 · API 0: Asking for the rows with one exact value is faster (unpack with equals), and reading columns is faster.
+- 2026-11-12 · **lfc-pack** 0.9.4 · API 0: Packs NDJSON into small column files and reads the rows back, exactly if you ask.
+- 2026-11-12 · **lfc-pack** 0.10.2 · API 0: Saves are up to 11% faster (Chromium, Firefox, WebKitGTK), big files show their first rows in 6 to 15% of the time, searching for several values at once is one call, and some filtered reads are faster.
+- 2026-11-12 · **lfc-pack** 0.10.1 · API 0: Searching a file for rows with one exact text, ID or address value is about twice as fast.
 - 2026-11-11 · **netflow-plot** 2.17.0 · API 2: A real category named Other, Others or Others, average keeps its own bar, line or wedge and its own name; the folded rest gets a name no shown category has. Very small donut shares are drawn at least 1 px wide at the rim and say so when pointed at; their text keeps the true value. Small donuts (under about 200 px tall) keep a real ring instead of one a few px across or drawn inside out; the total leaves the hole when it would cover the ring; a share of 99.5% or more reads ">99%" while other shares exist.
 - 2026-11-11 · **lfc-pack** 0.9.3 · API 0: Reading a time range is faster: only the matching rows are built.
 - 2026-11-11 · **lfc-pack** 0.9.2 · API 0: Packing UUID columns is about twice as fast again.
@@ -68,6 +88,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-11 · **lfc-pack** 0.9.0 · API 0: Helper-worker reads copy a Buffer's blocks so the caller's memory is never handed away; new opt-in memory limits (stable, maxInflightBytes), cancelling (signal) and pool.stats().
 - 2026-11-11 · **lfc-pack** 0.8.3 · API 0: Packing is faster for rows with long or exponent numbers.
 - 2026-11-11 · **lfc-pack** 0.8.2 · API 0: Packing UUID columns is faster. Packing picks each column's layout faster.
+- 2026-11-11 · **lfc-pack** 0.10.0 · API 0: Columns with some empty (null) values are stored compactly: such files are smaller and faster to read. Older versions cannot open these files.
 - 2026-11-08 · **ppmd-decode** 1.7.0 · API 1: New optional ppmd7Decode.warm({ order, memSize }) makes the first plain-JavaScript decode about 0.6 to 0.75 times as long.
 - 2026-11-08 · **ppmd-decode** 1.6.1 · API 1: First decode a little faster in Chromium; same output.
 - 2026-11-08 · **netflow-scene** 1.13.0 · API 1: Area bands are drawn as one shape instead of one per step: area charts are 1.2 to 7.7 times as fast (15 to 87% less time) to show, and the fill looks a little darker on long data (the true fill color).

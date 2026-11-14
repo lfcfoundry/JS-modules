@@ -2,6 +2,236 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.17 · API 0 · 2026-11-13
+
+### Quick
+Equality reads on random-access files run in 0.82 to 0.92 of the time in Chromium; Firefox is unchanged
+
+### Details
+The equality reader made three small typed arrays per wanted column per block, which V8 allocates slowly. It now reuses one list in V8. Laptop, 200,000 rows: Chrome 157 0.82 to 0.92 of 0.10.15 on 7 cases; Firefox 161 even.
+
+### Deep
+Equality reads on files with many small blocks (such as access: 'random') are 8 to 18% faster in Chromium (Chrome 157 laptop 0.82 to 0.92 of the 0.10.15 time, cloud Chromium 156 0.70 to 0.97); Firefox 161 is unchanged and the rows are identical.
+
+## 0.10.16 · API 0 · 2026-11-13
+
+### Quick
+Fixes a bug: a helper-pool read with an equals filter returned every row; it now returns the same rows as unpack and is faster
+
+### Details
+pool.unpack(bytes, { equals }) (and anyOf, rows, exact) ignored the filter and returned every row. Those reads now go to the equality reader that unpack uses, which skips blocks that cannot match. Laptop, 200,000 rows: 10% filter 36 ms in Firefox 161 and 29.6 ms in Chrome 157, against 101 and 94.7 ms before, with the wrong rows.
+
+### Deep
+pool().unpack with equals (and anyOf, rows, exact) returned every row of the file instead of the matching rows; it now returns the same rows as unpack, and reads are faster (Firefox 161 and Chrome 157, 200,000 rows, 10% filter: 36 and 29.6 ms against 101 and 94.7 ms).
+
+## 0.10.15 · API 0 · 2026-11-13
+
+### Quick
+unpackColumnsParallel reads whole tables as columns
+
+### Details
+B35: unpackColumnsParallel(bytes, { keys, workers }) resolves to { key: array }; helpers decode blocks, the calling thread joins; typed arrays stay typed, a missing key gives undefined; flat-row files only; first call reads on the calling thread and starts helpers after. 300,000 rows vs unpackRows, first/later: taxi Chromium 0.49/0.30, Firefox 0.55/0.37, WebKitGTK 0.54/0.41; logs 0.74/0.67, 0.83/0.73, 0.80/0.66; sensors 0.41/0.38, 0.61/0.51. Owner laptop Firefox 160 taxi later 0.29, Chrome 157 0.31; longest pause 354 to 46 ms.
+
+### Deep
+B35 unpackColumnsParallel (owner named it, laptop Firefox 160 and Chrome 157 passed). API export added by hand; b35.cjs 32 checks (values equal unpackRows by Object.is, first and second call, block sizes, sparse and mixed tables, keys option, nested rejected). All lfc-pack checks pass.
+
+## 0.10.14 · API 0 · 2026-11-13
+
+### Quick
+faster row reads in Firefox and WebKit
+
+### Details
+B36: outside V8, dense blocks (every key present in every row) are built 1,024 rows at a time, then each column is assigned down the chunk. unpackRows 100,000 rows vs 0.10.13: Firefox 0.85 to 1.02, WebKitGTK taxi later reads 0.82; WebKitGTK sensors first read 1.20 in the cloud test (owner accepted). Identical output on 9 sets x 4 ways of writing in Firefox and WebKitGTK; Chromium unchanged.
+
+### Deep
+B36 dense chunked rows, non-V8 only (owner Send B36, then Ship B36 as is after the WebKitGTK sensors first-read card). Output identical to 0.10.13 in Firefox and WebKitGTK. All lfc-pack checks pass.
+
+## 0.10.13 · API 0 · 2026-11-13
+
+### Quick
+faster saves for sparse and label tables
+
+### Details
+P13i: packRows counts strings seen for the first time under their key in the first 256 rows; 40% or more of values new keeps the text route, otherwise 40% or more strings takes the row path with the 64 KiB head block. Owner laptop, warm saves on sparse and label tables 0.46 to 0.93 of 0.10.8 (Chrome 157, Firefox 160); cloud sparse sets 0.85 to 1.04, logs and sensors unchanged, same bytes. packRowsParallel cuts the same head block.
+
+### Deep
+P13i packRows route (owner Send P13i, laptop Chrome 157 and Firefox 160 passed tester v7b). Hand merge of the head block hunk for 0.10.12; packRowsParallel and packRowsBlocks cut the same head block so bytes equal packRows. New check in b28.cjs, 30 checks. All lfc-pack checks pass.
+
+## 0.10.12 · API 0 · 2026-11-13
+
+### Quick
+packColumnsParallel saves columns directly
+
+### Details
+B34: packColumnsParallel(columns, opts) returns a promise of the file for the rows the columns describe; plain or number typed arrays, same length; skips the string-share gate; same gates and fallbacks as packRowsParallel. 300,000 rows vs packRowsParallel, later saves: taxi 0.66 Chromium, 0.42 Firefox, 0.74 WebKitGTK; sensors 0.73, 0.71; logs 0.93, 0.96, 0.90; first call 0.67 to 0.97. Number tables same bytes as packRows; text-heavy tables can differ by about 0.04% and read back exactly.
+
+### Deep
+B34 packColumnsParallel (owner Always column path, named by the owner). Hand merge of two hunks for 0.10.11. New test b34.cjs, 58 checks. All lfc-pack checks pass.
+
+## 0.10.11 · API 0 · 2026-11-13
+
+### Quick
+equality reads skip blocks on random-access files
+
+### Details
+NX A: random-preset files (blocks of 1 MB or less, 2 or more blocks) keep a Bloom filter per text column per block in a compressed area after the blocks, pointed to by optional footer section 18. Absent lookups 0.24 weighted; random-preset saves 0.95 to 1.03 of 0.10.10 on logs and sensors in three browsers; default saves unchanged; filters also written by packRowsParallel and packParallel; packStream writes none.
+
+### Deep
+Block skipping A (owner Send to code thread). Exact checks on the release build: acheck 5,211, check 38,088, rawcheck 56, all 0 bad; 0.10.1 reads the files. Hand merge for the B28 writer; helper stitching carries the filters; hidden option _noeq for tests. All lfc-pack checks pass.
+
+## 0.10.10 · API 0 · 2026-11-13
+
+### Quick
+packRowsParallel keeps the page responsive
+
+### Details
+B31: packRowsParallel yields between blocks (MessageChannel task). Longest main-thread stall on 300,000 taxi-like rows 210/214/178 ms to 53/29/27 ms (Chromium, Firefox, WebKitGTK); first call 1.04 to 1.08, later saves 0.99 to 1.02 of 0.10.9; same bytes. Owner accepted the cost.
+
+### Deep
+B31 yield every block (owner Yield every block). Fixed in review: in plain Node a script ended before the call finished (the port was unref'd); the port now keeps the process alive only while a block waits. b28.cjs 28 checks. All lfc-pack checks pass.
+
+## 0.10.9 · API 0 · 2026-11-13
+
+### Quick
+packParallel(file) and faster nested equality and range reads
+
+### Details
+B30: packParallel(File or Blob): block cuts come from 64 KB windows, helpers read their own ranges; same bytes, 0.83 to 0.95 Firefox, 0.87 to 0.92 WebKitGTK, faster Chromium; peak memory 31 to 109 MB lower on a 121 MB file. P13g: nested equality and range reads in one pass (laptop Firefox 0.59 to 0.41, Chrome 0.58 to 0.45).
+
+### Deep
+B30 Blob-range pack jobs (owner Send B30) and P13g nested one-pass reads (owner laptop test passed). Gate vs 0.10.8: bytes identical in three browsers. New test b30.cjs, 40 checks. All lfc-pack checks pass.
+
+## 0.10.8 · API 0 · 2026-11-13
+
+### Quick
+packRowsParallel is new; nested range and window reads are faster
+
+### Details
+B28: packRowsParallel(rows, opts) returns a promise of the same bytes packRows writes; number columns of 8,192 values or more are encoded in up to 4 helpers; first call saves on the calling thread. 300,000 taxi-like rows, later saves 0.54 Chromium, 0.58 Firefox, 0.64 WebKitGTK, first call 0.84 to 1.04. P13f: nested range reads and part-block windows build only matching rows (laptop Chrome 0.93 to 0.55, Firefox 1.00 to 0.62).
+
+### Deep
+B28 packRowsParallel (research thread, owner chose auto start) and P13f nested ranges and windows (owner laptop test passed). Gate vs 0.10.7: bytes identical on 4 sets and a 76 MB taxi-like table; tables under the 52 MB rule unchanged. New test b28.cjs, 23 checks. All lfc-pack checks pass.
+
+## 0.10.7 · API 0 · 2026-11-13
+
+### Quick
+Selected rows (equals, range, row windows) of sparse tables with 20 or more keys are built one row at a time in Chrome and Edge, only when the selected rows look like they benefit. Owner laptop Chrome 157, share of 0.10.6 (first/warm): 40% filter on 27 keys 1.16/0.93 to 0.83/0.63, on 40 keys 1.72/0.88 to 0.81/0.82, row window 1.10/1.01 to 0.77/0.72, id range 0.50/0.50 to 0.44/0.30. Firefox and Safari run the same code. Same rows, same files.
+
+### Details
+P13e (owner-approved after laptop test, 2026-11-13 9:57 AM Detroit). V8 only, from 20 wanted keys, gated by the same rowWise() check as 0.10.6. Laptop Firefox 160: same code, warm 0.36 to 1.05 with the same spread as 0.10.5 against 0.10.6. Cloud Chromium 156, 5 to 15 pairs: sparse range reads 0.88 to 1.04, logs 1% range 0.71, dense cells within the 1.05 to 1.14 same-build noise floor (reruns 0.99 and 1.04). 170 exact selective reads 0 differ vs 0.10.6.
+
+### Deep
+lfc-pack 0.10.7: P13e selected-row assembly (flat.js, uses rowWise from 0.10.6). Byte-identical (r4cmp.cjs 170 checks 0 differ). No new setting.
+
+## 0.10.6 · API 0 · 2026-11-13
+
+### Quick
+0.10.5's row-at-a-time build for tables with missing keys could be up to 1.1 to 1.4x slower in Chrome on tables of 16 to 23 keys where almost no row has every key. It now runs only from 24 keys, or when at least 1 row in 8 of the first 1,024 has every key. Tables of 24 or more keys keep the gain. Same rows, same files.
+
+### Details
+Chromium 156, 60,000 rows, full read, share of 0.10.4 time (0.10.5 / 0.10.6): 16 keys 60% present 1.12 / 1.04, 20 keys 60% 1.11 / 0.93, 22 keys 50% 0.87 / 0.92, 27 keys 99% 0.52 / 0.52, 40 keys 50% 0.21 / 0.21. The dictionary-path research thread measured up to 1.4x on the loss cases with fresh pages. 196 exact checks 0 differ vs 0.10.5.
+
+### Deep
+lfc-pack 0.10.6: P13d gate rowWise() (shared with P13e): nb >= 24 or at least 1 in 8 of the first 1,024 rows complete. Found by the dictionary-path research thread (round 4). 0.10.5 plain changelog line corrected: the gain is for tables of 24 or more keys.
+
+## 0.10.5 · API 0 · 2026-11-13
+
+### Quick
+Full reads of tables with 20 or more keys where rows have different key sets build rows row by row in Chrome and Edge: 0.20 to 0.82 of 0.10.4's time on the owner's laptop. Firefox and Safari run the same code as before. Same rows, same files.
+
+### Details
+P13d (owner-approved after laptop test, 2026-11-13 9:10 AM Detroit): V8-only row-at-a-time assembly of sparse blocks (template clone for complete rows, hash-form objects from 24 keys). Laptop Chrome 157, 60,000 rows, share of read-all: 27 keys 99% present 0.93 to 0.50 first read, 40 keys 50% present 0.97 to 0.20, 12 keys unchanged (0.98). Laptop Firefox 160: warm reads 0.97 to 1.03 (code gated off). Cloud check 3 browsers, dense full reads: nothing slower beyond the 0.91 to 1.05 same-build noise floor. 196 exact checks 0 differ vs 0.10.4.
+
+### Deep
+lfc-pack 0.10.5: P13d sparse-block row-at-a-time assembly (V8 only, K >= 8 keys). Byte-identical reads (spcmp.cjs 196 checks 0 differ), new test sparseread.cjs.
+
+## 0.10.4 · API 0 · 2026-11-13
+
+### Quick
+packRows saves number-heavy tables 0.45 to 0.72 of 0.10.3's time on 100,000-row sets (a wasm number kernel and one row check instead of two). Files are byte-identical.
+
+### Details
+B25 + B26 (owner-approved 2026-11-13 8:56 AM Detroit). packRows, 100,000 rows, share of 0.10.3 save time, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: taxi 0.45 / 0.46 / 0.67, sensors 0.72 / 0.63 / 0.94, logs 0.84 / 0.98 / 0.98, events 1.03 / 0.84 / 0.98. Same bytes on every test set and 15 bail cases.
+
+### Deep
+lfc-pack 0.10.4: B25 number kernel (wasm numcol in flatscan, one pass for stats and every candidate frame, 64+ values), B26 folded row check (first and last 1,024 rows up front, the writer bails to the text path on a non-scalar), B25d (checks just before each column is encoded). Files byte-identical to 0.10.3 (same21.cjs, same1.cjs, bail.cjs: 0 diffs). New test numkernel.cjs. B22 stays off the row path (1.2x slower first saves there).
+
+## 0.10.3 · API 0 · 2026-11-13
+
+### Quick
+Block reads from open() now decode into the WebAssembly output buffer instead of a second JavaScript copy: memory 32 to 39% lower at 1 to 4 MB blocks. Same rows, same files.
+
+### Details
+P15: same-page A/B in WebKitGTK 2.52.6 (12 pages x 30 pairs) P15 on 1.038 +- 0.041 vs off 1.072 +- 0.054 of 0.10.1; Chromium 156 0.994 and Firefox 158 1.019 (research thread, 8 pages each). Fresh-page WebKitGTK runs of one 1 MB-block cell swing 0.92 to 1.14.
+
+### Deep
+lfc-pack 0.10.3: P15 wasm arena for open() block reads on by default (LFC_WA=0 turns it off in Node). Owner approved 'ship after A/B' 2026-11-12 10:39 PM Detroit; same-page A/B within noise.
+
+## 0.10.2 · API 0 · 2026-11-12
+
+### Quick
+Faster saves (B21), a 64 KiB first block for saves over 4 MiB of text (B22), equals with anyOf, faster mixed-type column searches, faster key-subset and nested equality reads, and an opt-in open().readAhead(). Same file format; old files and old readers work as before.
+
+### Details
+Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: save time 0.89 to 1.00 of 0.10.1 on 300,000-row tables; the first screen of a big file takes 6 to 15% of the time; equality reads equal or better than 0.10.1 in all three. File size grows 0.04 to 0.26% on saves over 4 MiB.
+
+### Deep
+lfc-pack 0.10.2: B21 faster save writer (byte-identical), B22 small first block over 4 MiB, P13b/P13c key-subset and nested equality reads, P14 B (mixed-type equality) and C (anyOf), B24 readAhead(). Owner-approved 2026-11-12. P15 small-read memory patch held: 1.11 to 1.14 on WebKitGTK 1 MB one-row reads in fresh-page runs (a same-page check by the research thread found none), code kept off by default.
+
+## 0.10.1 · API 0 · 2026-11-12
+
+### Quick
+Equality reads (unpack with equals) on text, UUID, hex and IP columns now match in the stored bytes and build only the matching rows: 100,000 log rows, 24 queries took 0.18 to 0.40 of read-then-filter in three browsers (0.42 to 0.70 in 0.10.0). Same rows out, same file format.
+
+### Details
+P14 matches the asked value in the stored bytes of text, UUID, hex and IP columns (including nullable ones) and decodes only those rows; P13 builds late-row objects in wide tables from a clone, which also helps range reads. Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, logs 100,000 rows, 24 queries, share of read-then-filter, 0.10.0 to 0.10.1: ip 0.42 to 0.25 / 0.70 to 0.32 / 0.67 to 0.39, id 0.42 to 0.18 / 0.50 to 0.28 / 0.58 to 0.31, msg 0.49 to 0.23 / 0.62 to 0.36 / 0.69 to 0.40; with cache 0.07 to 0.15. 9,688 exact checks pass.
+
+### Deep
+lfc-pack 0.10.1: P14 byte-space equality for text, UUID, hex and IP keys and P13 late-row clone (research threads on text matching and dictionary path choice, owner-approved 2026-11-12 10:15 PM Detroit). Equality gate on the combined build vs 0.10.0 in 3 browsers: equals 0.18-0.40 of read-then-filter vs 0.42-0.70; first query 0.20-0.52; cache unchanged or better. check.js 9,688 checks 0 bad. New test eqbytes.cjs.
+
+## 0.10.0 · API 0 · 2026-11-11
+
+### Quick
+A column of one kind of value plus some nulls now keeps its compact typed form, with one bit per row marking the nulls (column type N, format minor 1). Made-up files with nullable columns are 19 to 35% smaller and read in 0.45 to 0.69 of the time; real NYC taxi data gains only 0 to 3%. Files without nulls are byte-identical. lfc-pack 0.9.3 and older refuse N files.
+
+### Details
+Format minor 1 is written only when a file holds an N column; the API version stays 0. Python and Go readers read N; new vector flat-null-plane. 100,000 rows, 7 fresh-page pairs, new/old: full read 0.45 to 0.69 and 1% range 0.36 to 0.54 on 3 made-up null sets in all 3 browsers; pack 0.75 to 1.21 (Chromium 1.19 orders, 1.21 taxi-like; Firefox 1.08 taxi-like).
+
+### Deep
+lfc-pack 0.10.0: null plane (B13). Column type N (format minor 1): a flat column of one scalar kind plus nulls keeps its inner typed encoding for the non-null values and one bit plane marks the nulls. New in the writer (nullBest in src/flat.js, also in the fast writer's mixed-kind columns), reader (decodeColumn), Python and Go readers, LAYOUT-SPEC.md 2.5 and 4, SPEC.md 2.1, vector flat-null-plane, test nullplane.cjs. Footer minor is 1 only when a pack wrote an N column (pack, packStream, packParallel); every other file is byte-identical to 0.9.3 (9 of 9 files checked: logs, sensors, ids, events, repeat, long at 300k rows, FHIR 21 MB, nd_dense, nd_gen_config). 0.8.1 refuses an N file. 100,000 rows, 7 pairs, Chromium / Firefox / WebKitGTK, new/old: orders (6 nullable columns, 34.5% smaller) pack 1.19 / 0.88 / 0.98, full read 0.69 / 0.62 / 0.62, 1% range 0.52 / 0.50 / 0.54; taxi-like (5 columns 2% null, 19.5% smaller) pack 1.21 / 1.08 / 1.05, full read 0.54 / 0.59 / 0.52, range 0.52 / 0.47 / 0.49; every column 50% null (34.6% smaller) pack 0.85 / 0.75 / 0.84, full read 0.54 / 0.45 / 0.55, range 0.48 / 0.36 / 0.42. No-null control logs 300k: pack 0.92 / 0.94 / 1.00, full read 0.88 / 1.13 / 0.99 (same bytes). The pack cost is a first-run cost in the general writer (nullBest, 47 of 360 ms cold in Node). Real NYC taxi gain is 0 to 3% (compression thread E14). Phone not run.
+## 0.9.6 · API 0 · 2026-11-12
+
+### Quick
+New opt-in packTables(tables, { base }) writes only the rows that changed since a full save, and unpackTables(delta, { base, baseTables }) rebuilds them. Netflow-like data, 8,000 items and 24,751 links, 80 edits: patch 1.4% of a full save, save 0.21 to 0.36 of the time (0.02 with dirty row numbers), read 0.08 to 0.13 with baseTables. Delta files need 0.9.6 or newer to read; full files are unchanged.
+
+### Details
+A delta file is an ordinary file whose tables are a patch against a base file (rows inserted, rows removed, values changed), with a required footer section 17 holding the base's XXH64; readers older than 0.9.6 refuse it, and a wrong or missing base throws. Rows are compared as text, so nested rows work. dirty: { table: [row numbers] } skips the comparison when the app knows what it touched. baseTables lets a read skip decoding the base. unpack() of a delta reads whole (no equals, range, keys or lazy). Stacked with the null plane: full file 7% smaller on null data, delta ratios unchanged.
+
+### Deep
+lfc-pack 0.9.6: delta saves v2 (owner chose Build into Netflow autosave, 2026-11-12). Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, 8,000 nodes, 24,751 links, 80 edits: patch 1.4%, save 0.16-0.40, with dirty rows 0.02, read 1.00-1.25 (0.08-0.13 with baseTables). Same output as a full save in all runs. Old readers refuse delta files by design. New test delta.cjs.
+
+## 0.9.5 · API 0 · 2026-11-12
+
+### Quick
+New option unpack(file, { equals: { key, value } }) returns the rows whose value is exactly that, building only those rows: 0.47 to 0.82 of read-then-filter over 24 queries, 0.06 to 0.20 with cache: true (3 browsers). Column reads of JSON-per-cell columns and large number columns are faster (Chromium 0.63 to 0.88 on logs, sensors and taxi columns). No format change.
+
+### Details
+equals tests one column, skips blocks whose dictionary lacks the value, and decodes only the matching positions when at most 1 row in 8 matches; common values assemble from the columns already read. cache: true keeps decoded blocks between queries on the same file bytes, counted and capped by LfcPack.cacheLimit() (64 MB default, least recently used first); LfcPack.clearCache() empties it. Cached first queries can cost up to 1.09 of a plain read. Column reads: an all-null JSON column is filled from its bytes (every engine); null, true, false and whole numbers up to 15 digits are read by hand in Chromium and Firefox; zigzag number columns of 16,384 values or more decode in one pass. Same rows and values.
+
+### Deep
+lfc-pack 0.9.5: B19 and B19c equality reads with an opt-in cache (size limit, clearCache), and B20 column reads (compression thread research, owner-approved 2026-11-12). Option names (cache: true, cacheLimit, clearCache) chosen by the owner 2026-11-12. Stack gate on 0.9.4 in 3 browsers: equality 24 queries 0.47-0.82 of read-then-filter, with cache 0.06-0.20 (first cached query up to 1.09); B20 columns vs 0.9.4 0.63-1.04 and rows 0.78-1.01 (cells over 1.05 on repeat were noise: identical builds measured 1.05 in the same harness). New tests equalsread.cjs, b20cols.cjs.
+
+## 0.9.4 · API 0 · 2026-11-12
+
+### Quick
+packRows on plain rows over 4,096 rows now goes straight to the column writer with no JSON text step: 0.50 to 0.65 of the time on taxi-like and orders sets in 3 browsers. Same format, same rows; files under the gate are byte-identical.
+
+### Details
+packRows(rows) skips the JSON text for plain scalar rows (strings, booleans, null, finite numbers other than -0) when there are more than 4,096 rows and either the rows would make more than 16 MB of text or fewer than 40% of the cells in the first 256 rows are strings; the writer tries both varint forms like the wasm writer, so files stay within 0.0002% of before. Other rows, and every call with exact, block or share, take the old path. 5 fresh-page pairs, packRows new/old: taxi-like 0.65 / 0.59 / 0.64, orders 0.57 / 0.50 / 0.50, sensors 0.87 / 0.71 / 0.90, ids 0.95 / 0.87 / 0.78 (Chromium / Firefox / WebKitGTK); logs 300k 0.84 / 1.04 / 0.99; an identical-build control swung 0.89 to 1.11.
+
+### Deep
+lfc-pack 0.9.4: B18b, packRows straight from row objects (the compression thread's research, owner-approved 2026-11-12). Gate and size fix as in the research notes. Keys are listed first-seen per block as before; a later block can list keys in another order, with identical values. New test rowpath.cjs.
+
 ## 0.9.3 · API 0 · 2026-11-11
 
 ### Quick

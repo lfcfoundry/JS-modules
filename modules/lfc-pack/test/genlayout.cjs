@@ -29,6 +29,7 @@ const CASES={
  'nested-paths': [L(Array.from({length:90},(_,i)=>i%9===0?'s'+(i%2):i===45?{a:1,d:JSON.parse('['.repeat(120)+']'.repeat(120))}:({'1':'x'+(i%2),t:'k'+(i%4),a:{b:['u','v','\u00e9'][i%3],c:['k'+(i%4),'k'+((i+1)%4)]},n:i,q:i%3?'same':'k1'}))),{block:'nested',paths:'only',blockBytes:1500}],
  'nested-shared-paths': [L(Array.from({length:160},(_,i)=>({type:'Feature',p:{name:'pt'+(i*7%23),kind:['a','b','\u00e9'][i%3],tag:i%2?'x':'pt'+(i%5)},g:i%4?{c:[i,i*2]}:{c:[i],x:null}}))),{block:'nested',share:true,paths:'only',blockBytes:1500}],
  'nested-shared': [L(Array.from({length:120},(_,i)=>({type:'Feature',p:{name:'pt'+(i*7%23),kind:['a','b','é'][i%3]},g:i%4?{c:[i,i*2]}:{c:[i],x:null}}))),{block:'nested',share:true,paths:false,blockBytes:1200}],
+ 'flat-null-plane': [L(Array.from({length:80},(_,i)=>({id:i,age:i%7===0||i===79?null:20+(i*13)%50,price:i===0||i%9===4?null:+(10+Math.sin(i/7)*3).toFixed(2),city:i%5===1?null:['oslo','rome','kyiv','lima'][i%4],ok:i%6===2?null:i%3===0,lone:i===40?7:null,nobody:null,ts:i%10===9?null:1700000000000+i*1000}))),{block:'flat'}],
  'multi-block': [L(Array.from({length:30},(_,i)=>({i,s:'r'+i}))),{block:'flat',blockBytes:200}],
 };
 for(const k in CASES){const [src,o]=CASES[k]; fs.writeFileSync(out+'/'+k+'.ndjson',src);}

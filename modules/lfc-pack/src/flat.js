@@ -254,25 +254,81 @@
     r = b.next;
     if (r && r.size <= b.size * 1.02 && (!b.z || !r.z)) { fullOf(zs, level, b); fullOf(zs, level, r); if (r.size < b.size || (r.size === b.size && r.ord < b.ord)) b = r; }
     else fullOf(zs, level, b);
+    if (b.t === 's' || b.t === 'D') { b.r0 = b.fr[0]; b.dl = b.fr.dl; }   // NX A: the uncompressed values (or labels), for the block filter
     b.fr = null; b.next = null; return b;
   }
-  function encodeColumn(v, zs, level, tmode, sj, key) { return settle(zs, level, encodeColumn0(v, zs, level, tmode, sj, key)); }
-  function encodeColumn0(v, zs, level, tmode, sj, key) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes; key: the column's key, for the once-per-call template read check
+  function encodeColumn(v, zs, level, tmode, sj, key) { var nb = nullBest(v, zs, level, tmode, key); if (nb) return nb; return settle(zs, level, encodeColumn0(v, zs, level, tmode, sj, key)); }
+  // research prototype (null plane, type N): a column whose values are one scalar kind plus some nulls keeps the typed encoding of its non-null values, plus one bit plane that marks the nulls
+  var NMARK = 0;   // counts the null-plane (N) columns written, so a pack call can tell whether its file needs format minor 1
+  var NULL_MODE = (typeof globalThis !== 'undefined' && globalThis.__NULLMODE) || 'plane';
+  // B13 fused pass: a column of numbers and nulls in one scan: the null bit plane, the numbers in a Float64Array, and what the number encoder would otherwise scan for (negative zero, whole numbers). undefined: some value is not a number or null, or there is no null or no number
+  var NN_FLAGS = [0, 0];
+  function nullNumbers(v, n) {
+    var nn = new Float64Array(n), pl = new Uint8Array((n + 7) >> 3), m = 0, i, x, nz = 0, ai = 1;
+    for (i = 0; i < n; i++) {
+      x = v[i];
+      if (x === null) pl[i >> 3] |= 1 << (i & 7);
+      else if (typeof x === 'number') { nn[m++] = x; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; }
+      else return undefined;
+    }
+    if (m === 0 || m === n) return undefined;
+    NN_FLAGS[0] = nz; NN_FLAGS[1] = ai;
+    return { nn: nn.subarray(0, m), pl: pl, m: m, nz: nz, ai: ai };
+  }
+  function nullNumBest(fz, v, n, zs, level, tmode, key) {
+    var inner = settle(zs, level, encodeColumn0(fz.nn, zs, level, tmode, undefined, key, fz));
+    if (inner.t === 'j') return null;
+    var pl = fz.pl, pz = zs.compress(pl, level), pzz = pz.length < pl.length ? [pl.length, pz, 1] : [pl.length, pl, 0], size = pzz[1].length, i;
+    for (i = 0; i < inner.z.length; i++) size += inner.z[i][1].length;
+    if (NULL_MODE === 'both') { var j = settle(zs, level, encodeColumn0(v, zs, level, tmode, undefined, key)); if (j.size <= size) return j; }
+    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: fz.m }, n: n, z: [pzz].concat(inner.z), size: size, nn: fz.nn, r0: inner.r0, dl: inner.dl };
+  }
+  function nullBest(v, zs, level, tmode, key) {
+    var n = v.length, i, x, k = null, m = 0, kind;
+    if (NULL_MODE === 'off') return null;
+    if (n > 1 && typeof v === 'object' && v[0] !== undefined) { var fz = nullNumbers(v, n); if (fz !== undefined) return nullNumBest(fz, v, n, zs, level, tmode, key); }
+    for (i = 0; i < n; i++) { x = v[i]; if (x === null) continue; kind = typeof x; if (kind !== 'number' && kind !== 'boolean' && kind !== 'string') return null; if (k === null) k = kind; else if (k !== kind) return null; m++; }
+    if (k === null || m === n) return null;
+    var nn = new Array(m), pl = new Uint8Array((n + 7) >> 3); for (i = 0, m = 0; i < n; i++) { if (v[i] === null) pl[i >> 3] |= 1 << (i & 7); else nn[m++] = v[i]; }
+    var inner = settle(zs, level, encodeColumn0(nn, zs, level, tmode, undefined, key));
+    if (inner.t === 'j') return null;
+    var pz = zs.compress(pl, level), pzz = pz.length < pl.length ? [pl.length, pz, 1] : [pl.length, pl, 0];
+    var size = pzz[1].length; for (i = 0; i < inner.z.length; i++) size += inner.z[i][1].length;
+    if (NULL_MODE === 'both') { var j = settle(zs, level, encodeColumn0(v, zs, level, tmode, undefined, key)); if (j.size <= size) return j; }
+    NMARK++; return { t: 'N', p: { t: inner.t, p: inner.p, m: m }, n: n, z: [pzz].concat(inner.z), size: size, nn: nn, r0: inner.r0, dl: inner.dl };
+  }
+  // the V and B candidates of a number column held as scaled whole numbers (base), by the general writer's rules: the delta form only when its varints are not clearly longer (5%), the bit-packed form when the range is under 2^24
+  function numGeneral(cand, bestOf, base, n, scale) {
+    if (n >= NK_MIN) { var R = nkRun(base, n, 0), a = R.a, dd = R.d, bb = R.b, mn0 = R.mn, w0 = R.w;
+      if (a) cand('V', { mono: R.mono, scale: scale }, [a]);
+      if (dd) cand('V', { mono: false, scale: scale, delta: true }, [dd]);
+      if (bb) cand('B', { mn: mn0, w: w0, scale: scale }, [bb]);
+      return; }
+    numStats(base, n, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2], d = numFirst(base, n, mono), dz2 = null, sa = 0, sb = 0;
+    if (!mono && n > 1) { dz2 = numDeltaZz(base, n); sa = vlenSum(d, n); sb = vlenSum(dz2, n); }
+    if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, n)]);
+    if (dz2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz2, n)]);
+    if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w, scale: scale }, [bitpack(numOff(base, n, mn), w)]); }
+  }
+  function encodeColumn0(v, zs, level, tmode, sj, key, pre) {   // tmode: 0 off, 1 auto (read-time checked), 2 size only; sj (fast flat writer): an ASCII string column of more than n / 2 distinct values, its values joined by 0 bytes; key: the column's key, for the once-per-call template read check
     var n = v.length, i, x, best = null;
     function stored(frames) { var t = 0, z = []; for (var q = 0; q < frames.length; q++) { var c = zs.compress(frames[q], level); if (c.length < frames[q].length) z.push([frames[q].length, c, 1]); else z.push([frames[q].length, frames[q], 0]); t += z[q][1].length; } return { z: z, size: t }; }
     function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
-    if (allOf(v, function (x) { return typeof x === 'number'; })) {
-      var noNegZero = allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
-      var allInt = noNegZero && allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; }), scale = 1, base = null;
+    if (pre || allOf(v, function (x) { return typeof x === 'number'; })) {
+      var noNegZero = pre ? !pre.nz : allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
+      var allInt = noNegZero && (pre ? !!pre.ai : allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; })), scale = 1, base = null;
       if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScale(v); base = scale ? DS_INTS : null; DS_INTS = null; if (!base) { scale = 1; base = null; } }
-      if (base) {
+      if (base && n > 0) {   // scaled whole numbers: the typed-array passes the fast writer uses (same candidates, same rules, same bytes)
+        numGeneral(cand, function () { return best; }, base instanceof Float64Array ? base : new Float64Array(base), n, scale);
+        if (n >= NK_MIN) { NKZ.v = v; NKZ.mn = NKR.mn / scale; NKZ.mx = NKR.mx / scale; }
+      } else if (base) {
         var mono = base.length === 0 || base[0] >= 0, mn = Infinity, mx = -Infinity;
         for (i = 0; i < n; i++) { if (i && base[i] < base[i - 1]) mono = false; if (base[i] < mn) mn = base[i]; if (base[i] > mx) mx = base[i]; }
         var d = base.slice(); if (mono) for (i = n - 1; i > 0; i--) d[i] -= d[i - 1]; else for (i = 0; i < n; i++) d[i] = zz(d[i]);
         var dl2 = null, sa = 0, sb = 0;
         if (!mono && n > 1) { dl2 = new Array(n); dl2[0] = zz(base[0]); for (i = 1; i < n; i++) dl2[i] = zz(base[i] - base[i - 1]); for (i = 0; i < n; i++) { sa += vlen(d[i]); sb += vlen(dl2[i]); } }
-        if (!dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
-        if (dl2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
+        if (B18_ALLV || !dl2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varints(d)]);   // only the variant whose varints are not clearly longer is compressed
+        if (dl2 && (B18_ALLV || sb <= sa * 1.05)) cand('V', { mono: false, scale: scale, delta: true }, [varints(dl2)]);   // differences between neighbors: slowly changing values (sensors, prices, coordinates) cost far less than their absolute values
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)), off = new Array(n); for (i = 0; i < n; i++) off[i] = base[i] - mn; cand('B', { mn: mn, w: w, scale: scale }, [bitpack(off, w)]); }
       }
       if (!best || best.size > n * 4) { var f = new Float64Array(v); cand('F', {}, [new Uint8Array(f.buffer)]); }   // raw doubles are only tried when the scaled whole numbers did not already get under half of their size
@@ -297,7 +353,7 @@
         var map = new Map(), labels = [], codes = new Array(n), c;
         if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
         else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
-        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, [sj || te.encode(v.join('\0'))]);   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || te.encode(v.join('\0'))], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
         if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { best = settle(zs, level, best); var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
@@ -317,6 +373,7 @@
     }
     if (best && best.t === 'A') return best;   // lists of whole numbers: the list encoding wins over JSON text in every case measured, so the text candidate is not built
     var nulls = 0; for (i = 0; i < n; i++) if (v[i] === null) nulls++;
+    if (nulls === n && n) { var nb5 = new Uint8Array(n * 5 - 1); for (i = 0; i < nb5.length; i += 5) { nb5[i] = 110; nb5[i + 1] = 117; nb5[i + 2] = 108; nb5[i + 3] = 108; if (i + 4 < nb5.length) nb5[i + 4] = 10; } cand('j', {}, [nb5], { nulls: nulls }); return best; }   // B21b: all null, "null" lines filled as bytes
     cand('j', {}, [te.encode(v.map(jsonText).join('\n'))], nulls ? { nulls: nulls } : undefined);
     return best;
   }
@@ -363,12 +420,111 @@
   var IPD = new Uint8Array(1024); (function () { for (var v = 0; v < 256; v++) { var s = String(v); IPD[v * 4] = s.length; for (var k = 0; k < s.length; k++) IPD[v * 4 + 1 + k] = s.charCodeAt(k); } })();
   function ipColV8(frames0, n) { var i, o, ir = frames0, ib = new Uint8Array(n * 16), ip = 0, io = new Uint32Array(n + 1), iq, iv; for (i = 0; i < n; i++) { io[i] = ip; for (iq = 0; iq < 4; iq++) { iv = ir[4 * i + iq] << 2; ib[ip] = IPD[iv + 1]; ib[ip + 1] = IPD[iv + 2]; ib[ip + 2] = IPD[iv + 3]; ip += IPD[iv]; ib[ip++] = 46; } ip--; } io[n] = ip; var ibig = tlat.decode(ib.subarray(0, ip)); o = new Array(n); for (i = 0; i < n; i++) o[i] = ibig.substring(io[i], io[i + 1]); return o; }
   function ipCol(frames0, n) { var i, o, ir = frames0, ib = new Uint8Array(n * 15), ip = 0, io = new Uint32Array(n + 1), iq, iv; for (i = 0; i < n; i++) { io[i] = ip; for (iq = 0; iq < 4; iq++) { iv = ir[4 * i + iq]; if (iv >= 100) { ib[ip++] = 48 + ((iv / 100) | 0); ib[ip++] = 48 + (((iv / 10) | 0) % 10); ib[ip++] = 48 + iv % 10; } else if (iv >= 10) { ib[ip++] = 48 + ((iv / 10) | 0); ib[ip++] = 48 + iv % 10; } else ib[ip++] = 48 + iv; if (iq < 3) ib[ip++] = 46; } } io[n] = ip; var ibig = tlat.decode(ib.subarray(0, ip)); o = new Array(n); for (i = 0; i < n; i++) o[i] = ibig.substring(io[i], io[i + 1]); return o; }
-  function colV(frames, n, p) { var i, u, o; u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+  function colZZ(b, n, sc) { var out = new Float64Array(n), p = 0, i, c, u, m;
+    for (i = 0; i < n; i++) { c = b[p++];
+      if (c < 128) { out[i] = ((c >>> 1) ^ -(c & 1)) / sc; continue; }
+      u = c & 127; c = b[p++]; if (c < 128) { u += c << 7; out[i] = ((u >>> 1) ^ -(u & 1)) / sc; continue; }
+      u += (c & 127) << 7; c = b[p++]; if (c < 128) { u += c << 14; out[i] = ((u >>> 1) ^ -(u & 1)) / sc; continue; }
+      u += (c & 127) << 14; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = unzz(u) / sc; }
+    return out; }
+  function colV(frames, n, p) { var i, u, o; if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
   function colB(frames, n, p) { var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
   function colD(frames, n, p) { var i, u, o; var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
+
+  // B19b: values of column c at value positions vi[0..m) (ascending), or null when this kind is decoded whole
+  var B19B = 'on', P14 = 'on', P14B = 'on', NX_B = 'on', NX_C = 'on';
+  // NX: segments of big (separated by the char code sep) that equal needle -> their positions; character loop, any text
+  function sepFind(big, needle, sep) {
+    var out = [], L = needle.length, x = big.indexOf(needle), k = 0, a = 0, BL = big.length;
+    for (; x >= 0; x = big.indexOf(needle, x + 1)) {
+      if ((x > 0 && big.charCodeAt(x - 1) !== sep) || (x + L < BL && big.charCodeAt(x + L) !== sep)) continue;
+      for (; a < x; a++) if (big.charCodeAt(a) === sep) k++;
+      out.push(k);
+    }
+    return out;
+  }
+  function AnyOf(list) { this.list = list; this.set = new Set(list); }   // NX C: equals.anyOf
+  // P14: rows (into sel) whose value in column cm === val, matched in the stored bytes; -1 = read it the usual way
+  function p14Sel(cm, cfr, val, pl, base, n, sel, kv) {
+    var ii, mm;
+    var isN = cm.t === 'N';
+    if (val instanceof AnyOf) {   // NX C: the union of each value's rows; kv gets each kept row's value
+      if (NX_C !== 'on' || !kv) return -1;
+      var vl = Array.from(val.set), mk = new Int32Array(n).fill(-1), tt = new Int32Array(n), z, mz, hits = 0;
+      for (z = 0; z < vl.length; z++) { mz = p14Sel(cm, cfr, vl[z], pl, base, n, tt, null); if (mz < 0) return -1; for (ii = 0; ii < mz; ii++) mk[tt[ii]] = z; hits += mz; }
+      if (!hits) return 0;
+      for (ii = 0, mm = 0; ii < n; ii++) if (mk[ii] >= 0) { kv[mm] = vl[mk[ii]]; sel[mm++] = ii; } return mm;
+    }
+    var vq = isN ? eqAt({ t: cm.p.t, p: cm.p.p, n: cm.p.m }, cfr.slice(1), val) : eqAt(cm, cfr, val), m = 0, i, c, qq;
+    if (!vq) return -1;
+    var nq = vq.length, vi2 = 0, ni = 0, np2 = isN ? cfr[0] : null, pos = np2 ? new Int32Array(nq) : vq;
+    if (np2) for (qq = 0; qq < nq; qq++) { for (; ; vi2++) { if (!((np2[vi2 >> 3] >> (vi2 & 7)) & 1)) { if (ni === vq[qq]) break; ni++; } } pos[qq] = vi2++; ni++; }   // inner positions skip the nulls
+    if (cm.n === n) { for (qq = 0; qq < nq; qq++) sel[m++] = pos[qq]; return m; }
+    for (i = 0, c = 0, qq = 0; i < n && qq < nq; i++) if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (c++ === pos[qq]) { sel[m++] = i; qq++; } }
+    return m;
+  }
+  // P14: value positions (ascending) of column c whose value === val, matched in the column's own bytes with no string per row; null = read it the usual way
+  function eqAt(c, frames, val) {
+    var t = c.t, p = c.p, n = c.n, f = frames[0], out = [], i, j, w, nd, b0;
+    if (P14 !== 'on') return null;
+    if (t === 'j' && NX_B === 'on') {   // NX B: mixed cells are JSON text, one per line, each written by jsonText: the same text means the same value
+      if (val === null || typeof val === 'boolean' || typeof val === 'string' || (typeof val === 'number' && val !== 0 && val === val)) { var jt = tdr.decode(f), nd2 = jsonText(val); return jt.indexOf(nd2) < 0 ? out : sepFind(jt, nd2, 10); }
+      return typeof val === 'object' || typeof val === 'function' ? out : null;
+    }
+    if (typeof val !== 'string') return null;
+    if (t === 's') {
+      if (val === '') return null;
+      if (val.indexOf('\0') >= 0) return out;
+      var big = tdr.decode(f), L = val.length, x = big.indexOf(val), k = 0, a = 0, e;
+      if (x < 0) return out;
+      if (big.length !== f.length) return null;   // not all ASCII: character and byte offsets differ
+      for (; x >= 0; x = big.indexOf(val, x + 1)) {
+        if ((x > 0 && f[x - 1] !== 0) || (x + L < f.length && f[x + L] !== 0)) continue;
+        for (e = x; a < e; a++) if (f[a] === 0) k++;
+        out.push(k);
+      }
+      return out;
+    }
+    if (t === 'U' || t === 'H' || t === 'I') {
+      w = t === 'U' ? 16 : t === 'I' ? 4 : p.L / 2; if (f.length < n * w) return null; nd = new Uint8Array(w);
+      if (t === 'I') { var mi = RX_IP.exec(val); if (!mi) return out; for (j = 0; j < 4; j++) { if (+mi[j + 1] > 255) return out; nd[j] = +mi[j + 1]; } }
+      else { if (val.length !== (t === 'U' ? 36 : w * 2)) return out; var hc = 0, hh, hv, hn = 0; for (j = 0; j < val.length; j++) { hh = val.charCodeAt(j); if (t === 'U' && (j === 8 || j === 13 || j === 18 || j === 23)) { if (hh !== 45) return out; continue; } hv = hh >= 48 && hh <= 57 ? hh - 48 : hh >= 97 && hh <= 102 ? hh - 87 : -1; if (hv < 0) return out; if (hn & 1) nd[hn >> 1] = hc * 16 + hv; else hc = hv; hn++; } }
+      if ((t === 'U' ? uuidCol(nd, 1) : t === 'H' ? hexCol(nd, 1, p.L) : ipCol(nd, 1))[0] !== val) return out;   // the column only holds what its decoder writes
+      b0 = nd[0];
+      outer: for (i = 0; i < n; i++) { var o = i * w; if (f[o] !== b0) continue; for (j = 1; j < w; j++) if (f[o + j] !== nd[j]) continue outer; out.push(i); }
+      return out;
+    }
+    return null;
+  }
+  function bitAt(b, i, w) { var bp = i * w, by = bp >> 3; return ((((b[by] | 0) | ((b[by + 1] | 0) << 8) | ((b[by + 2] | 0) << 16) | ((b[by + 3] | 0) << 24)) >>> (bp & 7)) & ((1 << w) - 1)) >>> 0; }
+  function decodeAt(c, frames, vi, m) {
+    var t = c.t, p = c.p, n = c.n, o = new Array(m), i, f, k, q, a, cd;
+    if (B19B === 'off' || m * 8 > n) return null;   // more than 1 in 8 rows: the whole-column decoders are quicker
+    if (t === 's') { f = frames[0]; var big = tdr.decode(f), x; k = 0; q = 0; a = 0;
+      if (big.length === f.length) { while (q < m) { x = big.indexOf('\0', a); if (x < 0) x = big.length; if (k === vi[q]) o[q++] = big.substring(a, x); else if (x === big.length) return null; k++; a = x + 1; } return o; }   // all ASCII: one character per byte
+      var sp = big.split('\0'); if (sp.length < n) return null; for (q = 0; q < m; q++) o[q] = sp[vi[q]]; return o; }
+    if (t === 'D') { var lab = tdr.decode(frames[0]).split('\0'); cd = frames[1];
+      for (i = 0; i < m; i++) o[i] = lab[p.w ? bitAt(cd, vi[i], p.w) : p.wide ? (cd[vi[i] * 2] | (cd[vi[i] * 2 + 1] << 8)) : cd[vi[i]]]; return o; }
+    if (t === 'T') { f = frames[0]; for (i = 0; i < m; i++) o[i] = bitAt(f, vi[i], 1) === 1; return o; }
+    if (P14B === 'on' && (t === 'U' || t === 'H' || t === 'I')) { var w = t === 'U' ? 16 : t === 'I' ? 4 : p.L / 2; f = frames[0]; if (f.length < n * w) return null; var g = new Uint8Array(m * w); for (q = 0; q < m; q++) g.set(f.subarray(vi[q] * w, vi[q] * w + w), q * w); return t === 'U' ? uuidCol(g, m) : t === 'H' ? hexCol(g, m, p.L) : V8 ? ipColV8(g, m) : ipCol(g, m); }   // P14: only the asked values
+    if (P14B === 'on' && t === 'V') { f = frames[0]; var vs = 0, vx, vc, vm, vp = 0; q = 0;
+      for (k = 0; q < m && vp < f.length; k++) { vx = 0; vm = 1; do { vc = f[vp++]; vx += (vc & 127) * vm; vm *= 128; } while (vc & 128);
+        if (p.mono) vs += vx; else if (p.delta) vs += unzz(vx);
+        if (k === vi[q]) { o[q] = p.mono || p.delta ? vs : unzz(vx); if (p.scale !== 1) o[q] /= p.scale; q++; } }
+      return q === m ? o : null; }
+    if (t === 'B' && p.w <= 24) { f = frames[0]; for (i = 0; i < m; i++) o[i] = (bitAt(f, vi[i], p.w) + p.mn) / p.scale; return o; }
+    if (t === 'N') {   // null plane: frame 0 marks the nulls; the other values are the inner column, in order
+      var np = frames[0], ii = new Int32Array(m), im = 0, nn = 0, at = 0, wi = [];
+      for (q = 0; q < m; q++) { for (; at < vi[q]; at++) if ((np[at >> 3] >> (at & 7)) & 1) nn++; if ((np[at >> 3] >> (at & 7)) & 1) o[q] = null; else { ii[im++] = vi[q] - nn; wi.push(q); } }
+      if (!im) return o;
+      var iv = decodeAt({ t: p.t, p: p.p, n: p.m }, frames.slice(1), ii, im); if (!iv) return null;
+      for (q = 0; q < im; q++) o[wi[q]] = iv[q]; return o; }
+    return null;
+  }
   function decodeColumn(c, zs, frames) {   // -> array-like of n values
     var n = c.n, i, u, o, t = c.t, p = c.p;
+    if (t === 'N') { var iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)), pn = frames[0], q = 0; o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
     if (t === 'V') return colV(frames, n, p);
     if (t === 'B') return colB(frames, n, p);
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
@@ -388,11 +544,95 @@
     if (t === 'L') return untemplate(n, frames);
     if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
     if (t === 'D') return colD(frames, n, p);
-    var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
+    if (n && jnulls(frames[0], n)) { o = new Array(n); for (i = 0; i < n; i++) o[i] = null; return o; } var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); if (V8 || GECKO) { for (i = 0; i < n; i++) o[i] = jcell(js[i]); return o; } for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
   }
+  // 'j' cells: most are null, true, false or whole numbers; JSON.parse per cell costs about 80 ns, so read those by hand (whole numbers of up to 15 characters, digits only, no leading zero, are exact in a double); anything else goes to JSON.parse. Chromium and Firefox only: in WebKitGTK the per-cell reader was slower than JSON.parse (cloud WebKitGTK 2.52.6, 100,000 orders: unpackColumns 1.08 to 1.20 of the time), so it keeps JSON.parse there; the all-null check runs in every engine
+  function jnulls(f, n) { if (f.length !== n * 5 - 1) return false; for (var i = 0; i < f.length; i += 5) if (f[i] !== 110 || f[i + 1] !== 117 || f[i + 2] !== 108 || f[i + 3] !== 108 || (i + 4 < f.length && f[i + 4] !== 10)) return false; return true; }
+  function jcell(s) { var c0 = s.charCodeAt(0), L = s.length, i, v, d; if (c0 === 110 && s === 'null') return null; if (c0 === 116 && s === 'true') return true; if (c0 === 102 && s === 'false') return false; if (L <= 15) { i = c0 === 45 ? 1 : 0; if (i < L && (s.charCodeAt(i) !== 48 || L === i + 1)) { v = 0; for (; i < L; i++) { d = s.charCodeAt(i) - 48; if (d < 0 || d > 9) break; v = v * 10 + d; } if (i === L) return c0 === 45 ? -v : v; } } return JSON.parse(s); }
   // returns null when the input is not flat rows (some line is not a JSON object)
-  function writeFlatBlock(ctx, input, opts) {
-    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, text = td.decode(input), lines, rows = [], i, j, r, nl = 0, at = -1;
+  // B26 (research): packRows skips its flatScalars pass; the row scatter checks each row and value the same way and throws B26_BAIL on the first one that is not a flat scalar (packRows then takes the text path, as before)
+  var B26_BAIL = { b26: 1 }, OP26 = Object.prototype;
+  function b26Rows(rows, n) { for (var i = 0, r, t; i < n; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null)) throw B26_BAIL; } }
+  function b26Vals(a) { for (var i = 0, x, t; i < a.length; i++) { x = a[i]; t = typeof x; if (t === 'number') { if (x - x !== 0 || (x === 0 && 1 / x < 0)) throw B26_BAIL; } else if (t !== 'string' && t !== 'boolean' && x !== null) throw B26_BAIL; } }
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; } }
+  function b21Generic(c) { var a = new Array(c.c), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }   // B21c: back to a generic array (values in order)
+  function b21Flags(a, m) { if (m >= NK_MIN) return nkFlags(a, m); return b21FlagsJ(a, m); }
+  function b21FlagsJ(a, m) { var nz = 0, ai = 1, nf = 0, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; if (x - x !== 0) nf = 1; } return { nz: nz, ai: ai, nf: nf }; }
+
+  // NX A: per flat block, a Bloom filter of each text column's stored values (UTF-8 text and labels), so an equality read skips blocks that cannot hold the value.
+  // Built in the writer from the column's uncompressed bytes (labels for a dictionary: their count is the distinct count, no fold)
+  var NX_A = 8, NX_A_BUDGET = 0.02, NX_A_MAXB = 1048576;
+  function eqHash(b, s0, e0) {   // FNV-1a of the bytes (long values: first, middle and last 8 bytes), then the length
+    var h = 2166136261, i, mid, L = e0 - s0;
+    if (L <= 24) for (i = s0; i < e0; i++) h = Math.imul(h ^ b[i], 16777619);
+    else { mid = (s0 + e0 - 8) >> 1; for (i = s0; i < s0 + 8; i++) h = Math.imul(h ^ b[i], 16777619); for (i = mid; i < mid + 8; i++) h = Math.imul(h ^ b[i], 16777619); for (i = e0 - 8; i < e0; i++) h = Math.imul(h ^ b[i], 16777619); }
+    return Math.imul(h ^ L, 16777619) >>> 0;
+  }
+  function eqH2(h) { h = Math.imul(h ^ (h >>> 16), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) | 1) >>> 0; }
+  function b64e(u) { var s = '', i; for (i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(s); }
+  function b64d(s) { var t = atob(s), u = new Uint8Array(t.length), i; for (i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; }
+  function eqWant(opts) { return NX_A && !opts._noeq && (opts.blockBytes || BLOCK_BYTES) <= NX_A_MAXB; }
+  function eqBloomCols(keys, es, blen) {   // es[j]: the chosen encoding of column j (with r0 for text columns); -> {key: [b64 bits, k, inner type, has null]} within the byte budget
+    var j, cs = [], res = {}, tot = 0, cap = NX_A_BUDGET * blen, k = Math.max(1, Math.round(NX_A * 0.5)), any = false;
+    var ord = [], lb = 0;
+    for (j = 0; j < keys.length; j++) {   // smallest possible filter of each text column (dictionary: exact; text: from a lower bound on its distinct count), so columns that cannot fit are not hashed
+      var e = es[j], it = e.t === 'N' ? e.p.t : e.t, mm = 64, dd;
+      if ((it !== 's' && it !== 'D') || !e.r0) continue;
+      dd = it === 'D' ? dictCount(e) : (e.dl || 1); while (mm < NX_A * dd && mm < 1048576) mm <<= 1;
+      ord.push([mm >> 3, j, dd, e.r0.length / (e.t === 'N' ? e.p.m : e.n)]);
+    }
+    ord.sort(function (a, b) { return a[0] - b[0] || a[3] - b[3]; });   // ties: shorter values first (more often few distinct values, and cheaper to hash)
+    for (var oi = 0; oi < ord.length; oi++) {
+      if (lb + ord[oi][0] > cap) break; lb += ord[oi][0]; j = ord[oi][1];
+      var e = es[j], it = e.t === 'N' ? e.p.t : e.t, f = e.r0, m = 64, bits, i, a, h1, h2, q, x, cnt, ones = 0, fl;
+      if (it === 'D') cnt = ord[oi][2]; else cnt = e.t === 'N' ? e.p.m : e.n;
+      while (m < NX_A * cnt && m < 1048576) m <<= 1;
+      if (it === 'D' && m >> 3 > cap) continue;   // a dictionary filter is final size: too big for the budget
+      bits = new Uint8Array(m >> 3);
+      for (a = 0, fl = f.length; a <= fl; a = i + 1) {   // each value's end found natively, then its hash
+        i = f.indexOf(0, a); if (i < 0) i = fl;
+        h1 = eqHash(f, a, i); h2 = eqH2(h1);
+        for (q = 0; q < k; q++) { x = (h1 + Math.imul(q, h2)) & (m - 1); bits[x >> 3] |= 1 << (x & 7); } }
+      if (it === 's') { for (i = 0; i < bits.length; i++) ones += popc8[bits[i]];
+        var dist = ones >= m ? cnt : -m * Math.log(1 - ones / m) / k, want = 64; while (want < NX_A * dist && want < m) want <<= 1;
+        while (m > want) { m >>= 1; var lo = bits.subarray(0, m >> 3), hi = bits.subarray(m >> 3, m >> 2); for (i = 0; i < lo.length; i++) lo[i] |= hi[i]; bits = lo; } }
+      lb += bits.length - ord[oi][0];   // the real size once known
+      cs.push([keys[j], bits, it, e.t === 'N' && e.p.m < e.n ? 1 : 0]);
+    }
+    cs.sort(function (a, b) { return a[1].length - b[1].length; });
+    for (j = 0; j < cs.length; j++) { if (tot + cs[j][1].length > cap) break; tot += cs[j][1].length; res[cs[j][0]] = [cs[j][1].slice(), k, cs[j][2], cs[j][3]]; any = true; }
+    return any ? res : 0;
+  }
+  function eqRegion(eqf) {   // the filters of all blocks, stored after the blocks (not in the footer, which every open reads): u32 index length, index JSON, filter bits
+    var idx = [], parts = [], at = 0, i, k, e, o;
+    for (i = 0; i < eqf.length; i++) { if (!eqf[i]) { idx.push(0); continue; } o = {}; for (k in eqf[i]) { e = eqf[i][k]; o[k] = [at, e[0].length, e[1], e[2], e[3]]; parts.push(e[0]); at += e[0].length; } idx.push(o); }
+    var ij = te.encode(JSON.stringify(idx)); return concat([u32le(ij.length), ij].concat(parts));
+  }
+  function eqRegionRead(r) {   // -> per block {key: [bits, k, type, has null]}
+    var il = rd32(r, 0), idx = JSON.parse(tdr.decode(r.subarray(4, 4 + il))), b0 = 4 + il, i, k, e;
+    for (i = 0; i < idx.length; i++) if (idx[i]) for (k in idx[i]) { e = idx[i][k]; idx[i][k] = [r.subarray(b0 + e[0], b0 + e[0] + e[1]), e[2], e[3], e[4]]; }
+    return idx;
+  }
+  function eqOf(blk) { var q = blk.eqf; return q ? eqBloomCols(q[0], q[1], q[2]) : 0; }
+  function dlOf(fr, dl) { fr.dl = dl; return fr; }
+  function dictCount(e) { var f = e.r0, i, c = 1; for (i = 0; i < f.length; i++) if (f[i] === 0) c++; return c; }
+  function eqNeedles(ev) {   // once per query: each value's two hashes (null: matches only a column with nulls; not text: no text column holds it)
+    var vs = ev instanceof AnyOf ? ev.list : [ev], out = [], i, v, nd, h1;
+    for (i = 0; i < vs.length; i++) { v = vs[i]; if (v === null) out.push(null); else if (typeof v === 'string') { nd = te.encode(v); h1 = eqHash(nd, 0, nd.length); out.push([h1, eqH2(h1)]); } }
+    return out;
+  }
+  function eqSkipBlock(z, key, nds) {   // true when block filter z proves no row has key equal to any needle's value
+    if (!z) return false; var e = Object.prototype.hasOwnProperty.call(z, key) ? z[key] : null, i, q, x, h, bits, m;
+    if (!e) return false;
+    bits = e[0]; m = bits.length << 3;
+    for (i = 0; i < nds.length; i++) { h = nds[i]; if (h === null) { if (e[3] === 1) return false; continue; }
+      for (q = 0; q < e[1]; q++) { x = (h[0] + Math.imul(q, h[1])) & (m - 1); if (!((bits[x >> 3] >> (x & 7)) & 1)) break; }
+      if (q === e[1]) return false; }
+    return true;
+  }
+  function writeFlatBlock0(ctx, input, opts) {
+    var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, colsIn = input && input.colsIn || null, rowsIn = input && (input.rowsIn || (colsIn ? [] : null)), text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
+    if (!rowsIn) {   // B18b: row objects given, no text to parse
     // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
     while ((at = text.indexOf('\n', at + 1)) >= 0) nl++;
     if (text.charCodeAt(text.length - 1) !== 10) nl++;
@@ -401,28 +641,79 @@
     if (rows.length) { for (i = 0; i < rows.length; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r)) { rows = []; break; } } }
     lines = rows.length ? [] : text.split('\n');
     for (i = 0; i < lines.length; i++) { var l = lines[i]; if (l.charCodeAt(l.length - 1) === 13) l = l.slice(0, -1); if (!l.trim()) continue; try { r = JSON.parse(l); } catch (e) { return null; } if (r === null || typeof r !== 'object' || Array.isArray(r)) return null; rows.push(r); }
-    var n = rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
-    for (i = 0; i < n; i++) { r = rows[i]; for (k in r) if (!seen.has(k)) { seen.set(k, keys.length); keys.push(k); cols.push([]); } }
-    var pb = (n + 7) >> 3, planes = new Uint8Array(pb * keys.length), ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq;
-    for (i = 0; i < n; i++) {
-      r = rows[i]; sq = ord ? [] : null;
-      for (k in r) { jx = seen.get(k); planes[jx * pb + (i >> 3)] |= 1 << (i & 7); cols[jx].push(r[k]); if (sq) sq.push(jx); }
+    }
+    var n = colsIn ? colsIn.b - colsIn.a : rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
+    var chk26 = !!(rowsIn && opts._b26), t26, pb = (n + 7) >> 3, ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq, pk = [], px = [], q, pls = [], cs21 = [], c21, x21, pre21 = [];
+    if (chk26 && !colsIn) b26Rows(rows, n);
+    if (colsIn) b34Fill(colsIn, n, pb, keys, seen, cols, cs21, pls);
+    else for (i = 0; i < n; i++) {   // B21a: one pass; a key at the same position as in the previous row is matched by a string compare, not a Map lookup
+      r = rows[i]; sq = ord ? [] : null; q = 0;
+      for (k in r) { if (pk[q] === k) jx = px[q]; else { jx = seen.get(k); if (jx === undefined) { jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; }
+        q++; pls[jx][i >> 3] |= 1 << (i & 7); x21 = r[k]; c21 = cs21[jx];
+        if (c21.a !== null) c21.a.push(x21); else if (typeof x21 === 'number') { c21.nb[c21.m++] = x21; c21.c++; } else if (x21 === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x21); c21.nb = null; }
+        if (sq) sq.push(jx); }
       if (ord) { var sk = sq.join(','), oid = ord.map.get(sk); if (oid === undefined) { oid = ord.list.length; ord.map.set(sk, oid); ord.list.push(sq); } ord.ids[i] = oid; }
     }
+    var planes = new Uint8Array(pb * keys.length); for (j = 0; j < pls.length; j++) planes.set(pls[j], j * pb);
+    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.a !== null) { cols[j] = c21.a; if (chk26) b26Vals(c21.a); continue; }   // B21c: number columns, typed
+      if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = 1; }   // B25d: flags are taken just before the column is encoded, so the kernel reads the column once
+      else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
+      else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
+    var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol;
     for (j = 0; j < cols.length; j++) {
-      var e = encodeColumn(cols[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, undefined, keys[j]); enc.push(e);
-      meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
-      for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
-      if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && cols[j].length) { var mn = Infinity, mx = -Infinity, a = cols[j]; for (i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zone.push([fnvStr('.' + keys[j]), mn, mx, a.length]); }
+      if (rc && pre21[j] && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
+        (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; es[j2] = r; }; }(j)));
+        cols[j] = []; continue; }
+      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26);
     }
+    function finish() {
+      for (j = 0; j < cols.length; j++) {
+        var e = es[j].e;
+        meta.cols.push({ t: e.t, p: e.p, n: e.n, f: e.z.map(function (z) { return [z[0], z[1].length, z[2]]; }), st: e.st, _z: e.z });
+        for (i = 0; i < e.z.length; i++) frames.push(e.z[i][1]);
+        if (es[j].zn) zone.push([fnvStr('.' + keys[j]), es[j].zn[0], es[j].zn[1], es[j].zn[2]]);
+      }
     if (ord) { var oB = te.encode(JSON.stringify(ord.list)), oz = zs.compress(oB, level), od = typedColumn(ord.ids), odz = zs.compress(od[2], level); meta.ord = [oB.length, oz.length, od[0], od[2].length, odz.length]; frames.unshift(oz, odz); }
     var mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: n, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
-    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta) };
+    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)); return { bytes: out, rows: n, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), eqf: !ord && eqWant(opts) && out.length <= NX_A_MAXB ? [keys, es.map(function (x) { return x.e; }), out.length] : 0 };   // built only for the block that is kept (eqOf)
+    }
+    if (wait) return { wait: Promise.all(wait).then(finish) };
+    return finish();
+  }
+  var B28_MIN = 8192;
+  // B34 (research): a block given as columns ({ keys, A: one array per key, a, b }) fills the same column state the B21a row loop builds, with no row objects. Every row holds every key.
+  function b34Fill(ci, n, pb, keys, seen, cols, cs21, pls) {
+    var full = new Uint8Array(pb), j, i, x, c21, arr, a = ci.a; full.fill(255); if (n & 7) full[pb - 1] = (1 << (n & 7)) - 1;
+    for (j = 0; j < ci.keys.length; j++) { keys.push(ci.keys[j]); seen.set(ci.keys[j], j); cols.push(null); pls.push(full); arr = ci.A[j];
+      if (!Array.isArray(arr)) { c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); cs21.push(c21); continue; }   // a typed number column: one copy, no per-value work
+      c21 = { a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }; cs21.push(c21);
+      for (i = 0; i < n; i++) { x = arr[a + i];
+        if (c21.a !== null) c21.a.push(x); else if (typeof x === 'number') { c21.nb[c21.m++] = x; c21.c++; } else if (x === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x); c21.nb = null; } } }
+  }
+  // one column of the general flat writer, as writeFlatBlock0 encodes it: pre 1 = a typed number column, 2 = numbers and nulls ({ nb, np, m, c }), else a generic array; -> { e, zn: zone entry [min, max, count] or null }
+  function b28Col(pre, a, key, zs, level, tm21, chk26) {
+    var e, fl = null, zn = null, i, mn, mx, c21;
+    if (pre === 1) fl = b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
+    if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
+    if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
+    else if (pre === 1) e = settle(zs, level, encodeColumn0(a, zs, level, tm21, undefined, key, fl));
+    else e = encodeColumn(a, zs, level, tm21, undefined, key);
+    NK_BUF = null;
+    if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === e.nn) { mn = NKZ.mn; mx = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mn) mn = e.nn[i]; if (e.nn[i] > mx) mx = e.nn[i]; } zn = [mn, mx, e.n]; }
+    if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && a.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zn = [mn, mx, a.length]; }
+    return { e: e, zn: zn };
+  }
+  function b28Job(m) {   // in a helper: one column -> { msg, transfer }
+    try {
+      var a = m.pre === 2 ? { nb: m.nb, np: m.np, m: m.m, c: m.c } : m.nb, r; B18_ALLV = true;
+      try { r = b28Col(m.pre, a, m.key, S.zfull, m.level, m.tm, m.chk); } finally { B18_ALLV = false; }
+      var e = r.e; return { msg: { id: m.id, e: { t: e.t, p: e.p, n: e.n, z: e.z, st: e.st }, zn: r.zn }, transfer: [] };
+    } catch (er) { if (er === B26_BAIL) return { msg: { id: m.id, bail: 1 }, transfer: [] }; return { msg: { id: m.id, error: String(er && er.message || er) }, transfer: [] }; }
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
-  function dropSmallWasm() { TPLW = null; FSW = null; }   // trim(): the template and flat-scan helpers start again small when next needed
+  function dropSmallWasm() { TPLW = null; FSW = null; NKW = null; NK_SRC = null; NK_N = -1; NK_BUF = null; NKZ.v = null; }   // trim(): the template and flat-scan helpers start again small when next needed
   var FSW = null, FSB64 = "/*FS:BEGIN*//*FS:END*/", FSP64 = "/*FP:BEGIN*//*FP:END*/";
   function fsw() {
     if (FSW) return FSW;
@@ -430,6 +721,33 @@
     if (!MODS[fk]) MODS[fk] = new WebAssembly.Module(fromB64(fk === 'FSB64' ? FSB64 : FSP64));
     var x = new WebAssembly.Instance(MODS[fk], {}).exports;
     return (FSW = { x: x, heap: x.__heap_base.value });
+  }
+  // B25 (research): number-column kernel (numcol in flatscan.c) on its own instance of the flat-scan module, so it never meets the fast writer's memory
+  var NKW = null, NK_MIN = (typeof globalThis !== 'undefined' && globalThis.__NKMIN !== undefined) ? globalThis.__NKMIN : 64, NKR = { mono: false, mn: 0, mx: 0, a: null, d: null, b: null, w: 0 };
+  function nkw() {
+    if (NKW) return NKW;
+    fsw(); var fk = hasSimd() ? 'FSB64' : 'FSP64', x = new WebAssembly.Instance(MODS[fk], {}).exports;
+    return (NKW = { x: x, heap: (x.__heap_base.value + 7) & ~7, f: null, r: null });
+  }
+  var NK_SRC = null, NK_N = -1, NK_BUF = null, NK_OFF = -1, NKZ = { v: null, mn: 0, mx: 0 };   // the array (and length) now in the kernel's input, and the last kernel column's min and max in its own units (for the zone maps)
+  function nkLoad(a, n) {
+    var K = nkw(), mem = K.x.memory, need = K.heap + n * 35 + 256, have = mem.buffer.byteLength;
+    if (need > have) mem.grow(Math.ceil((need - have) / 65536));
+    if (a !== NK_SRC || n !== NK_N) {   // B25d: the same typed array memory (a view of it) is not copied again; the cache is cleared after each column
+      if (a.buffer !== undefined && a.buffer === NK_BUF && a.byteOffset === NK_OFF && n === NK_N) NK_SRC = a;
+      else { new Float64Array(mem.buffer, K.heap, n).set(n === a.length ? a : a.subarray(0, n)); NK_SRC = a; NK_N = n; NK_BUF = a.buffer !== undefined ? a.buffer : null; NK_OFF = a.byteOffset; } }
+    return K;
+  }
+  function nkFlags(a, m) { var K = nkLoad(a, m), resP = K.heap + m * 8; K.x.numflags(K.heap, m, resP); var r = new Float64Array(K.x.memory.buffer, resP, 3); return { nz: r[0], ai: r[1], nf: r[2] }; }
+  function nkRun(base, n, mode) {   // -> NKR filled: the stats and the candidate frames (copies)
+    var K = nkLoad(base, n), x = K.x, mem = x.memory, inP = K.heap, resP = inP + n * 8, outP = resP + 128;
+    var tot = x.numcol(inP, n, outP, resP, mode), r = new Float64Array(mem.buffer, resP, 11), u = new Uint8Array(mem.buffer, outP, tot), A = r[3], B = r[4], oa = r[8], od = r[9], ob = r[10];
+    NKR.mono = r[0] === 1; NKR.mn = r[1]; NKR.mx = r[2]; NKR.w = r[5];
+    NKR.a = A >= 0 ? u.slice(oa, oa + A) : null;
+    NKR.d = B >= 0 ? u.slice(od, od + B) : null;
+    NKR.b = NKR.w ? u.slice(ob, tot) : null;
+    NK_SRC = null; NK_BUF = null;   // the input is only reused between a column's flags and its kernel call
+    return NKR;
   }
   // FD: a number column's scale is 10 to its largest fraction digit count, at least 100 for 1 or 2 digits (as before: same files), up to 9 digits like the JSON.parse path
   var P10 = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9], FD = [0, 2, 2, 3, 4, 5, 6, 7, 8, 9], FSTD = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
@@ -455,6 +773,7 @@
   function numDiv(b, c, scale) { var f = new Float64Array(c), i; for (i = 0; i < c; i++) f[i] = b[i] / scale; return f; }
   function listAsc(ln, dl, c) { var asc = true, ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; if (v < pv) asc = false; pv = v; } ai += ln[i]; } return asc; }
   function listDeltas(ln, dl, c, asc) { var dd = new Float64Array(dl.length), ai = 0, i, q, v, pv; for (i = 0; i < c; i++) { pv = 0; for (q = 0; q < ln[i]; q++) { v = dl[ai + q]; dd[ai + q] = asc ? v - pv : (v - pv >= 0 ? (v - pv) * 2 : -(v - pv) * 2 - 1); pv = v; } ai += ln[i]; } return dd; }
+  var B18_ALLV = false;   // B18b: set while the row-object path encodes a block
   function writeFlatBlockFast(ctx, input, opts) {
     if (opts.exact || typeof WebAssembly !== 'object' || input.length < 64) return null;
     if (!opts.pre && input.length > 262144) {   // cheap bail: try the first 64 KB (up to a line end) before copying a whole block into wasm
@@ -481,6 +800,7 @@
     // scratch for text columns (hex ids, dictionaries, joined values), laid out only when the block has a text column: number-only blocks keep their wasm memory smaller
     var hasStr = 0, kt0 = new Uint8Array(mem.buffer, P.ktype, nk); for (j = 0; j < nk; j++) if (kt0[j] === 3) hasStr = 1;
     var has7 = 0; for (j = 0; j < nk; j++) if (kt0[j] === 7) has7 = 1;   // B3b: mixed-kind keys need the cell lists and the join buffer even without a text column
+    if (has7 && NULL_MODE === 'plane') { lay('lnum', 10 * cells + 16); lay('lst', 16); }   // B13 typed nullable numbers
     if (has7 && !(asciiIn && hasStr)) { lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('sout', len + cells + 16); if (o > 1610612736) return null; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); m8 = new Uint8Array(mem.buffer); }
     if (asciiIn && hasStr) { lay('hexL', 4 * NK); lay('hoff', 4 * NK); lay('hex', (len >> 1) + 16); var T2 = 16; while (T2 < nrows + 2) T2 *= 2; lay('sht', 16 * T2); lay('kix', 4 * cells); lay('kixo', 4 * NK); lay('scodes', 4 * nrows + 16); lay('slab', 4 * nrows + 16);   /* a key has at most one value a row (scan rejects repeated keys), so the dictionary scratch is sized by rows */ lay('sout', len + cells + 16); lay('sres', 16); }
     if (asciiIn && hasStr) { if (o > 1610612736) return null; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); m8 = new Uint8Array(mem.buffer); }
@@ -516,6 +836,18 @@
         if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
         colv[j] = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.sout, W.x.rawjoin(P['in'], P.cval, P.clen, P.kix + 4 * kixo[j], count[j], P.sout)))); byB[j] = 2; }
       else { colv[j] = new Array(count[j]); if ((ktype[j] === 3 || ((ktype[j] === 6 || ktype[j] === 7) && asciiIn) || (ktype[j] === 7 && kfd[j] === 3)) && !text) { try { text = FSTD.decode(input); } catch (e) { return null; } } } }
+    // B13: a mixed key that is numbers and nulls (a nullable number column): the numbers go straight to scaled whole numbers and the nulls to a bit plane, in wasm, with no JS array of mixed values
+    var elig = null, nnv = null, npl = null, nmc = null, lst = null;
+    if (NULL_MODE === 'plane' && asciiIn && W.x.litnum) {
+      for (j = 0; j < nk; j++) {
+        if (ktype[j] !== 7 || kfd[j] === 3 || kfd[j] === 4 || kfd[j] === 5 || count[j] < 2) continue;
+        if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
+        var cn = count[j], rm = W.x.litnum(P['in'], P.cval, P.clen, P.cfd, P.kix + 4 * kixo[j], cn, P.lnum, P.lst);
+        if (rm < 0 || rm === 0 || rm === cn) continue;
+        if (!elig) { elig = new Int8Array(nk).fill(-1); nnv = new Array(nk); npl = new Array(nk); nmc = new Uint32Array(nk); }
+        elig[j] = new Uint32Array(mem.buffer, P.lst, 1)[0]; nmc[j] = rm; nnv[j] = new Float64Array(mem.buffer, P.lnum, rm).slice(); npl[j] = new Uint8Array(mem.buffer, P.lnum + 9 * cn, (cn + 7) >> 3).slice();
+      }
+    }
     var lp = 0, sc, m, v, pre7 = null, k7;
     var rest = 0; for (j = 0; j < nk; j++) if (ktype[j] !== 1 && !byB[j]) rest = 1;   // cells the wasm passes did not already gather
     if (rest) for (i = 0; i < nc; i++) {
@@ -525,33 +857,31 @@
       else if (ktype[j] === 4) colv[j][pos[j]++] = cfd[i] === 2 ? null : cval[i] === 1;
       else if (ktype[j] === 5) colv[j][pos[j]++] = null;
       else if (ktype[j] === 7) {   // B3b: a key with mixed JSON kinds; cells before the switch keep the first type's form, the literal cells after it (cfd 255) are parsed together below
+        if (elig && elig[j] >= 0) { pos[j]++; continue; }
         if (cfd[i] === 255) { pos[j]++; if (!pre7) pre7 = new Int32Array(nk).fill(-1); if (pre7[j] < 0) pre7[j] = pos[j] - 1; }
         else { k7 = kfd[j]; colv[j][pos[j]++] = k7 === 3 ? (cfd[i] ? JSON.parse(text.slice(cval[i] - 1, cval[i] + clen[i] + 1)) : text.slice(cval[i], cval[i] + clen[i])) : k7 === 4 || k7 === 5 ? (cfd[i] === 2 ? null : cval[i] === 1) : clen[i] ? (asciiIn ? +text.slice(cval[i], cval[i] + clen[i]) : +String.fromCharCode.apply(null, input.subarray(cval[i], cval[i] + clen[i]))) : cval[i] / P10[cfd[i]]; }
       }
       else if (ktype[j] === 6) colv[j][pos[j]++] = clen[i] ? (asciiIn ? +text.slice(cval[i], cval[i] + clen[i]) : +String.fromCharCode.apply(null, input.subarray(cval[i], cval[i] + clen[i]))) : cval[i] / P10[cfd[i]];   // B3: a number the scanner kept as text (long, exponent, -0); earlier plain cells of the key are mantissa / 10^digits, the value JSON.parse gives
       else { m = llen[cval[i]]; colv[j][pos[j]++] = m; if (m) { coll[j].set(lval.subarray(lp, lp + m), vpos[j]); vpos[j] += m; lp += m; } }
     }
-    if (pre7) for (j = 0; j < nk; j++) if (ktype[j] === 7 && pre7[j] >= 0) {   // one JSON.parse per mixed key over its literals, joined in wasm
+    if (pre7) for (j = 0; j < nk; j++) if (ktype[j] === 7 && pre7[j] >= 0 && !(elig && elig[j] >= 0)) {   // one JSON.parse per mixed key over its literals, joined in wasm
       if (!kixo) { W.x.keyix(nc, P.ckey, nk, P.gcnt, P.kix, P.kixo); kixo = new Uint32Array(mem.buffer, P.kixo, nk); }
       var pv7 = JSON.parse(FSTD.decode(new Uint8Array(mem.buffer, P.sout, W.x.litjoin(P['in'], P.cval, P.clen, P.cfd, P.kix + 4 * kixo[j], count[j], P.sout)))), b7 = pre7[j], q7;
       if (b7 === 0) colv[j] = pv7; else for (q7 = 0; q7 < pv7.length; q7++) colv[j][b7 + q7] = pv7[q7];
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
+    var ENCS = [];
     function cand(tn, p, fr, n) { best = addCand(zs, level, best, tn, p, fr, n); }
-    for (j = 0; j < nk; j++) {
-      best = null; c = count[j];
-      if (hexL[j] === 3600) cand('U', {}, [colv[j]], c);   // as encodeColumn writes a UUID column
-      else if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column
-      else if (ipK[j]) cand('I', {}, [sdOut[j]], c);   // as encodeColumn writes an IPv4 column
-      else if (sOnly[j]) cand('s', {}, [sdMany[j]], c);   // as encodeColumn writes a many-value string column without templates
-      else if (sdD[j]) {   // as encodeColumn writes a string column of at most n / 2 distinct values
-        var D3 = sdD[j], cds = sdCodes[j];
-        if (!cds) cand('s', {}, [sdOut[j]], c);
-        else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : new Uint8Array(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
-      }
-      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); if ((ktype[j] === 6 || ktype[j] === 7) && (best.t === 'V' || best.t === 'B' || best.t === 'F') && c) { var mn6 = Infinity, mx6 = -Infinity, a6 = colv[j]; for (i = 0; i < a6.length; i++) { if (a6[i] < mn6) mn6 = a6[i]; if (a6[i] > mx6) mx6 = a6[i]; } zone.push([fnvStr('.' + keys[j]), mn6, mx6, a6.length]); } }
-      else if (ktype[j] === 1) {
-        var base = colv[j], scale = P10[FD[kfd[j]]]; numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
+    function numCands(base, c, scale, key, zc) {   // the candidates of a number column held as scaled whole numbers (mantissas), as the general writer would try them
+        if (c >= NK_MIN) { var R = nkRun(base, c, scale > 100 ? 0 : 1), a = R.a, dd = R.d, bb = R.b, mnk = R.mn, mxk = R.mx, wk = R.w, monok = R.mono;
+          if (a) cand('V', { mono: monok, scale: scale }, [a], c);
+          if (dd) cand('V', { mono: false, scale: scale, delta: true }, [dd], c);
+          if (bb) cand('B', { mn: mnk, w: wk, scale: scale }, [bb], c);
+          if (scale > 100) { if (!best || best.size > c * 4) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c); }
+          else if (c > 1 && !monok && best.size > c * 0.25 && repeats(base, c)) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);
+          zone.push([fnvStr('.' + key), mnk / scale, mxk / scale, zc === undefined ? c : zc]);
+          return; }
+        numStats(base, c, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2];
         var d = numFirst(base, c, mono);
         if (scale > 100) {   // 3 to 9 fraction digits (columns the JSON.parse path used to write): the same candidates as encodeColumn there, so the same bytes and no extra compressions
           var dz2 = null, sa = 0, sb = 0;
@@ -560,24 +890,45 @@
           if (dz2 && sb <= sa * 1.05) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(dz2, c)], c);
           if (mx - mn < 16777216) { var w3 = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w3, scale: scale }, [bitpack(numOff(base, c, mn), w3)], c); }
           if (!best || best.size > c * 4) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);
-          if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
+          if (c) zone.push([fnvStr('.' + key), mn / scale, mx / scale, zc === undefined ? c : zc]);
         } else {
         cand('V', { mono: mono, scale: scale }, [varintsT(d, c)], c);
         if (!mono && c > 1) cand('V', { mono: false, scale: scale, delta: true }, [varintsT(numDeltaZz(base, c), c)], c);
         if (mx - mn < 16777216) { var w = Math.max(1, 32 - Math.clz32(mx - mn)); cand('B', { mn: mn, w: w, scale: scale }, [bitpack(numOff(base, c, mn), w)], c); }
         if (c > 1 && !mono && best.size > c * 0.25 && repeats(base, c)) cand('F', {}, [new Uint8Array(numDiv(base, c, scale).buffer)], c);   /* raw doubles win when the values repeat a long pattern (zstd finds the repeat), as in the general writer; tried only when the other forms leave more than 2 bits a value and values do repeat */
-        if (c) zone.push([fnvStr('.' + keys[j]), mn / scale, mx / scale, c]);
+        if (c) zone.push([fnvStr('.' + key), mn / scale, mx / scale, zc === undefined ? c : zc]);
         }
-      } else {
+    }
+    for (j = 0; j < nk; j++) {
+      best = null; c = count[j];
+      if (hexL[j] === 3600) cand('U', {}, [colv[j]], c);   // as encodeColumn writes a UUID column
+      else if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column
+      else if (ipK[j]) cand('I', {}, [sdOut[j]], c);   // as encodeColumn writes an IPv4 column
+      else if (sOnly[j]) cand('s', {}, dlOf([sdMany[j]], (c >> 1) + 1), c);   // as encodeColumn writes a many-value string column without templates
+      else if (sdD[j]) {   // as encodeColumn writes a string column of at most n / 2 distinct values
+        var D3 = sdD[j], cds = sdCodes[j];
+        if (!cds) cand('s', {}, dlOf([sdOut[j]], sdMany[j] ? (c >> 1) + 1 : D3 || (c >> 2)), c);
+        else { var wd3 = Math.max(1, 32 - Math.clz32(D3 - 1)); cand('D', { w: 0, wide: D3 > 256 }, [sdOut[j], D3 > 256 ? new Uint8Array(new Uint16Array(cds).buffer) : new Uint8Array(cds)], c); cand('D', { w: wd3, wide: false }, [sdOut[j], bitpack(cds, wd3)], c); if (best.t === 'D') best.st = { distinct: D3 }; }
+      }
+      else if (elig && elig[j] >= 0) {   // the typed nullable-number path
+        var m8n = nmc[j], plb = npl[j], scn = P10[elig[j]]; best = null;
+        numCands(nnv[j], m8n, scn, keys[j], c); var inn = settle(zs, level, best); best = null;
+        var pzn = zs.compress(plb, level), pzzn = pzn.length < plb.length ? [plb.length, pzn, 1] : [plb.length, plb, 0], szn = pzzn[1].length;
+        for (i = 0; i < inn.z.length; i++) szn += inn.z[i][1].length;
+        NMARK++; best = { t: 'N', p: { t: inn.t, p: inn.p, m: m8n }, n: c, z: [pzzn].concat(inn.z), size: szn };
+      }
+      else if (ktype[j] >= 3) { best = encodeColumn(colv[j], zs, level, opts.templates === false ? 0 : opts.templates === true ? 2 : 1, sdMany[j], keys[j]); if (best.t === 'N' && (best.p.t === 'V' || best.p.t === 'B' || best.p.t === 'F') && best.nn.length) { var mnN = Infinity, mxN = -Infinity; for (i = 0; i < best.nn.length; i++) { if (best.nn[i] < mnN) mnN = best.nn[i]; if (best.nn[i] > mxN) mxN = best.nn[i]; } zone.push([fnvStr('.' + keys[j]), mnN, mxN, c]); } if ((ktype[j] === 6 || ktype[j] === 7) && (best.t === 'V' || best.t === 'B' || best.t === 'F') && c) { var mn6 = Infinity, mx6 = -Infinity, a6 = colv[j]; for (i = 0; i < a6.length; i++) { if (a6[i] < mn6) mn6 = a6[i]; if (a6[i] > mx6) mx6 = a6[i]; } zone.push([fnvStr('.' + keys[j]), mn6, mx6, a6.length]); } }
+      else if (ktype[j] === 1) numCands(colv[j], c, P10[FD[kfd[j]]], keys[j]);
+      else {
         var ln = colv[j], dl = coll[j], t2 = dl.length, asc = listAsc(ln, dl, c);
         cand('A', { m: t2, asc: asc }, [varintsT(ln, c), varintsT(listDeltas(ln, dl, c, asc), t2)], c);
       }
-      best = settle(zs, level, best); meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }), st: best.st, _z: best.z });
+      best = settle(zs, level, best); ENCS.push(best); meta.cols.push({ t: best.t, p: best.p, n: best.n, f: best.z.map(function (zz3) { return [zz3[0], zz3[1].length, zz3[2]]; }), st: best.st, _z: best.z });
       for (i = 0; i < best.z.length; i++) frames.push(best.z[i][1]);
     }
     var planes = m8.slice(P.planes, P.planes + nk * pb), mB = te.encode(JSON.stringify(withColumnInfo(meta, opts, zs))), zm = zs.compress(mB, level), zp = zs.compress(planes, level);
     var hdr = te.encode(JSON.stringify({ k: 'f', n: nrows, m: [mB.length, zm.length], pl: [planes.length, zp.length] }));
-    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), k67 = false; for (j = 0; j < nk; j++) if (ktype[j] >= 6) k67 = true; return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), k67: k67 };   // k67: some key needed the per-column fallback (long numbers, mixed kinds); see api.js
+    var out = concat([u32le(hdr.length), hdr, zm, zp].concat(frames)), k67 = false; for (j = 0; j < nk; j++) if (ktype[j] >= 6) k67 = true; return { bytes: out, rows: nrows, zone: zone, kind: 'f', prefix: out.length - colBytes(meta), k67: k67, eqf: eqWant(opts) && out.length <= NX_A_MAXB ? [meta.keys, ENCS, out.length] : 0 };   // k67: some key needed the per-column fallback (long numbers, mixed kinds); see api.js
   }
   // with { check: 'xxh64' }: each column gets `o` (where its first frame starts, counted from the first column frame) and `x` (the XXH64 of its frames, 16 hex digits), so a reader that wants a few columns goes straight to them and checks only their bytes
   function colBytes(meta) { var t = 0, j, i; for (j = 0; j < meta.cols.length; j++) for (i = 0; i < meta.cols[j].f.length; i++) t += meta.cols[j].f[i][1]; return t; }
@@ -593,7 +944,7 @@
   }
   // the byte work of reading a flat block: zstd for every wanted column, and (predecode, in helper workers) the number columns turned into Float64Arrays
   // verify: the block's header part was checked by the caller (block table item 8) and the block as a whole was not, so every wanted column must carry `o` and `x` and is checked here; columns that are not wanted are not read at all
-  function flatFrames(zs, bytes, want, predecode, verify) {
+  function flatFrames(zs, bytes, want, predecode, verify, lazy) {
     var ph = parseBlockHeader(bytes), h = ph.h, p = ph.p, i, j, base;
     function take(n) { var x = bytes.subarray(p, p + n); p += n; return x; }
     var meta = JSON.parse(tdr.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
@@ -608,6 +959,7 @@
         if (st0 < base || st0 + tl > bytes.length || xhex(zs, bytes.subarray(st0, st0 + tl)) !== c.x) throw new Error('block checksum mismatch (column ' + meta.keys[j] + ')');
         p = st0;
       }
+      if (lazy && wanted) { var zf = []; for (i = 0; i < c.f.length; i++) zf.push([c.f[i], take(c.f[i][1])]); cols[j] = { fr: null, zf: zf, zs: zs }; continue; }   // B19: compressed frames kept, decompressed on first use
       for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
       cols[j] = !wanted ? null : (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
     }
@@ -625,6 +977,10 @@
     return { t: 'f', n: n, meta: meta, pl: pl, ordList: ordList, ordIds: ordIds, cols: cols };
   }
   flatFrames = guard(flatFrames);
+  // B19 helpers: frame k of a lazily read column, all its frames, every column of a lazily read block
+  function frOne(c, k) { if (c.fr) return c.fr[k]; if (!c.one) c.one = []; if (!c.one[k]) { var f = c.zf[k][0], sb = c.zf[k][1]; c.one[k] = f[2] ? (c.keep ? c.zs.decompress(sb, f[0]).slice() : c.zs.decompress(sb, f[0])) : sb.slice(); } return c.one[k]; }
+  function frAll(c) { if (!c.fr) { var o = [], k; for (k = 0; k < c.zf.length; k++) o.push(frOne(c, k)); c.fr = o; } return c.fr; }
+  function frBlock(F) { for (var j = 0; j < F.cols.length; j++) if (F.cols[j] && !F.cols[j].pre) frAll(F.cols[j]); }
   // the footer-sized view of a flat block: keys, column types, counts and the optional statistics, from the meta frame only
   function flatMeta(zs, bytes) {
     var ph = parseBlockHeader(bytes), h = ph.h, m = JSON.parse(tdr.decode(zs.decompressView(bytes.subarray(ph.p, ph.p + h.m[1]), h.m[0])));
@@ -671,6 +1027,8 @@
     var out = new Array(n), i; for (i = 0; i < n; i++) out[i] = new R(i);
     return out;
   }
+  // P13d gate (0.10.6, shared with P13e): row-at-a-time runs from 24 wanted keys, or when at least 1 row in 8 of the first 1,024 has every key; with 16 to 23 keys and almost no complete rows the clone never applies and plain objects were up to 1.4x slower in Chromium
+  function rowWise(vals, K, n, pl, pb, sel, m) { var nb = 0, sj = [], ns = 0, j, i, r, all, t = m < 1024 ? m : 1024, c = 0; for (j = 0; j < K; j++) if (vals[j]) { nb++; if (vals[j].length !== n) sj[ns++] = j * pb; } if (nb >= 24) return true; for (i = 0; i < t; i++) { r = sel ? sel[i] : i; all = true; for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + (r >> 3)] >> (r & 7)) & 1) === 1; if (all) c++; } return c * 8 >= t; }
   function makeFlatReader(zs) {
     // assemble rows from the decompressed frames of flatFrames; want: null, or an object whose own keys are the only keys to decode
     var gen = false, lazyOn = false;
@@ -685,10 +1043,10 @@
         if (dl) return lazyRows2(keys, K, n, function (c) { return F.cols[c].pre ? F.cols[c].pre : decodeColumn(meta.cols[c], zs, F.cols[c].fr); });
       }
       if (V8 && !ordList && !gen && !lazyOn && !hasProto && K > 0 && K <= 250 && n >= 2000) {
-        var allDense = true; for (j = 0; j < K && allDense; j++) allDense = F.cols[j] !== null && (F.cols[j].pre ? F.cols[j].pre.length === n : meta.cols[j].n === n);
+        var allDense = true, nk = 0; for (j = 0; j < K && allDense; j++) if (F.cols[j] !== null) { nk++; allDense = F.cols[j].pre ? F.cols[j].pre.length === n : meta.cols[j].n === n; } if (!nk) allDense = false;
         if (allDense) {
-          if (K >= CLONE_KEYS) { var ts0 = '{'; for (j = 0; j < K; j++) ts0 += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; var tpl0 = JSON.parse(ts0 + '}'); for (i = 0; i < n; i++) out[i] = { ...tpl0 }; } else for (i = 0; i < n; i++) out[i] = {};
-          for (j = 0; j < K; j++) { var vv = F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr), kj = keys[j]; for (i = 0; i < n; i++) out[i][kj] = vv[i]; }
+          if (nk >= CLONE_KEYS) { var ts0 = '{', f0 = 1; for (j = 0; j < K; j++) if (F.cols[j] !== null) { ts0 += (f0 ? '' : ',') + JSON.stringify(keys[j]) + ':null'; f0 = 0; } var tpl0 = JSON.parse(ts0 + '}'); for (i = 0; i < n; i++) out[i] = { ...tpl0 }; } else for (i = 0; i < n; i++) out[i] = {};
+          for (j = 0; j < K; j++) { if (F.cols[j] === null) continue; var vv = F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr), kj = keys[j]; for (i = 0; i < n; i++) out[i][kj] = vv[i]; }
           return out;
         }
       }
@@ -697,11 +1055,27 @@
       // column by column (the row-object rule): every row object is made first, then each key is assigned down its column, so the objects share one shape history
       // dense block (every key in every row): cloning one object that already has all the keys lays each row out once. Whether that is faster depends on the engine, so it is timed once against the plain way on the first dense block and the answer is kept per number of keys
       var dense = !hasProto && K > 0 && K <= 250, tpl, ts;
-      for (j = 0; j < K && dense; j++) if (!vals[j] || vals[j].length !== n) dense = false;
-      if (dense) { for (j = 0, ts = '{'; j < K; j++) ts += (j ? ',' : '') + JSON.stringify(keys[j]) + ':null'; tpl = JSON.parse(ts + '}'); }
-      var useClone = dense && K >= CLONE_KEYS;
-      if (dense && lazyOk && n >= 1) return lazyRows(keys, vals, n);
-      if (dense && gen && n >= 1) { var mk = rowBuilder(keys); if (mk) { for (i = 0; i < n; i++) out[i] = mk(vals, i); return out; } }
+      var allK = true, nk2 = 0; for (j = 0; j < K && dense; j++) { if (!vals[j]) { allK = false; continue; } nk2++; if (vals[j].length !== n) dense = false; } if (!nk2) dense = false;
+      if (dense) { var f1 = 1; for (j = 0, ts = '{'; j < K; j++) if (vals[j]) { ts += (f1 ? '' : ',') + JSON.stringify(keys[j]) + ':null'; f1 = 0; } tpl = JSON.parse(ts + '}'); }
+      var useClone = dense && nk2 >= CLONE_KEYS && (allK || V8);
+      if (dense && allK && lazyOk && n >= 1) return lazyRows(keys, vals, n);
+      if (dense && allK && gen && n >= 1) { var mk = rowBuilder(keys); if (mk) { for (i = 0; i < n; i++) out[i] = mk(vals, i); return out; } }
+      // V8 only, a block whose rows lack some keys (from 8 keys): one key at a time down every column gives each row a long chain of shape changes. Here each row is made at once, its keys in file order: rows with every key start as a clone of one template, the others are plain objects, which from 24 keys start in V8's hash-table form (one key added and removed) instead of walking up to 24+ shapes. Same objects, same key order. Firefox and WebKitGTK were slower this way, so they keep the column-at-a-time path
+      if (V8 && !dense && !hasProto && K >= 8) {
+        var RB = [], RV = [], RK = [], nb = 0, ns = 0, sj = [], ts2 = '{';
+        for (j = 0; j < K; j++) if (vals[j]) { RB[nb] = j * pb; RV[nb] = vals[j]; RK[nb] = keys[j]; ts2 += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
+        var full = new Uint8Array(nb), pt = new Int32Array(nb), tp2 = JSON.parse(ts2 + '}'), toHash = nb >= 24;
+        for (j = 0; j < nb; j++) { full[j] = RV[j].length === n ? 1 : 0; if (!full[j]) sj[ns++] = RB[j]; }
+        if (rowWise(vals, K, n, pl, pb, null, n)) {   // P13d gate (0.10.6)
+        for (i = 0; i < n; i++) { var by = i >> 3, bt = i & 7, all = true;
+          for (j = 0; j < ns && all; j++) all = ((pl[sj[j] + by] >> bt) & 1) === 1;
+          if (all) { o = { ...tp2 }; for (j = 0; j < nb; j++) o[RK[j]] = full[j] ? RV[j][i] : RV[j][pt[j]++]; out[i] = o; continue; }
+          o = {}; if (toHash) { o.__h = 0; delete o.__h; }
+          for (j = 0; j < nb; j++) { if (full[j]) o[RK[j]] = RV[j][i]; else if ((pl[RB[j] + by] >> bt) & 1) o[RK[j]] = RV[j][pt[j]++]; }
+          out[i] = o; }
+        return out;
+        }
+      }
       if (useClone) { for (i = 0; i < n; i++) out[i] = { ...tpl }; }
       else for (i = 0; i < n; i++) out[i] = {};
       for (j = 0; j < K; j++) {
@@ -727,7 +1101,9 @@
         for (i = lo; i < hi; i++) { sq = ordList[ordIds[i]]; o = {}; for (j = 0; j < sq.length; j++) { kk = sq[j]; if (!vals[kk]) continue; if (hasProto) setKey(o, keys[kk], vals[kk][ptr[kk]++]); else o[keys[kk]] = vals[kk][ptr[kk]++]; } out[i - lo] = o; }
         return out;
       }
-      for (i = 0; i < m; i++) out[i] = {};
+      if (!hasProto && m) { var sr = new Int32Array(m); for (i = 0; i < m; i++) sr[i] = lo + i; if (sparseV8(F, K, n, sr, m)) return selRows(F, vals, sr, m); }
+      if (!V8 && !hasProto && !F.ordList && b36Dense(vals, K, n)) return b36Rows(out, m, F, keys, K, n, vals, lo, hi);
+      lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         var v = vals[j]; if (!v) continue;
         var key = keys[j], base = j * pb, c = 0, b;
@@ -752,7 +1128,8 @@
       if (m * 2 > n) { F.cols[jr].pre = rv; return assembleKeep(F, want, rk, min, max); }   // more than half the rows match: the whole-block path (with its engine fast paths) is quicker; the range column is not decoded twice
       var out = new Array(m); if (!m) return out;
       for (j = 0; j < K; j++) if (j !== jr) vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr);
-      for (i = 0; i < m; i++) out[i] = {};
+      if (sparseV8(F, K, n, sel, m)) return selRows(F, vals, sel, m);
+      lateInit(out, m, F, keys, K, n);
       for (j = 0; j < K; j++) {
         v = vals[j]; if (!v) continue;
         var key = keys[j], base = j * pb, q;
@@ -763,6 +1140,163 @@
     }
     function assembleKeep(F, want, rk, min, max) { var r = assemble(F, want), out = [], i, x; for (i = 0; i < r.length; i++) { x = r[i][rk]; if (typeof x === 'number' && x >= min && x <= max) out.push(r[i]); } return out; }
     readSel = guard(readSel);
+    // B19: rows of a block whose value under key rk === val. mode 'plain' or 'codes' (see the patch notes). Same objects and key order as filtering readBlock(...)
+    function readEq(bytes, want, verify, rk, val, mode, bc) {
+      if (gen || lazyOn) return null;
+      if (bc) return readEqCached(bytes, want, verify, rk, val, bc);
+      var codes = mode === 'codes', F = flatFrames(zs, bytes, want, false, verify, codes), meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, keys = meta.keys, i, j, c, s, m = 0, jr = keys.indexOf(rk), q, x;
+      if (F.ordList || keys.indexOf('__proto__') >= 0) { if (codes) frBlock(F); return eqKeep(F, want, rk, val); }
+      if (jr < 0 || F.cols[jr] === null) return [];
+      var cm = meta.cols[jr], col = F.cols[jr], pb = (n + 7) >> 3, sel = new Int32Array(n), dense = cm.n === n, rv = null, isN = cm.t === 'N';
+      if (codes && (cm.t === 'D' || (isN && cm.p.t === 'D'))) {
+        var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, c0 = -1;
+        var anyv = val instanceof AnyOf, amk = null, anull = anyv && val.set.has(null);
+        if (anyv) { var alb = tdr.decode(frOne(col, o)).split('\0'), az; amk = new Uint8Array(alb.length + 1); for (az = 0; az < alb.length; az++) if (val.set.has(alb[az])) { amk[az] = 1; c0 = 0; } if (c0 < 0 && !(isN && anull)) return []; }
+        else if (typeof val === 'string') c0 = tdr.decode(frOne(col, o)).split('\0').indexOf(val);
+        if (c0 < 0 && !(isN && val === null) && !anyv) return [];   // the value is not in this block's labels: no other frame is decompressed
+        var cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0;
+        for (i = 0, s = jr * pb; i < n; i++) { if (!dense && !((pl[s + (i >> 3)] >> (i & 7)) & 1)) continue;
+          if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; if (val === null || anull) sel[m++] = i; continue; } at++;
+          if (anyv ? amk[cd[k++]] : (cd[k++] === c0 && c0 >= 0)) sel[m++] = i; }
+        if (m * 2 > n) { var labs = typeof val === 'string' || anyv ? tdr.decode(frOne(col, o)).split('\0') : (cnt ? tdr.decode(frOne(col, o)).split('\0') : []), pre = new Array(cm.n), kk = 0; at = 0;
+          if (np) { for (i = 0; i < cm.n; i++) pre[i] = (np[i >> 3] >> (i & 7)) & 1 ? null : labs[cd[kk++]]; } else for (i = 0; i < cnt; i++) pre[i] = labs[cd[i]];
+          col.pre = pre; frBlock(F); var allr = assemble(F, want), pk = new Array(m); for (i = 0; i < m; i++) pk[i] = allr[sel[i]]; return pk; }
+      } else {
+        var kvA = val instanceof AnyOf ? new Array(n) : null, cfr = codes ? frAll(col) : col.fr; m = p14Sel(cm, cfr, val, pl, jr * pb, n, sel, kvA);
+        if (m >= 0) rv = false;
+        else { m = 0;
+        rv = decodeColumn(cm, zs, cfr);
+        if (kvA) { var vs = val.set; if (rv.length === n) { for (i = 0; i < n; i++) if (vs.has(rv[i])) sel[m++] = i; } else { for (i = 0, c = 0, s = jr * pb; i < n; i++) if ((pl[s + (i >> 3)] >> (i & 7)) & 1) { if (vs.has(rv[c++])) sel[m++] = i; } } }
+        else if (rv.length === n) { for (i = 0; i < n; i++) if (rv[i] === val) sel[m++] = i; }
+        else { for (i = 0, c = 0, s = jr * pb; i < n; i++) if ((pl[s + (i >> 3)] >> (i & 7)) & 1) { if (rv[c++] === val) sel[m++] = i; } }
+        }
+      }
+      if (m * 2 > n) { if (codes) frBlock(F); if (rv) col.pre = rv; return eqKeep(F, want, rk, val); }
+      if (rv === false && !m) return [];
+      var out = new Array(m), vals = new Array(K), v; if (!m) return out;
+      if (sparseV8(F, K, n, sel, m)) {
+        for (j = 0; j < K; j++) {
+          if (F.cols[j] === null) { vals[j] = null; continue; }
+          if (j === jr && rv === false) { var gv = new Array(m); for (i = 0; i < m; i++) gv[i] = val; gv.m = 1; gv.sp = 0; vals[j] = gv; continue; }
+          if (codes && !F.cols[j].pre && !(j === jr && rv)) { var sv0 = selAt(meta.cols[j], frAll(F.cols[j]), pl, j * pb, n, sel, m); if (sv0) { sv0[1].m = 1; sv0[1].sp = meta.cols[j].n !== n; vals[j] = sv0[1]; continue; } }
+          vals[j] = F.cols[j].pre ? F.cols[j].pre : (j === jr && rv) ? rv : decodeColumn(meta.cols[j], zs, codes ? frAll(F.cols[j]) : F.cols[j].fr);
+        }
+        return selRows(F, vals, sel, m);
+      }
+      lateInit(out, m, F, keys, K, n);
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) continue;
+        var key = keys[j], base = j * pb;
+        if (j === jr && rv === false) { if (kvA) { for (i = 0; i < m; i++) out[i][key] = kvA[i]; } else for (i = 0; i < m; i++) out[i][key] = val; continue; }   // P14: every kept row holds val here
+        if (codes && !F.cols[j].pre && !(j === jr && rv)) { var sv = selAt(meta.cols[j], frAll(F.cols[j]), pl, base, n, sel, m); if (sv) { for (i = 0; i < m; i++) if (sv[0][i] >= 0) out[i][key] = sv[1][i]; continue; } }   // B19b
+        v = F.cols[j].pre ? F.cols[j].pre : (j === jr && rv) ? rv : decodeColumn(meta.cols[j], zs, codes ? frAll(F.cols[j]) : F.cols[j].fr);
+        if (v.length === n) { for (i = 0; i < m; i++) out[i][key] = v[sel[i]]; continue; }
+        for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) out[q][key] = v[c]; c++; } if (i === sel[q]) q++; }
+      }
+      return out;
+    }
+    // B19 cache: bc is this block's cache object ({} the first time). Same rows as readEq
+    function readEqCached(bytes, want, verify, rk, val, bc) {
+      var F = bc.F, j, i, c, m = 0, q, x;
+      if (!F) { F = bc.F = flatFrames(zs, bytes, want, false, verify, true); F.pl = F.pl.slice(); bc.vals = []; for (j = 0; j < F.cols.length; j++) if (F.cols[j]) F.cols[j].keep = 1; }
+      var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, keys = meta.keys, jr = keys.indexOf(rk), pb = (n + 7) >> 3;
+      if (F.ordList || keys.indexOf('__proto__') >= 0) { frBlock(F); return eqKeep(F, want, rk, val); }
+      if (jr < 0 || F.cols[jr] === null) return [];
+      var rc = bc['k' + jr], sel = new Int32Array(n), pk = -1, colOf = function (j) { var v = bc.vals[j]; if (v === undefined) v = bc.vals[j] = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, frAll(F.cols[j])); return v; };
+      var tk = meta.cols[jr].t === 'N' ? meta.cols[jr].p.t : meta.cols[jr].t;
+      if (!rc && bc.vals[jr] === undefined && !F.cols[jr].pre && (tk === 'U' || tk === 'H' || tk === 'I')) { pk = p14Sel(meta.cols[jr], frAll(F.cols[jr]), val, pl, jr * pb, n, sel); m = pk < 0 ? 0 : pk; }   // P14: ID and address keys match in their kept bytes, no per-row strings kept (plain text keeps its strings: repeated searches of the whole text were slower)
+      if (pk >= 0) {} else if (!rc) {   // per row: the label index (D) or the value itself; -1 / undefined for rows without the key, -2 for null
+        var cm = meta.cols[jr], col = F.cols[jr], isN = cm.t === 'N', dense = cm.n === n;
+        if (cm.t === 'D' || (isN && cm.p.t === 'D')) {
+          var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, lab = tdr.decode(frOne(col, o)).split('\0'), cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0, codeRow = new Int32Array(n).fill(-1);
+          for (i = 0; i < n; i++) { if (!dense && !((pl[jr * pb + (i >> 3)] >> (i & 7)) & 1)) continue; if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; codeRow[i] = -2; continue; } at++; codeRow[i] = cd[k++]; }
+          var lm = new Map(); for (i = 0; i < lab.length; i++) lm.set(lab[i], i);
+          rc = bc['k' + jr] = { d: true, row: codeRow, lm: lm };
+        } else {
+          var rv = colOf(jr), byRow = new Array(n);
+          if (rv.length === n) for (i = 0; i < n; i++) byRow[i] = rv[i]; else for (i = 0, c = 0; i < n; i++) if ((pl[jr * pb + (i >> 3)] >> (i & 7)) & 1) byRow[i] = rv[c++];
+          rc = bc['k' + jr] = { d: false, row: byRow };
+        }
+      }
+      if (pk >= 0) {} else if (rc.d) { var c0 = val === null ? -2 : typeof val === 'string' && rc.lm.has(val) ? rc.lm.get(val) : -3; if (c0 === -3) return []; var R = rc.row; for (i = 0; i < n; i++) if (R[i] === c0) sel[m++] = i; }
+      else { var R2 = rc.row; for (i = 0; i < n; i++) if (R2[i] === val && (val !== undefined)) sel[m++] = i; }
+      var out = new Array(m), v; if (!m) return out;
+      if (m * 2 > n) { frBlock(F); for (j = 0; j < K; j++) if (F.cols[j] !== null && !F.cols[j].pre) F.cols[j].pre = colOf(j); var all = assemble(F, want), oo = new Array(m); for (i = 0; i < m; i++) oo[i] = all[sel[i]]; return oo; }
+      if (sparseV8(F, K, n, sel, m)) {
+        var cv = new Array(K);
+        for (j = 0; j < K; j++) {
+          if (F.cols[j] === null) { cv[j] = null; continue; }
+          if (j === jr && pk >= 0) { var gw = new Array(m); for (i = 0; i < m; i++) gw[i] = val; gw.m = 1; gw.sp = 0; cv[j] = gw; continue; }
+          if (bc.vals[j] === undefined && !F.cols[j].pre) { bc.hits = bc.hits || []; if (!bc.hits[j]) { bc.hits[j] = 1; var sw = selAt(meta.cols[j], frAll(F.cols[j]), pl, j * pb, n, sel, m); if (sw) { sw[1].m = 1; sw[1].sp = meta.cols[j].n !== n; cv[j] = sw[1]; continue; } } }
+          cv[j] = colOf(j);
+        }
+        return selRows(F, cv, sel, m);
+      }
+      lateInit(out, m, F, keys, K, n);
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) continue;
+        var key = keys[j], base = j * pb;
+        if (j === jr && pk >= 0) { for (i = 0; i < m; i++) out[i][key] = val; continue; }
+        if (bc.vals[j] === undefined && !F.cols[j].pre) { bc.hits = bc.hits || []; if (!bc.hits[j]) { bc.hits[j] = 1; var sv = selAt(meta.cols[j], frAll(F.cols[j]), pl, base, n, sel, m); if (sv) { for (i = 0; i < m; i++) if (sv[0][i] >= 0) out[i][key] = sv[1][i]; continue; } } }   // B19b: the first use decodes only the matching positions
+        v = colOf(j); if (!v) continue;
+        if (v.length === n) { for (i = 0; i < m; i++) out[i][key] = v[sel[i]]; continue; }
+        for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) out[q][key] = v[c]; c++; } if (i === sel[q]) q++; }
+      }
+      return out;
+    }
+    // B19b: [value position per selected row (-1 = the row lacks the key), values] for column cm, or null to decode whole
+    // P13k: in V8 a typed array of more than 64 bytes gets its own backing store, about a microsecond each; with 256 KB blocks this ran once per wanted column per block (3 per call), which made selAt 8 times slower than with 13 MB blocks. V8 reuses one scratch list for the asked positions (decodeAt reads it during the call only) and keeps the positions of the rows in a plain list; the other engines keep typed arrays (no gain in Firefox 158 or WebKitGTK 2.52.6)
+    var SA_VI = new Int32Array(1024);
+    function selAt(cm, frames, pl, base, n, sel, m) {
+      if (V8 && SA_VI.length < m) SA_VI = new Int32Array(Math.max(m, SA_VI.length * 2));
+      var dense = cm.n === n, vi = V8 ? SA_VI : new Int32Array(m), mi = V8 ? new Array(m) : new Int32Array(m), i, c, q, k = 0;
+      if (dense) { for (q = 0; q < m; q++) { vi[q] = sel[q]; mi[q] = q; } k = m; }
+      else { for (i = 0, c = 0, q = 0; q < m; i++) { var has = (pl[base + (i >> 3)] >> (i & 7)) & 1; if (i === sel[q]) { if (has) { vi[k] = c; mi[q] = k++; } else mi[q] = -1; q++; } if (has) c++; } }
+      var got = decodeAt(cm, frames, vi, k); if (!got) return null;
+      var out = new Array(m); for (q = 0; q < m; q++) out[q] = mi[q] >= 0 ? got[mi[q]] : undefined; return [mi, out];   // mi is the position list (it used to be copied)
+    }
+    // P13e, V8 only: the selected rows of a block whose rows lack some keys (from 20 wanted keys, gated as P13d: with 16 keys row windows were 1.10-1.15 warm) are made one row at a time from per-row value lists, as P13d does for whole blocks (assigning one key at a time down the selected rows gave each row a long chain of shape changes, so a 40% match read took longer than reading every row). Same objects, same key order
+    function sparseV8(F, K, n, sel, m) { if (!V8 || K < 20 || K > 250 || F.ordList) return false; var j, nk = 0, sp = false, pv = new Array(K); for (j = 0; j < K; j++) if (F.cols[j] !== null) { nk++; pv[j] = { length: F.cols[j].pre ? F.cols[j].pre.length : F.meta.cols[j].n }; if (pv[j].length !== n) sp = true; } return sp && nk >= 20 && rowWise(pv, K, n, F.pl, (n + 7) >> 3, sel, m); }
+    function gatherCol(v, pl, base, n, sel, m) { var G = new Array(m), i, c, q; if (v.length === n) { for (q = 0; q < m; q++) G[q] = v[sel[q]]; return G; } for (q = 0; q < m; q++) G[q] = undefined; for (i = 0, c = 0, q = 0; q < m; i++) { if ((pl[base + (i >> 3)] >> (i & 7)) & 1) { if (i === sel[q]) G[q] = v[c]; c++; } if (i === sel[q]) q++; } return G; }
+    function rowsFromCols(m, keys, K, Gs) {
+      var RK = [], RG = [], SG = [], nb = 0, ns = 0, ts = '{', i, j, o, x, all, out = new Array(m);
+      for (j = 0; j < K; j++) if (Gs[j]) { RK[nb] = keys[j]; RG[nb] = Gs[j]; if (Gs[j].sp) SG[ns++] = Gs[j]; ts += (nb ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nb++; }
+      var tp = JSON.parse(ts + '}'), toHash = nb >= 24;
+      for (i = 0; i < m; i++) { all = true; for (j = 0; j < ns && all; j++) all = SG[j][i] !== undefined;
+        if (all) { o = { ...tp }; for (j = 0; j < nb; j++) o[RK[j]] = RG[j][i]; out[i] = o; continue; }
+        o = {}; if (toHash) { o.__h = 0; delete o.__h; }
+        for (j = 0; j < nb; j++) { x = RG[j][i]; if (x !== undefined) o[RK[j]] = x; }
+        out[i] = o; }
+      return out;
+    }
+    function selRows(F, vals, sel, m) {   // vals[j]: the decoded column (block-wide, dense or packed), an m-long list (.m set: values of the selected rows), or null
+      var keys = F.meta.keys, K = keys.length, n = F.n, pb = (n + 7) >> 3, Gs = new Array(K), j, v, g;
+      for (j = 0; j < K; j++) { v = vals[j]; if (!v) { Gs[j] = null; continue; } if (v.m) { g = v; g.sp = v.sp; } else { g = gatherCol(v, F.pl, j * pb, n, sel, m); g.sp = v.length !== n; } Gs[j] = g; }
+      return rowsFromCols(m, keys, K, Gs);
+    }
+    // matching rows of a wide dense block start as clones of one template, as whole-block reads do (from 16 keys), so building only the matches never costs more than building every row
+    // B36: outside V8, a dense block (every present key in every row) is built 1,024 rows at a time: the rows of a chunk are made, then each column is assigned down the chunk.
+    // Same objects and key order as lateInit plus the column loop below; the rows are filled while they are still young, and the chunk's slice of each column stays in cache.
+    function b36Dense(vals, K, n) { var j, nk = 0; for (j = 0; j < K; j++) if (vals[j]) { nk++; if (vals[j].length !== n) return false; } return nk > 0; }
+    function b36Rows(out, m, F, keys, K, n, vals, lo, hi) {
+      var i, j, i0, i1, nk = 0, ts = '{', tpl = null, v, key;
+      for (j = 0; j < K; j++) if (vals[j]) { ts += (nk ? ',' : '') + JSON.stringify(keys[j]) + ':null'; nk++; }
+      if (K <= 250 && nk >= CLONE_KEYS && (nk === K || V8)) tpl = JSON.parse(ts + '}');
+      for (i0 = lo; i0 < hi; i0 = i1) { i1 = i0 + 1024 < hi ? i0 + 1024 : hi;
+        if (tpl) for (i = i0; i < i1; i++) out[i - lo] = { ...tpl }; else for (i = i0; i < i1; i++) out[i - lo] = {};
+        for (j = 0; j < K; j++) { v = vals[j]; if (!v) continue; key = keys[j]; for (i = i0; i < i1; i++) out[i - lo][key] = v[i]; } }
+      return out;
+    }
+    function lateInit(out, m, F, keys, K, n) {
+      var i, j, ok = K <= 250 && !F.ordList && keys.indexOf('__proto__') < 0, ts, tpl, nk = 0, f = 1;
+      for (j = 0; j < K && ok; j++) if (F.cols[j] !== null) { nk++; ok = F.cols[j].pre ? F.cols[j].pre.length === n : F.meta.cols[j].n === n; }
+      if (nk < CLONE_KEYS || (nk < K && !V8)) ok = false;
+      if (!ok) { for (i = 0; i < m; i++) out[i] = {}; return; }
+      for (j = 0, ts = '{'; j < K; j++) if (F.cols[j] !== null) { ts += (f ? '' : ',') + JSON.stringify(keys[j]) + ':null'; f = 0; } tpl = JSON.parse(ts + '}');
+      for (i = 0; i < m; i++) out[i] = { ...tpl };
+    }
+    function eqKeep(F, want, rk, val) { var r = assemble(F, want), out = [], i; if (val instanceof AnyOf) { for (i = 0; i < r.length; i++) if (Object.prototype.hasOwnProperty.call(r[i], rk) && val.set.has(r[i][rk])) out.push(r[i]); return out; } for (i = 0; i < r.length; i++) if (r[i][rk] === val) out.push(r[i]); return out; }
+    readEq = guard(readEq);
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
     function columns(F, want) {
       var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
@@ -775,5 +1309,5 @@
       }
       return { n: n, keys: Object.keys(cols), cols: cols, present: present };
     }
-    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify) { return columns(flatFrames(zs, bytes, want, false, verify), want); } };
   }

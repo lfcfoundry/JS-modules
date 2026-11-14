@@ -408,7 +408,18 @@
       if (g && skl.length !== F.kc) throw new Error('damaged block: shape count');
       return { n: F.n, g: g, sp: F.sp || null, L: g ? F.count : 0, ids: new KIND[F.ids[0]](F.ids[2].buffer, F.ids[2].byteOffset, F.ids[1]), skel: skl, cols: cols, dict: D, codes: cols.get(CODES_KEY) };
     }
-    function rowsOf(b, want) {
+    // the value of top-level key index ix of one row, advancing the streams past the whole row (no objects made); undefined if the row has no such key
+    function peekRow(p, ix) {
+      if (p.t !== 7) { skipP(p); return undefined; }
+      var kind = p.kind, cc = p.cc, subs = p.subs, n = p.n, i, c, v;
+      for (i = 0; i < n; i++) {
+        if (i === ix) { switch (kind[i]) { case 1: v = STRS[TI++]; break; case 8: c = cc[i]; v = c.a[c.i++]; break; case 2: c = cc[i]; v = c.a[c.i++]; break; case 3: c = cc[i]; v = c.a[c.i++] === 1; break; case 4: v = null; break; default: skipP(subs[i]); v = undefined; } continue; }
+        switch (kind[i]) { case 1: TI++; break; case 8: case 2: case 3: cc[i].i++; break; case 4: break; default: skipP(subs[i]); }
+      }
+      return v;
+    }
+    function eqOff(p, ix) { if (ix < 0) return -1; for (var j = 0, o = 0; j < ix; j++) { if (p.kind[j] === 1) o++; else if (p.kind[j] === 0) return -1; } return o; }   // P13g: plain strings before key ix (-1: an object or list comes first)
+    function rowsOf(b, want, eqk, eqv, rng) {
       var D = b.dict, cd = b.codes, n = cd ? cd.length : 0, E = new Array(n), i, c;
       if (b.g) { var L = b.L, GS = tables.s; for (i = 0; i < n; i++) { c = cd[i]; if ((E[i] = c < L ? D[c] : GS[c - L]) === undefined) throw new Error('damaged block: string code out of range'); } }
       else for (i = 0; i < n; i++) { if ((E[i] = D[cd[i]]) === undefined) throw new Error('damaged block: string code out of range'); }
@@ -424,6 +435,28 @@
         for (i = 0, c = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (!sc || sc.a !== null) throw new Error('damaged block: string path table'); sc.a = E; sc.i = c; c += tab[i][2]; ends[i] = c; }
       }
       COLS.forEach(function (c) { c.a = b.cols.get(c.h); c.i = 0; });
+      if (rng === 2) {   // P13f: rows lo..hi-1 alone (eqv = [lo, hi]); the other rows are skipped, not made, and the streams are still read to their ends
+        var wlo = eqv[0], whi = eqv[1], wr = new Array(Math.max(0, whi - wlo)), wp;
+        for (i = 0; i < b.n; i++) { id = ids[i]; wp = id < LK ? fnById[id] : GPL[id - LK]; if (i < wlo || i >= whi) skipP(wp); else wr[i - wlo] = build(wp); }
+        if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
+        return wr;
+      }
+      if (eqk !== undefined) {    // P13c: find the matching rows first (no objects), then build only those. P13f: rng set, eqv is [min, max] and a row matches when its number under eqk is inside (as keepRows tests)
+        var planAt = function (i) { var d = ids[i]; return d < LK ? fnById[d] : GPL[d - LK]; }, sel = [], pl, ix;
+        // P13g: one pass. The key's value is read where it sits without moving any cursor (a number, true/false or per-path string column at its own cursor; a plain string at TI plus the strings of the keys before it, when only plain values come before it), then the row is built or skipped. A row whose key follows an object or list falls back to the two passes below
+        var one = [], ok1 = true, kk, cq, pv1;
+        for (i = 0; i < b.n; i++) { pl = planAt(i); if (pl.t !== 7) { skipP(pl); continue; } if (pl.eqk !== eqk) { pl.eqk = eqk; pl.eqi = pl.keys.indexOf(eqk); pl.eqo = eqOff(pl, pl.eqi); } ix = pl.eqi; if (ix < 0) { skipP(pl); continue; }
+          kk = pl.kind[ix]; if (kk === 1) { if (pl.eqo < 0) { ok1 = false; break; } pv1 = STRS[TI + pl.eqo]; } else if (kk === 8 || kk === 2) { cq = pl.cc[ix]; pv1 = cq.a[cq.i]; } else if (kk === 3) { cq = pl.cc[ix]; pv1 = cq.a[cq.i] === 1; } else if (kk === 4) pv1 = null; else pv1 = undefined;
+          if (rng ? typeof pv1 === 'number' && pv1 >= eqv[0] && pv1 <= eqv[1] : pv1 === eqv) { if (want) { var o1 = b.g ? null : buildW(pl, want); one.push(o1 === null ? projectRows([build(pl)], want)[0] : o1); } else one.push(build(pl)); } else skipP(pl); }
+        if (ok1) { if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); } return one; }
+        TI = 0; COLS.forEach(function (c) { c.i = 0; }); if (tab) for (i = 0, c = 0; i < tab.length; i++) { SCOLS.get(tab[i][0]).i = c; c += tab[i][2]; }
+        for (i = 0; i < b.n; i++) { pl = planAt(i); if (pl.t !== 7) { skipP(pl); continue; } if (pl.eqk !== eqk) { pl.eqk = eqk; pl.eqi = pl.keys.indexOf(eqk); pl.eqo = eqOff(pl, pl.eqi); } ix = pl.eqi; if (ix < 0) { skipP(pl); continue; } var pv = peekRow(pl, ix); if (rng ? typeof pv === 'number' && pv >= eqv[0] && pv <= eqv[1] : pv === eqv) sel.push(i); }
+        if (tab) for (i = 0; i < tab.length; i++) { sc = SCOLS.get(tab[i][0]); if (sc.i !== ends[i]) throw new Error('damaged block: string cells left over'); }
+        var m = sel.length, res = new Array(m); if (!m) return res;
+        TI = 0; COLS.forEach(function (c) { c.i = 0; }); if (tab) for (i = 0, c = 0; i < tab.length; i++) { SCOLS.get(tab[i][0]).i = c; c += tab[i][2]; }
+        for (i = 0, c = 0; i < b.n && c < m; i++) { pl = planAt(i); if (i !== sel[c]) { skipP(pl); continue; } if (want) { var o = b.g ? null : buildW(pl, want); res[c++] = o === null ? projectRows([build(pl)], want)[0] : o; } else res[c++] = build(pl); }
+        return res;
+      }
       if (b.g) { for (i = 0; i < b.n; i++) { id = ids[i]; out[i] = build(id < LK ? fnById[id] : GPL[id - LK]); } if (want) out = projectRows(out, want); }   /* grouped blocks build whole rows, then keep the wanted keys */
       else if (want) { for (i = 0; i < b.n; i++) { id = fnById[ids[i]]; out[i] = buildW(id, want); if (out[i] === null) { out[i] = projectRows([build(id)], want)[0]; } } }
       else for (i = 0; i < b.n; i++) out[i] = build(fnById[ids[i]]);
@@ -431,5 +464,5 @@
       return out;
     }
     openBlock = guard(openBlock); rowsOf = guard(rowsOf);
-    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes, want) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
+    return { open: openBlock, rowsOf: rowsOf, readBlock: function (bytes, want) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want); }, readEq: function (bytes, want, k, v) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want, k, v); }, readRange: function (bytes, lo, hi) { return rowsOf(openBlock(nestedFrames(zs, bytes)), null, null, [lo, hi], 2); }, readSel: function (bytes, want, verify, k, lo, hi) { return rowsOf(openBlock(nestedFrames(zs, bytes)), want, k, [lo, hi], true); }, assemble: function (F) { return rowsOf(openBlock(F)); } };
   }

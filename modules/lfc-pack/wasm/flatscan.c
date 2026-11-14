@@ -151,7 +151,7 @@ EXPORT("scan") u32 scan(const u8*in,u32 len,u32 nrows,u8*planes,u32 pb,u32*keyof
         else if(c=='f'){ if(p+5>len||in[p+1]!='a'||in[p+2]!='l'||in[p+3]!='s'||in[p+4]!='e') BAIL(17); e=p+5; }
         else if(c=='n'){ if(p+4>len||in[p+1]!='u'||in[p+2]!='l'||in[p+3]!='l') BAIL(17); e=p+4; }
         else { e=numspan(in,p,len); if(e==0xFFFFFFFFu) BAIL(10); }
-        ckey[nc]=(u8)id; cval[nc]=(double)p; clen[nc]=e-p; cfd[nc]=255; nc++; p=e; NLIT++;
+        ckey[nc]=(u8)id; cval[nc]=(double)p; clen[nc]=e-p; cfd[nc]=255; nc++; p=e; if(!(kmaxfd[id]==1&&(c=='n'||c=='-'||(c>='0'&&c<='9')))) NLIT++;   /* numbers and nulls in a number key are read in wasm (litnum), so they do not count against the fast path */
       } }
       planes[id*pb+(row>>3)]|=(u8)(1u<<(row&7));
       WS; if(p>=len) BAIL(3);
@@ -290,9 +290,60 @@ EXPORT("ipcol") u32 ipcol(const u8*in,const double*cval,const u32*clen,const u32
     if(p!=L) return 0; }
   return 1;
 }
+// B13: a mixed-kind key that holds numbers and nulls (a nullable number column; after its first null every cell is a literal): the n cells of one key (ix lists them) turned into the non-null numbers as whole numbers over a common power of ten (mant, scaled by 10^st[0]) and a bit plane of the nulls (set bit = null, LSB first, placed after mant and the fraction-digit scratch). Returns the count of numbers, or 0xFFFFFFFF when a cell is anything else (text, exponent, -0, more than 15 digits, more than 9 fraction digits): the caller then takes the general path.
+static const double P10D[10]={1.0,10.0,100.0,1e3,1e4,1e5,1e6,1e7,1e8,1e9};
+EXPORT("litnum") u32 litnum(const u8*in,const double*cval,const u32*clen,const u8*cfd,const u32*ix,u32 n,double*mant,u32*st){
+  u8*fd=(u8*)(mant+n); u8*pl=fd+n; u32 i,m=0,D=0,nb=(n+7)>>3;
+  for(i=0;i<nb;i++) pl[i]=0;
+  for(i=0;i<n;i++){
+    u32 c2=ix[i]; double v; u32 f;
+    if(cfd[c2]!=255){ if(clen[c2]||cfd[c2]>9) return 0xFFFFFFFFu; v=cval[c2]; f=cfd[c2]; }
+    else {
+      u32 s=(u32)cval[c2],L=clen[c2],k=0,nd=0,fr=0; const u8*q=in+s; int neg=0,dot=0; unsigned long long acc=0;
+      if(L==4&&q[0]=='n'&&q[1]=='u'&&q[2]=='l'&&q[3]=='l'){ pl[i>>3]|=(u8)(1u<<(i&7)); continue; }
+      if(k<L&&q[k]=='-'){ neg=1; k++; }
+      for(;k<L;k++){ u8 ch=q[k]; if(ch>='0'&&ch<='9'){ acc=acc*10+(ch-'0'); nd++; if(dot) fr++; if(nd>15) return 0xFFFFFFFFu; } else if(ch=='.'&&!dot&&nd) dot=1; else return 0xFFFFFFFFu; }
+      if(!nd||fr>9||(neg&&!acc)||(dot&&!fr)) return 0xFFFFFFFFu;
+      v=neg?-(double)acc:(double)acc; f=fr;
+    }
+    mant[m]=v; fd[m]=(u8)f; if(f>D) D=f; m++;
+  }
+  for(i=0;i<m;i++){ double w=mant[i]*P10D[D-fd[i]]; if(w>2251799813685247.0||w<-2251799813685247.0) return 0xFFFFFFFFu; mant[i]=w; }
+  st[0]=D; return m;
+}
 // B3b research: key k's literal cells (cfd 255, the suffix of a mixed-kind key) as one JSON array text: '[' then each literal joined by ',' then ']'. Returns its length.
 EXPORT("litjoin") u32 litjoin(const u8*in,const double*cval,const u32*clen,const u8*cfd,const u32*ix,u32 n,u8*out){
   u32 i,o=1,f=0; out[0]='[';
   for(i=0;i<n;i++){ u32 c2=ix[i]; if(cfd[c2]!=255) continue; u32 s=(u32)cval[c2],L=clen[c2]; if(f) out[o++]=','; f=1; __builtin_memcpy(out+o,in+s,L); o+=L; }
   out[o++]=']'; return o;
 }
+// B25 (research): one number column's candidate frames in one call. b: n scaled whole numbers (|x| < 2^50, no -0) as doubles, as numGeneral / numCands hold them.
+// res (doubles): [0] monotone (b[0] >= 0 and never falling), [1] min, [2] max, [3] bytes of the first form, [4] bytes of the delta form (0: not written), [5] bit width (0: no bit-packed form), [6] varint byte sum of the first form, [7] of the delta form.
+// One pass writes all varint forms at once into fixed regions of out (n*8+8 bytes each): zigzag of each value, zigzag of the differences, and while the column stays monotone b[0] then the plain differences; a second pass bit-packs the offsets from the min (range under 2^24). res[8], res[9], res[10]: where the first form, the delta form and the bit-packed bytes start in out.
+// mode 0: the general writer's rule (a form is written only when its varints are not more than 5% longer than the other's); mode 1: both forms whenever the column is not monotone and has 2+ values (the fast writer's rule for 0 to 2 fraction digits).
+static inline u32 vlen64(u64 u){ return (u32)(70-__builtin_clzll(u|1))/7; }   /* bytes of u as a varint (u < 2^56) */
+static inline u8* putv(u8*o,u64 u){   /* one varint as one 8-byte store (the caller keeps 8 spare bytes after the output) */
+  if(u<128){ *o=(u8)u; return o+1; }
+  u32 k=vlen64(u); u64 w=(u&0x7FULL)|((u<<1)&0x7F00ULL)|((u<<2)&0x7F0000ULL)|((u<<3)&0x7F000000ULL)|((u<<4)&0x7F00000000ULL)|((u<<5)&0x7F0000000000ULL)|((u<<6)&0x7F000000000000ULL)|((u<<7)&0x7F00000000000000ULL);
+  w|=0x8080808080808080ULL&((1ULL<<(8*(k-1)))-1); __builtin_memcpy(o,&w,8); return o+k; }
+static inline u64 zz64(i64 x){ return ((u64)x<<1)^(u64)(x>>63); }
+EXPORT("numcol") u32 numcol(const double*b,u32 n,u8*out,double*res,u32 mode){
+  u32 i; i64 v,pv,mn,mx; u64 la=0,lz=0,lb=0; int mono;
+  if(!n){ res[0]=0; res[1]=1.0/0.0; res[2]=-1.0/0.0; res[3]=-1; res[4]=-1; res[5]=0; res[6]=0; res[7]=0; res[8]=0; res[9]=0; res[10]=0; return 0; }
+  u8*Z=out, *D=out+(u64)n*8+8, *M=out+(u64)n*16+16, *z=Z, *d=D, *m=M;
+  pv=(i64)b[0]; mono=pv>=0; mn=mx=pv; z=putv(z,zz64(pv)); d=putv(d,zz64(pv)); if(mono) m=putv(m,(u64)pv);
+  for(i=1;i<n;i++){ v=(i64)b[i]; i64 q=v-pv; mn=v<mn?v:mn; mx=v>mx?v:mx; z=putv(z,zz64(v)); d=putv(d,zz64(q)); if(mono){ if(q<0) mono=0; else m=putv(m,(u64)q); } pv=v; }
+  lz=(u64)(z-Z); lb=(u64)(d-D); la=(u64)(m-M);
+  double sa=(double)(mono?la:lz), sb=(double)lb; int hasDz=!mono&&n>1, wa, wb;
+  if(mode==1){ wa=1; wb=hasDz; } else { wa=!hasDz||sa<=sb*1.05; wb=hasDz&&sb<=sa*1.05; }
+  u8*o=M+(u64)n*8+8; u32 w=0, bo=0;
+  if(mx-mn<16777216){ u32 r=(u32)(mx-mn); w=r?32-(u32)__builtin_clz(r):1; u8*o0=o;
+    u64 acc=0; u32 bits=0; for(i=0;i<n;i++){ acc|=(u64)(u32)((i64)b[i]-mn)<<bits; bits+=w; if(bits>=32){ u32 lo=(u32)acc; __builtin_memcpy(o,&lo,4); o+=4; acc>>=32; bits-=32; } }
+    while(bits>0){ *o++=(u8)acc; acc>>=8; bits=bits>8?bits-8:0; } o=o0+(((u64)n*w+7)>>3); }
+  res[0]=mono; res[1]=(double)mn; res[2]=(double)mx; res[3]=wa?(double)(mono?la:lz):-1.0; res[4]=wb?(double)lb:-1.0; res[5]=w; res[6]=sa; res[7]=sb;
+  res[8]=(double)((mono?M:Z)-out); res[9]=(double)(D-out); res[10]=(double)(M+(u64)n*8+8-out);
+  return (u32)(o-out);
+}
+// B25b: b21Flags in one pass: res[0] 1 when some value is -0, res[1] 1 when every value is a whole number under 2^50 in size, res[2] 1 when some value is NaN or infinite
+EXPORT("numflags") void numflags(const double*a,u32 n,double*res){
+  u32 i,nz=0,ai=1,nf=0; for(i=0;i<n;i++){ double x=a[i]; ai&=(x==__builtin_trunc(x))&(x<1125899906842624.0)&(x>-1125899906842624.0); nz|=(x==0)&(__builtin_signbit(x)!=0); nf|=!(x-x==0); } res[0]=nz; res[1]=ai; res[2]=nf; }

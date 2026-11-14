@@ -21,7 +21,7 @@ Blocks come first so a writer can stream them out. Readers start from the end.
 | 0-3 | footer length `flen` (u32) |
 | 4-7 | CRC-32 of the footer bytes (zlib polynomial 0xEDB88320, the same as zlib.crc32) |
 | 8-9 | format major (u16). This text is major 1. |
-| 10-11 | format minor (u16). This text is minor 0. |
+| 10-11 | format minor (u16). This text is minor 1. A writer sets 1 only when the file holds a null-plane column (`N`, LAYOUT-SPEC.md 2.5); every other file says 0, as before. |
 | 12-15 | magic `LFC1` |
 
 Reader rules: the last four bytes MUST be the magic, else it is not an LFC-pack file. A major above the reader's own MUST be refused. A higher minor MAY be read; unknown optional parts are ignored. `flen` MUST NOT exceed file length minus 16. The footer CRC MUST be checked.
@@ -51,6 +51,7 @@ Payloads that are JSON are UTF-8 text.
 | 9 raw-line store | required when present | byte-exact files only: u32 `hl`, `hl` bytes of JSON `{blockIndex: [[row, byteLength], ...]}`, then the raw bytes of those rows. `blockIndex` is the block's number in the block table written as decimal text; `row` is the row's 0-based position inside that block (blank lines are not rows); the raw bytes are one row's line without its LF, may be empty, and follow one after another in the order the JSON lists them (blocks ascending, rows ascending). Those rows are returned verbatim instead of re-serialized. |
 | 15 number spellings | required when present | byte-exact files only: JSON `{blockIndex: [[row, [[tokenIndex, text], ...]], ...]}`; the row is the canonical text with the listed number tokens replaced by `text`. A number token is a maximal match of the JSON number grammar `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?` in the canonical text outside string literals (object keys are strings, so they never count); tokens are counted from 0, left to right, in the canonical text before any replacement; `row` is the 0-based position inside the block. |
 | 16 shared tables | required when present | nested blocks written with `share: true`: JSON `{v: 1, s: [strings], k: [shape texts]}`, the strings and shapes that blocks with header `g: 1` point to by code. See `LAYOUT-SPEC.md` 3.6. |
+| 17 delta base | required when present | prototype: JSON `{v: 2, base: XXH64 hex of the base file}`; the file is a normal file whose tables are a patch against that base (LAYOUT-SPEC.md 4a). A reader without the exact base refuses the file. |
 
 Ids 3, 4, 7, 10, 11, 14 are reserved for the index, Bloom filter, record-type map and file hash described in the design notes; a reader MUST accept and ignore them.
 

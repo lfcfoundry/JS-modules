@@ -23,6 +23,10 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('per-path strings pick', 'node', ['pathspick.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
+  step('equality reads (B19)', 'node', ['equalsread.cjs']);
+  step('equality reads in stored bytes (P13, P14)', 'node', ['eqbytes.cjs']);
+  step('column reads (B20)', 'node', ['b20cols.cjs']);
+  step('delta saves (prototype)', 'node', ['delta.cjs']);
   step('lazy rows (opt-in)', 'node', ['lazyrows.cjs']);
   step('helper workers', 'node', ['pool.cjs']);
   step('helper workers: byte limits, cancel', 'node', ['--expose-gc', 'pool-budget.cjs']);
@@ -34,7 +38,8 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('long, exponent and -0 numbers', 'node', ['longnums.cjs']);
   step('mixed-kind keys', 'node', ['mixedkinds.cjs']);
   step('uuid columns from wasm', 'node', ['uuidcols.cjs']);
-  step('range reads build matching rows only', 'node', ['rangesel.cjs'])
+  step('range reads build matching rows only', 'node', ['rangesel.cjs']);
+  step('null plane (column type N)', 'node', ['nullplane.cjs'])
   step('non-ASCII text in the flat path (SIMD and not)', 'node', ['nonascii.cjs']);
   step('variable-length string round trip (Workbench probe)', 'node', ['varlen-roundtrip.cjs']);
   step('decoder-only build', 'node', ['readonly.cjs']);
@@ -46,6 +51,14 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('warm() opt-in warm-up', 'node', ['warm.cjs']);
   step('one huge JSON document', 'node', ['bigdoc.cjs']);
   step('open(): block-at-a-time reads from a Blob or read()', 'node', ['open.cjs']);
+  step('first block of a big save is small (B22)', 'node', ['headblock.cjs']);
+  step('open().readAhead()', 'node', ['readahead.cjs']);
+  step('number kernel and folded row check (B25 + B26)', 'node', ['numkernel.cjs']);
+  step('packRowsParallel (B28)', 'node', ['b28.cjs']);
+  step('packParallel(Blob) (B30)', 'node', ['b30.cjs']);
+  step('packColumnsParallel (B34)', 'node', ['b34.cjs']);
+  step('unpackColumnsParallel (B35)', 'node', ['b35.cjs']);
+  step('sparse tables (rows with missing keys)', 'node', ['sparseread.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   step('python writer', 'python3', ['-I', 'pywriter.py', dir]);
   step('python writer files in JS', 'node', ['pywriter.cjs', dir]);

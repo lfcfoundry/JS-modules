@@ -2,6 +2,69 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.17 · API 0 · 2026-11-13
+- Equality reads are 8 to 18% faster in Chromium on files with many small blocks
+
+## 0.10.16 · API 0 · 2026-11-13
+- pool().unpack with equals or anyOf now returns only the matching rows, as unpack does
+
+## 0.10.15 · API 0 · 2026-11-13
+- New unpackColumnsParallel(bytes) reads a table as columns on helper workers, no row objects: later reads take 0.30 to 0.67 of unpackRows in Chromium, Firefox and WebKitGTK (cloud, 300,000 rows).
+
+## 0.10.14 · API 0 · 2026-11-13
+- Reading whole tables is up to 15% faster in Firefox 158 (rows built in chunks of 1,024); a WebKitGTK sensors first read is 1.2 times slower. Chrome and Edge are unchanged.
+
+## 0.10.13 · API 0 · 2026-11-13
+- Saving sparse tables and tables of repeated labels is 0.46 to 0.93 of the old time on an owner laptop (Chrome, Firefox). Tables of many different strings are unchanged.
+
+## 0.10.12 · API 0 · 2026-11-13
+- New packColumnsParallel({ key: array }) saves columns you hold without row objects: later saves of number tables take 0.42 to 0.74 of packRowsParallel in Chromium, Firefox and WebKitGTK (cloud).
+
+## 0.10.11 · API 0 · 2026-11-13
+- Random-access files skip blocks that cannot hold the value: a value not in the file returns in about a quarter of the time (Chromium, Firefox, WebKitGTK). Files grow about 0.4%; older readers still open them.
+
+## 0.10.10 · API 0 · 2026-11-13
+- packRowsParallel hands control back to the page between blocks: the longest pause on the main thread drops from 178 to 214 ms to 27 to 53 ms in Chromium, Firefox and WebKitGTK (cloud).
+
+## 0.10.9 · API 0 · 2026-11-13
+- packParallel now takes a File or Blob without reading it whole first (less memory, shorter main-thread pause). Nested equality and range reads take one pass instead of two.
+
+## 0.10.8 · API 0 · 2026-11-13
+- New packRowsParallel(rows) saves big row arrays on helper workers: later saves take 0.54 to 0.64 of the time in Chromium, Firefox and WebKitGTK (cloud). Nested range reads are faster.
+
+## 0.10.7 · API 0 · 2026-11-13
+- Filtered, range and row-window reads of tables with 20 or more keys where some rows lack keys are faster in Chrome and Edge.
+
+## 0.10.6 · API 0 · 2026-11-13
+- Fixes a slowdown in 0.10.5 for tables with 16 to 23 keys where most rows lack some keys.
+
+## 0.10.5 · API 0 · 2026-11-13
+- Reading whole tables of 24 or more keys where some rows lack some keys is up to five times faster in Chrome and Edge. Tables of 16 to 23 keys with few complete rows could be up to 1.4 times slower; 0.10.6 fixes that.
+
+## 0.10.4 · API 0 · 2026-11-13
+- Saving big number tables is up to twice as fast in Chromium and Firefox (cloud runs).
+
+## 0.10.3 · API 0 · 2026-11-13
+- Opening a big file in blocks uses 32 to 39% less memory at 1 to 4 MB blocks (counted by the module's memory counters, same in every browser).
+
+## 0.10.2 · API 0 · 2026-11-12
+- Saves are up to 11% faster (Chromium, Firefox, WebKitGTK), big files show their first rows in 6 to 15% of the time, searching for several values at once is one call, and some filtered reads are faster.
+
+## 0.10.1 · API 0 · 2026-11-12
+- Searching a file for rows with one exact text, ID or address value is about twice as fast.
+
+## 0.10.0 · API 0 · 2026-11-11
+- Columns with some empty (null) values are stored compactly: such files are smaller and faster to read. Older versions cannot open these files.
+
+## 0.9.6 · API 0 · 2026-11-12
+- Saving a small change can write only what changed (opt-in delta saves).
+
+## 0.9.5 · API 0 · 2026-11-12
+- Asking for the rows with one exact value is faster (unpack with equals), and reading columns is faster.
+
+## 0.9.4 · API 0 · 2026-11-12
+- Packs NDJSON into small column files and reads the rows back, exactly if you ask.
+
 ## 0.9.3 · API 0 · 2026-11-11
 - Reading a time range is faster: only the matching rows are built.
 
