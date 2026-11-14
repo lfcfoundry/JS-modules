@@ -139,7 +139,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Packing UUID columns is faster. Packing picks each column's layout faster.
 
 ## 0.8.1 · API 0 · 2026-11-08
-- Reading only some keys of nested rows is up to 2 times faster; output unchanged.
+- Reading only some keys of nested rows is up to 2 times faster in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; output unchanged.
 
 ## 0.8.0 · API 0 · 2026-11-08
 - New LfcPack.packParallelStream(): push text in pieces while it is read, workers pack the blocks, same file bytes as pack.
