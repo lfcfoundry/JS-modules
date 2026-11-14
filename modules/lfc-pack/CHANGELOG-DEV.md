@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.29 · API 0 · 2026-11-14
+
+### Quick
+First aggregate after warm() 4.4/4/5 ms vs 6.3/5/7 (Chromium/Firefox/WebKitGTK); Arrow 21.2.0 5.7/5/11
+
+### Details
+B48: sumI/grpI mask empty values to 0 instead of branching, and grpI has a no-null loop. B49: presence-bit counts of 4,096+ bytes run in bdec.wasm (popc). B50: warm() runs 300 tiny calls of each kernel in its own idle task (about 1-4 ms) so the first real aggregate runs in the optimizing tier; init() is unchanged. bdec.wasm 1,087 to 1,515 bytes. Same answers; the warm test checks aggregate before and after warm().
+
+### Deep
+Faster first aggregate (B48-B50). The owner picked option C on the card: the kernel warm-up runs in the idle warm(), not in init(). Credits: Daniel Lemire (branchless select), V8 team (WebAssembly dynamic tiering).
+
 ## 0.10.28 · API 0 · 2026-11-14
 
 ### Quick

@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.28 · API 0**
+**Version 0.10.29 · API 0**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (cloud): nested-block column reads pass (0.10.25 failed 5 of 6 cases); Node checks all pass
+**Tested in:** Full lfc-pack suite; first aggregate after warm() in Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (5 fresh pages each)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -126,6 +126,8 @@ Saving columns you already have (since 0.10.12): `LfcPack.packColumnsParallel({ 
 Reading a whole table as columns (since 0.10.15): `await LfcPack.unpackColumnsParallel(bytes, { keys, workers })` resolves to `{ key: array }` with no row objects: blocks are decoded in helper workers and each key's pieces are joined on the calling thread. Number columns of one kind come back as typed arrays of that kind (mixed kinds as `Float64Array`), everything else as plain arrays, and a key some rows lack gives `undefined` at those rows. It works on flat-row files (not nested blocks), and the result can go straight to `packColumnsParallel`. The first call reads on the calling thread and starts the helpers afterwards (they close after 10 seconds idle); one-block files never use helpers. Later reads took 0.30 (Chromium 156), 0.37 (Firefox 158) and 0.41 (WebKitGTK 2.52.6) of the `unpackRows` time on 300,000 taxi-like rows, and 0.66 to 0.73 on logs (cloud runs); on an owner laptop the longest pause on the page fell from 354 to 46 ms. Since 0.10.14, `unpackRows` in Firefox and Safari-family engines builds dense blocks in chunks of 1,024 rows (0.85 to 1.02 of the 0.10.13 time in Firefox 158; Chrome and Edge are unchanged).
 
 Sums and averages without building columns: `LfcPack.aggregate(bytes, { key: 'tip' })` returns `{ sum, count, avg }`, and `LfcPack.aggregate(bytes, { key: 'tip', by: 'zone' })` returns `{ keys, sum, count, avg }` with one entry per group, in first-seen order. Values that are not numbers (null, text, missing) are skipped. Bit-packed number columns are summed in WebAssembly as exact whole numbers and divided once, so the sum is the decimal sum as written, rounded once (a plain loop can differ in the last digits). Repeat calls on the same bytes object check each block once. On 1M taxi-like rows, repeat calls took 1.6 / 3.0 / 6.2 ms in Chromium 156 (sum of fare / sum of tip / average tip per zone) against 4.3 / 5.4 / 9.1 ms for DuckDB-WASM on its own loaded table, and 2 / 2 / 4 against 9 / 11 / 17 ms in WebKitGTK 2.52.6 (cloud runs). Flat-row and small raw files only.
+
+Since 0.10.29 the kernels skip empty values without a branch (B48), presence bits are counted in WebAssembly (B49), and `warm()` runs a few hundred tiny kernel calls in an idle task of its own (B50), so the first `aggregate` after `warm()` runs at full speed. First sum of fare on 1M taxi rows after `warm()`: 4.4 / 4 / 5 ms in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, against 6.3 / 5 / 7 ms for 0.10.28 and 5.7 / 5 / 11 ms for Apache Arrow 21.2.0 IPC (first sum, cloud runs, medians of 5 fresh pages). `init()` is unchanged; the extra warm-up costs about 1-4 ms inside `warm()`.
 
 Number columns with empty values as typed arrays: `unpackColumns(bytes, { keys, nulls: 'NaN' })` (also `unpackColumnsParallel` and `R.columns(i, ...)`) gives every number column one value per row in a typed array, with NaN where the value is null or the row lacks the key; text and other columns are unchanged. Without it, a number column with any null comes back as a plain list, which V8 reads about 10 times slower.
 
@@ -291,6 +293,8 @@ Zstandard (Yann Collet and Meta Platforms, BSD-3-Clause) does the compression; t
 - Frame of reference plus bit packing: Goldstein, Ramakrishnan and Shaft, ["Compressing relations and indexes"](https://doi.org/10.1109/ICDE.1998.655800), ICDE 1998; related fast-unpacking work: Lemire and Boytsov, ["Decoding billions of integers per second through vectorization"](https://arxiv.org/abs/1209.2137), 2015
 - Columns with per-block min/max statistics: [Apache Parquet](https://parquet.apache.org/) and [Apache ORC](https://orc.apache.org/); zone maps as used by DuckDB ([lightweight compression notes](https://duckdb.org/2022/10/28/lightweight-compression))
 - Nested-data shredding: Melnik et al., ["Dremel: Interactive Analysis of Web-Scale Datasets"](https://research.google/pubs/dremel-interactive-analysis-of-web-scale-datasets-2/), Google, 2010
+- Branchless select for skipping empty values (B48): Daniel Lemire, ["Mispredicted branches can multiply your running times"](https://lemire.me/blog/2019/10/15/mispredicted-branches-can-multiply-your-running-times/), 2019
+- Warming WebAssembly kernels before the first long call (B50): the V8 team, ["WebAssembly Dynamic Tiering ready to try in Chrome 96"](https://v8.dev/blog/wasm-dynamic-tiering), 2021
 - Log templates: He, Zhu, Zheng and Lyu, ["Drain: An Online Log Parsing Approach with Fixed Depth Tree"](https://doi.org/10.1109/ICWS.2017.13), ICWS 2017; test samples from LogHub by the Logpai group ([github.com/logpai/loghub](https://github.com/logpai/loghub))
 
 ## For AI agents
