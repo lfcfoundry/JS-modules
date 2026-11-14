@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.16.4 (API 2)
+ * Version 2.16.5 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3014,9 +3014,38 @@
         return true;
       }
     }
+    if (LIST_DICT && !this.refs && !this.defer && !this.report && typeof vals[firstNonEmpty(vals, n)][0] === 'string' && this.listDict(vals, n, q)) return true;
     flat = q > 30000000 ? [] : new Array(q); q = 0;
     for (i = 0; i < n; i++) { a = vals[i]; len = a.length; for (j = 0; j < len; j++) flat[q++] = a[j]; }
     this.column(flat, q);
+    return true;
+  };
+  // lists of text from a few values (tags, roles): the dictionary is built straight from the lists, with no flat copy and no kind pass; the same bytes as column(flat)
+  // when every item is text, there are 2 or more values and the text dictionary would be used; false (nothing written) otherwise
+  var LIST_DICT = true;
+  Enc.prototype.listDict = function (vals, n, q) {
+    var seen = new Map(), dict = [], idx = new Uint16Array(q), i, j, a, len, s, id, p = 0, sample = q < 256 ? q : 256, top = -1, m, c = this.ctl;
+    for (i = 0; i < n; i++) {
+      a = vals[i]; len = a.length;
+      for (j = 0; j < len; j++) {
+        s = a[j];
+        if (typeof s !== 'string') return false;
+        id = seen.get(s);
+        if (id === undefined) {
+          id = dict.length;
+          if (id >= 65536 || (id > 4096 && id * 2 > p + 1)) return false;
+          seen.set(s, id); dict.push(s);
+        }
+        if (p < sample && id > top) top = id;
+        idx[p++] = id;
+      }
+    }
+    m = dict.length;
+    if (m < 2 || !((top + 1) * 2 <= sample || q <= 64)) return false;
+    if (++this.depth > MAX_DEPTH) jfail('nested too deeply');
+    if (m <= 256) idx = new Uint8Array(idx);
+    if (!(this.picker && q >= ADAPT_MIN && this.dictCodes(idx, q, m, dict))) { c.u8(CT_STRD); c.varint(m); this.rawStrings(dict, m); this.blob(idx, 'dict-index'); }
+    this.depth--;
     return true;
   };
   function varintLen(v) { var n = 1; while (v > 127) { v = Math.floor(v / 128); n++; } return n; }
