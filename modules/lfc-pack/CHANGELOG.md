@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.27 · API 0 · 2026-11-14
+- New: packBlock(columns) packs a block from columns you already hold; text can be given as UTF-8 bytes plus offsets, so no strings are made (about half the time of string columns).
+
 ## 0.10.26 · API 0 · 2026-11-14
 - New: open().block(i, { rows }) reads only the rows you ask for from a block, about 2.5 times faster when a sorted page needs a few rows from many blocks.
 

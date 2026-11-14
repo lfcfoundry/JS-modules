@@ -696,14 +696,14 @@
       if (ord) { var sk = sq.join(','), oid = ord.map.get(sk); if (oid === undefined) { oid = ord.list.length; ord.map.set(sk, oid); ord.list.push(sq); } ord.ids[i] = oid; }
     }
     var planes = new Uint8Array(pb * keys.length); for (j = 0; j < pls.length; j++) planes.set(pls[j], j * pb);
-    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.a !== null) { cols[j] = c21.a; if (chk26) b26Vals(c21.a); continue; }   // B21c: number columns, typed
+    for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.bc) { cols[j] = c21; pre21[j] = 3; continue; } if (c21.a !== null) { cols[j] = c21.a; if (chk26) b26Vals(c21.a); continue; }   // B21c: number columns, typed
       if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = 1; }   // B25d: flags are taken just before the column is encoded, so the kernel reads the column once
       else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
       else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
     var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol;
     for (j = 0; j < cols.length; j++) {
-      if (rc && pre21[j] && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
+      if (rc && pre21[j] && pre21[j] !== 3 && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
         (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; es[j2] = r; }; }(j)));
         cols[j] = []; continue; }
       es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26);
@@ -723,12 +723,51 @@
     if (wait) return { wait: Promise.all(wait).then(finish) };
     return finish();
   }
+  // Text columns given as bytes ({ bytes: Uint8Array of UTF-8, start, end: one offset pair per value, value i = bytes[start[i] .. end[i]) }), as Arrow keeps text: the plain ('s') and
+  // dictionary ('D') layouts are built straight from the bytes, by the same rules and with the same frames the string path builds from the same values (labels in first-seen order,
+  // the count stopping where the string path stops), so the file is the same bytes and no JS string is made. Values that could take another layout (hex, UUID, IPv4: tested on the
+  // first value), a 0 byte inside a value, or templates: true go through the string path instead (same file, slower).
+  function isByteCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start != null && x.end != null && typeof x.start.length === 'number' && x.start.length === x.end.length; }
+  function byteColStrings(bc, a, n) { var out = new Array(n), B = bc.bytes, S = bc.start, E = bc.end, i; for (i = 0; i < n; i++) out[i] = td.decode(B.subarray(S[a + i], E[a + i])); return out; }
+  var BC_UTF8 = null;
+  function byteCol(bc, a, n, zs, level, tmode, key) {
+    var B = bc.bytes, S = bc.start, E = bc.end, BL = B.length, i, k, s, e, tot = 0, hi = 0, best = null;
+    for (i = 0; i < n; i++) { s = S[a + i]; e = E[a + i]; if (!(s >= 0 && e >= s && e <= BL)) throw new Error('LfcPack: text column "' + key + '": value ' + (a + i) + ' has offsets outside its bytes'); for (k = s; k < e; k++) { if (B[k] === 0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); hi |= B[k]; } tot += e - s; }
+    if (!n || tmode === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);
+    s = S[a]; e = E[a]; var L0 = e - s, ip = L0 >= 7 && L0 <= 15, dots = 0;
+    for (k = s; k < e && ip; k++) { if (B[k] === 46) dots++; else if (B[k] < 48 || B[k] > 57) ip = false; }
+    if ((L0 >= 16 && (L0 & 1) === 0) || L0 === 36 || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); }
+    var cap = tmode && n >= 16 && !(tmode === 1 && tmplSlow) ? 2 : 4;
+    if (cap === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);   // the template layout can be tried: the string path decides
+    // distinct values, first-seen order, stopping where the string path's Map count stops (labels * 4 > n at a new value)
+    var HB = 1 << Math.max(10, Math.min(20, 32 - Math.clz32(n * 2))), head = new Int32Array(HB).fill(-1), nxt = [], lab = [], codes = new Int32Array(n), stop = false, h, c, q, ls, le, m;
+    for (i = 0; i < n; i++) {
+      s = S[a + i]; e = E[a + i]; h = 2166136261; for (k = s; k < e; k++) h = Math.imul(h ^ B[k], 16777619); h = (h ^ (e - s)) >>> 0;
+      c = head[h & (HB - 1)];
+      while (c >= 0) { ls = S[a + lab[c]]; le = E[a + lab[c]]; if (le - ls === e - s) { for (m = 0; m < e - s && B[ls + m] === B[s + m]; m++); if (m === e - s) break; } c = nxt[c]; }
+      if (c < 0) { if (lab.length * 4 > n) { stop = true; break; } c = lab.length; lab.push(i); nxt.push(head[h & (HB - 1)]); head[h & (HB - 1)] = c; }
+      codes[i] = c;
+    }
+    function joinOf(idx, cnt) { var len = 0, j, p = 0, o; for (j = 0; j < cnt; j++) len += E[a + idx(j)] - S[a + idx(j)]; o = new Uint8Array(len + (cnt ? cnt - 1 : 0)); for (j = 0; j < cnt; j++) { if (j) o[p++] = 0; var x = S[a + idx(j)], y = E[a + idx(j)]; if (y - x > 16) { o.set(B.subarray(x, y), p); p += y - x; } else while (x < y) o[p++] = B[x++]; } return o; }
+    var all = joinOf(function (j) { return j; }, n);
+    if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(all); } catch (er) { throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); } }
+    function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
+    var nl = lab.length;
+    if (stop || nl * 4 > n || nl >= 65536) { cand('s', {}, dlOf([all], nl)); return settle(zs, level, best); }
+    var lb = joinOf(function (j) { return lab[j]; }, nl), wd = Math.max(1, 32 - Math.clz32(nl - 1)), cb, ca = new Array(n);
+    for (i = 0; i < n; i++) ca[i] = codes[i];
+    if (nl > 256) { var u16 = new Uint16Array(n); for (i = 0; i < n; i++) u16[i] = codes[i]; cb = new Uint8Array(u16.buffer); } else { cb = new Uint8Array(n); for (i = 0; i < n; i++) cb[i] = codes[i]; }
+    cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
+    cand('D', { w: wd, wide: false }, [lb.slice(), bitpack(ca, wd)], { distinct: nl });
+    return settle(zs, level, best);
+  }
   var B28_MIN = 8192;
   // B34 (research): a block given as columns ({ keys, A: one array per key, a, b }) fills the same column state the B21a row loop builds, with no row objects. Every row holds every key.
   function b34Fill(ci, n, pb, keys, seen, cols, cs21, pls) {
     var full = new Uint8Array(pb), j, i, x, c21, arr, a = ci.a; full.fill(255); if (n & 7) full[pb - 1] = (1 << (n & 7)) - 1;
     for (j = 0; j < ci.keys.length; j++) { keys.push(ci.keys[j]); seen.set(ci.keys[j], j); cols.push(null); pls.push(full); arr = ci.A[j];
-      if (!Array.isArray(arr)) { c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); cs21.push(c21); continue; }   // a typed number column: one copy, no per-value work
+      if (isByteCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a }); continue; }   // a text column as UTF-8 bytes plus value offsets: encoded from the bytes (byteCol), no strings
+      if (!Array.isArray(arr)) { if (ci.view && arr instanceof Float64Array) { cs21.push({ a: null, nb: arr.subarray(a, a + n), np: null, m: n, c: n }); continue; } c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); cs21.push(c21); continue; }   // ci.view (packBlock(columns), no helpers): a Float64Array is read in place, not copied   // a typed number column: one copy, no per-value work
       c21 = { a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }; cs21.push(c21);
       for (i = 0; i < n; i++) { x = arr[a + i];
         if (c21.a !== null) c21.a.push(x); else if (typeof x === 'number') { c21.nb[c21.m++] = x; c21.c++; } else if (x === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x); c21.nb = null; } } }
@@ -739,6 +778,7 @@
     if (pre === 1) fl = b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
     if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
     if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
+    else if (pre === 3) e = byteCol(a.bc, a.a0, a.c, zs, level, tm21, key);
     else if (pre === 1) e = settle(zs, level, encodeColumn0(a, zs, level, tm21, undefined, key, fl));
     else e = encodeColumn(a, zs, level, tm21, undefined, key);
     NK_BUF = null;
