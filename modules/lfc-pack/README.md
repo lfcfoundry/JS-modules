@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.32 · API 0**
+**Version 0.10.33 · API 0**
 
-**Tested in:** Full lfc-pack suite; new test/b57.cjs (wasm and JS template builders give the same file in 12 cases, incl. byte 1 in a value, a 4,096-slot template, Unicode and 0 chars); research: same bytes in 46 cases, same-page template save time in Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -132,6 +132,7 @@ Since 0.10.29 the kernels skip empty values without a branch (B48), presence bit
 
 Number columns with empty values as typed arrays: `unpackColumns(bytes, { keys, nulls: 'NaN' })` (also `unpackColumnsParallel` and `R.columns(i, ...)`) gives every number column one value per row in a typed array, with NaN where the value is null or the row lacks the key; text and other columns are unchanged. Without it, a number column with any null comes back as a plain list, which V8 reads about 10 times slower.
 
+Filling arrays you keep (since 0.10.33): `unpackColumns(bytes, { keys, nulls: 'NaN', into: { fare: new Float64Array(totalRows) } })` writes that key's number column into your `Float64Array` (block after block, one entry's `cols.fare` is a view of it) instead of making a new 8 MB array on every call, so pass the same arrays again to read the next file. A number column then always comes back as a `Float64Array`, even when it has whole numbers only (the usual result is an `Int32Array`); a key that is not a plain number column, or is missing from some rows, still comes back as a fresh array, so read the result's `cols`. Throws if an array is not a `Float64Array` or is too short. Warm 1,000,000-row read: 0.75 to 0.82 of the time in Chromium 156, 0.82 to 0.87 in Firefox 158; WebKitGTK 2.52.6 is within its timer's noise. Don't use an array while another read is filling it.
 Reading a whole table as rows (since 0.10.18): `await LfcPack.unpackRowsParallel(bytes, { workers })` resolves to the same rows as `unpackRows(bytes)`. Helper workers decode the blocks and the calling thread builds each block's rows in order, pausing between blocks, so the longest page pause during a 300,000-row read falls from 186-305 ms to 34-64 ms (Chromium 156, Firefox 158 and WebKitGTK 2.52.6 container runs). The first call reads on this thread and then starts helpers (at most 4, closed after 10 s idle); later reads took 0.78 of `unpackRows` in Chromium 156 and 0.77 to 0.93 in Firefox 158 (taxi-like table). WebKit browsers, other options, one-block files and non-flat files use plain `unpackRows`.
 
 Row numbers instead of rows (since 0.10.19): `LfcPack.unpack(file, { equals: { key, value }, positions: true })` (also `anyOf` and `range`) returns a `Uint32Array` of the numbers of the matching rows, in file order, without building any row object, for callers that keep their own columns. The numbers are the same as the indexes of the rows `unpack(file)` gives, so `unpack(file)[positions[i]]` is the i-th match. Measured on 200,000-row tables in cloud Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (median of 5 fresh pages, 9 runs each): a common or rare value takes 0.10 to 0.28 of the time the row read takes, a range that keeps half the rows 0.14 to 0.31, a value that is not there the same time. Without `positions` nothing changes.

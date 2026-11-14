@@ -492,6 +492,7 @@
   var CP2_1 = true;
   function colBw(b, n, p, view) { var X = bdx(); if (!X || p.w > 24) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b); X.decB(L.at[0], n, p.w, p.mn, p.scale, L.at[1]); var f = new Float64Array(X.memory.buffer, L.at[1], n); return view ? f : f.slice(); }   // view: a live view of wasm memory, valid only until the next bdec call (CP2-1)
   // B42 nulls: 'NaN' (name picked by the owner 11.14): a block's columns entry where every number column has one value per row: a number column (typed, or a list of only numbers and nulls) becomes a Float64Array (typed columns of one kind keep their kind when no row is empty), with NaN for null and for rows that lack the key; other columns are left as they are
+  function intoSlot(a, k, off, n) { if (!(a instanceof Float64Array)) throw new Error('LfcPack: into.' + k + ' must be a Float64Array'); if (off + n > a.length) throw new Error('LfcPack: into.' + k + ' holds ' + a.length + ' values but the file needs ' + (off + n)); return a.subarray(off, off + n); }
   function nanCols(e) {
     var n = e.n, k, v, pr, o, i, z, y, ok;
     for (k in e.cols) { v = e.cols[k]; pr = e.present[k];
@@ -503,7 +504,7 @@
   }
   // B44 (research): files carry per-column XXH64 checks by default (as { check: 'xxh64' } did), so a read of a few columns checks only those; { check: 'crc32' } keeps the old whole-block-only table
   var B44_DEFAULT = true; function chkX(o) { return o && o.check ? o.check === 'xxh64' : B44_DEFAULT; }
-  function colB(frames, n, p) { if (BD_DEC && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p); if (ow) return p.scale === 1 ? narrow(ow) : ow; } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
+  function colB(frames, n, p, tgt) { if (BD_DEC && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p, tgt ? 1 : 0); if (ow) { if (tgt) { tgt.set(ow); return tgt; } return p.scale === 1 ? narrow(ow) : ow; } } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
   function colD(frames, n, p) { var i, u, o; var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
 
@@ -597,11 +598,11 @@
       for (q = 0; q < im; q++) o[wi[q]] = iv[q]; return o; }
     return null;
   }
-  function decodeColumn(c, zs, frames, nan) {   // -> array-like of n values (nan: B42, a null-plane number column comes back as a Float64Array with NaN for null)
+  function decodeColumn(c, zs, frames, nan, tgt) {   // -> array-like of n values (nan: B42, a null-plane number column comes back as a Float64Array with NaN for null)
     var n = c.n, i, u, o, t = c.t, p = c.p;
-    if (t === 'N') { var iv = CP2_1 && nan && p.t === 'B' && BD_DEC && p.m >= 256 && p.p.w <= 24 ? colBw(frames[1], p.m, p.p, 1) : null; if (!iv) iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)); var pn = frames[0], q = 0; if (nan && !Array.isArray(iv)) { if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? NaN : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; } o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
+    if (t === 'N') { var iv = CP2_1 && nan && p.t === 'B' && BD_DEC && p.m >= 256 && p.p.w <= 24 ? colBw(frames[1], p.m, p.p, 1) : null; if (!iv) iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)); var pn = frames[0], q = 0; if (nan && !Array.isArray(iv)) { if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); o = tgt || new Float64Array(n); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? NaN : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; } o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
     if (t === 'V') return colV(frames, n, p);
-    if (t === 'B') return colB(frames, n, p);
+    if (t === 'B') return colB(frames, n, p, tgt);
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
     if (t === 'T') return colT(frames, n, p);
     // hex, UUID and address columns: the ASCII text of the whole column is written into one buffer and decoded once, then every value is cut out of it (decode once per column, slice)
@@ -1467,17 +1468,19 @@
     function eqKeep(F, want, rk, val) { var r = assemble(F, want), out = [], i; if (val instanceof AnyOf) { for (i = 0; i < r.length; i++) if (Object.prototype.hasOwnProperty.call(r[i], rk) && val.set.has(r[i][rk])) out.push(r[i]); return out; } for (i = 0; i < r.length; i++) if (r[i][rk] === val) out.push(r[i]); return out; }
     readEq = guard(readEq);
     // typed-columns read (no row objects): { n, keys, cols: { key: values }, present: { key: Uint8Array bit plane or null when every row has it } }; a key missing from some rows has values only for the rows that carry it, in row order
-    function columns(F, want, nan) {
+    function columns(F, want, nan, into, off) {
       var meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, cols = {}, present = {}, j, v;
       if (F.ordList) throw new Error('LfcPack: columns read needs a block without key-order lists');
       for (j = 0; j < K; j++) {
         if (want && !want[meta.keys[j]]) continue;
-        v = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr, nan);
+        var tg = into && into[meta.keys[j]] && meta.cols[j].n === n ? intoSlot(into[meta.keys[j]], meta.keys[j], off, n) : null;   // 0.10.33 into: the caller's Float64Array, the n values of this block
+        v = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr, nan, tg);
+        if (tg && v && v !== tg && v.length === n && (v instanceof Float64Array || v instanceof Int32Array)) { tg.set(v); v = tg; }
         if (!v) continue;
         cols[meta.keys[j]] = v; present[meta.keys[j]] = v.length === n ? null : pl.subarray(j * pb, (j + 1) * pb);
       }
       var out = { n: n, keys: Object.keys(cols), cols: cols, present: present };
       return nan ? nanCols(out) : out;
     }
-    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readPos: readPos, readRows: readRows, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify, nan) { return columns(flatFrames(zs, bytes, want, false, verify), want, nan); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readPos: readPos, readRows: readRows, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify, nan, into, off) { return columns(flatFrames(zs, bytes, want, false, verify), want, nan, into, off); } };
   }
