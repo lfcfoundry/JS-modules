@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.16.8 (API 2)
+ * Version 2.16.9 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2707,6 +2707,86 @@
     own = tmax === tmin ? 0 : Math.min(widthOf(tmax - tmin), widthOf(tdm * 2));
     return own <= cost ? out : 0;                              // 0: every row is a real date-time but one number would cost more than separate ones
   }
+
+  // One ISO date-time of 20 or 24 characters checked as tsFixed checks it: its 6 or 7 numbers go to p, the result is its one number (NaN when it is not one).
+  function tsParse1(s, g, p) {
+    var L = g === 6 ? 20 : 24, a, b, c, e, y, mo, d, h, mi, sec, ms = 0, yy, era, yoe, doy, days, v;
+    if (s.length !== L) return NaN;
+    a = s.charCodeAt(0) - 48; b = s.charCodeAt(1) - 48; c = s.charCodeAt(2) - 48; e = s.charCodeAt(3) - 48;
+    if ((a >>> 0) > 9 || (b >>> 0) > 9 || (c >>> 0) > 9 || (e >>> 0) > 9) return NaN;
+    y = ((a * 10 + b) * 10 + c) * 10 + e;
+    if (s.charCodeAt(4) !== 45 || s.charCodeAt(7) !== 45 || s.charCodeAt(10) !== 84 || s.charCodeAt(13) !== 58 || s.charCodeAt(16) !== 58) return NaN;
+    a = s.charCodeAt(5) - 48; b = s.charCodeAt(6) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return NaN; mo = a * 10 + b;
+    a = s.charCodeAt(8) - 48; b = s.charCodeAt(9) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return NaN; d = a * 10 + b;
+    a = s.charCodeAt(11) - 48; b = s.charCodeAt(12) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return NaN; h = a * 10 + b;
+    a = s.charCodeAt(14) - 48; b = s.charCodeAt(15) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return NaN; mi = a * 10 + b;
+    a = s.charCodeAt(17) - 48; b = s.charCodeAt(18) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return NaN; sec = a * 10 + b;
+    if (g === 6) { if (s.charCodeAt(19) !== 90) return NaN; }
+    else {
+      if (s.charCodeAt(19) !== 46 || s.charCodeAt(23) !== 90) return NaN;
+      a = s.charCodeAt(20) - 48; b = s.charCodeAt(21) - 48; c = s.charCodeAt(22) - 48;
+      if ((a >>> 0) > 9 || (b >>> 0) > 9 || (c >>> 0) > 9) return NaN; ms = (a * 10 + b) * 10 + c;
+    }
+    if (mo < 1 || mo > 12 || d < 1 || d > (mo === 2 && y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : DIM[mo - 1]) || h > 23 || mi > 59 || sec > 59) return NaN;
+    yy = mo <= 2 ? y - 1 : y;
+    era = yy >= 0 ? (yy / 400) | 0 : -(((399 - yy) / 400) | 0); yoe = yy - era * 400;
+    doy = (((153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5) | 0) + d - 1;
+    days = era * 146097 + yoe * 365 + ((yoe / 4) | 0) - ((yoe / 100) | 0) + doy - 719468;
+    v = days * 86400 + h * 3600 + mi * 60 + sec;
+    if (g === 7) v = v * 1000 + ms;
+    p[0] = y; p[1] = mo; p[2] = d; p[3] = h; p[4] = mi; p[5] = sec; p[6] = ms;
+    return v;
+  }
+  // tsFixed's choice (one number, or separate numbers) made from the rows it prices, without reading the rest: 1 one number, 0 separate numbers, -1 a priced row is not a date-time.
+  // Only for n > 2048, where tsFixed prices a sample.
+  function tsChoose(vals, n, g) {
+    var mask = 0, i, j, x, v, vp, mn = [], mx = [], dm = [], pv = [0, 0, 0, 0, 0, 0, 0], cu = [0, 0, 0, 0, 0, 0, 0], tmin = Infinity, tmax = -Infinity, tdm = 0, cost = 0, own;
+    while ((n >> (mask + 1)) > 1024) mask++;
+    mask = (1 << mask) - 1;
+    for (j = 0; j < g; j++) { mn.push(Infinity); mx.push(-Infinity); dm.push(0); }
+    for (i = 0; i < n; i += mask + 1) {
+      if (i > 0) { vp = tsParse1(vals[i - 1], g, pv); if (vp !== vp) return -1; }
+      v = tsParse1(vals[i], g, cu); if (v !== v) return -1;
+      if (v < tmin) tmin = v; if (v > tmax) tmax = v;
+      if (i > 0) { x = v - vp; if (x < 0) x = -x; if (x > tdm) tdm = x; }
+      for (j = 0; j < g; j++) {
+        x = cu[j]; if (x < mn[j]) mn[j] = x; if (x > mx[j]) mx[j] = x;
+        if (i > 0) { x -= pv[j]; if (x < 0) x = -x; if (x > dm[j]) dm[j] = x; }
+      }
+    }
+    for (j = 0; j < g; j++) cost += mx[j] === mn[j] ? 0 : Math.min(widthOf(mx[j] - mn[j]), widthOf(dm[j] * 2));
+    own = tmax === tmin ? 0 : Math.min(widthOf(tmax - tmin), widthOf(tdm * 2));
+    return own <= cost ? 1 : 0;
+  }
+  // tsSlots for rows not yet checked: every row checked as tsFixed checks it (null when one is not a date-time), each number read once
+  function tsSlotsChecked(vals, n, g, lead) {
+    var L = g === 6 ? 20 : 24, f = new Float64Array(n * g), i, s, a, b, c, e, y, mo, d, h, mi, sec, ms, l0 = 0, l1 = 0, l2 = 0, l3 = 0, l4 = 0, l5 = 0, l6 = 0;
+    for (i = 0; i < n; i++) {
+      s = vals[i];
+      if (s.length !== L) return null;
+      a = s.charCodeAt(0) - 48; b = s.charCodeAt(1) - 48; c = s.charCodeAt(2) - 48; e = s.charCodeAt(3) - 48;
+      if ((a >>> 0) > 9 || (b >>> 0) > 9 || (c >>> 0) > 9 || (e >>> 0) > 9) return null;
+      if (a === 0) l0 = 1;
+      y = ((a * 10 + b) * 10 + c) * 10 + e;
+      if (s.charCodeAt(4) !== 45 || s.charCodeAt(7) !== 45 || s.charCodeAt(10) !== 84 || s.charCodeAt(13) !== 58 || s.charCodeAt(16) !== 58) return null;
+      a = s.charCodeAt(5) - 48; b = s.charCodeAt(6) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; if (a === 0) l1 = 1; mo = a * 10 + b;
+      a = s.charCodeAt(8) - 48; b = s.charCodeAt(9) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; if (a === 0) l2 = 1; d = a * 10 + b;
+      a = s.charCodeAt(11) - 48; b = s.charCodeAt(12) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; if (a === 0) l3 = 1; h = a * 10 + b;
+      a = s.charCodeAt(14) - 48; b = s.charCodeAt(15) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; if (a === 0) l4 = 1; mi = a * 10 + b;
+      a = s.charCodeAt(17) - 48; b = s.charCodeAt(18) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; if (a === 0) l5 = 1; sec = a * 10 + b;
+      if (g === 6) { if (s.charCodeAt(19) !== 90) return null; }
+      else {
+        if (s.charCodeAt(19) !== 46 || s.charCodeAt(23) !== 90) return null;
+        a = s.charCodeAt(20) - 48; b = s.charCodeAt(21) - 48; c = s.charCodeAt(22) - 48;
+        if ((a >>> 0) > 9 || (b >>> 0) > 9 || (c >>> 0) > 9) return null; if (a === 0) l6 = 1; ms = (a * 10 + b) * 10 + c;
+        f[6 * n + i] = ms;
+      }
+      if (mo < 1 || mo > 12 || d < 1 || d > (mo === 2 && y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : DIM[mo - 1]) || h > 23 || mi > 59 || sec > 59) return null;
+      f[i] = y; f[n + i] = mo; f[2 * n + i] = d; f[3 * n + i] = h; f[4 * n + i] = mi; f[5 * n + i] = sec;
+    }
+    lead[0] = l0; lead[1] = l1; lead[2] = l2; lead[3] = l3; lead[4] = l4; lead[5] = l5; if (g === 7) lead[6] = l6;
+    return f;
+  }
   function tsSlots(vals, n, g, lead) {                      // the numbers of rows tsFixed has already checked, one array of n per number after another
     var f = new Float64Array(n * g), i, s, a, b, w = [4, 2, 2, 2, 2, 2, 3], o = [0, 5, 8, 11, 14, 17, 20], j, k;
     for (i = 0; i < n; i++) {
@@ -2752,6 +2832,20 @@
   Enc.prototype.timesFixed = function (vals, n) {
     var s0 = vals[0], g = s0.length === 20 ? 6 : s0.length === 24 ? 7 : 0, ts, c = this.ctl, lits, j, f, lead;
     if (!g || n > 3000000) return false;
+    if (n > 2048) {                                              // a large column: the sample decides first, so separate numbers skip the one-number pass
+      j = tsChoose(vals, n, g);
+      if (j < 0) return false;
+      if (j === 0) {
+        lead = new Uint8Array(g); f = tsSlotsChecked(vals, n, g, lead);
+        if (!f) return false;
+        lits = g === 6 ? ['', '-', '-', 'T', ':', ':', 'Z'] : ['', '-', '-', 'T', ':', ':', '.', 'Z'];
+        c.u8(CT_TEMPLATE); c.varint(1); c.varint(g);
+        for (j = 0; j <= g; j++) c.str(lits[j]);
+        for (j = 0; j < g; j++) c.varint(lead[j] ? (j === 0 ? 4 : j === 6 ? 3 : 2) : 0);
+        for (j = 0; j < g; j++) this.column(f.subarray(j * n, (j + 1) * n), n);
+        return true;
+      }
+    }
     ts = tsFixed(vals, n, g);
     if (ts === null) return false;
     lits = g === 6 ? ['', '-', '-', 'T', ':', ':', 'Z'] : ['', '-', '-', 'T', ':', ':', '.', 'Z'];
@@ -3063,7 +3157,25 @@
     return true;
   };
   Enc.prototype.fusedArrays = function (vals, n) {
-    var lens = new Uint32Array(n), q = 0, i, j, a, len, k = 0, flat, cols;
+    var lens, q = 0, i, j, a, len, k = 0, flat, cols, r;
+    if (LIST_DICT && !this.refs && !this.defer && !this.report) {     // lists of text: lengths and dictionary in one walk over the lists
+      for (i = 0; i < n; i++) { a = vals[i]; if (!Array.isArray(a)) return false; if (a.length) break; }
+      if (i < n && typeof a[0] === 'string') {
+        r = listScan(vals, n, i);
+        if (r === -2) return false;
+        if (r >= 0) {
+          q = r; lens = LS.lens;
+          this.ctl.u8(CT_ARRAYS); this.ctl.varint(q);
+          this.lengths(lens, n);
+          if (this.listDictEnd(q)) return true;
+          flat = q > 30000000 ? [] : new Array(q); q = 0;
+          for (i = 0; i < n; i++) { a = vals[i]; len = a.length; for (j = 0; j < len; j++) flat[q++] = a[j]; }
+          this.column(flat, q);
+          return true;
+        }
+      }
+    }
+    lens = new Uint32Array(n);
     for (i = 0; i < n; i++) {
       a = vals[i]; if (!Array.isArray(a)) return false;
       len = a.length; lens[i] = len; q += len;
@@ -3088,7 +3200,51 @@
   };
   // lists of text from a few values (tags, roles): the dictionary is built straight from the lists, with no flat copy and no kind pass; the same bytes as column(flat)
   // when every item is text, there are 2 or more values and the text dictionary would be used; false (nothing written) otherwise
-  var LIST_DICT = true;
+  var LIST_DICT = true, LS = { lens: null, idx: null, dict: null, top: -1 };
+  // listDict's dictionary and fusedArrays' lengths in one walk, from the first list with items (row i0, whose first item is text).
+  // The item count (0 or more) when every row is a list of text the dictionary takes; -2 a row is not a list (fusedArrays gives up); -1 anything else (the usual path runs).
+  function listScan(vals, n, i0) {
+    var lens = new Uint32Array(n), cap = n * 2 + 16, idx = new Uint16Array(cap), dict = [], seen = null, bk, nx, i, j, a, len, s, l, h, id, p = 0, top = -1, t;
+    bk = BK || (BK = new Int32Array(4096)); nx = BKN || (BKN = new Int32Array(256)); bk.fill(-1);
+    for (i = i0; i < n; i++) {
+      a = vals[i]; if (!Array.isArray(a)) return -2;
+      len = a.length; lens[i] = len;
+      if (p + len > cap) { cap = (p + len) * 2; t = new Uint16Array(cap); t.set(idx.subarray(0, p)); idx = t; }
+      for (j = 0; j < len; j++) {
+        s = a[j];
+        if (typeof s !== 'string') return -1;
+        if (seen === null) {
+          l = s.length; h = l ? ((l << 5) ^ s.charCodeAt(0) ^ (s.charCodeAt(l - 1) << 3)) & 4095 : 0;
+          id = bk[h];
+          while (id >= 0 && dict[id] !== s) id = nx[id];
+          if (id >= 0) { if (p < 256 && id > top) top = id; idx[p++] = id; continue; }
+          if (dict.length < 256) { id = dict.length; dict.push(s); nx[id] = bk[h]; bk[h] = id; if (p < 256 && id > top) top = id; idx[p++] = id; continue; }
+          seen = new Map(); for (id = 0; id < dict.length; id++) seen.set(dict[id], id);
+        }
+        id = seen.get(s);
+        if (id === undefined) {
+          id = dict.length;
+          if (id >= 65536 || (id > 4096 && id * 2 > p + 1)) return -1;
+          seen.set(s, id); dict.push(s);
+        }
+        if (p < 256 && id > top) top = id;
+        idx[p++] = id;
+      }
+    }
+    LS.lens = lens; LS.idx = idx; LS.dict = dict; LS.top = top;
+    return p;
+  }
+  // listDict's ending for a listScan result: false (nothing written) when the text dictionary would not be used
+  Enc.prototype.listDictEnd = function (q) {
+    var dict = LS.dict, idx = LS.idx, top = LS.top, m = dict.length, sample = q < 256 ? q : 256, c = this.ctl;
+    LS.lens = LS.idx = LS.dict = null;
+    if (m < 2 || !((top + 1) * 2 <= sample || q <= 64)) return false;
+    if (++this.depth > MAX_DEPTH) jfail('nested too deeply');
+    idx = m <= 256 ? new Uint8Array(idx.subarray(0, q)) : idx.slice(0, q);
+    if (!(this.picker && q >= ADAPT_MIN && this.dictCodes(idx, q, m, dict))) { c.u8(CT_STRD); c.varint(m); this.rawStrings(dict, m); this.blob(idx, 'dict-index'); }
+    this.depth--;
+    return true;
+  };
   Enc.prototype.listDict = function (vals, n, q) {
     var seen = null, dict = [], idx = new Uint16Array(q), i, j, a, len, s, id, p = 0, sample = q < 256 ? q : 256, top = -1, m, c = this.ctl, l, h, bk = null, nx = null;
     if (BUCKETS) { bk = BK || (BK = new Int32Array(4096)); nx = BKN || (BKN = new Int32Array(256)); bk.fill(-1); } else seen = new Map();
