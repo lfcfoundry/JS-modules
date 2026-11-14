@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.16.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.10.25 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.26 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-14 · **netflow-layers** 1.13.0 · API 1: New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
 - 2026-11-14 · **memory-compression** 2.16.2 · API 2: Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
 - 2026-11-14 · **memory-compression** 2.16.1 · API 2: Unpacking lists with decimal numbers is about 10 to 15% faster
+- 2026-11-14 · **lfc-pack** 0.10.26 · API 0: New: open().block(i, { rows }) reads only the rows you ask for from a block, about 2.5 times faster when a sorted page needs a few rows from many blocks.
 - 2026-11-14 · **lfc-pack** 0.10.25 · API 0: Reading whole number columns that have empty values, with nulls: 'NaN', is about a sixth faster in Chrome and Edge and a quarter faster in Firefox.
 - 2026-11-14 · **lfc-pack** 0.10.24 · API 0: Flat blocks are written at zstd level 2 by default (was 3): text-heavy saves such as logs are about 10-14% faster for about 0.4% more bytes; pass level: 3 for the old bytes
 - 2026-11-14 · **lfc-pack** 0.10.23 · API 0: Faster saves of tables with text columns such as logs (about a quarter to two fifths less time), with the same file bytes

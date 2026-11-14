@@ -2,6 +2,19 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.26 · API 0 · 2026-11-14
+
+### Quick
+open().block(i, { rows, keys }): the rows at chosen block-local positions, in the order given, without building the other rows of the block. Old code is unaffected.
+
+### Details
+API: R.block(i, { rows: [positions], keys: [names] }) -> Promise of row objects, the same objects R.block(i) holds at those positions (a repeated position gives the same object). keys is optional and reads only those keys. A position outside the block throws RangeError; rows that is not a list throws TypeError.
+Speed: 2 rows from each of 46 blocks (1.2 million Workbench-style rows, 2 MB blocks), median of 5 reads, 3 fresh pages alternating with 0.10.25's whole-block read: 0.39 Chromium 156, 0.41 Firefox 158, 0.38 WebKitGTK 2.52.6 (ratio of median times). 50 rows per block: 0.44 / 0.27 / 0.36. Same rows in every browser.
+At half a block or more, and for nested or raw blocks, the whole block is read and picked from (same speed as before).
+
+### Deep
+Chosen-rows read (owner name pick A, 2026.11.14 12:58 PM Eastern) for the LFCP Workbench cold sort: a top-50 page touches about 28 blocks and needs 1-2 rows of each. flat.js readRows sorts and de-duplicates the positions, then each column gives only those values through selAt / decodeAt (the per-position decoders that equality reads use: text, labels, booleans, varint, bit-packed, UUID, hex, IP and null-plane columns); other layouts (templates, arrays, JSON cells) decode whole. Rows are built by selRows (same key order as assemble) and mapped back to the order asked. Fallback to the whole-block path for key-order-list blocks, __proto__ keys, lazy or generated row modes, and when the asked rows are half the block or more. Wired through the arena reader (wasm and JS). Checks: test/blockrows.cjs, 1,064 checks over 13 file shapes (dense, typed, sparse, UUID/hex/IP, nested values, 24-key wide, unicode, templates, nested blocks, exact raw blocks, xxh64, logs, events): same JSON as block(i) picked, repeated rows share the object, keys option, bad positions throw. Full lfc-pack Node suite passes. Results: js-modules-research/chosen-rows-0.10.26-2026.11.14/.
+
 ## 0.10.25 · API 0 · 2026-11-14
 
 ### Quick
