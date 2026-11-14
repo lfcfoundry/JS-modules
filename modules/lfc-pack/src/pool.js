@@ -10,7 +10,7 @@
   function runJob(m) {   // in a helper: { id, kind, buf, crc, want } -> { msg, transfer }
     try {
       if (m.kind === 'p') {   // pack one run of whole blocks: the slice is dropped as soon as it is packed
-        var eqo = []; var out = packMany([{ name: null, bytes: m.buf }], Object.assign({}, m.opts, { _eqout: eqo })); m.buf = null;
+        var eqo = []; var out = packMany([{ name: null, bytes: m.buf }], Object.assign({}, m.opts, { _eqout: eqo, _piece: true })); m.buf = null;
         var f = openFile(out);
         return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.sec[SEC_EQF] ? JSON.parse(tdr.decode(f.footer.sec[SEC_EQF]))[0] : f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked, eqf: eqo }, transfer: [out.buffer] };
       }
@@ -230,7 +230,7 @@
     opts = opts || {};
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
-      for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumnsParallel needs flat-row blocks'); n += file.blocks[i][3]; }
+      for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f' && file.blocks[i][4] !== 'r') throw new Error('LfcPack: unpackColumnsParallel needs flat-row blocks'); n += file.blocks[i][3]; }
       if (nb < 2 || w < 1) return b35Join(unpackColumns(bytes, opts.keys ? { keys: opts.keys } : undefined), n);
       if (!B35_POOL && !(globalThis.__B35AUTO === 0)) {   // B35b auto start: the first read joins on this thread (no helper start-up to wait for), then helpers start for the next read
         var out0 = b35Join(unpackColumns(bytes, opts.keys ? { keys: opts.keys } : undefined), n);

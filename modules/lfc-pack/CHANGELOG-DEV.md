@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.20 · API 0 · 2026-11-14
+
+### Quick
+tiny tables stored as one raw block; zone() is null for one-block files under 100 rows
+
+### Details
+same values and key order; files of 100+ rows unchanged
+
+### Deep
+lfc-pack 0.10.20: B39k small-file layout, owner sent 11.14 9:25 AM and accepted the under-32-row save slowdown (1.03-1.61, +10 to +60 us) and the zone() change on a card. Handoff HANDOFF-B39k-small-files-to-code-thread-2026.11.14.md. Rebased onto 0.10.19; research switches __B39 and __B39Z removed. b39chk2: 4 fixtures x 13 sizes x packRows/pack/exact, 0 value, key-order or column-type differences; bytes of 100+ row files identical; -0, 1e400, integer keys, empty objects checked; node test/run.js passes.
+
 ## 0.10.19 · API 0 · 2026-11-14
 
 ### Quick

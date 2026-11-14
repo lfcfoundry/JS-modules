@@ -16,7 +16,8 @@ const J = require('../lfc-pack.js');
   ok(await R.readAhead() === true && reads.length === 2 && reads[1] === R.blocks[2].offset, 'a second call reads the next block');
   ok(same(first, rows.slice(0, 10)) && same(await R.rows({ from: 500, count: 20 }), rows.slice(500, 520)), 'rows unchanged');
   const R2 = await J.open(fn); reads = []; const p = R2.rows({ from: 0, count: 3 }), a = R2.readAhead(); ok(await a === true && same(await p, rows.slice(0, 3)), 'waits for a read in progress');
-  const one = await J.open(J.pack(Buffer.from('{"a":1}\n{"a":2}\n'))); ok(await one.readAhead() === true && await one.readAhead() === false, 'one-block file: read once, then nothing');
+  const one = await J.open(J.pack(Buffer.from(Array.from({ length: 200 }, (_, i) => '{"a":' + i + '}\n').join(''))));   // 200 rows: tables of 32 rows or fewer may be stored as one raw block (B39), and raw files have nothing to read ahead
+  const tiny = await J.open(J.pack(Buffer.from('{"a":1}\n{"a":2}\n'))); ok(await tiny.readAhead() === false, 'a tiny raw-block file: nothing to read ahead'); ok(await one.readAhead() === true && await one.readAhead() === false, 'one-block file: read once, then nothing');
   const ex = await J.open(J.pack(Buffer.from(rows.slice(0, 6000).map((r) => '{ "id" : ' + r.id + ' ,  "name": "' + r.name + '" }').join('\r\n') + '\r\n'), { exact: true, blockBytes: 32768 })); ok(await ex.readAhead() === false, 'raw (exact) file: nothing');
   const all = await J.open(f); for (let i = 0; i < all.blocks.length; i++) await all.readAhead(); ok(await all.readAhead() === false, 'false when every block was read');
   console.log(bad ? 'readahead: ' + bad + ' bad of ' + n : 'readahead ok, ' + n + ' checks'); process.exit(bad ? 1 : 0);
