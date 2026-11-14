@@ -137,7 +137,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster (Chromium, Firefox and WebKitGTK).
 - 2026-11-08 · **lzma-decode** 1.7.1 · API 1: The optional warm() makes the first plain-JavaScript unpack 11 to 27% faster.
 - 2026-11-08 · **lzma-decode** 1.7.0 · API 1: New optional lzmaDecode.warm(): call it from an idle callback and the first plain-JavaScript unpack is 4-9% faster (6-8 ms of idle work).
-- 2026-11-08 · **lfc-pack** 0.8.1 · API 0: Reading only some keys of nested rows is up to 2 times faster; output unchanged.
+- 2026-11-08 · **lfc-pack** 0.8.1 · API 0: Reading only some keys of nested rows is up to 2 times faster in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; output unchanged.
 - 2026-11-08 · **lfc-pack** 0.8.0 · API 0: New LfcPack.packParallelStream(): push text in pieces while it is read, workers pack the blocks, same file bytes as pack.
 - 2026-11-08 · **lfc-pack** 0.7.2 · API 0: Fixes a 0.7.1 bug where text with accents or emoji could fail to read back.
 - 2026-11-08 · **lfc-pack** 0.7.1 · API 0: Packing flat rows is 4 to 11% faster, same file bytes.
@@ -274,7 +274,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **netflow-hierarchy** 1.4.0 · API 1: Names on treemaps and circle packs read on the colors actually drawn; group boxes get a name strip and their items' color.
 - 2026-11-05 · **netflow-hierarchy** 1.3.1 · API 1: Chord, bundle and radial tree names on the left side are no longer cut off at the picture edge.
 - 2026-11-05 · **netflow-engine** 2.4.0 · API 2: toSvg(links, options): links in, a finished picture out, in one call.
-- 2026-11-05 · **memory-compression** 2.11.0 · API 2: view() opens date and template text columns, and coordinate pairs, in windows: first row of a big user list about 2.4 to 3 times as fast.
+- 2026-11-05 · **memory-compression** 2.11.0 · API 2: view() opens date and template text columns, and coordinate pairs, in windows: first row of a big user list about 2.4 to 3 times as fast (laptop Chromium 156, Firefox 160).
 - 2026-11-05 · **memory-compression** 2.10.4 · API 2: First pack of a big list is 7 to 12% faster in a fresh page.
 - 2026-11-05 · **lzma-pack** 2.0.3 · API 2: Packed pages open sooner: the loader starts after two animation frames (or 100 ms in a background tab) instead of a fixed 30 ms wait.
 - 2026-11-05 · **lfc-pack** 0.5.1 · API 0: pack, unpack and the other calls now work without calling init() first.
@@ -317,8 +317,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-01 · **netflow-circular** 1.1.0 · API 1: Chord and arc pictures take an optional title, subtitle and source in the scene options.
 - 2026-11-01 · **netflow-circular** 1.0.1 · API 1: Changing a look on a big chord picture is 2.9 to 7.8 times faster (with netflow-hierarchy 1.0.1), and a copy kept next to netflow-hierarchy.js in one folder now finds it.
 - 2026-11-01 · **netflow-circular** 1.0.0 · API 1: First version: the circular views of Netflow Map (Chord, Bundles) as an add-on for netflow-engine.
-- 2026-11-01 · **memory-compression** 2.10.3 · API 2: view() also opens number and text columns inside nested records and lists block by block: the first row is ready 1.6 to 14 times as fast (38 to 93% less time) on such lists; same results.
-- 2026-11-01 · **memory-compression** 2.10.2 · API 2: view() opens a long list much faster: the first row is ready 1.3 to 16 times as fast (21 to 94% less time), because number and dictionary columns are decoded only where a row is read.
+- 2026-11-01 · **memory-compression** 2.10.3 · API 2: view() also opens number and text columns inside nested records and lists block by block: the first row is ready 1.6 to 14 times as fast (38 to 93% less time) on such lists (laptop Chromium 156, Firefox 160); same results.
+- 2026-11-01 · **memory-compression** 2.10.2 · API 2: view() opens a long list much faster: the first row is ready 1.3 to 16 times as fast (21 to 94% less time), because number and dictionary columns are decoded only where a row is read (laptop Chromium 156, Firefox 160).
 - 2026-11-01 · **lfc-pack** 0.4.19 · API 0: unpackText (rows back as text) is 1.4 to 2.2 times as fast (29 to 54% less time), and the first pack of number-heavy files after a page loads is quicker; files and text come out the same.
 - 2026-11-01 · **lfc-pack** 0.4.18 · API 0: Packing is 8 to 26% faster on files with text columns and IPv4 fields; files come out the same.
 - 2026-11-01 · **lfc-pack** 0.4.17 · API 0: Packs logs in about a third of the time (laptop Firefox 0.33 to 0.34), and logs with escaped quotes up to 40 times faster at 256 KB blocks. Same files, except escaped-text logs, which come out 0.04 to 0.2% smaller.
@@ -517,7 +517,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-23 · **memory-compression** 2.4.9 · API 2: 2.4.9: packAsync and unpackAsync yield only when a slice is used up: total time 0.95 to 1.4x of pack/unpack (was up to 3.3x in WebKit); cold pager reads 66 to 94% cheaper; no-eval pages open up to 2.6x faster; pool.start() primes.
 - 2026-10-23 · **memory-compression** 2.4.7 · API 2: New opt-in warm(): call it at idle and it packs and opens a made-up 1,200-row list in 18 short tasks, so the first big pack is 12 to 39 ms faster (log events, four browsers). Costs 32 to 65 ms at idle. No format change.
 - 2026-10-23 · **memory-compression** 2.4.6 · API 2: 2.4.6: new opt-in unpackAsync() opens a long packed list in short slices so the page stays free, same value as unpack(); page held 2 to 8 ms instead of 8 to 26, but total time 1.0 to 2.4x longer (most in WebKit). No new policy need.
-- 2026-10-23 · **memory-compression** 2.4.3 · API 2: 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(); 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest page task 6 to 9 ms. Slower in a few short-list cells.
+- 2026-10-23 · **memory-compression** 2.4.3 · API 2: 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(). 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest task 6 to 9 ms (Chromium 155, Firefox 158, WebKitGTK 2.52.6).
 - 2026-10-23 · **memory-compression** 2.4.2 · API 2: 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
 - 2026-10-23 · **memory-compression** 2.4.10 · API 2: Pages that forbid generated code now save lists of records faster (fast pack of 60,000 links 15 to 32% shorter; balanced up to 16%). pool.start() returns a promise that resolves when the workers are warm. Same bytes and format.
 - 2026-10-23 · **gpu-blur** 1.0.0 · API 1: New: GpuBlur, a picture blur that uses WebGL 2 where the device is fast at it, then WebAssembly, then plain JavaScript. All three give the same picture, and big jobs run in short slices.

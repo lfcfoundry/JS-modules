@@ -54,16 +54,16 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Two smaller files: memory-compression.min.js (83 KB gzipped, was 122.5) and a read-only memory-compression-read.min.js (37 KB) for pages that only open data.
 
 ## 2.11.0 · API 2 · 2026-11-05
-- view() opens date and template text columns, and coordinate pairs, in windows: first row of a big user list about 2.4 to 3 times as fast.
+- view() opens date and template text columns, and coordinate pairs, in windows: first row of a big user list about 2.4 to 3 times as fast (laptop Chromium 156, Firefox 160).
 
 ## 2.10.4 · API 2 · 2026-11-05
 - First pack of a big list is 7 to 12% faster in a fresh page.
 
 ## 2.10.3 · API 2 · 2026-11-01
-- view() also opens number and text columns inside nested records and lists block by block: the first row is ready 1.6 to 14 times as fast (38 to 93% less time) on such lists; same results.
+- view() also opens number and text columns inside nested records and lists block by block: the first row is ready 1.6 to 14 times as fast (38 to 93% less time) on such lists (laptop Chromium 156, Firefox 160); same results.
 
 ## 2.10.2 · API 2 · 2026-11-01
-- view() opens a long list much faster: the first row is ready 1.3 to 16 times as fast (21 to 94% less time), because number and dictionary columns are decoded only where a row is read.
+- view() opens a long list much faster: the first row is ready 1.3 to 16 times as fast (21 to 94% less time), because number and dictionary columns are decoded only where a row is read (laptop Chromium 156, Firefox 160).
 
 ## 2.10.1 · API 2 · 2026-10-31
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
@@ -126,7 +126,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - 2.4.6: new opt-in unpackAsync() opens a long packed list in short slices so the page stays free, same value as unpack(); page held 2 to 8 ms instead of 8 to 26, but total time 1.0 to 2.4x longer (most in WebKit). No new policy need.
 
 ## 2.4.3 · API 2 · 2026-10-23
-- 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(); 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest page task 6 to 9 ms. Slower in a few short-list cells.
+- 2.4.3: new opt-in packAsync() packs a long list without freezing the page, same bytes as pack(). 60,000 rows balanced: 85 to 117 ms as one task, 54 to 83 ms total, longest task 6 to 9 ms (Chromium 155, Firefox 158, WebKitGTK 2.52.6).
 
 ## 2.4.2 · API 2 · 2026-10-23
 - 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
