@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.25 · API 0 · 2026-11-14
+- Reading whole number columns that have empty values, with nulls: 'NaN', is about a quarter faster in Chrome, Edge and Firefox.
+
 ## 0.10.24 · API 0 · 2026-11-14
 - Flat blocks are written at zstd level 2 by default (was 3): text-heavy saves such as logs are about 10-14% faster for about 0.4% more bytes; pass level: 3 for the old bytes
 
