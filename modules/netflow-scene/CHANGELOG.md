@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.13.0 · API 1 · 2026-11-08
-- Area bands are drawn as one shape instead of one per step: area charts are 1.2 to 7.7 times as fast (15 to 87% less time) to show as SVG. Only the SVG export changed: the seams between steps are gone and the file is 0.38 times the size. Canvas drawing is unchanged.
+- Area bands are drawn as one shape instead of one per step: area charts show 1.2 to 7.7 times as fast as SVG. Only the SVG export changed: seams are gone, the file is 0.38 times the size, canvas drawing is unchanged.
 
 ## 1.12.1 · API 1 · 2026-11-08
 - SVG export: dots in short same-color runs no longer get a group each, so big scatters with mixed colors load 25-40% faster, same picture.
