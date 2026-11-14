@@ -37,5 +37,14 @@ const JF = require('../lfc-pack.js'), assert = require('assert'), gen = require(
   const queued = pool.unpack(pending);
   pending.fill(0);
   assert.deepStrictEqual(await queued, expected, 'queued worker receives the pre-mutation bytes');
+  // P13l: equality reads (equals, anyOf, rows, exact) go through the pool with the same rows as unpack, never every row
+  { const rows = []; for (let i = 0; i < 6000; i++) rows.push({ id: i, kind: 'k' + (i % 7), n: i % 50 });
+    const eb = JF.pack(Buffer.from(rows.map((r) => JSON.stringify(r)).join('\n')), { blockBytes: 20000 });
+    for (const o of [{ equals: { key: 'kind', value: 'k3' } }, { equals: { key: 'kind', value: 'k3' }, anyOf: ['k5'] }, { equals: { key: 'kind', value: 'nope' } }, { equals: { key: 'n', value: 7 }, keys: ['id'] }, { equals: { key: 'kind', value: 'k2' }, rows: 'lazy' }, { equals: { key: 'kind', value: 'k2' }, exact: true }]) {
+      const a = await pool.unpack(eb, o), w = JF.unpack(eb, o);
+      assert.equal(a.length, w.length, 'pool equals row count ' + JSON.stringify(o)); assert.ok(w.length < 6000);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(w)));
+    }
+    const ac = new AbortController(); ac.abort(); let ae = null; try { await pool.unpack(eb, { equals: { key: 'kind', value: 'k3' }, signal: ac.signal }); } catch (e) { ae = e; } assert.ok(ae, 'aborted equals read rejects'); }
   pool.close();
 })().catch((e) => { console.log('FAIL', e); process.exit(1); });

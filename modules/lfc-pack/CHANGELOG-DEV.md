@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.16 · API 0 · 2026-11-13
+
+### Quick
+Fixes a bug: a helper-pool read with an equals filter returned every row; it now returns the same rows as unpack and is faster
+
+### Details
+pool.unpack(bytes, { equals }) (and anyOf, rows, exact) ignored the filter and returned every row. Those reads now go to the equality reader that unpack uses, which skips blocks that cannot match. Laptop, 200,000 rows: 10% filter 36 ms in Firefox 161 and 29.6 ms in Chrome 157, against 101 and 94.7 ms before, with the wrong rows.
+
+### Deep
+pool().unpack with equals (and anyOf, rows, exact) returned every row of the file instead of the matching rows; it now returns the same rows as unpack, and reads are faster (Firefox 161 and Chrome 157, 200,000 rows, 10% filter: 36 and 29.6 ms against 101 and 94.7 ms).
+
 ## 0.10.15 · API 0 · 2026-11-13
 
 ### Quick
