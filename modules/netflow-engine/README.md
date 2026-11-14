@@ -192,3 +192,11 @@ The file is generated; do not hand-edit `netflow-engine.js`. It is made from Net
 - The engine is Netflow Map's own, by LFC Foundry. It starts from the layered, arc, matrix and shape drawings, choke points, traffic and drawing scores of the Story Editor's map (story-editor `editor/maplayout.js`, MIT, copied and generalized; no dependency on it).
 - Choke points use the dominator tree of Cooper, Harvey and Kennedy (2001). The Distances (stress) layout minimizes stress by stochastic gradient descent (Zheng, Pawar and Goodman, 2018) and uses far-apart pivot items for big maps. The Force arrangement uses Barnes-Hut repulsion (a quadtree in 2D, an octree in 3D). Quick groups use label propagation. The source comments name no other published method.
 - Related published pieces: [netflow-layers](../netflow-layers/README.md) and [netflow-sankey](../netflow-sankey/README.md), both cut from Netflow Map.
+
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- Layered drawing: Sugiyama, Tagawa and Toda, ["Methods for Visual Understanding of Hierarchical System Structures"](https://doi.org/10.1109/TSMC.1981.4308636), IEEE SMC, 1981
+- Distances (stress) layout by stochastic gradient descent: Zheng, Pawar and Goodman, ["Graph Drawing by Stochastic Gradient Descent"](https://arxiv.org/abs/1710.04626), 2018
+- Force layout far-field: Barnes and Hut, ["A hierarchical O(N log N) force-calculation algorithm"](https://doi.org/10.1038/324446a0), Nature, 1986
+- Choke points: Cooper, Harvey and Kennedy, "A Simple, Fast Dominance Algorithm", 2001
+

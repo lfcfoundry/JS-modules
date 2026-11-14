@@ -108,5 +108,12 @@ Used right now in Netflow Map (its repository is private, so there is no link). 
 ## Prior art and credits
 The textbook algorithms (Cormen et al., Introduction to Algorithms): breadth-first search; depth-first search with a three-color mark where a link to a gray item closes a loop; union-find with path halving for components; Tarjan for strongly connected components; Kahn for topological order; Dijkstra with a four-ary heap that moves items up instead of storing copies; bidirectional Dijkstra for one pair. The first two were lifted from Netflow Map's engine and tested against it; the rest are tested against slow references (reachability matrix, Bellman-Ford) on 400 random graphs.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- Tarjan, ["Depth-first search and linear graph algorithms"](https://doi.org/10.1137/0201010), 1972; Kahn, ["Topological sorting of large networks"](https://doi.org/10.1145/368996.369025), 1962; Dijkstra, ["A note on two problems in connexion with graphs"](https://doi.org/10.1007/BF01386390), 1959; Kruskal, ["On the shortest spanning subtree of a graph"](https://doi.org/10.1090/S0002-9939-1956-0078686-7), 1956; Dinic, max flow by blocking flows, 1970; PageRank by Page, Brin, Motwani and Winograd, 1998
+- Betweenness: Ulrik Brandes, ["A faster algorithm for betweenness centrality"](https://doi.org/10.1080/0022250X.2001.9990249), 2001
+- Communities: Blondel, Guillaume, Lambiotte and Lefebvre, ["Fast unfolding of communities in large networks"](https://doi.org/10.1088/1742-5468/2008/10/P10008), 2008 (Louvain)
+- k-core: Batagelj and Zaversnik, ["An O(m) Algorithm for Cores Decomposition of Networks"](https://arxiv.org/abs/cs/0310049), 2003
+
 ## For AI agents
 Checks: `node modules/graph-walk/test/run.js` and `node modules/graph-walk/test/run-wasm.js` (same checks with the WebAssembly kernels forced on); `sh modules/graph-walk/wasm/build.sh --check` proves the shipped `.wasm` is what the C builds, `python3 modules/graph-walk/wasm/embed.py --check` that the `.js` carries it; browser speed: `node tests/graph-walk-browser.js <chromium|firefox|webkit>` (inline walks) and `GRAPHOLOGY_BUNDLE=gra.js node tests/graph-walk-graphology-browser.js <chromium|firefox|webkit>` (against graphology; the bundle is graphology plus its components, shortest-path and dag packages built into one script that sets `window.GRA`). The reference walks in the test are verbatim copies of Netflow Map's inline code; if Netflow's copies change, update the references first.

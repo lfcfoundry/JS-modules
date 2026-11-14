@@ -95,6 +95,10 @@ The download, memory, unpack, pack and `load()` rows were re-measured for 1.6.0 
 - **numcodecs-wasm-pco**, the other JavaScript build, is used only as the thing to compare against and to check that both open each other's files; none of its code is here.
 - The small interface around Pcodec (`wasm/src/lib.rs`) and the JavaScript files are ours, MIT, Copyright (c) 2026 LFC Foundry.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- Pcodec by Martin Loncaric and contributors (Apache-2.0, github.com/pcodec/pcodec)
+
 ## What it is not
 
 - Not stock Pcodec inside: the build uses Pcodec 1.0.4 with one small patch (the bit-unpack loop without per-number bounds checks, `wasm/pco-1.0.4-pcodec-js.patch`). The decoded numbers and written bytes are identical; it is about 6% faster to unpack.

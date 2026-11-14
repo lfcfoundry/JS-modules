@@ -247,6 +247,12 @@ No code from others; the ideas below are theirs. The base64url alphabet, FNV-1a 
 - Browser facts in "What it is not" were read from MDN (`StorageManager.persist()`, the `storage` event) and webkit.org ("Updates to Storage Policy"); nothing copied.
 - The `plain36` and `hex8` code endings copy the save-code formats of Apple Press and Fancy the Banana (same maker, LFC Foundry), so their old codes keep opening.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- [FNV-1a](http://www.isthe.com/chongo/tech/comp/fnv/index.html) by Glenn Fowler, Landon Curt Noll and Kiem-Phong Vo
+- base64url (RFC 4648)
+- Deflate: [RFC 1951](https://www.rfc-editor.org/rfc/rfc1951) (Phil Katz; zlib by Jean-loup Gailly and Mark Adler)
+
 ## Full research notes
 
 The long version of this page (the exact lean-build command lines for the two game sets, the 1.1.0 reference size, the history of 1.1.0 and 1.2.0, and longer notes on browser storage rules) is kept in the project's private knowledge base. The changelog is `CHANGELOG.md` in this folder.

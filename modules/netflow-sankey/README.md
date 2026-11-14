@@ -147,5 +147,9 @@ Used right now in Netflow Map (its repository is private, so there is no link). 
 - Netflow Map's flow chart (LFC Foundry's own) is where this code was cut from.
 No code from others; the ideas above are theirs.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- Crossing counting in n log n: Barth, Junger and Mutzel, ["Simple and Efficient Bilayer Cross Counting"](https://doi.org/10.7155/jgaa.00088), JGAA 2004, with a Fenwick tree (Peter Fenwick, ["A new data structure for cumulative frequency tables"](https://doi.org/10.1002/spe.4380240306), 1994)
+
 ## For AI agents
 Give `layoutFlows` a plain list of `{ from, to, value }`, draw with `toSvg` or from the result, and show `ignored` to the user if it is not 0. Names such as `__proto__` are rejected on purpose.

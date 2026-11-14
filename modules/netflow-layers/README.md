@@ -149,6 +149,14 @@ Used right now in Netflow Map (its repository is private, so there is no link). 
 
 No code from others; the ideas above are theirs.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- Layered drawing: Sugiyama, Tagawa and Toda, ["Methods for Visual Understanding of Hierarchical System Structures"](https://doi.org/10.1109/TSMC.1981.4308636), IEEE SMC, 1981
+- Cycle breaking: Eades, Lin and Smyth, ["A fast and effective heuristic for the feedback arc set problem"](https://doi.org/10.1016/0020-0190(93)90079-O), Information Processing Letters, 1993
+- Barycenter and median sweeps with neighbor swaps ("transpose"): Gansner, Koutsofios, North and Vo, ["A Technique for Drawing Directed Graphs"](https://graphviz.org/documentation/TSE93.pdf), IEEE TSE, 1993 (the method of [Graphviz](https://graphviz.org/) dot)
+- The `sift` step: Matuszewski, Schonfeld and Molitor, ["Using Sifting for k-Layer Straightline Crossing Minimization"](https://doi.org/10.1007/3-540-46648-7_3), Graph Drawing 1999
+- Crossing counting in n log n: Barth, Junger and Mutzel, ["Simple and Efficient Bilayer Cross Counting"](https://doi.org/10.7155/jgaa.00088), JGAA 2004, with a Fenwick tree (Peter Fenwick, ["A new data structure for cumulative frequency tables"](https://doi.org/10.1002/spe.4380240306), 1994)
+
 ## Full research notes
 
 The long version of this page (the full tables from Netflow Map's own notes, the history of each switch, and the longer comparison write-ups) is kept in the project's private knowledge base.

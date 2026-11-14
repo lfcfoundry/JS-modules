@@ -146,6 +146,10 @@ No code from others; the ideas below are theirs.
 - The WebAssembly add-on (`wasm/lzma-decode.c`) is a line-for-line port of `lzma-decode.js` by this repository, built with clang 18.1.3 (LLVM); no runtime or library code from others is inside it.
 - [Roadroller](https://github.com/lifthrasiir/roadroller) (MIT, lifthrasiir), the `lzma` package on npm, [kripken/lzma.js](https://github.com/kripken/lzma.js) and [js13k-packer](https://www.npmjs.com/package/js13k-packer): named for comparison, idea only, no code taken.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- LZMA by Igor Pavlov ([LZMA SDK](https://www.7-zip.org/sdk.html))
+
 ## Full research notes
 
 The long version of this page (the same comparison written out at length, with the notes on Roadroller, js13k-packer and `.xz` decoders) is kept in the project's private knowledge base. The changelog is `CHANGELOG.md` in this folder.

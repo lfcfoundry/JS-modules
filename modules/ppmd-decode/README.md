@@ -159,6 +159,10 @@ Where it loses: slower to unpack than LZMA and a decoder 5.2 KB bigger; no like-
 - Not copied, compared against only: 7z-wasm, archive-wasm, @exav/unpack-wasm, compressjs, [libarchive.js](https://www.npmjs.com/package/libarchive.js) (MIT worker wrapper around libarchive; PPMd text found in its WASM, speed not run), [unrar-js](https://www.npmjs.com/package/unrar-js) and [7z-iterator](https://www.npmjs.com/package/7z-iterator) (both say PPMd is not implemented), [@zip.js/zip.js](https://www.npmjs.com/package/@zip.js/zip.js) (ZIP method 98 uses variant I, a different model), ppmd-rust and [ppmd-turbo](https://github.com/scryer-media/ppmd-turbo) (Rust ports, CC0 or MIT-0 and Apache-2.0), pyppmd 1.3.1, Matt Mahoney's Large Text Compression Benchmark and the note.com test. pyppmd's encoder drops one byte near a 32 KB output boundary on large inputs and its own decoder then fails, so the fixtures here come from the C reference encoder.
 - Checked on October 15, 2026. GitHub's own search was blocked during the check, so "no standalone PPMd decoder found" rests on npm (searched by name and keyword), web searches and package contents.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- PPMd variant H by Dmitry Shkarin (2001), as kept in the public-domain [LZMA SDK](https://www.7-zip.org/sdk.html) by Igor Pavlov
+
 ## Full research notes
 
 The long version of this page (the second comparison table with every project's license, size and label, the cold-start notes, the full list of damaged-stream and fixture checks, and the licensing reading) is kept in the project's private knowledge base. The changelog is `CHANGELOG.md` in this folder.

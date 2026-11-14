@@ -278,6 +278,18 @@ Used right now in Netflow Map (its repository is private, so there is no link), 
 ## Prior art and credits
 Zstandard (Yann Collet and Meta Platforms, BSD-3-Clause) does the compression; the library is compiled unchanged by `wasm/build.sh` (see [NOTICE-zstd.txt](NOTICE-zstd.txt)). The ideas of columns plus a footer with per-block statistics come from Apache Parquet and ORC; the shape-plus-columns split for nested data follows the "shredding" of Dremel (Melnik et al., Google, 2010) and the Parquet and Arrow nesting rules, with a simpler path-hash column naming. Log templates follow the log-parsing line of work (Drain, He et al. 2017; LogHub samples by the Logpai group were used for tests). The code here is written from scratch for this repository.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- [Zstandard](https://facebook.github.io/zstd/) by Yann Collet and Meta Platforms (BSD-3-Clause); format in [RFC 8878](https://www.rfc-editor.org/rfc/rfc8878)
+- [XXH64](https://xxhash.com/) by Yann Collet
+- CRC-32 (W. Wesley Peterson, 1961) with lookup tables; the table-per-byte "slicing" speedup is from Intel researchers (Kounavis and Berry, 2005)
+- [FNV-1a](http://www.isthe.com/chongo/tech/comp/fnv/index.html) by Glenn Fowler, Landon Curt Noll and Kiem-Phong Vo
+- LEB128 varints and ZigZag signed numbers as described in the [Protocol Buffers encoding guide](https://protobuf.dev/programming-guides/encoding/) (Google)
+- Frame of reference plus bit packing: Goldstein, Ramakrishnan and Shaft, ["Compressing relations and indexes"](https://doi.org/10.1109/ICDE.1998.655800), ICDE 1998; related fast-unpacking work: Lemire and Boytsov, ["Decoding billions of integers per second through vectorization"](https://arxiv.org/abs/1209.2137), 2015
+- Columns with per-block min/max statistics: [Apache Parquet](https://parquet.apache.org/) and [Apache ORC](https://orc.apache.org/); zone maps as used by DuckDB ([lightweight compression notes](https://duckdb.org/2022/10/28/lightweight-compression))
+- Nested-data shredding: Melnik et al., ["Dremel: Interactive Analysis of Web-Scale Datasets"](https://research.google/pubs/dremel-interactive-analysis-of-web-scale-datasets-2/), Google, 2010
+- Log templates: He, Zhu, Zheng and Lyu, ["Drain: An Online Log Parsing Approach with Fixed Depth Tree"](https://doi.org/10.1109/ICWS.2017.13), ICWS 2017; test samples from LogHub by the Logpai group (github.com/logpai/loghub)
+
 ## For AI agents
 Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and wait for it. Pack once with `pack(text)` and keep the `Uint8Array`. Read with `unpack(file, { keys, range })` when you need a few fields or a time slice (blocks outside the range are never decoded), and with `pool()` for files over a few blocks. Use `exact: true` only when the original bytes must come back. For big saves from row arrays use `packRowsParallel(rows)`, or `packColumnsParallel({ key: array })` when you already hold columns; for big reads of flat tables use `await unpackColumnsParallel(bytes, { keys })`, which gives `{ key: array }` without row objects (all three keep the page responsive and need `init()` first). WebAssembly memory only grows, so after a big job call `trim()` to give back what it grew: the next call starts with fresh, small memory and gives the same results. The sources are `src/*.js` joined by `build.py`; the wasm sources are in `wasm/` (`build.sh` for zstd, `build-core.sh` for the tokenizer and string dictionary); `python/lfc_pack.py` reads files in Python. Run `node test/roundtrip.cjs`, `node test/exact.cjs`, `node test/query.cjs`, `node test/pool.cjs` and `python3 -I test/pyread.py <file.lfc>=<source.ndjson>` after any change.
 

@@ -150,10 +150,12 @@ Size is smaller-is-better and times are lower-is-better in every table. Every re
 |---|---|---|---|---|
 | memory-compression, fast | 7.854 MB | 15.2 and 7.1 | 14.4 and 8.5 | 22 and 6 |
 | memory-compression, small | 6.716 MB | 208 and 26.8 | 141.7 and 17.6 | 134 and 22 |
-| msgpackr 2.1.0, records | 20.005 MB | 18.7 and 8.2 | 22.0 and 12.6 | 19 and 8 |
-| cbor-x 1.6.6, records | 20.905 MB | 25.6 and 7.5 | 29.7 and 12.7 | 13 and 10 |
+| msgpackr 2.1.4, records | 20.005 MB | 18.7 and 8.2 | 22.0 and 12.6 | 19 and 8 |
+| cbor-x 1.6.9, records | 20.905 MB | 25.6 and 7.5 | 29.7 and 12.7 | 13 and 10 |
 | avsc 5.7.9 (needs a schema) | 18.767 MB | 38.1 and 31.2 | 59.6 and 94.0 | 67 and 83 |
 | JSON text | 57.258 MB | 73.5 and 38.3 | 69.6 and 52.3 | 52 and 33 |
+
+The msgpackr and cbor-x rows were first measured with 2.1.0 and 1.6.6; runs with 2.1.4 and 1.6.9 on 2026-11-14 gave the same results within noise.
 
 2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all three browsers; it loses on download size (since 2.12.0 the minified full file is 80.8 KB gzipped and the read-only file 35.0 KB, against 11 KB for msgpackr; the shipped unminified file is about 121 KB) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit).
 
@@ -213,7 +215,7 @@ Used right now in Netflow Map (its repository is private, so there is no link). 
 
 ## Prior art and credits
 
-The JavaScript, the C source of the WebAssembly helpers and the format are this repository's own (LFC Foundry, MIT); no code was taken from the projects below, and nothing from them ships inside the file. fflate, pako, lz4js, lz4-wasm, @bokuweb/zstd-wasm, fzstd, msgpackr, cbor-x, avsc, Flechette and the browser's CompressionStream were run as comparisons only.
+The JavaScript, the C source of the WebAssembly helpers and the format are this repository's own (LFC Foundry, MIT); no code was taken from the projects below, and nothing from them ships inside the file. fflate, pako, lz4js, lz4-wasm, @bokuweb/zstd-wasm, fzstd, msgpackr, cbor-x, avsc, Flechette, FlatBuffers (Google, Apache-2.0), bson (MongoDB, Apache-2.0), @msgpack/msgpack, notepack.io, lz-string, zipson, compress-json, jsonpack and the browser's CompressionStream were run as comparisons only. Versions in the latest runs (2026-11-14): msgpackr 2.1.4, cbor-x 1.6.9, Flechette 2.8.0, bson 7.3.4, FlatBuffers 25.9.23, avsc 5.7.9, fflate 0.8.3, lz4js 0.2.0, @msgpack/msgpack 3.1.3. Where a rival wins: FlatBuffers opens a file without decoding, so its first row is ready in microseconds, against 0.7 to 3.8 ms here; no FlatBuffers idea is used.
 
 - **LZ4 block format**, by Yann Collet: read and written as the standard format. Format only.
 - **deflate, zlib and gzip** (RFC 1951, 1950, 1952): written from scratch, tested against Node's zlib, fflate and pako.
@@ -221,6 +223,15 @@ The JavaScript, the C source of the WebAssembly helpers and the format are this 
 - **msgpackr and cbor-x** (MIT): the record extension idea, repeated layouts written once with generated decoders. **avsc** (MIT): schema-compiled code. **Apache Arrow and Flechette** (BSD-3-Clause): columnar tables. Ideas only.
 - **ALP** (SIGMOD 2024): decimals stored as scaled whole numbers, in a simple form. **FSST** (Boncz, Neumann and Leis, VLDB 2020): the opt-in `fsst` option, written from the paper. **CLP, Denum and LogPrism**: text patterns plus number columns. **BtrBlocks and Vortex**: pick an encoding per column from a sample. Ideas only.
 - The column difference step is a common idea for numeric tables.
+
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- ALP: Afroozeh, Kuffo and Boncz, ["ALP: Adaptive Lossless floating-Point Compression"](https://doi.org/10.1145/3626717), SIGMOD 2024 (reference code: github.com/cwida/ALP, MIT)
+- FSST: Boncz, Neumann and Leis, ["FSST: Fast Random Access String Compression"](https://doi.org/10.14778/3407790.3407851), VLDB 2020
+- [LZ4](https://lz4.org/) block format by Yann Collet
+- Deflate: [RFC 1951](https://www.rfc-editor.org/rfc/rfc1951) (Phil Katz; zlib by Jean-loup Gailly and Mark Adler)
+- LEB128 varints and ZigZag signed numbers as described in the [Protocol Buffers encoding guide](https://protobuf.dev/programming-guides/encoding/) (Google)
+- CRC-32 (W. Wesley Peterson, 1961) with lookup tables; the table-per-byte "slicing" speedup is from Intel researchers (Kounavis and Berry, 2005)
 
 ## Full research notes
 

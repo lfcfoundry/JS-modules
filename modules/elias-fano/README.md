@@ -171,5 +171,9 @@ Choose block lists for "which ids are in all of these" and "is x present" on den
 ## Prior art and credits
 Peter Elias, "Efficient storage and retrieval by content and address of static files", Journal of the ACM, 1974, and Robert Fano, "On the number of bit sequences", MIT technical report, 1971. The select samples follow the usual practical layout (see Vigna, "Quasi-succinct indices", WSDM 2013); the code here is written from scratch for this repository.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- Peter Elias, ["Efficient storage and retrieval by content and address of static files"](https://doi.org/10.1145/321812.321820), JACM 1974; Robert Fano, "On the number of bit sequences", MIT, 1971; Sebastiano Vigna, ["Quasi-succinct indices"](https://arxiv.org/abs/1206.6347), WSDM 2013
+
 ## For AI agents
 Load `elias-fano.js` as a page script (global `EliasFano`) or `require` it. Build once, store the `Uint8Array`, `open` it where you read. For "next id at or above x" over a big sorted list use `nextGEQ` or `nextGEQMany`; for many small lists use `buildLists` and `decodeAll` once at startup, or just call `get(i)`: the cache is on by default, so repeat reads are cheap. Do not change an array `get(i)` gave you, and do not call `get(i)` in a hot loop with `{ cache: false }`. The source of the WebAssembly is `wasm/ef.c` (build with `wasm/build.sh`, embed with `wasm/embed.py`; `embed.py --check` says whether the file carries the current build).

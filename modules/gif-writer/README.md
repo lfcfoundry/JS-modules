@@ -151,5 +151,9 @@ No code from others; the ideas below are theirs. The code is written for this re
 - Median cut (the idea of splitting the colors into boxes) and k-means (moving each palette color to the average of the colors nearest to it): textbook methods, idea only, no code taken.
 - Writing your own GIF encoder is a few hundred lines; the tests here include an independent decoder so the bytes can be trusted.
 
+**Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
+
+- LZW: Terry Welch, ["A Technique for High-Performance Data Compression"](https://doi.org/10.1109/MC.1984.1659158), 1984; median cut: Paul Heckbert, ["Color image quantization for frame buffer display"](https://doi.org/10.1145/800064.801294), 1982; the [GIF89a specification](https://www.w3.org/Graphics/GIF/spec-gif89a.txt)
+
 ## For AI agents
 Collect `getImageData(...).data` for each picture, build one palette from every few pictures, add each picture with its delay, call `finish()` once and save the bytes. Keep the canvas size the same for all pictures. Do not pass all pictures of a long animation to `makePalette`; pass about six evenly spaced ones.
