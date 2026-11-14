@@ -18,7 +18,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Faster packing with identical pages: key choice no longer tries every option.
 
 ## 1.1.0 · API 1 · 2026-10-17
-- New optional --wasm ships the WebAssembly decoder in the packed page. Pages open about 1.5 to 2.1 times faster, and pages that forbid WebAssembly still open.
+- New optional --wasm ships the WebAssembly decoder in the packed page. Pages open about 1.5 to 2.1 times faster, and pages that forbid WebAssembly still open (Chromium, Firefox and WebKitGTK).
 
 ## 1.0.2 · API 1 · 2026-10-17
 - A page policy given to the packer now allows WebAssembly, as lzma-pack does.

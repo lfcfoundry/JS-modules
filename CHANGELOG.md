@@ -127,7 +127,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-08 · **memory-compression** 2.16.0 · API 2: chunks: true now also covers decimal columns (prices, weights): a 1M-row list's first view().get() takes about a tenth to a third of the time.
 - 2026-11-08 · **memory-compression** 2.15.0 · API 2: pack(list, { mode: 'fast', chunks: true }) makes the first view().get() on a list of 400,000 rows or more about four times shorter.
 - 2026-11-08 · **memory-compression** 2.14.1 · API 2: Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
-- 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
+- 2026-11-08 · **memory-compression** 2.14.0 · API 2: warm() also warms a small view and pager, so their first use is 1 to 4 ms faster (Chromium, Firefox and WebKitGTK).
 - 2026-11-08 · **lzma-decode** 1.7.1 · API 1: The optional warm() makes the first plain-JavaScript unpack 11 to 27% faster.
 - 2026-11-08 · **lzma-decode** 1.7.0 · API 1: New optional lzmaDecode.warm(): call it from an idle callback and the first plain-JavaScript unpack is 4-9% faster (6-8 ms of idle work).
 - 2026-11-08 · **lfc-pack** 0.8.1 · API 0: Reading only some keys of nested rows is up to 2 times faster; output unchanged.
@@ -190,13 +190,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-07 · **gpu-blur** 1.4.2 · API 1: Small drawn pictures pick the faster way on a phone, and Firefox keeps big drawn results in memory
 - 2026-11-07 · **gpu-blur** 1.4.1 · API 1: Auto uses the helpers for big bytes-out pictures: cloud 2048 x 2048 first call 80 to 61 ms in Chromium
 - 2026-11-07 · **elias-fano** 2.1.2 · API 2: Default block lists intersect 1.6 to 1.8 times faster and now beat roaring-wasm on spread-out values in Chromium and Firefox; decoding block lists up to 2 times faster.
-- 2026-11-07 · **elias-fano** 2.1.1 · API 2: Block lists: intersecting is 2 to 3 times faster with arrays: true, now faster than roaring-wasm on spread-out lists too.
+- 2026-11-07 · **elias-fano** 2.1.1 · API 2: Block lists: intersecting is 2 to 3 times faster with arrays: true, now faster than roaring-wasm on spread-out lists too (Chromium, Firefox and WebKitGTK).
 - 2026-11-07 · **elias-fano** 2.1.0 · API 2: New block lists (buildBlocks, openBlocks): bitmaps where values are dense, so intersecting and lookups beat roaring-wasm on dense data.
 - 2026-11-07 · **elias-fano** 2.0.2 · API 2: getMany and nextGEQMany (batches) take 0.79x to 0.88x the time; same answers.
 - 2026-11-06 · **zip-open** 1.20.1 · API 1: Fixed: an Excel file with a crafted number format could freeze the page for many seconds or minutes. It now opens in a moment. Same results for every other file.
 - 2026-11-06 · **zip-open** 1.20.0 · API 1: Big text-heavy Excel files open 29 to 40% faster (14 to 35% on the first open in a page): a third thread unpacks the list of shared texts while the rows are read. Other files about the same. Same results.
 - 2026-11-06 · **zip-open** 1.19.1 · API 1: Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
-- 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
+- 2026-11-06 · **zip-open** 1.19.0 · API 1: The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results (Chromium and Firefox).
 - 2026-11-06 · **walker-sim** 2.4.2 · API 2: Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 - 2026-11-06 · **sticker-text** 1.2.0 · API 1: Faster to draw: 2 to 3.6 times faster in Firefox and WebKit, and the fast option about twice as fast.
 - 2026-11-06 · **sprite-baker** 1.9.0 · API 1: New option fast: true uses cheaper shading in the plain JavaScript fill (a short series for the normal length, the highlight skipped where it adds under a third of a level, a table for the rim-light power).
@@ -245,7 +245,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-05 · **zip-open** 1.17.1 · API 1: Excel files open 1 to 19% faster. Same results.
 - 2026-11-05 · **zip-open** 1.17.0 · API 1: Opening a big Excel sheet again in the same page is 3 to 35% faster: a second thread unpacks it while the page reads rows. The first open is about the same. Same results.
 - 2026-11-05 · **stage-curtains** 1.4.3 · API 1: With worker: true the curtain is ready ahead on a busy page in about 0.12 s instead of 0.65 s; same pixels.
-- 2026-11-05 · **save-kit** 1.6.1 · API 1: Loads are a little faster: small saves 5 to 15%, big saves up to 12%.
+- 2026-11-05 · **save-kit** 1.6.1 · API 1: Loads are a little faster: small saves 5 to 15%, big saves up to 12% (Chromium, Firefox and WebKitGTK).
 - 2026-11-05 · **netflow-scene** 1.8.0 · API 1: Opt-in Economist frame: frame: true (or theme 'editorial') adds a small red tag top-left and a thin rule under the picture, with the source under it.
 - 2026-11-05 · **netflow-scene** 1.7.0 · API 1: Sankey middle-column names get a background-color halo so they read over their bands.
 - 2026-11-05 · **netflow-scene** 1.6.0 · API 1: Opt-in families: related groups (same name before ':' or '/') share one hue in steps.
@@ -355,7 +355,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **pcodec-js** 1.6.2 · API 1: Repeated big unpacks take 0.63 to 0.87 of the time (5 million numbers, three browsers): a ready array is prepared while the page is idle and dropped after 4 s unused.
 - 2026-10-31 · **netflow-scene** 1.3.2 · API 1: Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
 - 2026-10-31 · **netflow-sankey** 2.4.1 · API 2: Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
-- 2026-10-31 · **netflow-sankey** 2.4.0 · API 2: Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout.
+- 2026-10-31 · **netflow-sankey** 2.4.0 · API 2: Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout (Chromium).
 - 2026-10-31 · **netflow-sankey** 2.3.3 · API 2: Bars settle into place in WebAssembly too: the same pictures in 3 to 26% less time for big flow charts (3 to 14% in cloud browsers, 7 to 26% on a laptop).
 - 2026-10-31 · **netflow-layers** 1.8.0 · API 1: Tidier by default: the lighter crossing search now keeps going until 4 rounds bring no gain (it stopped after 2), so it matches deep: true on every map tested. 1,000 random items take about 112 to 118 ms instead of 72 to 90.
 - 2026-10-31 · **netflow-layers** 1.7.2 · API 1: Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
@@ -381,7 +381,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **lfc-pack** 0.4.3 · API 0: After 30 seconds without packing, the packer gives its memory back on its own (about 38 MB after a 66.6 MB pack, up to about 250 MB with big blocks). Reading memory is kept. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.2 · API 0: The first pack after trim() is no longer slower (laptop Chromium 4% slower before, now 2% faster): the packer keeps its warmed-up code. Same files byte for byte.
 - 2026-10-31 · **lfc-pack** 0.4.15 · API 0: Packing event tables takes 14 to 25% less time and logs 10 to 16% less (laptop): more columns are built in WebAssembly, and log template slots are found in one pass. Files are byte-identical.
-- 2026-10-31 · **lfc-pack** 0.4.14 · API 0: Packing logs takes 10 to 14% less time (hex ids such as 1789c0bf1b now fill one template slot), and event tables with long hex id columns up to a third less. Files are byte-identical.
+- 2026-10-31 · **lfc-pack** 0.4.14 · API 0: Packing logs takes 10 to 14% less time (hex ids such as 1789c0bf1b now fill one template slot), and event tables with long hex id columns up to a third less. Files are byte-identical (Firefox).
 - 2026-10-31 · **lfc-pack** 0.4.13 · API 0: Smaller file, same results: lfc-pack.js is now 353 KB instead of 789 KB, because its built-in WebAssembly programs are stored compressed and unpacked by the browser while they compile. Load to first result takes 3 to 11% less time.
 - 2026-10-31 · **lfc-pack** 0.4.12 · API 0: The fast writer's scanner tries keys in the last row's order first and reads digits 8 at a time: packs take 8 to 16% less time than 0.4.10 in Chromium and Firefox; same files.
 - 2026-10-31 · **lfc-pack** 0.4.11 · API 0: Packing with the fast writer is faster again: its sizing pass reads 8 bytes at a time. With 0.4.10, packs take 7 to 28% less time than 0.4.9 in Chromium and Firefox; same files.
@@ -407,7 +407,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **elias-fano** 1.8.1 · API 1: Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 - 2026-10-31 · **elias-fano** 1.8.0 · API 1: Repeat decodes of big lists are 2 to 25% faster by themselves (a spare array is made while idle), and 20 to 35% faster when toArray(out) or slice(a, b, out) fills your own Uint32Array.
 - 2026-10-31 · **elias-fano** 1.7.0 · API 1: New: trim() gives back memory that big lists left behind (24 MB to 1.8 MB after a 5-million-id build); autoTrim does it by itself after a big job (on by default; autoTrim(false) turns it off).
-- 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
+- 2026-10-30 · **zip-open** 1.5.1 · API 1: Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open (Chromium, Firefox and WebKitGTK).
 - 2026-10-30 · **zip-open** 1.5.0 · API 1: Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.
 - 2026-10-30 · **zip-open** 1.4.0 · API 1: New: `expandBlob`, `listBlob` and `readBlob` open a File or Blob in pieces, so a big zip never has to sit whole in memory. Same files, same notes. New: `{ workers: n }` unpacks big entries (2 MB and up) side by side in Web Workers: about 1.2 to 1.8 times as fast on a zip of several big files. Off by default. Checks: 700 damaged zips give the same answer from a File as from memory.
 - 2026-10-30 · **text-columns** 0.5.1 · API 0: Parallel parsing now starts at 4 MB once its helpers are running (it was 32 MB), about 0.6 to 0.9x the time on mid-size files.
@@ -420,8 +420,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **netflow-sankey** 2.3.2 · API 2: Small graphs lay out about 15% faster with the same pictures.
 - 2026-10-30 · **netflow-sankey** 2.3.1 · API 2: The order search skips repeating itself: same pictures, up to 2x faster when you ask for many restarts.
 - 2026-10-30 · **memory-compression** 2.7.0 · API 2: New opt-in setting quickTries: true tries every number coding on the first block only: packing 0 to 20% faster on lists with number columns, files 0 to 1.1% bigger. Off by default; default output byte-identical.
-- 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
-- 2026-10-30 · **lfc-pack** 0.3.1 · API 0: Map coordinates and other decimal lists read faster: 0.38 to 0.86x the time of 0.3.0, now faster than before the decimal format too.
+- 2026-10-30 · **memory-compression** 2.6.6 · API 2: Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes (Chromium, Firefox and WebKitGTK)
+- 2026-10-30 · **lfc-pack** 0.3.1 · API 0: Map coordinates and other decimal lists read faster: 0.38 to 0.86x the time of 0.3.0, now faster than before the decimal format too (Chromium, Firefox and WebKitGTK).
 - 2026-10-30 · **lfc-pack** 0.3.0 · API 0: Much smaller files for decimal numbers and map coordinates (map lines 0.30x the size, prices 0.78x), plus new row-range reads, file stats, metadata and hashing. Files that use the new number columns need this version's reader.
 - 2026-10-30 · **lfc-pack** 0.2.1 · API 0: Text-heavy files come out smaller (web logs 3.4% smaller, FHIR records 1.0%) with the same pack and read speed; older readers open them as before.
 - 2026-10-30 · **lfc-pack** 0.2.0 · API 0: Default block size 13 MB (was 21 MB): parallel pack 34-36% faster on a 16-core laptop, same size; `packParallel` hands out one block at a time (7 to 27% faster); `warmPack(n)`. New `meta` option with `LfcPack.metadata(bytes)`, `LfcPack.unpackRows(bytes, {from, count})` (decodes only the blocks it needs, builds only those rows) and `LfcPack.stats(bytes)` (column facts from the footer). Faster one-column reads and wide row objects (WebKit 200-key whole read 1,324 to 580 ms). New `LfcPack.hash(bytes, kind)`, a file viewer (viewer.html), readers that refuse damaged blocks with a plain message, and an optional `check: 'xxh64'` block check with per-column checks (one-column reads about 40 to 50% faster).
@@ -437,7 +437,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-30 · **gpu-blur** 1.2.1 · API 1: The opt-in helpers route now uses every core by default, about 10% faster on most picture sizes, same picture.
 - 2026-10-30 · **gpu-blur** 1.2.0 · API 1: New opt-in threads route for web pages served with the isolation headers: big pictures blur on several cores sharing one memory, often a little faster than the helpers route, with the same picture.
 - 2026-10-30 · **gpu-blur** 1.1.0 · API 1: New opt-in helpers route: big pictures blur on several cores at once, about 0.5 to 0.85x the time in Chromium and Firefox, with the same picture.
-- 2026-10-30 · **gpu-blur** 1.0.1 · API 1: Blurring in WebAssembly is about a third faster (0.60 to 0.80x the time) with exactly the same picture.
+- 2026-10-30 · **gpu-blur** 1.0.1 · API 1: Blurring in WebAssembly is about a third faster (0.60 to 0.80x the time) with exactly the same picture (Chromium, Firefox and WebKitGTK).
 - 2026-10-30 · **gif-writer** 1.6.1 · API 1: Picture effects (blur, sharpen, glow, color grade) run faster: 0.67 to 0.92x the time, with exactly the same pictures.
 - 2026-10-30 · **gif-writer** 1.6.0 · API 1: Optional thorough palette: counts every pixel for slightly smaller files.
 - 2026-10-30 · **elias-fano** 1.6.0 · API 1: New compact() halves the memory a list uses while you read it (1.69 MB instead of 3.38 MB for 1,000,000 ids); getMany now refuses out-of-range positions instead of hanging.
@@ -494,7 +494,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-24 · **netflow-scene** 1.1.0 · API 1: Big maps now also keep link rules, dashes, arrowheads and bent links in fast lists, so rebuilding such a map after a move is faster; the picture is the same.
 - 2026-10-24 · **netflow-scene** 1.0.0 · API 1: New module: turns a laid-out Netflow Map into plain drawing lists for Canvas, WebGL or SVG, with fast rebuilds of big maps after a move.
 - 2026-10-24 · **netflow-layers** 1.5.0 · API 1: The row-order search and row placement now run in WebAssembly (8 KB embedded, 'wasm-unsafe-eval' only), 18-48% faster at 100 to 5,000 pages in three browsers; same pictures to the last digit; plain JavaScript stays as the fallback.
-- 2026-10-24 · **memory-compression** 2.6.4 · API 2: Column pages keep nested objects, arrays, coordinate pairs and date-times in pieces, made when the row is read: scene-item page memory 312 to 148 KB, page open up to 2x faster; reading every row is 80 to 300 ns slower.
+- 2026-10-24 · **memory-compression** 2.6.4 · API 2: Column pages keep nested objects, arrays, coordinate pairs and date-times in pieces, made when the row is read: scene-item page memory 312 to 148 KB, page open up to 2x faster; reading every row is 80 to 300 ns slower (Chromium).
 - 2026-10-24 · **memory-compression** 2.6.3 · API 2: unpackAsync() now opens number columns written by the number picker a few blocks at a time, so a long coordinate column no longer holds the page for 15 to 25 ms; same values, same packed bytes, unpack() unchanged.
 - 2026-10-24 · **gif-writer** 1.4.0 · API 1: Faster palette search on big inputs (3x fewer pixels looked at above 100,000 pixels, from 143-152 ms to about 55 ms for 8 pictures of 160x160). A GIF made from such pictures is not byte-identical to one from 1.3.0.
 - 2026-10-24 · **fuzz-kit** 1.3.4 · API 1: README notes that GNOME Web is no longer a test browser; naming it still works. No code change.
@@ -527,18 +527,18 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-22 · **netflow-layers** 1.3.1 · API 1: Layouts are 1.2 to 2.1 times faster on maps of 2,000 to 20,000 pages in all four test browsers; the drawing is exactly the same. Inner work now runs on flat number lists instead of many small lists.
 - 2026-10-22 · **netflow-engine** 2.2.2 · API 2: 2.2.2: Flow, Down, Spine and Lanes build layered drawings up to 250,000 stops (was 90,000), so maps of about 5,000 to 6,500 pages now draw in 0.5 to 1.6 s instead of being refused.
 - 2026-10-22 · **netflow-engine** 2.2.1 · API 2: The two-pair Distances sweeps no longer stop at 20,000 items: they run at any size (1.02 to 1.10 times faster at 30,000 and 60,000 items in the four test browsers), same positions.
-- 2026-10-22 · **memory-compression** 2.4.1 · API 2: 2.4.1: pager() can keep open pages as columns; for lists of numbers that halves the memory of an open page and opens it about 2 to 3 times faster.
+- 2026-10-22 · **memory-compression** 2.4.1 · API 2: 2.4.1: pager() can keep open pages as columns; for lists of numbers that halves the memory of an open page and opens it about 2 to 3 times faster (Chromium).
 - 2026-10-22 · **memory-compression** 2.4.0 · API 2: 2.4.0: after a big pack the module gives its spare memory back by itself once the page is quiet for 2 seconds.
 - 2026-10-22 · **memory-compression** 2.3.5 · API 2: 2.3.5: lists with coordinate pairs and other arrays inside rows (map features, routes) open up to about 25% faster in Firefox, WebKitGTK and GNOME Web; level in Chromium; no change to files.
 - 2026-10-22 · **memory-compression** 2.3.4 · API 2: 2.3.4: a pager in balanced mode builds its pages up to about 25% faster; packed size grows by under 1%.
 - 2026-10-22 · **memory-compression** 2.3.3 · API 2: 2.3.3: packing a long list in pager() is 15 to 30% faster (60,000 rows: Chromium 40 to 31 ms, Firefox 61 to 45, WebKitGTK 54 to 39, GNOME Web 47 to 38). Same bytes.
-- 2026-10-22 · **memory-compression** 2.3.2 · API 2: 2.3.2: pager() now also reads ahead when rows are read backward, so the first read of each new page costs nothing instead of 0.5 to 1 ms.
+- 2026-10-22 · **memory-compression** 2.3.2 · API 2: 2.3.2: pager() now also reads ahead when rows are read backward, so the first read of each new page costs nothing instead of 0.5 to 1 ms (Chromium, Firefox and WebKitGTK).
 - 2026-10-22 · **memory-compression** 2.3.1 · API 2: 2.3.1: the automatic page length is never longer than the old 2,048-row default, so thin rows no longer open slower in Firefox.
 - 2026-10-22 · **memory-compression** 2.3.0 · API 2: pager() can pick its own page size, open pages and mode from the list and the device's memory (pageRows, livePages and mode set to 'auto', or pager.plan()). Nothing changes unless you ask for it.
 - 2026-10-22 · **memory-compression** 2.2.0 · API 2: New pager(): keeps a long list packed in pages. One object opens in 0.4 to 3 ms instead of 6 to 50 ms, idle pages leave memory or move to browser storage, and a list packs in the background without a freeze.
 - 2026-10-22 · **memory-compression** 2.1.2 · API 2: Balanced and small packing of number columns is a little faster (up to about 15% on some whole-number columns); no change to file size on disk.
 - 2026-10-22 · **memory-compression** 2.1.1 · API 2: Lists with a lot of text pack up to about 15% faster in Chrome-based and Safari-based browsers; no change to file size on disk.
-- 2026-10-22 · **image-decode** 1.2.0 · API 1: 1.2.0: new ImageDecode.ahead() decodes the next stage's sheets in idle time, so a stage change draws in 1.6 to 7 ms instead of 260 to 450 ms.
+- 2026-10-22 · **image-decode** 1.2.0 · API 1: 1.2.0: new ImageDecode.ahead() decodes the next stage's sheets in idle time, so a stage change draws in 1.6 to 7 ms instead of 260 to 450 ms (Chromium, Firefox and WebKitGTK).
 - 2026-10-22 · **image-decode** 1.1.0 · API 1: A page that refuses blob: pictures (no img-src blob:) now loads through a background worker or a data: address instead of freezing; new option address: 'auto', 'blob', 'data' or 'worker'.
 - 2026-10-22 · **image-decode** 1.0.0 · API 1: New module: loads PNG, JPEG, WebP and AVIF pictures without freezing the page at the first draw (a 2048 sheet froze it 44 to 94 ms, now 2 to 9 ms), using the right way for each browser.
 - 2026-10-22 · **gif-writer** 1.3.0 · API 1: The WebAssembly program now starts compiling in the background when the file loads; adds wasmReady() and wasmModule().
@@ -555,7 +555,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **walker-sim** 2.2.0 · API 2: The default file is now walker-sim-with-wasm.js: big runs use the WebAssembly walking loop first (about 1.5 times faster in Chromium and Firefox), and the JavaScript loop when WebAssembly is not usable. Same counts either way. In WebKitGTK and GNOME Web a fresh page is about 15% to 30% slower with it; set cfg.wasm = false or copy walker-sim.js there.
 - 2026-10-18 · **test-runner** 1.1.0 · API 1: The picture gate now passes a picture that is 99.5% identical or better and prints the exact percentage; exact matches still count as same.
 - 2026-10-18 · **test-runner** 1.0.0 · API 1: Shared pieces for browser checks: warm browsers that cut the start of each check from seconds to well under a second, fair timing, skipped rebuilds, a wasm-versus-JavaScript twin test, a picture gate and an automatic bisect.
-- 2026-10-18 · **stage-curtains** 1.3.0 · API 1: New option create({ worker: true }) paints the curtain in a background worker: the page does 3 to 7 ms of work instead of 21 to 36 ms. Same picture.
+- 2026-10-18 · **stage-curtains** 1.3.0 · API 1: New option create({ worker: true }) paints the curtain in a background worker: the page does 3 to 7 ms of work instead of 21 to 36 ms. Same picture (Chromium, Firefox and WebKitGTK).
 - 2026-10-18 · **stage-curtains** 1.2.0 · API 1: A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.
 - 2026-10-18 · **sprite-baker** 1.7.0 · API 1: The wasm now compiles in the background when the file loads (ready() and module() added); the compile it saves is about 1 ms. Same pictures.
 - 2026-10-18 · **sprite-baker** 1.6.1 · API 1: Fix: the WebAssembly add-on drew drawMesh(..., null) with the wrong back-face cut (about 79 pixels per picture went missing in one game); now identical to the plain code.
@@ -577,7 +577,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-18 · **netflow-engine** 1.0.0 · API 1: The engine code arrives: the engine of Netflow Map as one file you can adapt, with nine map views and layouts for networks of any size.
 - 2026-10-18 · **netflow-engine** 0.1.0 · API 0: Placeholder with no engine code yet.
 - 2026-10-18 · **memory-compression** 2.1.0 · API 2: Balanced and small mode open 7 to 32% faster and pack 6 to 18% faster in all four test browsers (same files); WebAssembly starts compiling when the file loads.
-- 2026-10-18 · **memory-compression** 2.0.4 · API 2: Text such as dates (2025-03-04T05:15:00Z) opens up to 2 times faster in fast mode; no change to file size on disk.
+- 2026-10-18 · **memory-compression** 2.0.4 · API 2: Text such as dates (2025-03-04T05:15:00Z) opens up to 2 times faster in fast mode; no change to file size on disk (Chromium and WebKitGTK).
 - 2026-10-18 · **memory-compression** 2.0.3 · API 2: Saves about 5.8 MB of memory on pages that load the module but never pack anything. The first pack takes a few milliseconds longer.
 - 2026-10-18 · **memory-compression** 2.0.2 · API 2: Two bugs fixed: asking how much memory a list uses no longer fails when some rows are missing a text value, and a page that only allows WebAssembly no longer logs a blocked-code error.
 - 2026-10-18 · **memory-compression** 2.0.1 · API 2: Opening a file in fast mode is 21% to 65% faster in Firefox, WebKitGTK and GNOME Web when files of other modes are open on the same page. Packed files are identical.
@@ -612,7 +612,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-17 · **save-kit** 1.2.0 · API 1: Six new options (all off unless given) so a game with saves already in the wild can move to save-kit, including support for old save-code endings.
 - 2026-10-17 · **save-kit** 1.1.0 · API 1: Two fixes: default values are now copied for each state, and a default for counts is used when the field is missing. Loading is about a third faster or more.
 - 2026-10-17 · **ppmd-pack** 1.1.1 · API 1: Faster packing with identical pages: key choice no longer tries every option.
-- 2026-10-17 · **ppmd-pack** 1.1.0 · API 1: New optional --wasm ships the WebAssembly decoder in the packed page. Pages open about 1.5 to 2.1 times faster, and pages that forbid WebAssembly still open.
+- 2026-10-17 · **ppmd-pack** 1.1.0 · API 1: New optional --wasm ships the WebAssembly decoder in the packed page. Pages open about 1.5 to 2.1 times faster, and pages that forbid WebAssembly still open (Chromium, Firefox and WebKitGTK).
 - 2026-10-17 · **ppmd-pack** 1.0.2 · API 1: A page policy given to the packer now allows WebAssembly, as lzma-pack does.
 - 2026-10-17 · **ppmd-pack** 1.0.1 · API 1: Fixed: packing failed every time unless you skipped the Node check. It works again.
 - 2026-10-17 · **ppmd-decode** 1.1.0 · API 1: New optional WebAssembly version of the decoder, about twice as fast to open a page and with no warm-up. Same results.
@@ -625,7 +625,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-17 · **memory-compression** 2.0.0 · API 2: Two modules became one file with one pack and unpack that choose the right method for you. A page that used both now ships about a quarter less code.
 - 2026-10-17 · **lzma-pack** 1.1.2 · API 1: Faster packing with identical pages: choosing the key took seconds before and now takes a fraction of a second.
 - 2026-10-17 · **lzma-pack** 1.1.1 · API 1: A page policy given to the packer now always allows WebAssembly, the one addition the project allows, so the faster decoder is used.
-- 2026-10-17 · **lzma-pack** 1.1.0 · API 1: New optional --wasm adds the WebAssembly decoder to the packed page (about 3% bigger), which starts 14 to 30 ms sooner on a desktop.
+- 2026-10-17 · **lzma-pack** 1.1.0 · API 1: New optional --wasm adds the WebAssembly decoder to the packed page (about 3% bigger), which starts 14 to 30 ms sooner on a desktop (Chromium).
 - 2026-10-17 · **lzma-decode** 1.1.0 · API 1: New optional WebAssembly version of the decoder, about 1.5 to 2 times faster to open a page in the four test browsers. Pages that forbid WebAssembly use the old decoder.
 - 2026-10-17 · **idle-core** 1.2.0 · API 1: Fixed five traps: numbers typed as text (like "10" or "MAX") now work like numbers, and a frozen object no longer breaks it. Faster number formatting and buy buttons, and five new helpers.
 - 2026-10-17 · **hold-press** 1.1.0 · API 1: Buttons that are not being pressed no longer cost anything on every mouse or touch move, so pages with many buttons feel lighter. New option stops the browser from scrolling during a touch press.

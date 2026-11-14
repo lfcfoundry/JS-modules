@@ -216,7 +216,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Packing event tables takes 14 to 25% less time and logs 10 to 16% less (laptop): more columns are built in WebAssembly, and log template slots are found in one pass. Files are byte-identical.
 
 ## 0.4.14 · API 0 · 2026-10-31
-- Packing logs takes 10 to 14% less time (hex ids such as 1789c0bf1b now fill one template slot), and event tables with long hex id columns up to a third less. Files are byte-identical.
+- Packing logs takes 10 to 14% less time (hex ids such as 1789c0bf1b now fill one template slot), and event tables with long hex id columns up to a third less. Files are byte-identical (Firefox).
 
 ## 0.4.13 · API 0 · 2026-10-31
 - Smaller file, same results: lfc-pack.js is now 353 KB instead of 789 KB, because its built-in WebAssembly programs are stored compressed and unpacked by the browser while they compile. Load to first result takes 3 to 11% less time.
@@ -268,7 +268,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Packing with small blocks is 1.3-3.7x faster: the string and shape tables are cleared only as far as each block used them. Same bytes.
 
 ## 0.3.1 · API 0 · 2026-10-30
-- Map coordinates and other decimal lists read faster: 0.38 to 0.86x the time of 0.3.0, now faster than before the decimal format too.
+- Map coordinates and other decimal lists read faster: 0.38 to 0.86x the time of 0.3.0, now faster than before the decimal format too (Chromium, Firefox and WebKitGTK).
 
 ## 0.3.0 · API 0 · 2026-10-30
 - Much smaller files for decimal numbers and map coordinates (map lines 0.30x the size, prices 0.78x), plus new row-range reads, file stats, metadata and hashing. Files that use the new number columns need this version's reader.

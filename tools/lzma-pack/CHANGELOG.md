@@ -24,7 +24,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - A page policy given to the packer now always allows WebAssembly, the one addition the project allows, so the faster decoder is used.
 
 ## 1.1.0 · API 1 · 2026-10-17
-- New optional --wasm adds the WebAssembly decoder to the packed page (about 3% bigger), which starts 14 to 30 ms sooner on a desktop.
+- New optional --wasm adds the WebAssembly decoder to the packed page (about 3% bigger), which starts 14 to 30 ms sooner on a desktop (Chromium).
 
 ## 1.0.0 · API 1 · 2026-10-16
 - First labeled version. Nothing in the code changed.
