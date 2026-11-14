@@ -3,25 +3,25 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 2.17.0 · API 2 · 2026-11-14
-- New packColumns(): pack a table held as columns, same bytes as pack(), about 8% faster than msgpackr in Chromium and Firefox.
+- New packColumns(): pack a table held as columns, same bytes as pack(). 100,000 records: 6 to 8% faster than msgpackr in Chromium 156 and Firefox 158, 4% slower in WebKitGTK 2.52.6.
 
 ## 2.16.9 · API 2 · 2026-11-14
-- Faster packing of date-time and list columns, same bytes.
+- Faster packing of date-time columns (30 to 36% in Chromium 156 and Firefox 158) and list columns (6 to 14%), same bytes.
 
 ## 2.16.8 · API 2 · 2026-11-14
-- Faster packing of decimal number columns, same bytes.
+- Faster packing of decimal number columns, same bytes: 18 to 29% in Chromium 156 and Firefox 158.
 
 ## 2.16.7 · API 2 · 2026-11-14
-- Faster packing of text like user123@example.org or zip codes, same bytes.
+- Faster packing of text like user123@example.org or zip codes, same bytes. A whole 100,000-record pack is 5 to 14% faster in Chromium 156 and Firefox 158.
 
 ## 2.16.6 · API 2 · 2026-11-14
-- Faster packing of text columns with few values (cities, tags, statuses), same bytes.
+- Faster packing of text columns with few values (cities, tags, statuses), same bytes: a 100,000-record pack is 3 to 13% faster in Chromium 156, Firefox 158 and WebKitGTK 2.52.6.
 
 ## 2.16.5 · API 2 · 2026-11-14
-- Slightly faster packing of lists of tags or roles, same bytes.
+- Slightly faster packing of lists of tags or roles, same bytes: up to 6% in a 100,000-record pack, never slower in Chromium 156, Firefox 158 or WebKitGTK 2.52.6.
 
 ## 2.16.4 · API 2 · 2026-11-14
-- Faster packing of plain-English text in Safari-family browsers, same bytes
+- Faster packing of plain-English text in Safari-family browsers, same bytes: 6 to 8% in WebKitGTK 2.52.6. Off in Chromium, where it was 3 to 7% slower.
 
 ## 2.16.3 · API 2 · 2026-11-14
 - Fixes wrong text back from pattern columns that differ only in a constant part when unpacked in the same page (2.16.1-2.16.2 and earlier); faster ISO timestamp packing
