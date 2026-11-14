@@ -406,6 +406,7 @@
       w.readBlock = function (a, b, c) { return waRun(zs, a, function () { return rd.readBlock(a, b, c); }); };
       if (rd.readRange) w.readRange = function (a, b, c) { return waRun(zs, a, function () { return rd.readRange(a, b, c); }); };
       if (rd.readSel) w.readSel = function (a, b, c, d, e, f) { return waRun(zs, a, function () { return rd.readSel(a, b, c, d, e, f); }); };
+      if (rd.readPos) w.readPos = function (a, b, c, d, e, f) { return waRun(zs, a, function () { return rd.readPos(a, b, c, d, e, f); }); };
       if (rd.readEq) w.readEq = function (a, b, c, d, e, f, g) { return waRun(zs, a, function () { return rd.readEq(a, b, c, d, e, f, g); }); };
       return w;
     }
@@ -414,6 +415,7 @@
     r.readBlock = function (a, b, c) { arenaReset(); return rd.readBlock(a, b, c); };
     if (rd.readRange) r.readRange = function (a, b, c) { arenaReset(); return rd.readRange(a, b, c); };
     if (rd.readSel) r.readSel = function (a, b, c, d, e, f) { arenaReset(); return rd.readSel(a, b, c, d, e, f); };
+    if (rd.readPos) r.readPos = function (a, b, c, d, e, f) { arenaReset(); return rd.readPos(a, b, c, d, e, f); };
     if (rd.readEq) r.readEq = function (a, b, c, d, e, f, g) { arenaReset(); return rd.readEq(a, b, c, d, e, f, g); };
     return r;
   }
@@ -485,7 +487,35 @@
     }
     return out;
   }
+  // W1: unpack(file, { equals | range, positions: true }) -> a Uint32Array of the row numbers (in the order unpack(file) returns the rows; with `table`, in that table's rows) of the rows the same query would return, and no row objects; keys, rows and cache have no effect
+  function unpackPositions(bytes, opts) {
+    var eq = opts.equals, range = opts.range || null;
+    if (!eq && !range) throw new Error('LfcPack: positions needs equals or range');
+    var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), i, j, r, kd, base = 0, got = new Uint32Array(1024), m = 0, tb;
+    var evOk = !eq || !eq.anyOf || NX_C === 'on', ev = eq ? (eq.anyOf && NX_C === 'on' ? new AnyOf(eq.anyOf) : eq.value) : null, md = eq ? (opts._eq || 'codes') : 'range';
+    var EQF = eq && evOk && file.blocks.length > 1 ? eqfOf(bytes, file) : null, EQN = EQF ? eqNeedles(ev) : null, es = eq && eq.anyOf ? new Set(eq.anyOf) : null;
+    for (i = 0; i < file.blocks.length; i++) {
+      tb = file.blocks[i][5] || 0;
+      if (opts.table != null && tb !== opts.table) continue;
+      var nb = file.blocks[i][3], b0 = base; base += nb; kd = file.blocks[i][4]; r = null;
+      if (range && !blockMayMatch(file, i, range)) continue;
+      if (eq && kd === 'f' && EQF && EQF[i] && eqSkipBlock(EQF[i], eq.key, EQN)) continue;
+      if (kd === 'f' && md !== 'off' && evOk) r = rf.readPos(blockBytes(file, i), eq ? eq.key : range.key, ev, md, range ? range.min : 0, range ? range.max : 0);
+      if (!r) {   // other blocks, and flat blocks the fast path declines: the rows are read and tested as the row queries test them
+        var rows = kd === 'r' ? rawRows(readRawBlock(S.zdec, blockBytes(file, i))) : (kd === 'f' ? rf.readBlock(blockBytes(file, i), null) : rn.readBlock(blockBytes(file, i), null)), q = [], v;
+        for (j = 0; j < rows.length; j++) {
+          if (range) { v = rows[j][range.key]; if (typeof v === 'number' && v >= range.min && v <= range.max) q.push(j); }
+          else if (es ? Object.prototype.hasOwnProperty.call(rows[j], eq.key) && es.has(rows[j][eq.key]) : rows[j][eq.key] === eq.value) q.push(j);
+        }
+        r = q;
+      }
+      if (m + r.length > got.length) { var g2 = new Uint32Array(Math.max(got.length * 2, m + r.length)); g2.set(got.subarray(0, m)); got = g2; }
+      for (j = 0; j < r.length; j++) got[m++] = b0 + r[j];
+    }
+    return got.slice(0, m);
+  }
   function unpackSome(bytes, opts) {
+    if (opts.positions) return unpackPositions(bytes, opts);
     if (opts.equals) return unpackEq(bytes, opts);
     var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, j, r, kd, want = null, range = opts.range || null;
     rf.generated(opts.rows === 'generated'); rf.lazy(opts.rows === 'lazy' ? 1 : opts.rows === 'lazycols' ? 2 : false);
