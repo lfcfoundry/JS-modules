@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.36 · API 0 · 2026-11-14
+
+### Quick
+B61 faster row loop in writeFlatBlock0 (b61Loop): whole-row presence plane for rows that repeat the previous key order, and indexed fill instead of push outside Firefox.
+
+### Deep
+B61 faster row loop in writeFlatBlock0 (b61Loop): whole-row presence plane for rows that repeat the previous key order, and indexed fill instead of push outside Firefox. Same bytes (85 Node cases in research; test/b61.cjs 32 cases here). Research same-page A/B vs 0.10.35: Workbench-style 600k 0.922 Firefox 158 / 0.962 Chromium 156 / 0.969 WebKitGTK 2.52.6; logs 200k 0.985 / 0.968 / 0.989.
+
 ## 0.10.35 · API 0 · 2026-11-14
 
 ### Quick
