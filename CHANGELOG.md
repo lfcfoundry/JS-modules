@@ -64,13 +64,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-11-14 · **zstd-kit** 1.0.0 · API 1: First release: Zstandard compress and decompress, XXH64 and CRC-32 from one WebAssembly build, split out of lfc-pack with its own tests and credits; a decode-only file too.
 - 2026-11-14 · **netflow-layers** 1.13.0 · API 1: New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
-- 2026-11-14 · **memory-compression** 2.17.0 · API 2: New packColumns(): pack a table held as columns, same bytes as pack(), about 8% faster than msgpackr in Chromium and Firefox.
-- 2026-11-14 · **memory-compression** 2.16.9 · API 2: Faster packing of date-time and list columns, same bytes.
-- 2026-11-14 · **memory-compression** 2.16.8 · API 2: Faster packing of decimal number columns, same bytes.
-- 2026-11-14 · **memory-compression** 2.16.7 · API 2: Faster packing of text like user123@example.org or zip codes, same bytes.
-- 2026-11-14 · **memory-compression** 2.16.6 · API 2: Faster packing of text columns with few values (cities, tags, statuses), same bytes.
-- 2026-11-14 · **memory-compression** 2.16.5 · API 2: Slightly faster packing of lists of tags or roles, same bytes.
-- 2026-11-14 · **memory-compression** 2.16.4 · API 2: Faster packing of plain-English text in Safari-family browsers, same bytes
+- 2026-11-14 · **memory-compression** 2.17.0 · API 2: New packColumns(): pack a table held as columns, same bytes as pack(). 100,000 records: 6 to 8% faster than msgpackr in Chromium 156 and Firefox 158, 4% slower in WebKitGTK 2.52.6.
+- 2026-11-14 · **memory-compression** 2.16.9 · API 2: Faster packing of date-time columns (30 to 36% in Chromium 156 and Firefox 158) and list columns (6 to 14%), same bytes.
+- 2026-11-14 · **memory-compression** 2.16.8 · API 2: Faster packing of decimal number columns, same bytes: 18 to 29% in Chromium 156 and Firefox 158.
+- 2026-11-14 · **memory-compression** 2.16.7 · API 2: Faster packing of text like user123@example.org or zip codes, same bytes. A whole 100,000-record pack is 5 to 14% faster in Chromium 156 and Firefox 158.
+- 2026-11-14 · **memory-compression** 2.16.6 · API 2: Faster packing of text columns with few values (cities, tags, statuses), same bytes: a 100,000-record pack is 3 to 13% faster in Chromium 156, Firefox 158 and WebKitGTK 2.52.6.
+- 2026-11-14 · **memory-compression** 2.16.5 · API 2: Slightly faster packing of lists of tags or roles, same bytes: up to 6% in a 100,000-record pack, never slower in Chromium 156, Firefox 158 or WebKitGTK 2.52.6.
+- 2026-11-14 · **memory-compression** 2.16.4 · API 2: Faster packing of plain-English text in Safari-family browsers, same bytes: 6 to 8% in WebKitGTK 2.52.6. Off in Chromium, where it was 3 to 7% slower.
 - 2026-11-14 · **memory-compression** 2.16.3 · API 2: Fixes wrong text back from pattern columns that differ only in a constant part when unpacked in the same page (2.16.1-2.16.2 and earlier); faster ISO timestamp packing
 - 2026-11-14 · **memory-compression** 2.16.2 · API 2: Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
 - 2026-11-14 · **memory-compression** 2.16.1 · API 2: Unpacking lists with decimal numbers is about 10 to 15% faster
