@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of zstd-kit.js and lfc-pack.js (each joined by its build.py).
 
   // ================================================================ zstd on top of a wasm instance (wasm/zstd-glue.c)
   function makeZstd(inst) {

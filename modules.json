@@ -388,6 +388,19 @@
       "category": "efficiency"
     },
     {
+      "id": "zstd-kit",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "ZstdKit",
+      "summary": "Zstandard compression and decompression in the browser and Node, plus XXH64 and CRC-32, from one WebAssembly build of the official library (the one inside lfc-pack). Decompresses 2.4 to 3.5 times faster than fzstd and the browser's own gzip; a decode-only file is 34 KB gzipped.",
+      "short": "Zstandard compress and decompress, XXH64 and CRC-32, in WebAssembly.",
+      "file": "modules/zstd-kit/zstd-kit.js",
+      "readme": "modules/zstd-kit/README.md",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "efficiency"
+    },
+    {
       "id": "text-columns",
       "version": "0.6.5",
       "api": 0,

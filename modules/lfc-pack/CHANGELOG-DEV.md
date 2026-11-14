@@ -8,7 +8,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 CP2-1: a null-plane number column read with nulls: 'NaN' expands straight from the WebAssembly bit-unpack output instead of copying it out first, skipping one full-size Float64Array per column per block.
 
 ### Deep
-CP2-1: a null-plane number column read with nulls: 'NaN' expands straight from the WebAssembly bit-unpack output instead of copying it out first, skipping one full-size Float64Array per column per block. 1,000,000 taxi rows, unpackColumns tip (20% empty), median of 6 fresh pages: warm 0.76 (ungoogled Chromium 156) and 0.74 (Firefox 158) of 0.10.24's time; first call 0.75 and 0.86; two-column zone read 0.93 and 0.88; fare (no nulls) unchanged. WebKitGTK 2.52.6 keeps the JS path (no change; A/B within noise). Same values, bit for bit (checked against 0.10.24 on 100 to 200,000 rows, one and three keys).
+CP2-1: a null-plane number column read with nulls: 'NaN' expands straight from the WebAssembly bit-unpack output instead of copying it out first, skipping one full-size Float64Array per column per block. 1,000,000 taxi rows, unpackColumns tip (20% empty), median of 6 fresh pages: warm 0.84 (ungoogled Chromium 156, 18 pages per build; a first run on Playwright Chromium 153 gave 0.76) and 0.74 (Firefox 158) of the 0.10.24 time; first call 0.86 and 0.86; two-column zone read 0.88 and 0.88; fare (no nulls) unchanged. WebKitGTK 2.52.6 keeps the JS path (no change; A/B within noise). Same values, bit for bit (checked against 0.10.24 on 100 to 200,000 rows, one and three keys).
 
 ## 0.10.24 · API 0 · 2026-11-14
 

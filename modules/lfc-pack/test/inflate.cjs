@@ -8,7 +8,7 @@ const lit = JSON.parse(/\/\*WASM:BEGIN\*\/(\{.*?\})\/\*WASM:END\*\//s.exec(src)[
 const files = { 'zstd-dec': 'zstd-dec.wasm', 'zstd-full': 'zstd-full.wasm', 'core': 'core.wasm', 'core-plain': 'core-plain.wasm' };
 let bad = 0; const ok = (c, m) => { if (!c) { bad++; console.log('FAIL ' + m); } };
 for (const k in files) {
-  const b = Buffer.from(lit[k], 'base64'), want = fs.readFileSync(path.join(here, 'wasm', files[k]));
+  const b = Buffer.from(lit[k], 'base64'), want = fs.readFileSync(path.join(here, k.startsWith('zstd') ? '../zstd-kit/wasm' : 'wasm', files[k]));
   ok(b.readUInt32LE(0) === want.length, k + ': stored size'); ok(zlib.inflateRawSync(b.subarray(4)).equals(want), k + ': deflated bytes unpack to wasm/' + files[k]);
 }
 (async () => {
