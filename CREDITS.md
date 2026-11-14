@@ -23,6 +23,8 @@ Every credit links to the original paper, repository or page; where no online co
 | LEB128 varints, ZigZag | [Protocol Buffers encoding](https://protobuf.dev/programming-guides/encoding/) (Google) | lfc-pack, memory-compression |
 | Frame of reference + bit packing | Goldstein, Ramakrishnan and Shaft, [ICDE 1998](https://doi.org/10.1109/ICDE.1998.655800); Lemire and Boytsov, [2015](https://arxiv.org/abs/1209.2137) | lfc-pack |
 | Columns with per-block min/max | [Apache Parquet](https://parquet.apache.org/), [Apache ORC](https://orc.apache.org/), DuckDB [zone maps](https://duckdb.org/2022/10/28/lightweight-compression) | lfc-pack |
+| Branchless select (empty-value skip in aggregate kernels) | Daniel Lemire, [blog, 2019](https://lemire.me/blog/2019/10/15/mispredicted-branches-can-multiply-your-running-times/) | lfc-pack |
+| Warming wasm kernels before the first long call | V8 team, [WebAssembly Dynamic Tiering](https://v8.dev/blog/wasm-dynamic-tiering) | lfc-pack |
 | Nested-data shredding | Melnik et al., [Dremel](https://research.google/pubs/dremel-interactive-analysis-of-web-scale-datasets-2/), Google 2010 | lfc-pack |
 | Log templates | He et al., [Drain](https://doi.org/10.1109/ICWS.2017.13), ICWS 2017; test logs from [LogHub](https://github.com/logpai/loghub) | lfc-pack |
 | ALP decimals | Afroozeh, Kuffo and Boncz, [SIGMOD 2024](https://doi.org/10.1145/3626717) ([code](https://github.com/cwida/ALP)) | memory-compression |

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 0.10.28 (API 0)
+# Version 0.10.29 (API 0)
 # Concatenates src/*.js into lfc-pack.js and embeds the wasm modules (the four big ones deflated, then base64; lfc-pack-read.js keeps plain base64). Run from anywhere.
 import base64, os, struct, sys, zlib
 here = os.path.dirname(os.path.abspath(__file__))
 order = ['head', 'util', 'wasm', 'zstd', 'shred', 'nested', 'flat', 'container', 'api', 'delta', 'pool', 'tail']
-kit = os.path.join(here, '..', 'zstd-kit')   # zstd-kit holds the Zstandard WebAssembly build and its JavaScript wrapper (split out 0.10.28)
+kit = os.path.join(here, '..', 'zstd-kit')   # zstd-kit holds the Zstandard WebAssembly build and its JavaScript wrapper (split out 0.10.29)
 src = ''.join(open(os.path.join(kit, 'src', 'zstd-core.js') if n == 'zstd' else os.path.join(here, 'src', n + '.js'), encoding='utf-8').read() for n in order)
 mods = {'zstd-dec': '../zstd-kit/wasm/zstd-dec.wasm', 'zstd-full': '../zstd-kit/wasm/zstd-full.wasm', 'core': 'wasm/core.wasm', 'core-plain': 'wasm/core-plain.wasm'}
 def packed(path):   # 4-byte size, then raw DEFLATE (level 9), then base64; src/wasm.js unpacks it

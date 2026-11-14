@@ -453,6 +453,15 @@
   function bdx() { if (BDX === null) { try { if (!MODS['BDB64']) MODS['BDB64'] = new WebAssembly.Module(fromB64(BDB64)); BDX = new WebAssembly.Instance(MODS['BDB64'], {}).exports; } catch (e) { BDX = false; } } return BDX; }
   function bdMem(need) { var m = BDX.memory, have = m.buffer.byteLength; if (need > have) m.grow(Math.ceil((need - have) / 65536)); return m.buffer; }
   function bdLay(parts) { var p = (BDX.__heap_base.value + 7) & ~7, at = [], q; for (q = 0; q < parts.length; q++) { at.push(p); p = (p + parts[q] + 8 + 7) & ~7; } return { at: at, end: p }; }   // each part gets 8 zero-filled bytes after it (the kernels read 8 bytes at a time)
+  // B49: 1 bits in len bytes of u8 from at; long runs are counted in bdec.wasm (popc, 8 bytes at a time): the plain loop runs cold on the first read of a page (about 1 ms per 1M-row column in Chromium)
+  function popcBytes(u8, at, len) { var X = len >= 4096 ? bdx() : null, c = 0, b;
+    if (X && X.popc) { var L = bdLay([len]), m = new Uint8Array(bdMem(L.end)); bdPut(m, L.at[0], u8.subarray(at, at + len)); return X.popc(L.at[0], len) >>> 0; }
+    for (b = 0; b < len; b++) c += popc8[u8[at + b]]; return c; }
+  // B50: a few hundred tiny calls of each bdec kernel in warm(), so the engines compile them to their optimizing tier before the first real call (one long first call otherwise runs in the baseline tier the whole way); -> ms spent
+  function bdWarm(reps) { var X = bdx(), t0 = Date.now(), i; if (!X) return 0;
+    var L = bdLay([256, 32, 256, 2048, 1024, 16]), u = new Uint8Array(bdMem(L.end)); u.fill(0, L.at[0], L.end); for (i = 0; i < 256; i++) { u[L.at[0] + i] = i * 37; u[L.at[2] + i] = i * 11; } u[L.at[1]] = 85;
+    for (i = 0; i < reps; i++) { X.sumI(L.at[0], 0, 256, 7, L.at[5]); X.sumI(L.at[0], L.at[1], 200, 7, L.at[5]); X.grpI(L.at[0], 0, 256, 7, L.at[2], 8, L.at[3], L.at[4]); X.grpI(L.at[0], L.at[1], 200, 7, L.at[2], 8, L.at[3], L.at[4]); X.popc(L.at[0], 256); }
+    return Date.now() - t0; }
   function bdPut(u8, at, b) { u8.set(b, at); u8.fill(0, at + b.length, at + b.length + 8); }
   // CP2-1 (research): a null-plane number column read with nulls: 'NaN' expands straight from the wasm output, skipping one full-size copy
   var CP2_1 = true;
@@ -1050,7 +1059,7 @@
       for (j = 0; j < K; j++) {
         if (!cols[j]) continue;
         base = j * pb; cnt = 0;
-        for (b = 0; b < (n >> 3); b++) cnt += popc8[pl[base + b]];
+        cnt = popcBytes(pl, base, n >> 3);
         for (i = n & ~7; i < n; i++) cnt += (pl[base + (i >> 3)] >> (i & 7)) & 1;
         if (cnt !== meta.cols[j].n) throw new Error('damaged block: presence bits do not match the column');
       }
