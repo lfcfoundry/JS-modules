@@ -39,7 +39,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 
 ## 2.4.0 · API 2 · 2026-10-31
-- Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout.
+- Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout (Chromium).
 
 ## 2.3.3 · API 2 · 2026-10-31
 - Bars settle into place in WebAssembly too: the same pictures in 3 to 26% less time for big flow charts (3 to 14% in cloud browsers, 7 to 26% on a laptop).

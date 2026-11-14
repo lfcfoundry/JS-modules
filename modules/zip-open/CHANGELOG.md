@@ -15,7 +15,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Fixed: a damaged or crafted Excel file with a very long broken tag could freeze the page for many minutes. It now fails or opens in a moment. Same results for every other file.
 
 ## 1.19.0 · API 1 · 2026-11-06
-- The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results.
+- The first big Excel file you open in a page opens 5 to 25% faster: the warm-up after load now also starts the second thread that unpacks big sheets. It waits idle until that first open. Same results (Chromium and Firefox).
 
 ## 1.18.2 · API 1 · 2026-11-05
 - Text-heavy Excel sheets open 2 to 13% faster; other sheets about the same. Same results.
@@ -85,7 +85,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Helpers from expandBlob close 5 s after their last use and give their memory back (idleMs changes the delay).
 
 ## 1.5.1 · API 1 · 2026-10-30
-- Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open.
+- Opening a zip file of up to 16 MB from a File is faster again (0.80 to 0.93x the time), now as fast as the older in-memory open (Chromium, Firefox and WebKitGTK).
 
 ## 1.5.0 · API 1 · 2026-10-30
 - Faster: entries of 4 KB or less (compressed) are unpacked by a small WebAssembly inflate, about 1.5 to 2.2 times as fast for thousands of tiny files. Module grows by 9.4 KB of WebAssembly. Same files, same notes.

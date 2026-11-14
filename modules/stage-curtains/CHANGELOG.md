@@ -18,7 +18,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - The curtain's velvet paints 27 to 34% faster (WebAssembly loop reads per-column tables). Same picture, byte for byte.
 
 ## 1.3.0 · API 1 · 2026-10-18
-- New option create({ worker: true }) paints the curtain in a background worker: the page does 3 to 7 ms of work instead of 21 to 36 ms. Same picture.
+- New option create({ worker: true }) paints the curtain in a background worker: the page does 3 to 7 ms of work instead of 21 to 36 ms. Same picture (Chromium, Firefox and WebKitGTK).
 
 ## 1.2.0 · API 1 · 2026-10-18
 - A curtain half paints about 1.4 to 1.6 times faster on a freshly loaded page (same picture) using a small WebAssembly painter. Pages with a content policy need 'wasm-unsafe-eval'; without it, plain JavaScript is used.

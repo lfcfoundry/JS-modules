@@ -6,7 +6,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Default block lists intersect 1.6 to 1.8 times faster and now beat roaring-wasm on spread-out values in Chromium and Firefox; decoding block lists up to 2 times faster.
 
 ## 2.1.1 · API 2 · 2026-11-07
-- Block lists: intersecting is 2 to 3 times faster with arrays: true, now faster than roaring-wasm on spread-out lists too.
+- Block lists: intersecting is 2 to 3 times faster with arrays: true, now faster than roaring-wasm on spread-out lists too (Chromium, Firefox and WebKitGTK).
 
 ## 2.1.0 · API 2 · 2026-11-07
 - New block lists (buildBlocks, openBlocks): bitmaps where values are dense, so intersecting and lookups beat roaring-wasm on dense data.

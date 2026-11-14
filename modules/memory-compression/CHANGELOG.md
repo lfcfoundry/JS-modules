@@ -27,7 +27,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Unpacking lists of small tuples (coordinate pairs, name and count pairs) is up to 10% faster in Firefox; same data.
 
 ## 2.14.0 · API 2 · 2026-11-08
-- warm() also warms a small view and pager, so their first use is 1 to 4 ms faster.
+- warm() also warms a small view and pager, so their first use is 1 to 4 ms faster (Chromium, Firefox and WebKitGTK).
 
 ## 2.13.0 · API 2 · 2026-11-07
 - warm() can take a sample of your own rows for a faster first unpack.
@@ -72,13 +72,13 @@ What changed in each version, newest first, in plain words. The full details (nu
 - New opt-in setting quickTries: true tries every number coding on the first block only: packing 0 to 20% faster on lists with number columns, files 0 to 1.1% bigger. Off by default; default output byte-identical.
 
 ## 2.6.6 · API 2 · 2026-10-30
-- Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes
+- Opening balanced or small packed columns is 2 to 12% faster; same rows, same bytes (Chromium, Firefox and WebKitGTK)
 
 ## 2.6.5 · API 2 · 2026-10-26
 - Fixed: nested rows whose key names contain a control character could get another row shape's field names.
 
 ## 2.6.4 · API 2 · 2026-10-24
-- Column pages keep nested objects, arrays, coordinate pairs and date-times in pieces, made when the row is read: scene-item page memory 312 to 148 KB, page open up to 2x faster; reading every row is 80 to 300 ns slower.
+- Column pages keep nested objects, arrays, coordinate pairs and date-times in pieces, made when the row is read: scene-item page memory 312 to 148 KB, page open up to 2x faster; reading every row is 80 to 300 ns slower (Chromium).
 
 ## 2.6.3 · API 2 · 2026-10-24
 - unpackAsync() now opens number columns written by the number picker a few blocks at a time, so a long coordinate column no longer holds the page for 15 to 25 ms; same values, same packed bytes, unpack() unchanged.
@@ -117,7 +117,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - 2.4.2: pager() can repack pages nobody is reading 15 to 18% smaller in a background worker, by itself when idle or before moving them to storage (needs worker-src blob: in the page's security policy).
 
 ## 2.4.1 · API 2 · 2026-10-22
-- 2.4.1: pager() can keep open pages as columns; for lists of numbers that halves the memory of an open page and opens it about 2 to 3 times faster.
+- 2.4.1: pager() can keep open pages as columns; for lists of numbers that halves the memory of an open page and opens it about 2 to 3 times faster (Chromium).
 
 ## 2.4.0 · API 2 · 2026-10-22
 - 2.4.0: after a big pack the module gives its spare memory back by itself once the page is quiet for 2 seconds.
@@ -132,7 +132,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - 2.3.3: packing a long list in pager() is 15 to 30% faster (60,000 rows: Chromium 40 to 31 ms, Firefox 61 to 45, WebKitGTK 54 to 39, GNOME Web 47 to 38). Same bytes.
 
 ## 2.3.2 · API 2 · 2026-10-22
-- 2.3.2: pager() now also reads ahead when rows are read backward, so the first read of each new page costs nothing instead of 0.5 to 1 ms.
+- 2.3.2: pager() now also reads ahead when rows are read backward, so the first read of each new page costs nothing instead of 0.5 to 1 ms (Chromium, Firefox and WebKitGTK).
 
 ## 2.3.1 · API 2 · 2026-10-22
 - 2.3.1: the automatic page length is never longer than the old 2,048-row default, so thin rows no longer open slower in Firefox.
@@ -153,7 +153,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Balanced and small mode open 7 to 32% faster and pack 6 to 18% faster in all four test browsers (same files); WebAssembly starts compiling when the file loads.
 
 ## 2.0.4 · API 2 · 2026-10-18
-- Text such as dates (2025-03-04T05:15:00Z) opens up to 2 times faster in fast mode; no change to file size on disk.
+- Text such as dates (2025-03-04T05:15:00Z) opens up to 2 times faster in fast mode; no change to file size on disk (Chromium and WebKitGTK).
 
 ## 2.0.3 · API 2 · 2026-10-18
 - Saves about 5.8 MB of memory on pages that load the module but never pack anything. The first pack takes a few milliseconds longer.
