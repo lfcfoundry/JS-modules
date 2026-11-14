@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.35 · API 0 · 2026-11-14
+- Faster saves of text columns in Firefox (up to 29% on table-like data).
+
 ## 0.10.34 · API 0 · 2026-11-14
 - New fast: true option: quicker saves of text-heavy rows.
 - Saves with templates: true are 5-12% faster.

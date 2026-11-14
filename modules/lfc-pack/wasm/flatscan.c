@@ -347,6 +347,21 @@ EXPORT("numcol") u32 numcol(const double*b,u32 n,u8*out,double*res,u32 mode){
 // B25b: b21Flags in one pass: res[0] 1 when some value is -0, res[1] 1 when every value is a whole number under 2^50 in size, res[2] 1 when some value is NaN or infinite
 EXPORT("numflags") void numflags(const double*a,u32 n,double*res){
   u32 i,nz=0,ai=1,nf=0; for(i=0;i<n;i++){ double x=a[i]; ai&=(x==__builtin_trunc(x))&(x<1125899906842624.0)&(x>-1125899906842624.0); nz|=(x==0)&(__builtin_signbit(x)!=0); nf|=!(x-x==0); } res[0]=nz; res[1]=ai; res[2]=nf; }
+// B59 (B53 kernel): a text column's n values joined by 0 bytes in in[0..len) (packRows writes them there): the first-seen dictionary codes, and out = the distinct values joined by 0 bytes (only when it is a dictionary: D*4 <= n and D < 65536).
+// chk 1: first checks the input holds exactly n-1 zero bytes (some value held a 0 char: returns 0xFFFFFFFF). cap: like encodeColumn's loop, stops at a new value once D*cap > n and returns D with res[1] = 1. ht: 4*T u32, T a power of two >= 2*(n/cap+2).
+EXPORT("sdz") u32 sdz(const u8*in,u32 len,u32 n,u32 cap,u32 chk,u32 T,u32*ht,u32*codes,u8*out,u32*res){
+  u32 i,D=0,m,s=0,e,L,h,at,id,o;
+  res[0]=0; res[1]=0;
+  if(chk){ u32 z=0,q=0; for(;q+8<=len;q+=8){ u64 x; __builtin_memcpy(&x,in+q,8); u64 t=((x&0x7F7F7F7F7F7F7F7FULL)+0x7F7F7F7F7F7F7F7FULL)|x|0x7F7F7F7F7F7F7F7FULL; t=~t; z+=__builtin_popcountll(t); } for(;q<len;q++) z+=in[q]==0; if(z!=(n?n-1:0)) return 0xFFFFFFFFu; }
+  for(i=0;i<4*T;i+=4) ht[i]=0;
+  for(m=0;m<n;m++){ e=s; while(e<len&&in[e]) e++; L=e-s; const u8*a=in+s;
+    h=hbytes(a,L); at=h&(T-1); id=0xFFFFFFFFu; u32 x;
+    while((x=ht[4*at])!=0){ if(ht[4*at+1]==h&&ht[4*at+3]==L&&sameb(a,in+ht[4*at+2],L)){ id=x-1; break; } at=(at+1)&(T-1); }
+    if(id==0xFFFFFFFFu){ if(D*cap>n){ res[1]=1; return D; } id=D++; ht[4*at]=id+1; ht[4*at+1]=h; ht[4*at+2]=s; ht[4*at+3]=L; }
+    codes[m]=id; s=e+1; }
+  if(D*4<=n&&D<65536){ o=0; for(i=0;i<4*T;i+=4) if(ht[i]) codes[n+ht[i]-1]=i; for(i=0;i<D;i++){ u32 k=codes[n+i]; if(i) out[o++]=0; __builtin_memcpy(out+o,in+ht[k+2],ht[k+3]); o+=ht[k+3]; } res[0]=o; }
+  return D;
+}
 // B57: the template layout (encodeColumn's 'L', templateFrames in flat.js) built from a text column's bytes (n values joined by 0 bytes, UTF-8): the same five frames.
 // Slots follow slotScan: a run of 8 or more hex digits [0-9a-f] holding a letter, else -?[0-9]+; every slot becomes byte 1 in its template. Templates are numbered first seen;
 // slot groups run in (template, slot) order. A group whose every value is canonical (0 or -?[1-9] then up to 14 digits) is stored as varints of the zigzag differences, else as text joined by '\n'.

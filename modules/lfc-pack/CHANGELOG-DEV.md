@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.35 · API 0 · 2026-11-14
+
+### Quick
+B59 + B60 Firefox-only text counts: a text column of 4,096+ values counts distinct values in wasm (sdz, more than 128 distinct in the first 1,024) or with a 4,096-slot string hash (128 or fewer); Chromium and WebKitGTK keep the Map.
+
+### Deep
+B59 + B60 Firefox-only text counts: a text column of 4,096+ values counts distinct values in wasm (sdz, more than 128 distinct in the first 1,024) or with a 4,096-slot string hash (128 or fewer); Chromium and WebKitGTK keep the Map. Same bytes (39 cases, test/b59.cjs forces the flags on). Laptop Firefox 161 against the 0.10.34-equivalent build: Workbench-style 0.713, logs 0.898; cloud Firefox 158 Workbench-style 0.77 x 0.929; same-page 100k logs 0.978 default, 0.95 templates; Chromium 0.97, WebKitGTK 0.99.
+
 ## 0.10.34 · API 0 · 2026-11-14
 
 ### Quick
