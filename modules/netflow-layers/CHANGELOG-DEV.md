@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.13.0 · API 1 · 2026-11-14
+
+### Quick
+new sift option, fewer crossings than Graphviz
+
+### Details
+opt-in; maps without sift are unchanged
+
+### Deep
+netflow-layers 1.13.0: sift option (working name, owner name card open): global sifting post-pass after the order search plus tie-accepting and strict neighbor swaps, lanes respected, dummy stops treated as items, best order kept; in wasm/order.c (export sift) with an equal JS path. Layered test map 300 / 1,000 / 3,000 items: 442 / 4,222 / 24,390 crossings (Graphviz 483 / 4,494 / 26,894; before 473 / 4,679 / 28,035); sift: 6 432 / 4,164 / 23,754. Layout time with sift: true, median of 9 warm, fresh page per browser: 1,000 items Chromium 156 1.19x, Firefox 158 1.24x, WebKitGTK 2.52.6 1.21x; 3,000 items 1.24x / 1.37x / 1.22x (weighted 1.21x / 1.25x); sift: 6 at 3,000 2.03x / 1.98x / 1.72x. Default maps unchanged (all pinned fingerprints pass). From the Netflow Map crossings-search handoff (HANDOFF-js-modules-sifting-2026.11.14.md).
+
 ## 1.12.3 · API 1 · 2026-11-06
 
 ### Quick

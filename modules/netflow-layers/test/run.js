@@ -249,4 +249,21 @@ t('toSvg: the default back-link amber reads at 4.5:1 on white as text and 3:1 as
   const cr = (h) => 1.05 / (lum(h) + 0.05);
   ok(cr(m[1]) >= 4.5, 'text contrast ' + cr(m[1]).toFixed(2)); ok(cr(blend(m[1], 0.85)) >= 3, 'drawn line contrast ' + cr(blend(m[1], 0.85)).toFixed(2));
 });
+t('sift: never more crossings than without it, stops stay in their lanes, same result with and without WebAssembly, input unchanged', () => {
+  const cases = [['story 120', story(120, 3), {}], ['story 400 lanes', story(400, 15), { lanes: true }], ['dag 300/600', dag(300, 600, 9), {}], ['story 200 tags', story(200, 4), { tagLen: 3 }]];
+  let gained = 0;
+  for (const [name, s, extra] of cases) for (const sift of [true, 6]) {
+    const g = graph(s), before = JSON.stringify(g);
+    const A = NL0.layout(graph(s), Object.assign({ dir: 'TB' }, extra)), B = NL0.layout(g, Object.assign({ dir: 'TB', sift }, extra));
+    ok(JSON.stringify(g) === before, name + ': input changed');
+    ok(B.crossings <= A.crossings, name + ' sift ' + sift + ': ' + B.crossings + ' > ' + A.crossings); if (B.crossings < A.crossings) gained++;
+    if (extra.lanes) B.nodes.forEach((n) => ok(B.lanes.some((l) => n.x >= l.from - 1 && n.x + n.w <= l.to + 1), name + ': outside every band'));
+    const on = NL0.wasm.on; NL0.wasm.on = false; let C; try { C = NL0.layout(graph(s), Object.assign({ dir: 'TB', sift }, extra)); } finally { NL0.wasm.on = on; }
+    ok(fp(C) === fp(B) && C.crossings === B.crossings, name + ' sift ' + sift + ': WebAssembly and JS differ');
+  }
+  ok(gained >= 4, 'sift cut crossings in only ' + gained + ' of 8 cases');
+  const P = NL0.layout(graph(story(120, 3)), { dir: 'TB', sift: 0 }), Q = NL0.layout(graph(story(120, 3)), { dir: 'TB' });
+  ok(fp(P) === fp(Q), 'sift: 0 changed the picture');
+  return gained + ' of 8 cases gained';
+});
 console.log(bad ? bad + ' FAILED' : 'all netflow-layers checks passed'); process.exit(bad ? 1 : 0);

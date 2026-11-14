@@ -203,3 +203,70 @@ void place(I *P) {
     for (k = nL - 2; k >= 0; k--) { if (both) place_row(P, k, PI(BOTHOFF), PI(BOTHIDX), PD(BOTHW)); else place_row(P, k, PI(DNOFF), PI(DNIDX), PD(DNW)); }
   }
 }
+
+/* sift (opt-in): from the best order in BEST, each stop slides through every place in its row (only inside its lane) to the place with the fewest
+   crossings, most-linked stops first (ties: the leftmost first), rows top-down then bottom-up in turn; then a neighbor-swap pass that takes ties and a strict one.
+   Stops after two rounds with no gain. BEST ends as the best order seen; returns its crossings. The same steps as siftRows in netflow-layers.js. */
+static I deg_of(I *P, I v) { I *uo = PI(UPOFF), *dn = PI(DNOFF); return uo[v + 1] - uo[v] + dn[v + 1] - dn[v]; }
+static I pair_c(I *P, I a, I b, I k) {
+  I *pos = PI(POS), c = 0, p, q, x, nL = P[NL];
+  if (k > 0) { I *o = PI(UPOFF), *ix = PI(UPIDX); for (p = o[a]; p < o[a + 1]; p++) { x = pos[ix[p]]; for (q = o[b]; q < o[b + 1]; q++) if (x > pos[ix[q]]) c++; } }
+  if (k + 1 < nL) { I *o = PI(DNOFF), *ix = PI(DNIDX); for (p = o[a]; p < o[a + 1]; p++) { x = pos[ix[p]]; for (q = o[b]; q < o[b + 1]; q++) if (x > pos[ix[q]]) c++; } }
+  return c;
+}
+static void sift_row(I *P, I k) {
+  I *ro = PI(ROWOFF), *pos = PI(POS), *tmp = PI(TMP), *cnt = PI(SCR);
+  D *lane = PD(LANE);
+  I a0 = ro[k], n = ro[k + 1] - a0, *row = PI(ORD) + a0, i, o, mx = 0;
+  if (n < 2) return;
+  /* the stops by links, most first, then by place: a counting sort over the link counts */
+  for (i = 0; i < n; i++) { I d = deg_of(P, row[i]); if (d > mx) mx = d; }
+  for (i = 0; i <= mx + 1; i++) cnt[i] = 0;
+  for (i = 0; i < n; i++) cnt[mx - deg_of(P, row[i]) + 1]++;
+  for (i = 1; i <= mx + 1; i++) cnt[i] += cnt[i - 1];
+  for (i = 0; i < n; i++) tmp[cnt[mx - deg_of(P, row[i])]++] = row[i];
+  for (o = 0; o < n; o++) {
+    I v = tmp[o], from = pos[v], lo = from, hi = from;
+    while (lo > 0 && lane[row[lo - 1]] == lane[v]) lo--;
+    while (hi + 1 < n && lane[row[hi + 1]] == lane[v]) hi++;
+    if (lo == hi || deg_of(P, v) == 0) continue;
+    for (i = from; i > lo; i--) { row[i] = row[i - 1]; pos[row[i]] = i; }
+    row[lo] = v; pos[v] = lo;
+    I cur = 0, best = 0, bestAt = lo, curFrom = 0, target;
+    for (i = lo + 1; i <= hi; i++) {
+      I w = row[i];
+      cur += pair_c(P, w, v, k) - pair_c(P, v, w, k);
+      row[i - 1] = w; pos[w] = i - 1; row[i] = v; pos[v] = i;
+      if (i == from) curFrom = cur;
+      if (cur < best) { best = cur; bestAt = i; }
+    }
+    target = best < curFrom ? bestAt : from;
+    for (i = hi; i > target; i--) { row[i] = row[i - 1]; pos[row[i]] = i; }
+    row[target] = v; pos[v] = target;
+  }
+}
+static void sift_swaps(I *P, I ties) {
+  I *ro = PI(ROWOFF), *ord = PI(ORD), *pos = PI(POS), nL = P[NL], k, i;
+  D *lane = PD(LANE);
+  for (k = 0; k < nL; k++) {
+    I a0 = ro[k], n = ro[k + 1] - a0;
+    for (i = 0; i + 1 < n; i++) {
+      I a = ord[a0 + i], b = ord[a0 + i + 1];
+      if (lane[a] != lane[b]) continue;
+      I c1 = pair_c(P, a, b, k), c2 = pair_c(P, b, a, k);
+      if (c2 < c1 || (ties && c2 == c1 && c1 > 0)) { ord[a0 + i] = b; ord[a0 + i + 1] = a; pos[a] = i + 1; pos[b] = i; }
+    }
+  }
+}
+D sift(I *P, D bestC, I rounds) {
+  I nL = P[NL], nV = P[NV], k, i, it, stall = 0, *ord = PI(ORD), *best = PI(BEST), *pos = PI(POS), *ro = PI(ROWOFF);
+  for (i = 0; i < nV; i++) ord[i] = best[i];
+  for (k = 0; k < nL; k++) for (i = ro[k]; i < ro[k + 1]; i++) pos[ord[i]] = i - ro[k];
+  for (it = 0; it < rounds && bestC > 0 && stall < 2; it++) {
+    if (it % 2) { for (k = nL - 1; k >= 0; k--) sift_row(P, k); } else { for (k = 0; k < nL; k++) sift_row(P, k); }
+    sift_swaps(P, 1); sift_swaps(P, 0);
+    D c = total_cross(P);
+    if (c < bestC) { bestC = c; for (i = 0; i < nV; i++) best[i] = ord[i]; stall = 0; } else stall++;
+  }
+  return bestC;
+}

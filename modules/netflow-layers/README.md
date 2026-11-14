@@ -1,14 +1,14 @@
 # netflow-layers
 
-**Version 1.12.3 · API 1**
+**Version 1.13.0 · API 1**
 
-**Tested in:** cloud Chromium 155, Firefox 158 and WebKitGTK 2.52.6 2026-11-06; module tests pass; demo page draws the same; 2 million random lines give the same result as before (lines with a blank name are now skipped)
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6 (sift timing and crossings); Node module tests incl. the new sift check (WebAssembly and JS give the same result)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
 ## What it is and how it works
 
-Lays out a graph in rows (a layered drawing), top to bottom or left to right. It is the layered engine behind Netflow Map's Flow, Top-down, Spine, Lanes, Arc and Matrix views. 22.3 KB gzipped (16.5 KB minified and gzipped).
+Lays out a graph in rows (a layered drawing), top to bottom or left to right. It is the layered engine behind Netflow Map's Flow, Top-down, Spine, Lanes, Arc and Matrix views. 26.6 KB gzipped (16.5 KB minified and gzipped).
 
 - Each page goes in a row, by fewest steps from the start or in story order.
 - Pages in each row are reordered to cut crossings, then placed.
@@ -65,6 +65,7 @@ Your input is never changed: the result holds copies of your nodes and links wit
 | `spine` | `true` puts the nodes marked `choke: true` in one line. |
 | `better` | `true` adds six more rounds of reordering and deepens from both the best and the usual result, so it never ends with more crossings than without it; about 1.1 to 1.9 times the time. |
 | `deep` | Left out (default since 1.7.0): a lighter deeper search after the usual rounds (neighbor swaps after each row, at most 12 rounds, stops after 4 with no gain; 2 before 1.8.0). `true`: the full search (at most 80 rounds, stops after 4 with no gain). `false`: none (the default before 1.7.0). Never more crossings than without it. 1,000 random items: 33,763 crossings with `deep: false, rows: "route"`, 21,166 by default (21,440 before 1.8.0) and with `deep: true` (dagre 23,965, ELK 22,602), in about 17, 112 to 118 and 114 to 122 ms in 3 cloud browsers. At 400 items the default is quicker than `deep: true` (34 to 38 against 44 to 51 ms) with the same 5,103 crossings. Maps over 20,000 stops skip it; `orderRounds: 0` skips both the search and the second row choice. |
+| `sift` | `true`: after the order search, each item slides to the place in its row with the fewest crossings (inside its lane), most-linked first, then neighbor swaps that also take ties; 2 rounds. A number gives that many rounds (`6` for a bit fewer crossings at about twice the layout time). Never more crossings than without it; off by default. Layered test map, 1,000 / 3,000 items: 4,222 / 24,390 crossings (Graphviz 4,494 / 26,894; without sift 4,679 / 28,035) at 1.19 to 1.37 times the layout time in 3 cloud browsers. |
 | `orderRounds` | A number: rounds of the usual order search (default 6, or 2 on maps over 600 stops). `0` keeps the first order, for a caller such as netflow-sankey that reorders anyway. |
 | `bundle` | `true` lets links that start at the same page share one run of stand-in stops, and links that end at the same page and are alone at their start share one run from the end upward. Fewer stops and crossings on maps without tags; about the same where tags already removed the long links. |
 | `wrap` | `true` (with `dir: "TB"`) cuts a map more than 2.2 times taller than wide into columns side by side; links between columns become tags. |
