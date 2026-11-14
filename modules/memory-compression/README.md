@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.16.0 · API 2**
+**Version 2.16.1 · API 2**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6 (cloud)
+**Tested in:** module suite 91 checks; paired fresh pages in Chromium 156, Firefox 158, WebKitGTK 2.52.6; 216-case decimal check
 
 ## What it is and how it works
 

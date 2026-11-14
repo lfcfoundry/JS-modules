@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.1 · API 2 · 2026-11-14
+
+### Quick
+Decimal columns (coordinates, prices, weights) are read in one pass; same values, no setting or format change
+
+### Details
+A decimal column used to be added into a whole-number array and then divided into a second array. It is now added and divided in one loop into the doubles. Same arithmetic in the same order, so the values are identical (216 cases: scales 1 to 1e10, 1/2/4-byte widths, negatives). Paired fresh pages, geojson 4,000 features, candidate over main: first unpack 0.86 Chromium 156, 0.87 Firefox 158, 0.89 WebKitGTK 2.52.6; median warm 0.90 Chromium; best warm 0.67 Firefox. The other two lists are within noise.
+
+### Deep
+Unpacking lists with decimal numbers (coordinates, prices, weights) is about 10 to 15% faster: the column is read in one pass instead of two. Same data. On a 4,000-feature geojson list first unpack took 0.86 (Chromium 156), 0.87 (Firefox 158) and 0.89 (WebKitGTK 2.52.6) of the 2.16.0 time; the other lists are within noise.
+
 ## 2.16.0 · API 2 · 2026-11-08
 
 ### Quick

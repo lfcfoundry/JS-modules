@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.16.0 (API 2)
+ * Version 2.16.1 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3530,12 +3530,7 @@
       case CT_INT: return this.intCol(n, true);
       case CT_DEC:
         e = c.u8(); if (e > 10) jfail('bad scale'); p = P10[e];
-        col = this.intCol(n, true, p); if (col.mode === 11) return col;
-        a = col.a; t = new Float64Array(n);
-        if (col.mode === 3) { for (i = 0; i < n; i++) t[i] = col.d / p; } else if (a instanceof Int32Array) for (i = 0; i < n; i++) t[i] = a[i] / p;
-        else if (a instanceof Float64Array) for (i = 0; i < n; i++) t[i] = a[i] / p;
-        else for (i = 0; i < n; i++) t[i] = a[i] / p;
-        return new Col(n, 0, t, null);
+        return this.intCol(n, true, p);                              // windows (view) or one pass into the doubles
       case CT_PCO: jfail('this file has a number column written with Pcodec (module 1.2.0 or 1.3.0 with its add-on), which this module no longer supports; read it with 1.3.0');
       case CT_ADAPT:
         this.spend(n);
@@ -4035,6 +4030,9 @@
   function addU8(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
   function addU16(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
   function addU32(a, t, base, n) { for (var i = 0; i < n; i++) a[i] = t[i] + base; }
+  function decU8(a, t, base, p, n) { for (var i = 0; i < n; i++) a[i] = (t[i] + base) / p; }
+  function decU16(a, t, base, p, n) { for (var i = 0; i < n; i++) a[i] = (t[i] + base) / p; }
+  function decU32(a, t, base, p, n) { for (var i = 0; i < n; i++) a[i] = (t[i] + base) / p; }
   Dec.prototype.intCol = function (n, canWin, scale) {
     var c = this.c, w = c.u8(), base, t, i, a, Ctor, col;
     if (w !== 1 && w !== 2 && w !== 4) jfail('bad int width');
@@ -4043,6 +4041,11 @@
       col = new Col(n, 11, winRow(t, 0, null), null); col.a.col = col; t.setReader(col.a); return col;
     }
     t = this.blob(Ctor, n);
+    if (scale) {                                                       // a decimal column: base added and divided by the scale in one pass, straight into the doubles (no whole-number array in between)
+      a = new Float64Array(n);
+      if (t instanceof Uint8Array) decU8(a, t, base, scale, n); else if (t instanceof Uint16Array) decU16(a, t, base, scale, n); else decU32(a, t, base, scale, n);
+      return new Col(n, 0, a, null);
+    }
     if (base === 0) return new Col(n, 0, t, null);
     a = (base >= -2147483648 && base + (w === 4 ? 4294967295 : 65535) <= 2147483647 && w !== 4) ? new Int32Array(n) : new Float64Array(n);
     if (t instanceof Uint8Array) addU8(a, t, base, n); else if (t instanceof Uint16Array) addU16(a, t, base, n); else addU32(a, t, base, n);
