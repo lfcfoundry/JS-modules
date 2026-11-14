@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.17 · API 0 · 2026-11-13
+- Equality reads are 8 to 18% faster in Chromium on files with many small blocks
+
 ## 0.10.16 · API 0 · 2026-11-13
 - pool().unpack with equals or anyOf now returns only the matching rows, as unpack does
 
