@@ -454,7 +454,9 @@
   function bdMem(need) { var m = BDX.memory, have = m.buffer.byteLength; if (need > have) m.grow(Math.ceil((need - have) / 65536)); return m.buffer; }
   function bdLay(parts) { var p = (BDX.__heap_base.value + 7) & ~7, at = [], q; for (q = 0; q < parts.length; q++) { at.push(p); p = (p + parts[q] + 8 + 7) & ~7; } return { at: at, end: p }; }   // each part gets 8 zero-filled bytes after it (the kernels read 8 bytes at a time)
   function bdPut(u8, at, b) { u8.set(b, at); u8.fill(0, at + b.length, at + b.length + 8); }
-  function colBw(b, n, p) { var X = bdx(); if (!X || p.w > 24) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b); X.decB(L.at[0], n, p.w, p.mn, p.scale, L.at[1]); return new Float64Array(X.memory.buffer, L.at[1], n).slice(); }
+  // B47 (research): a null-plane number column read with nulls: 'NaN' expands straight from the wasm output, skipping one full-size copy
+  var B47 = true;
+  function colBw(b, n, p, view) { var X = bdx(); if (!X || p.w > 24) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b); X.decB(L.at[0], n, p.w, p.mn, p.scale, L.at[1]); var f = new Float64Array(X.memory.buffer, L.at[1], n); return view ? f : f.slice(); }   // view: a live view of wasm memory, valid only until the next bdec call (B47)
   // B42 nulls: 'NaN' (name picked by the owner 11.14): a block's columns entry where every number column has one value per row: a number column (typed, or a list of only numbers and nulls) becomes a Float64Array (typed columns of one kind keep their kind when no row is empty), with NaN for null and for rows that lack the key; other columns are left as they are
   function nanCols(e) {
     var n = e.n, k, v, pr, o, i, z, y, ok;
@@ -563,7 +565,7 @@
   }
   function decodeColumn(c, zs, frames, nan) {   // -> array-like of n values (nan: B42, a null-plane number column comes back as a Float64Array with NaN for null)
     var n = c.n, i, u, o, t = c.t, p = c.p;
-    if (t === 'N') { var iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)), pn = frames[0], q = 0; if (nan && !Array.isArray(iv)) { if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? NaN : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; } o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
+    if (t === 'N') { var iv = B47 && nan && p.t === 'B' && BD_DEC && p.m >= 256 && p.p.w <= 24 ? colBw(frames[1], p.m, p.p, 1) : null; if (!iv) iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)); var pn = frames[0], q = 0; if (nan && !Array.isArray(iv)) { if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? NaN : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; } o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
     if (t === 'V') return colV(frames, n, p);
     if (t === 'B') return colB(frames, n, p);
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
