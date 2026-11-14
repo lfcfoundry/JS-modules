@@ -545,6 +545,7 @@
       }
     }
     if (n >= 32 && this.patterns && this.timesFixed(vals, n)) return;
+    if (n >= 32 && this.patterns && this.onePattern(vals, n)) return;
     pre = joinText(vals, n);
     if (n >= 32 && this.patterns && pre && pre.ascii && this.template(vals, n, pre)) return;
     if (this.front && pre && pre.bytes && n >= 64 && this.frontColumn(vals, n, pre)) return;
@@ -832,6 +833,36 @@
     }
     return f;
   }
+  // text that is the same words around one whole number in every row ('user' + id + '@example.org', 'Item 7', or digits alone): read straight from the strings, with no joined
+  // text, no UTF-8 pass and no pattern scan. The same bytes as the pattern path writes for one pattern with one number; false (nothing written) for anything else.
+  var OP_NATIVE = typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent || '');   // Firefox: startsWith/endsWith are the faster check; Chromium and WebKit: comparing char codes (measured 0.55-0.65x of startsWith there)
+  function asciiNoDigits(t) { var i, ch; for (i = 0; i < t.length; i++) { ch = t.charCodeAt(i); if (ch > 127 || (ch >= 48 && ch <= 57)) return false; } return true; }
+  Enc.prototype.onePattern = function (vals, n) {
+    var s = vals[0], lits = tplOf(s), pre, suf, a, b, ab, l, ch, f, i, k, v, e, minL = 99, maxL = 0, lead = 0, total = 0, w, c = this.ctl;
+    if (!lits || lits.length !== 2) return false;
+    pre = lits[0]; suf = lits[1]; a = pre.length; b = suf.length; ab = a + b;
+    if (!asciiNoDigits(pre) || !asciiNoDigits(suf)) return false;
+    var pc = new Int32Array(a), sc = new Int32Array(b); for (k = 0; k < a; k++) pc[k] = pre.charCodeAt(k); for (k = 0; k < b; k++) sc[k] = suf.charCodeAt(k);
+    f = new Float64Array(n);
+    for (i = 0; i < n; i++) {
+      s = vals[i]; l = s.length; e = l - b;
+      if (l - ab < 1 || l - ab > 15) return false;
+      if (!OP_NATIVE) { for (k = 0; k < a; k++) if (s.charCodeAt(k) !== pc[k]) return false; for (k = 0; k < b; k++) if (s.charCodeAt(e + k) !== sc[k]) return false; }
+      else { if (a && !s.startsWith(pre)) return false; if (b && !s.endsWith(suf)) return false; }
+      v = s.charCodeAt(a) - 48;
+      if ((v >>> 0) > 9) return false;
+      if (v === 0 && e - a > 1) lead = 1;
+      for (k = a + 1; k < e; k++) { ch = s.charCodeAt(k) - 48; if ((ch >>> 0) > 9) return false; v = v * 10 + ch; }
+      f[i] = v; total += l; l = e - a;
+      if (l < minL) minL = l; if (l > maxL) maxL = l;
+    }
+    if (total > 67108864) return false;
+    w = lead ? (minL === maxL ? minL : -1) : 0;
+    if (w < 0) return false;
+    c.u8(CT_TEMPLATE); c.varint(1); c.varint(1); c.str(pre); c.str(suf); c.varint(w);
+    this.column(f, n);
+    return true;
+  };
   Enc.prototype.timesFixed = function (vals, n) {
     var s0 = vals[0], g = s0.length === 20 ? 6 : s0.length === 24 ? 7 : 0, ts, c = this.ctl, lits, j, f, lead;
     if (!g || n > 3000000) return false;
