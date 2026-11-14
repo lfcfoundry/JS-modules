@@ -96,8 +96,10 @@ function fixture(blocks, perBlock, seed) {   // poorly compressible rows, so com
     assert.strictEqual(afterAbort.queuedJobs, 0, 'cancel: queued jobs dropped at once');
     assert.strictEqual(afterAbort.queuedCopyBytes, 0, 'cancel: queued copies released at once');
     assert.strictEqual(afterAbort.inflightJobs, mid.inflightJobs, 'cancel: posted jobs stay counted until their helper answers');
-    release(); await new Promise((r) => setTimeout(r, 200));
-    const settled = pool.stats();
+    release();
+    // helpers answer on their own schedule (a slow machine took longer than the old fixed 200 ms): poll until every posted job is released, 5 s at most, so a leak still fails
+    const t0 = Date.now(); let settled = pool.stats();
+    while ((settled.inflightJobs !== 0 || settled.inflightBytes !== 0 || settled.heldCopyBytes !== 0) && Date.now() - t0 < 5000) { await new Promise((r) => setTimeout(r, 20)); settled = pool.stats(); }
     assert.ok(settled.inflightJobs === 0 && settled.inflightBytes === 0 && settled.heldCopyBytes === 0, 'cancel: posted jobs released when answered');
     assert.deepStrictEqual(await pool.unpack(Uint8Array.from(file), { stable }), want, 'recovery: the same pool reads the next call correctly');
     const pre = new AbortController(); pre.abort();
