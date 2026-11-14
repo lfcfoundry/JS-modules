@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.0 · API 2 · 2026-11-14
+
+### Quick
+packColumns(columns, opts) (owner-named, option A from research part 2): a plain object of equal-length arrays / typed arrays / nested column objects is packed to the same bytes as pack(rows); small tables and refs:true fall back to pack(r…
+
+### Deep
+packColumns(columns, opts) (owner-named, option A from research part 2): a plain object of equal-length arrays / typed arrays / nested column objects is packed to the same bytes as pack(rows); small tables and refs:true fall back to pack(rows). 72/72 byte-equality in research; test/packcolumns.js: 78 cases. 100k api-users median of 25 interleaved rounds vs msgpackr 2.1.4: Chromium 156 53.2 vs 56.8 (0.94x), Firefox 158 54 vs 59 (0.92x), WebKitGTK 2.52.6 1.04x.
+
 ## 2.16.9 · API 2 · 2026-11-14
 
 ### Quick

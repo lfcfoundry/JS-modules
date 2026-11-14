@@ -68,3 +68,47 @@
     handle = { run: run, close: close, start: start, size: size };
     return handle;
   }
+  // packColumns(cols, opts): a table given as columns ({key: array or typed array or a nested {key: ...} of the same length}) packed to the SAME bytes
+  // pack() writes for the matching list of records, without building or reading the row objects. (prototype)
+  function isColObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v) && !ArrayBuffer.isView(v) && Object.getPrototypeOf(v) === OP; }
+  function colsLen(cols) {
+    var keys = Object.keys(cols), n = -1, j, v, m;
+    if (!keys.length || keys.length > MAX_FUSED_KEYS) return -1;
+    for (j = 0; j < keys.length; j++) {
+      v = cols[keys[j]];
+      m = isColObj(v) ? colsLen(v) : (Array.isArray(v) || (ArrayBuffer.isView(v) && !(v instanceof DataView))) ? v.length : -1;
+      if (m < 0 || (n >= 0 && m !== n)) return -1; n = m;
+    }
+    return n;
+  }
+  function colsToRows(cols, n) {
+    var keys = Object.keys(cols), out = new Array(n), i, j, o, sub = [];
+    for (j = 0; j < keys.length; j++) sub.push(isColObj(cols[keys[j]]) ? colsToRows(cols[keys[j]], n) : cols[keys[j]]);
+    for (i = 0; i < n; i++) { o = {}; for (j = 0; j < keys.length; j++) o[keys[j]] = sub[j][i]; out[i] = o; }
+    return out;
+  }
+  Enc.prototype.recordsFrom = function (cols, n) {
+    var c = this.ctl, keys = Object.keys(cols), nk = keys.length, j, dir, st, v, path = this.path;
+    c.u8(CT_RECORDS); c.varint(1); c.varint(nk);
+    for (j = 0; j < nk; j++) { if (wellFormed(keys[j])) { c.u8(0); c.str(keys[j]); } else { c.u8(1); this.str16(keys[j]); } }
+    dir = this.dirStart(nk);
+    for (j = 0; j < nk; j++) {
+      st = this.dirColumnBegin(j, keys, path); v = cols[keys[j]];
+      if (isColObj(v)) { this.depth++; this.recordsFrom(v, n); this.depth--; } else this.column(v, n);
+      this.dirColumnEnd(dir, st, j);
+    }
+    this.path = path;
+  };
+  function packColumns(cols, opts) {
+    opts = opts || {};
+    if (!TEXT_ENC) jfail('this environment has no TextEncoder');
+    if (!isColObj(cols)) jfail('packColumns takes an object of columns');
+    var n = colsLen(cols), e, c;
+    if (n < 0) jfail('packColumns: every column must be an array or typed array of the same length');
+    e = new Enc(opts);
+    if (n < MIN_COLUMN || e.refs) return pack(colsToRows(cols, n), opts);
+    c = e.ctl; POOL_ON = opts.pool !== false;
+    try { e.depth++; c.u8(T_COLS); c.varint(n); e.depth++; e.recordsFrom(cols, n); e.depth -= 2; } finally { POOL_ON = true; }
+    return finishPack(e, e.ctl.done(), e.blobs, opts);
+  }
+

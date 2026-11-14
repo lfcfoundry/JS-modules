@@ -65,6 +65,7 @@
     }).then(function () { return true; }, function () { return false; });   // a warm-up that fails is not worth an error: false
   };
   unified.pool = makePool;
+  unified.packColumns = jso.packColumns;
   unified.layerOf = layerOf;
   unified.freeBuffers = freeBuffers; unified.keeper = keeper; unified.pager = pager; unified.heap = heapInfo; unified.profile = profile; unified.estimateBytes = estimateBytes;
   unified.core = MC; unified.objects = jso; unified.jso = jso; unified.picker = PK;
