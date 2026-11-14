@@ -2,6 +2,18 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.28 · API 0 · 2026-11-14
+
+### Quick
+unpackColumns, unpackColumnsParallel, open().columns(i) and aggregate read nested blocks as rows, then columns, instead of throwing. Old code is unaffected.
+
+### Details
+Bug (LFCP Workbench): auto mode can write a nested block when the first row of a number column is empty (null or ""), often the small first block; column reads then refused the whole file. Now the nested block is read as rows and turned into columns (as 0.10.20 raw blocks are); unpackColumnsParallel reads such a file on the calling thread. Flat-only files read exactly as before; written bytes are unchanged.
+Checks: 3 pinned browsers, 6 cases each: 0.10.25 fails 5 of 6, 0.10.28 passes 6 of 6.
+
+### Deep
+Workbench bug lead (2026.11.14 1:29 PM Eastern). Reproduced at 1 KB, 4 KB and 64 KB blocks and 2 MB / 500 rows; with "" mixed into numbers the flat column falls back to JSON cells (flat 1.1-2.3x the nested size), with null 0-6%. Reader fix: nestedRowsOf + b39Cols in unpackColumns, open().columns(i) and aggregate; unpackColumnsParallel takes the single-thread path when a nested block is present. test/nestedcols.cjs (76 checks); open.cjs and b35.cjs now expect the read instead of the refusal. Results: js-modules-research/nested-block-columns-0.10.28-2026.11.14/.
+
 ## 0.10.27 · API 0 · 2026-11-14
 
 ### Quick

@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.27 (API 0)
+ * Version 0.10.28 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -2560,6 +2560,7 @@
       cols[k] = num && v.length ? (int ? Int32Array.from(v) : Float64Array.from(v)) : v; if (!all) present[k] = pr; }
     return { n: n, keys: keys, cols: cols, present: present };
   }
+  function nestedRowsOf(file, i, want) { if (!file._nr) file._nr = makeNestedReader(S.zdec, sharedOf(file)); return file._nr.readBlock(blockBytes(file, i), want); }   // a nested block's rows, for the column reads (their own reader: no arena)
   function readRawBlock(zs, bytes) { return zs.decompress(bytes.subarray(4), rd32(bytes, 0)); }
   function unpackText(bytes) {   // -> Uint8Array: the NDJSON text. Byte-for-byte the input when the file was packed with { exact: true }; canonical JSON text per row otherwise
     var file = openFile(bytes), rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), flags = jsonSec(file.footer.sec[SEC_FLAGS]) || {}, exc = readExc(file.footer.sec[SEC_RAW]), spell = readSpell(file.footer.sec[SEC_SPELL]), sp, parts = [], i, j, rows, ex, last, nl = new Uint8Array([10]);
@@ -2851,8 +2852,8 @@
     want[key] = 1; if (by !== null) want[by] = 1;
     function gget(k) { var g = G.get(k); if (!g) { g = { s: {}, l: 0, c: 0 }; G.set(k, g); } return g; }
     for (i = 0; i < file.blocks.length; i++) {
-      if (file.blocks[i][4] === 'r') {   // B39k small raw block (32 rows or fewer): plain loop over its rows
-        var rr = rawRows(readRawBlock(S.zdec, blockBytes(file, i))), ri, rv, rg;
+      if (file.blocks[i][4] === 'r' || file.blocks[i][4] === 'n') {   // B39k small raw block (32 rows or fewer), or a nested block: plain loop over its rows
+        var rr = file.blocks[i][4] === 'n' ? nestedRowsOf(file, i, null) : rawRows(readRawBlock(S.zdec, blockBytes(file, i))), ri, rv, rg;
         for (ri = 0; ri < rr.length; ri++) { rv = rr[ri] !== null && typeof rr[ri] === 'object' ? rr[ri][key] : undefined; if (typeof rv !== 'number') continue; if (by === null) { loose += rv; cnt++; } else { rg = gget(Object.prototype.hasOwnProperty.call(rr[ri], by) ? rr[ri][by] : undefined); rg.l += rv; rg.c++; } }
         continue; }
       if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: aggregate needs flat-row blocks');
@@ -2891,7 +2892,7 @@
   function unpackColumns(bytes, opts) {
     var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k, nan = nullsOpt(opts);
     opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
-    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] !== 'f') throw new Error('LfcPack: unpackColumns needs flat-row blocks'); { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan)); } }
+    for (i = 0; i < file.blocks.length; i++) { if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] === 'n') { var nbk = b39Cols(nestedRowsOf(file, i, want), want); out.push(nan ? nanCols(nbk) : nbk); continue; } /* a nested block (auto mode can write one, often a small first block) is read as rows, then turned into columns, so the file keeps its column path */ { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan)); } }
     return out;
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
@@ -3080,6 +3081,7 @@
           // columns(i, { keys }) (since 0.5.9): block i as typed columns, the same entry unpackColumns gives for that block, fetching only that block. Flat-row blocks only (others throw)
           columns: function (i, o) {
             var b = blocks[i]; if (!b) return Promise.reject(new Error('block ' + i + ' out of range'));
+            if (b[4] === 'n') { var wn = null, qn; if (o && o.keys) { wn = {}; for (qn = 0; qn < o.keys.length; qn++) wn[o.keys[qn]] = 1; } var nanN = nullsOpt(o); return fetch(i).then(function (x) { if (!file._nr) file._nr = makeNestedReader(S.zdec, sharedOf(file)); var c = b39Cols(file._nr.readBlock(x, wn), wn); return nanN ? nanCols(c) : c; }); }   // a nested block: rows, then columns
             if (b[4] !== 'f') return Promise.reject(new Error('LfcPack: columns() needs a flat-row block; block ' + i + ' is ' + (b[4] === 'r' ? 'raw (exact mode)' : 'nested') + ': read it with block(i)'));
             var want = null, q; if (o && o.keys) { want = {}; for (q = 0; q < o.keys.length; q++) want[o.keys[q]] = 1; }
             var nan2 = nullsOpt(o); return fetch(i).then(function (x) { if (!cf) cf = makeFlatReader(S.zdec); return cf.columnsOf(x, want, false, nan2); });   /* its own reader, not the shared arena: the arrays stay valid after the next block */
@@ -3151,7 +3153,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.27', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.28', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -3512,8 +3514,9 @@
     opts = opts || {};
     try { nullsOpt(opts); } catch (e) { return Promise.reject(e); }
     return init({ readOnly: true }).then(function () {
-      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
-      for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f' && file.blocks[i][4] !== 'r') throw new Error('LfcPack: unpackColumnsParallel needs flat-row blocks'); n += file.blocks[i][3]; }
+      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
+      for (i = 0; i < nb; i++) { if (file.blocks[i][4] === 'n') nest = true; n += file.blocks[i][3]; }
+      if (nest) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');   // a nested block (helpers read flat blocks only): this thread
       if (nb < 2 || w < 1) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
       if (!B35_POOL && !(globalThis.__B35AUTO === 0)) {   // B35b auto start: the first read joins on this thread (no helper start-up to wait for), then helpers start for the next read
         var out0 = b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');

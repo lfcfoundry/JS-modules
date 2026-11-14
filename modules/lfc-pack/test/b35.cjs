@@ -18,7 +18,7 @@ const J = require('../lfc-pack.js'), g = require('./gen.cjs');
     for (const call of ['first', 'second']) { try { C = await J.unpackColumnsParallel(f, { workers: 2 }); e = same(J.unpackRows(f), C); } catch (er) { e = 'ERR ' + er.message; } ok(!e, nm + ' ' + bb + ' ' + call + ' call matches unpackRows ' + e); await new Promise((r) => setTimeout(r, 30)); }
   }
   { const rows = tables.numeric, f = J.packRows(rows, { blockBytes: 100000 }), C = await J.unpackColumnsParallel(f, { keys: ['x', 'id'], workers: 2 }); ok(same(rows, C, ['x', 'id']) === '', 'keys option'); }
-  { const f = J.pack(Buffer.from(g.events(20000)), { blockBytes: 100000 }); let e = null; try { await J.unpackColumnsParallel(f); } catch (er) { e = er; } ok(e !== null, 'nested blocks are rejected'); }
+  { const f = J.pack(Buffer.from(g.events(20000)), { blockBytes: 100000 }), c = await J.unpackColumnsParallel(f, { keys: ['id', 'type'] }), r = J.unpackRows(f); ok(c.id.length === r.length && r.every((x, k) => c.id[k] === x.id && c.type[k] === x.type), 'nested blocks are read as rows, then columns (0.10.28)'); }
   J.trim && J.trim();
   console.log(bad ? 'b35: ' + bad + ' bad of ' + n : 'b35 ok, ' + n + ' checks'); process.exit(bad ? 1 : 0);
 })();

@@ -60,8 +60,8 @@ const JF = require('../lfc-pack.js');
     const first = await R.columns(0, { keys: ['id'] }), keep = j(first); await R.columns(1, { keys: ['id'] }); await R.block(2);
     ok(j(first) === keep, 'columns(i): the arrays stay the same after later reads');
     ok(inZone && R.zone(0, 'name') === null && R.zone(0, 'nope') === null, 'zone(i, key): min, max and count of a number column; null for text or a missing key');
-    const Rn = await JF.open(files.find((f) => f[0] === 'nested')[1]); let e3 = ''; try { await Rn.columns(0); } catch (e) { e3 = e.message; }
-    ok(/flat-row block/.test(e3), 'columns(i) on a nested block says to use block(i): ' + e3);
+    const Rn = await JF.open(files.find((f) => f[0] === 'nested')[1]), cn = await Rn.columns(0, { keys: ['id', 'name'] }), bn = await Rn.block(0);
+    ok(cn.n === bn.length && Array.from(cn.cols.id).every((v, k) => v === bn[k].id) && cn.cols.name.every((v, k) => v === bn[k].name), 'columns(i) on a nested block reads it as rows, then columns (0.10.28)');
     let e4 = ''; try { await R.columns(999); } catch (e) { e4 = e.message; } ok(/out of range/.test(e4), 'columns(i) past the end: ' + e4); }
   console.log((bad ? 'FAIL' : 'ok  ') + ' open(): ' + n + ' checks, bad ' + bad);
   process.exitCode = bad ? 1 : 0; if (JF.close) JF.close();
