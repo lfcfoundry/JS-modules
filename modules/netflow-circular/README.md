@@ -64,7 +64,7 @@ Against d3-chord 3.0.1, measured by Netflow Map on its own copy of this code (th
 
 ## Prior art and credits
 
-The code is Netflow Map's own (LFC Foundry), cut out for this module; no code from other projects. d3-chord was the speed comparison only.
+The code is Netflow Map's own (LFC Foundry), cut out for this module; no code from other projects. [d3-chord](https://github.com/d3/d3-chord) was the speed comparison only.
 
 **Original sources** (links checked 2026-11-14; ideas only):
 

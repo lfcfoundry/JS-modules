@@ -128,13 +128,13 @@ No code from others; the ideas below are theirs. The code is written for this re
 - JSZip 3.10.2 (MIT or GPL-3.0-or-later) and zip.js are the other common choices. Their behavior on a lying zip was not measured here.
 - SheetJS reads many spreadsheet formats but is much larger; this module reads only the cell values of `.xlsx`.
 - The zip file format (PKWARE's published APPNOTE, including Zip64) and the Excel `.xlsx` file layout (Office Open XML, ECMA-376): the published formats, implemented from scratch.
-- CRC-32 "slicing by 8" (eight table lookups per eight bytes): a published method (Intel researchers, 2005), idea only, no code taken.
+- CRC-32 "slicing by 8" (eight table lookups per eight bytes): a published method ([Kounavis and Berry, Intel, 2005](https://doi.org/10.1109/ISCC.2005.18)), idea only, no code taken.
 
 **Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
 
 - The [PKWARE APPNOTE](https://pkwaredownloads.blob.core.windows.net/pkware-general/Documentation/APPNOTE-6.3.9.TXT) zip format
 - Deflate: [RFC 1951](https://www.rfc-editor.org/rfc/rfc1951) (Phil Katz; zlib by Jean-loup Gailly and Mark Adler)
-- CRC-32 (W. Wesley Peterson, 1961) with lookup tables; the table-per-byte "slicing" speedup is from Intel researchers (Kounavis and Berry, 2005)
+- CRC-32: W. Wesley Peterson and D. T. Brown, ["Cyclic Codes for Error Detection"](https://doi.org/10.1109/JRPROC.1961.287814), 1961, with lookup tables; the table-per-byte "slicing" speedup: Kounavis and Berry (Intel), ["A Systematic Approach to Building High Performance Software-Based CRC Generators"](https://doi.org/10.1109/ISCC.2005.18), 2005
 
 ## For AI agents
 Call `expand` on the bytes of anything a user drops, show `notes` to the user, and never rewrite its limits upward to "make a big file work" without telling the user. Use `list` first if you want to show what is inside before reading it.

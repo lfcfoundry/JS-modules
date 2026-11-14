@@ -142,7 +142,7 @@ The build steps of [Story Editor](https://lfcfoundry.github.io/story-editor/play
 ## Prior art and credits
 
 No code from others; the ideas below are theirs.
-- The LZMA algorithm and file format: designed by Igor Pavlov; the decoder here is written from the published LZMA specification, not copied from the LZMA SDK (public domain) or from xz/liblzma. Python's `lzma` module (liblzma) is used only to make and check test data, nothing from it ships.
+- The LZMA algorithm and file format: designed by Igor Pavlov; the decoder here is written from the published LZMA specification (in the [LZMA SDK](https://www.7-zip.org/sdk.html)), not copied from the LZMA SDK (public domain) or from xz/liblzma. Python's `lzma` module (liblzma) is used only to make and check test data, nothing from it ships.
 - The WebAssembly add-on (`wasm/lzma-decode.c`) is a line-for-line port of `lzma-decode.js` by this repository, built with clang 18.1.3 (LLVM); no runtime or library code from others is inside it.
 - [Roadroller](https://github.com/lifthrasiir/roadroller) (MIT, lifthrasiir), the `lzma` package on npm, [kripken/lzma.js](https://github.com/kripken/lzma.js) and [js13k-packer](https://www.npmjs.com/package/js13k-packer): named for comparison, idea only, no code taken.
 

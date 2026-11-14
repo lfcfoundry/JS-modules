@@ -189,7 +189,7 @@ The picture matched the JavaScript reference at 100.0000% on both (through a can
 
 ## Prior art and credits
 
-Box blur by running sums and the idea that three box blurs approximate a Gaussian are old and well known (the central limit theorem; the fast box-blur write-ups by Ivan Kutskir, 2013, and Wojciech Jarosz's "Fast Image Convolutions", 2001). Separable two-pass blur on the card is standard WebGL practice. The WebAssembly kernel, the shader and the JavaScript twin were written for this repository and start from the lab test files in this project's WebGPU study. Measured against, not copied from: stackblur-canvas 3.0.1 (MIT, Mario Klingemann's StackBlur algorithm, ported by flozz and others), glfx 0.0.4 (MIT, Evan Wallace), the canvas `filter` property and the CSS `filter` property.
+Box blur by running sums and the idea that three box blurs approximate a Gaussian are old and well known (the central limit theorem; the fast box-blur write-ups by Ivan Kutskir, 2013 ([blog.ivank.net](http://blog.ivank.net/fastest-gaussian-blur.html)), and Wojciech Jarosz's "Fast Image Convolutions", 2001). Separable two-pass blur on the card is standard WebGL practice. The WebAssembly kernel, the shader and the JavaScript twin were written for this repository and start from the lab test files in this project's WebGPU study. Measured against, not copied from: stackblur-canvas 3.0.1 (MIT, Mario Klingemann's StackBlur algorithm, ported by flozz and others), glfx 0.0.4 (MIT, Evan Wallace), the canvas `filter` property and the CSS `filter` property.
 
 ---
 Part of [JS-modules](../../README.md) · MIT License · Copyright (c) 2026 LFC Foundry

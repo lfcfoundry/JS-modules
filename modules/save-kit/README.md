@@ -241,16 +241,16 @@ Used right now in [Apple Press](https://lfcfoundry.github.io/apple-press/play/),
 
 No code from others; the ideas below are theirs. The base64url alphabet, FNV-1a checksum and raw deflate are standard pieces; the combination for hand-pasted game saves is what this file adds.
 
-- **FNV-1a hash** (Fowler, Noll and Vo): the algorithm only, written out here; no code copied.
-- **base64url alphabet (RFC 4648) and raw deflate (RFC 1951)**, the latter through the browser's own `CompressionStream` / `DecompressionStream`: standards used as written; no library code included. `Uint8Array.toBase64` / `fromBase64` are the browser's own functions, used when present.
-- **localForage, store.js, lz-string, fflate** and tiny-inflate: compared as ideas only, no code from them. **idb-keyval** (Jake Archibald, Apache-2.0) and localForage (Apache-2.0) were also run as the speed comparison for `createLarge()` (versions 6.3.0 and 1.10.0); no code from them.
+- **FNV-1a hash** (Fowler, Noll and Vo, [FNV page](http://www.isthe.com/chongo/tech/comp/fnv/index.html)): the algorithm only, written out here; no code copied.
+- **base64url alphabet ([RFC 4648](https://www.rfc-editor.org/rfc/rfc4648)) and raw deflate ([RFC 1951](https://www.rfc-editor.org/rfc/rfc1951))**, the latter through the browser's own `CompressionStream` / `DecompressionStream`: standards used as written; no library code included. `Uint8Array.toBase64` / `fromBase64` are the browser's own functions, used when present.
+- **[localForage](https://github.com/localForage/localForage), [store.js](https://github.com/marcuswestin/store.js), [lz-string](https://github.com/pieroxy/lz-string), [fflate](https://github.com/101arrowz/fflate)** and [tiny-inflate](https://github.com/foliojs/tiny-inflate): compared as ideas only, no code from them. **[idb-keyval](https://github.com/jakearchibald/idb-keyval)** (Jake Archibald, Apache-2.0) and localForage (Apache-2.0) were also run as the speed comparison for `createLarge()` (versions 6.3.0 and 1.10.0); no code from them.
 - Browser facts in "What it is not" were read from MDN (`StorageManager.persist()`, the `storage` event) and webkit.org ("Updates to Storage Policy"); nothing copied.
 - The `plain36` and `hex8` code endings copy the save-code formats of Apple Press and Fancy the Banana (same maker, LFC Foundry), so their old codes keep opening.
 
 **Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
 
 - [FNV-1a](http://www.isthe.com/chongo/tech/comp/fnv/index.html) by Glenn Fowler, Landon Curt Noll and Kiem-Phong Vo
-- base64url (RFC 4648)
+- base64url ([RFC 4648](https://www.rfc-editor.org/rfc/rfc4648))
 - Deflate: [RFC 1951](https://www.rfc-editor.org/rfc/rfc1951) (Phil Katz; zlib by Jean-loup Gailly and Mark Adler)
 
 ## Full research notes

@@ -141,9 +141,9 @@ Used right now in Netflow Map (its repository is private, so there is no link). 
 ## Prior art and credits
 
 - The layered ("Sugiyama-style") way of drawing a graph in rows: rows first, then an order inside each row to cut crossings, then places. Idea only, no code. The same steps are in [Eclipse ELK](https://eclipse.dev/elk/) (EPL license; its overview was read, its code was not), dagre and d3-dag.
-- Ideas read about in ELK's documentation and papers and written fresh here: wrapping a tall map into columns (ELK calls it edge wrapping and layer unzipping) and letting links that share a page share their stops (bundling, also in a Microsoft Research paper on layered drawings with edge bundling). Idea only, no code.
-- Tapered links (narrow from the source to the target, so direction shows without arrowheads) follow the idea of Holten and van Wijk; the research notes mark that study as not re-read, so treat the credit as a pointer.
-- Brandes-Koepf placement (a published method) was tried in the research, measured and not included; none of its code is in this module.
+- Ideas read about in ELK's documentation and papers and written fresh here: wrapping a tall map into columns (ELK calls it [edge wrapping](https://eclipse.dev/elk/reference/options/org-eclipse-elk-layered-wrapping-strategy.html) and layer unzipping) and letting links that share a page share their stops (bundling, also in a Microsoft Research paper on layered drawings with edge bundling). Idea only, no code.
+- Tapered links (narrow from the source to the target, so direction shows without arrowheads) follow the idea of Holten and van Wijk (["A user study on visualizing directed edges in graphs"](https://doi.org/10.1145/1518701.1519054), CHI 2009); the research notes mark that study as not re-read, so treat the credit as a pointer.
+- Brandes-Koepf placement (["Fast and Simple Horizontal Coordinate Assignment"](https://doi.org/10.1007/3-540-45848-4_3), Graph Drawing 2001) was tried in the research, measured and not included; none of its code is in this module.
 - The crossing counter is a standard Fenwick-tree (binary indexed tree) count. Textbook technique, no code from others.
 - The engine was cut from Netflow Map (LFC Foundry's own code).
 
@@ -154,7 +154,7 @@ No code from others; the ideas above are theirs.
 - Layered drawing: Sugiyama, Tagawa and Toda, ["Methods for Visual Understanding of Hierarchical System Structures"](https://doi.org/10.1109/TSMC.1981.4308636), IEEE SMC, 1981
 - Cycle breaking: Eades, Lin and Smyth, ["A fast and effective heuristic for the feedback arc set problem"](https://doi.org/10.1016/0020-0190(93)90079-O), Information Processing Letters, 1993
 - Barycenter and median sweeps with neighbor swaps ("transpose"): Gansner, Koutsofios, North and Vo, ["A Technique for Drawing Directed Graphs"](https://graphviz.org/documentation/TSE93.pdf), IEEE TSE, 1993 (the method of [Graphviz](https://graphviz.org/) dot)
-- The `sift` step: Matuszewski, Schonfeld and Molitor, ["Using Sifting for k-Layer Straightline Crossing Minimization"](https://doi.org/10.1007/3-540-46648-7_3), Graph Drawing 1999
+- The `sift` step: Matuszewski, Schonfeld and Molitor, ["Using Sifting for k-Layer Straightline Crossing Minimization"](https://doi.org/10.1007/3-540-46648-7_22), Graph Drawing 1999
 - Crossing counting in n log n: Barth, Junger and Mutzel, ["Simple and Efficient Bilayer Cross Counting"](https://doi.org/10.7155/jgaa.00088), JGAA 2004, with a Fenwick tree (Peter Fenwick, ["A new data structure for cumulative frequency tables"](https://doi.org/10.1002/spe.4380240306), 1994)
 
 ## Full research notes

@@ -147,8 +147,8 @@ So on a mostly still animation the file is about 6.8 times smaller; when everyth
 ## Prior art and credits
 No code from others; the ideas below are theirs. The code is written for this repository (LFC Foundry, MIT).
 - [gifenc](https://github.com/mattdesl/gifenc) (MIT, 1.0.3): compared against, not copied. It is small, fast and well made, with palette quantizing and per-picture or global palettes. It writes every pixel of every picture; this module's saving comes from the transparent-unchanged-pixels step, which is why the first row of the Numbers table differs so much. Its code is smaller gzipped (5.7 KB, against 5.9 KB for 1.0.0 and 7.5 KB for 1.1.0). Use gifenc if you need its API or the speed in the worst case.
-- The GIF89a file format and its LZW compression (the format's own method): the published format, implemented from scratch.
-- Median cut (the idea of splitting the colors into boxes) and k-means (moving each palette color to the average of the colors nearest to it): textbook methods, idea only, no code taken.
+- The [GIF89a file format](https://www.w3.org/Graphics/GIF/spec-gif89a.txt) and its LZW compression ([Welch 1984](https://doi.org/10.1109/MC.1984.1659158)) (the format's own method): the published format, implemented from scratch.
+- Median cut (the idea of splitting the colors into boxes; [Heckbert 1982](https://doi.org/10.1145/800064.801294)) and k-means ([Lloyd 1982](https://doi.org/10.1109/TIT.1982.1056489)) (moving each palette color to the average of the colors nearest to it): textbook methods, idea only, no code taken.
 - Writing your own GIF encoder is a few hundred lines; the tests here include an independent decoder so the bytes can be trusted.
 
 **Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
