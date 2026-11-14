@@ -74,6 +74,14 @@
    ]
   },
   {
+   "label": "LFC-pack aggregate vs DuckDB-WASM (low end)",
+   "x": 1.5,
+   "module": "lfc-pack",
+   "proof": [
+    "lfc-pack takes 4 to 6.2 ms against 9.1 to 17"
+   ]
+  },
+  {
    "label": "walker-sim vs a plain loop",
    "x": 2.9,
    "module": "walker-sim",
