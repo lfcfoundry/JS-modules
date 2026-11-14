@@ -346,21 +346,24 @@
       if ((raw = ipRaw(v, n))) {   // B45: one character pass checks (as RX_IP with parts under 256) and packs
         cand('I', {}, [raw]); return best;
       }
-      var map = new Map(), labels = [], codes = new Array(n), c, tp = n >= 16 && tmode && !(tmode === 1 && tmplSlow), cap = tp ? 2 : 4, jn = null;   // B45: when the template layout cannot be tried, the count can stop at n / 4 (all the dictionary test needs)
+      var map, labels = [], codes, c, tp = n >= 16 && tmode && !(tmode === 1 && tmplSlow), cap = tp ? 2 : 4, jn = null, nD, labB = null, r59 = null, sd = 0;   // B45: when the template layout cannot be tried, the count can stop at n / 4 (all the dictionary test needs)
       if (FAST_ON && FLT !== null) level = FLT;   // fast: text frames at a faster zstd level
       if (!sj && FAST_ON && FSK && n >= 4096 && manyDistinct(v)) sj = STR_ASCII ? strAscii(v, n) : null, sj = sj || (function () { var j = strJoinOk(v, n); return j === null ? null : te.encode(j); })(), sj = sj || undefined;   // fast: a column whose first 1,024 values are nearly all different skips the dictionary count (the plain layout, as the fast flat writer does)
-      if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
-      else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * cap > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
+      if (sj) nD = (n >> 1) + 1;   // where the loop below would stop
+      else if (B59 && n >= 4096 && (sd = someDistinct(v)) > 128 && (r59 = sdzCol(v, n, cap))) { nD = r59.D; codes = r59.codes; labB = r59.lab; jn = r59.all; }   // B59 (Firefox): the count, codes and bytes from wasm (a Map of strings costs about 5x Chromium's there)
+      else if (B59 && sd > 0 && sd <= 128 && (codes = new Array(n), (nD = hxCount(v, n, cap, labels, codes)) >= 0)) { }   // B60
+      else { labels.length = 0; map = new Map(); codes = new Array(n); for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * cap > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; } nD = labels.length; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
       // B45: the check (no 0 char, well formed) runs once on one join: of every value when the plain layout is next, or of the distinct values only when the loop above saw them all (a dictionary), which is the same test
-      var sOk = !!sj; if (!sj) { if (labels.length * 4 > n || labels.length >= 65536) { jn = STR_ASCII ? strAscii(v, n) : null; if (jn === null) { jn = strJoinOk(v, n); if (jn !== null) jn = te.encode(jn); } sOk = jn !== null; } else sOk = strJoinOk(labels, labels.length) !== null; }
+      var sOk = !!sj || !!r59; if (!sOk) { if (nD * 4 > n || nD >= 65536) { jn = STR_ASCII ? strAscii(v, n) : null; if (jn === null) { jn = strJoinOk(v, n); if (jn !== null) jn = te.encode(jn); } sOk = jn !== null; } else sOk = strJoinOk(labels, nD) !== null; }
       if (sOk) {   // sj: ASCII without 0 bytes, so well formed
-        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || jn], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+        if (nD * 4 > n || nD >= 65536) cand('s', {}, dlOf([sj || jn], nD));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
-        if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = tplBytes(sj || jn, n); if (tf === undefined) tf = templateFrames(v); if (tf) { var sv = stored(tf.frames); if (B57B && sv.size < best.size * 0.8 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; else { best = settle(zs, level, best); var before = best.size; if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } } }   // B57b: templates under 0.8 of the plain layout's sampled size win without compressing the plain layout in full
-        if (labels.length * 4 <= n && labels.length < 65536) {
-          var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : new Uint8Array(codes);
-          cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb], { distinct: labels.length });
-          cand('D', { w: wd, wide: false }, [te.encode(labels.join('\0')), bitpack(codes, wd)], { distinct: labels.length });
+        if (n >= 16 && nD * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = tplBytes(sj || jn, n); if (tf === undefined) tf = templateFrames(v); if (tf) { var sv = stored(tf.frames); if (B57B && sv.size < best.size * 0.8 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; else { best = settle(zs, level, best); var before = best.size; if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } } }   // B57b: templates under 0.8 of the plain layout's sampled size win without compressing the plain layout in full
+        if (nD * 4 <= n && nD < 65536) {
+          var wd = Math.max(1, 32 - Math.clz32(nD - 1)), cb = nD > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : new Uint8Array(codes);
+          if (!labB) labB = te.encode(labels.join('\0'));
+          cand('D', { w: 0, wide: nD > 256 }, [labB, cb], { distinct: nD });
+          cand('D', { w: wd, wide: false }, [labB, bitpack(codes, wd)], { distinct: nD });
         }
         return best;
       }
@@ -455,6 +458,32 @@
     var r = new Uint32Array(mem.buffer, P.res, 6), ids = new Uint32Array(mem.buffer, P.ids, n), ib = new Uint8Array(n * 2), i;
     for (i = 0; i < n; i++) { ib[i] = ids[i] & 255; ib[n + i] = ids[i] >> 8; }
     return { frames: [new Uint8Array(mem.buffer, P.tl, r[0]).slice(), ib, new Uint8Array(mem.buffer, P.txt, r[2]).slice(), new Uint8Array(mem.buffer, P.num, r[3]).slice(), new Uint8Array(mem.buffer, P.kinds, r[1]).slice()], nT: r[4] };
+  }
+  // B59 (Firefox only): a text column whose first 1,024 values hold more than 128 distinct values is counted in wasm from its bytes (sdz, B53's kernel): the same count, codes and bytes
+  var B59 = (typeof globalThis !== 'undefined' && globalThis.__B59 !== undefined) ? globalThis.__B59 : (GECKO ? 1 : 0);
+  function someDistinct(v) { var s = new Set(), i; for (i = 0; i < 1024; i++) s.add(v[i]); return s.size; }
+  // B60 (Firefox only): first-seen dictionary codes of a column with few distinct values from a small open-addressing table hashed on a value's length and four chars (=== compares the content), instead of a Map of strings; -> the distinct count, or -1 past 2,048 distinct values (the Map path runs). The same labels and codes.
+  var HXK = null, HXV = null;
+  function hxCount(v, n, cap, labels, codes) {
+    var M = 4095, x, L, h, k, c, i; if (!HXK) { HXK = new Array(4096); HXV = new Int32Array(4096); } HXK.fill(undefined);
+    for (i = 0; i < n; i++) { x = v[i]; L = x.length; h = L; if (L) { h = (h * 31 + x.charCodeAt(0)) | 0; h = (h * 31 + x.charCodeAt(L - 1)) | 0; h = (h * 31 + x.charCodeAt(L >> 1)) | 0; if (L > 2) h = (h * 31 + x.charCodeAt(L - 2)) | 0; } h = (h ^ (h >>> 7)) & M;
+      for (;;) { k = HXK[h]; if (k === undefined) { if (labels.length * cap > n) return labels.length; if (labels.length >= 2048) return -1; c = labels.length; HXK[h] = x; HXV[h] = c; labels.push(x); break; } if (k === x) { c = HXV[h]; break; } h = (h + 1) & M; }
+      codes[i] = c; }
+    return labels.length; }
+  function sdzCol(v, n, cap) {   // -> { D, codes, lab, all } or null (a value holds a 0 char or is not well formed: the Map path decides, as before)
+    var K = sdw(), x = K.x, mem = x.memory, i, k, q, c, L = n - 1, j = null, len = -1, chk = 0, T = 16, dm = Math.floor(n / cap) + 2, u, p = 0;
+    for (i = 0; i < n; i++) L += v[i].length;
+    while (T < 2 * dm) T *= 2;
+    function lay(inCap) { var o = K.heap, P = { inP: o }; o = (o + inCap + 15) & ~15; P.ht = o; o += 16 * T; P.codes = o; o += 4 * (n + dm + 1); P.out = o; o = (o + inCap + 31) & ~15; P.res = o; o += 16; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); return P; }
+    var P = null;
+    if (STR_ASCII) { P = lay(L); u = new Uint8Array(mem.buffer, P.inP, L);
+      outer: for (i = 0; i < n; i++) { q = v[i]; if (i) u[p++] = 0; for (k = 0; k < q.length; k++) { c = q.charCodeAt(k); if (c > 127 || c === 0) { p = -1; break outer; } u[p++] = c; } }
+      if (p >= 0) len = L; }
+    if (len < 0) { j = v.join('\0'); if (!(NATIVE_WF ? j.isWellFormed() : !RX_LONE.test(j))) return null; P = lay(3 * j.length); len = te.encodeInto(j, new Uint8Array(mem.buffer, P.inP, 3 * j.length)).written; chk = 1; }
+    var D = x.sdz(P.inP, len, n, cap, chk, T, P.ht, P.codes, P.out, P.res);
+    if (D === 0xFFFFFFFF || D < 0) return null;
+    var dict = D * 4 <= n && D < 65536, r = new Uint32Array(mem.buffer, P.res, 2);
+    return { D: D, codes: dict ? new Uint32Array(mem.buffer, P.codes, n).slice() : null, lab: dict ? new Uint8Array(mem.buffer, P.out, r[0]).slice() : null, all: dict ? null : new Uint8Array(mem.buffer, P.inP, len).slice() };
   }
   // fast: true (owner name 11.14): opt-in quicker saves of text-heavy rows, a little larger
   var FAST_ON = false, FLT = 1, FSK = 1;   // FLT: the zstd level of text columns under fast; FSK: skip the dictionary count of nearly-distinct columns
