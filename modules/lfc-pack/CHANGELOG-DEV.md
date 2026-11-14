@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.30 · API 0 · 2026-11-14
+
+### Quick
+Log table save 0.90 Chromium, 0.94 WebKitGTK of 0.10.29; Firefox unchanged
+
+### Details
+B51: an all-ASCII string column without 0 chars is written straight to its bytes, with no joined string and no TextEncoder pass. Firefox keeps the join path (its TextEncoder is fast). Same bytes on 96 cases (ASCII, logs, non-ASCII, 0 chars, emoji, lone surrogate, few values, empty strings; 10-30,000 rows; auto, level 3, flat).
+
+### Deep
+B51 ASCII text columns from compression research part 3.
+
 ## 0.10.29 · API 0 · 2026-11-14
 
 ### Quick

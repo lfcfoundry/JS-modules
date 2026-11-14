@@ -349,9 +349,9 @@
       if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
       else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * cap > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
       // B45: the check (no 0 char, well formed) runs once on one join: of every value when the plain layout is next, or of the distinct values only when the loop above saw them all (a dictionary), which is the same test
-      var sOk = !!sj; if (!sj) { if (labels.length * 4 > n || labels.length >= 65536) { jn = strJoinOk(v, n); sOk = jn !== null; } else sOk = strJoinOk(labels, labels.length) !== null; }
+      var sOk = !!sj; if (!sj) { if (labels.length * 4 > n || labels.length >= 65536) { jn = STR_ASCII ? strAscii(v, n) : null; if (jn === null) { jn = strJoinOk(v, n); if (jn !== null) jn = te.encode(jn); } sOk = jn !== null; } else sOk = strJoinOk(labels, labels.length) !== null; }
       if (sOk) {   // sj: ASCII without 0 bytes, so well formed
-        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || te.encode(jn)], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || jn], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
         if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { best = settle(zs, level, best); var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
@@ -426,6 +426,11 @@
       u += (c & 127) << 14; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = unzz(u) / sc; }
     return out; }
   function colV(frames, n, p) { var i, u, o; if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+  // B51: an all-ASCII string column without 0 chars written straight to its bytes (values joined by 0 bytes), with no joined string and no TextEncoder pass; null at the first other char (the join path then decides). The same bytes as te.encode(v.join('\0')).
+  // Chromium and WebKitGTK only: there TextEncoder on the joined text is the slow part (Chromium 156 about 4 ms per MB); Firefox encodes fast and keeps the join path
+  var STR_ASCII = !GECKO;
+  function strAscii(v, n) { var L = n ? n - 1 : 0, i, k, x, c, p = 0; for (i = 0; i < n; i++) L += v[i].length;
+    var u = new Uint8Array(L); for (i = 0; i < n; i++) { x = v[i]; if (i) u[p++] = 0; for (k = 0; k < x.length; k++) { c = x.charCodeAt(k); if (c > 127 || c === 0) return null; u[p++] = c; } } return u; }
   // B45: the values of an all-string column joined by 0 chars, or null when some value holds a 0 char or is not well formed (the same test as checking each value: joining with 0 chars cannot pair surrogates)
   function strJoinOk(v, n) { var j = v.join('\0'), z = 0, k = j.indexOf('\0'); while (k >= 0) { z++; k = j.indexOf('\0', k + 1); } if (z !== (n ? n - 1 : 0)) return null; return (NATIVE_WF ? j.isWellFormed() : !RX_LONE.test(j)) ? j : null; }
   // B45: hex and IPv4 string columns checked and packed in one pass, no regex, no slices; the same acceptance as RX_HEX (lowercase) and RX_IP with parts under 256, the same bytes

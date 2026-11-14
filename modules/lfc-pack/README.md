@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.29 · API 0**
+**Version 0.10.30 · API 0**
 
-**Tested in:** Full lfc-pack suite; first aggregate after warm() in Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (5 fresh pages each)
+**Tested in:** Full lfc-pack suite; same bytes as 0.10.29 on 96 text-column cases
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -215,6 +215,8 @@ First call after warm(), compared with no warm-up (fresh browser per run, median
 - **Worker pool**: a helper does CRC32, zstd and the number columns for a block and sends typed arrays back (transferred, not copied); strings and row objects are made on the calling thread because objects cannot cross threads cheaply. Full row objects are built on the calling thread, so on a 106 MB events file 1 to 4 helpers all took about the same time (laptop: 704, 948, 923 ms; container: about 500 ms each); helpers pay off for packing and for reading only some keys.
 
 ## How it compares
+**Text columns (0.10.30):** in Chromium and WebKitGTK, a text column whose values are all ASCII (no 0 chars) is written straight to bytes, with no joined string and no TextEncoder pass. Saving a log table took 0.90 of the 0.10.29 time in Chromium 156 and 0.94 in WebKitGTK 2.52.6 (same-page A/B). Firefox keeps the old path, because its TextEncoder is fast. The bytes are identical.
+
 **Against Parquet readers in the browser** (lfc-pack 0.10.1, measured 2026-11-12 on a shared 4-core cloud machine in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; the file format is unchanged through 0.10.5). Parquet files are written by pyarrow 26.0.1 with zstd level 3, and every reader opens that same file. The readers are parquet-wasm 0.9.0 with Arrow JS 21.2.0, hyparquet 1.33.0 and DuckDB-WASM 1.33.1 (it did not run in Firefox 158). Full charts: `js-modules-research/lfc-pack-vs-parquet-readers-2026.11.12` (KB M147).
 
 File size, 100,000 rows each, MB (lower is better):
