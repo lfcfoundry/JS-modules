@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.19 · API 0 · 2026-11-14
+- unpack(file, { equals or range, positions: true }) returns row numbers instead of rows
+
 ## 0.10.18 · API 0 · 2026-11-14
 - unpackRowsParallel reads a whole table as rows on helper workers with short page pauses
 
