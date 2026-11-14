@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.26 · API 0**
+**Version 0.10.27 · API 0**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (cloud): chosen-rows read timed; Node checks all pass
+**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (cloud): column packBlock timed; Node checks all pass
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -138,6 +138,8 @@ Small tables (since 0.10.20): a table of 32 rows or fewer that is one block is a
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 
 Workers: `LfcPack.packBlock(chunk, opts)` packs one chunk of whole lines on its own (run it in any worker; the result is plain bytes), and `packStream(opts).pushPacked(bytes)` appends those chunks in text order on the main thread. Cut the chunks where `push` would: at the first line end at or after `blockBytes` (the last chunk may be shorter). The file is byte for byte the one `push` gives. `share` and `exact` are not supported here. Two workers took 0.60-0.74x the time of `push` on the main thread for 33 MB (Chromium 155, Firefox 158, WebKitGTK 2.52.6); one worker is slower than `push`. Check: `tests/lfc-pack-packblock-browser.js`.
+
+Blocks given as columns (since 0.10.27): `await LfcPack.packBlock({ id: ids, name: names, note: notes }, opts)` packs one block from columns you already hold and resolves to the same kind of piece for `pushPacked`, with no JSON text and no row objects. A column is an array, a number typed array (a `Float64Array` is read in place), or text as `{ bytes, start, end }`: UTF-8 bytes (a CSV chunk, say) plus one start and one end offset per value, read in place, so no JS string is made (`packColumnsParallel` takes this form too). Text given as bytes is written exactly as the same text given as strings. Building columns from CSV bytes and packing 1,045,512 rows took 0.52 of the time with string columns in Chromium 156, 0.58 in Firefox 158 and 0.32 in WebKitGTK 2.52.6 (cloud, ratio of median times). Every column must have the same length; offsets outside the bytes and text that is not valid UTF-8 are refused.
 
 Text that arrives in pieces (since 0.8.0): `const ps = LfcPack.packParallelStream({ workers: 3 })`, then `ps.push(bytes)` for each piece (a parser's output, a download chunk; you may reuse your buffer right after the call) and `const file = await ps.finish()`. Blocks are cut where `pack` cuts them and go to helper Web Workers at once, so packing runs while the rest of the text is still being read. The file is byte for byte the one `pack` writes. `share` and `exact` are not supported. It pays on big inputs: 99 MB of 5-column rows pushed in 64 KB pieces took 0.65 to 0.82 (Chromium 156), 0.70 to 0.77 (Firefox 158) and 1.09 to 1.20 (WebKitGTK 2.52.6, slower) of the time `pack` takes on the main thread (two runs of 3 paired rounds, 3 workers, 4-core cloud machine, text already in memory, so no overlap with a parser is counted); for 33 MB it was no faster, so use `pack` for small inputs. Check: `tests/lfc-pack-stream-browser.js`.
 

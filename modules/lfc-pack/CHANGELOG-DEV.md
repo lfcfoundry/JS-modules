@@ -2,6 +2,19 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.27 · API 0 · 2026-11-14
+
+### Quick
+packBlock({ key: column }, opts) returns a Promise of a piece for pushPacked; text columns may be { bytes, start, end }, also in packColumnsParallel. Old code is unaffected.
+
+### Details
+API: packBlock(columns, opts) when the first argument is a plain object: columns are arrays, number typed arrays (Float64Array read in place) or { bytes: Uint8Array, start, end } (UTF-8, one offset pair per value). Returns a Promise of the piece (packBlock(bytes) stays synchronous). packColumnsParallel accepts { bytes, start, end } too.
+Bytes: text given as bytes writes the same file as the same text as strings (plain and dictionary layouts built from the bytes; hex, UUID, IPv4, 0-byte values and templates: true go through the string path).
+Speed: build columns from CSV bytes and pack 1,045,512 rows, ratio of median times against string columns: 0.52 Chromium 156, 0.58 Firefox 158, 0.32 WebKitGTK 2.52.6; against JSON text rows (JS builder) 0.28 / 0.32 / 0.20.
+
+### Deep
+Column input for streaming packs (owner name pick A, packBlock(columns), 2026.11.14 12:58 PM Eastern) for the LFCP Workbench import (M230 handoff, Firefox-tie finding, finding 41). colTable (pool.js) builds the column table used by packColumnsParallel and packBlock(columns), checks offsets; byteCol (flat.js) encodes { bytes, start, end } text columns: FNV hash table for first-seen labels, the same stop rule as the string Map count (labels * 4 > n), plain 's' frame joined from the bytes, 'D' candidates with the same frames, UTF-8 check once per frame when any byte is >= 0x80; fallbacks to the string path keep the bytes equal. Float64Array number columns are read in place when no helpers are used (packBlock). Checks: test/packblockcols.cjs, 115 checks (same bytes as strings over 13 column kinds x 4 option sets, pushPacked of column pieces, packColumnsParallel bytes columns, inputs unchanged, refused input). Full suite passes. The Firefox text-pack gap (1.5-1.8x Chromium) is gone on this path: 878 vs 843 ms. Results: js-modules-research/packblock-columns-0.10.27-2026.11.14/.
+
 ## 0.10.26 · API 0 · 2026-11-14
 
 ### Quick

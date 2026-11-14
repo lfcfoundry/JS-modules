@@ -274,17 +274,26 @@
       });
     });
   }
-  function packColumnsParallel(obj, opts) {
-    var keys = Object.keys(obj || {}), A = [], n = -1, j, a;
+  // a column table ({ key: column }) as the row-like object packRowsBlocks reads: columns are arrays, number typed arrays, or text as { bytes, start, end } (since 0.10.27); null when there are no columns or rows, an Error when a column is not one of those
+  function colTable(obj, who) {
+    var keys = Object.keys(obj || {}), A = [], G = [], n = -1, j, a;
     for (j = 0; j < keys.length; j++) { a = obj[keys[j]];
-      if (!Array.isArray(a) && !(ArrayBuffer.isView(a) && !(a instanceof DataView) && !(typeof BigInt64Array !== 'undefined' && (a instanceof BigInt64Array || a instanceof BigUint64Array)))) return Promise.reject(new Error('LfcPack: packColumnsParallel needs an array or number typed array for "' + keys[j] + '"'));
-      if (n < 0) n = a.length; else if (a.length !== n) return Promise.reject(new Error('LfcPack: packColumnsParallel columns must all have the same length')); A.push(a); }
+      if (isByteCol(a)) { for (var i9 = 0, BL9 = a.bytes.length, s9, e9; i9 < a.start.length; i9++) { s9 = a.start[i9]; e9 = a.end[i9]; if (!(s9 >= 0 && e9 >= s9 && e9 <= BL9)) return new Error('LfcPack: text column "' + keys[j] + '": value ' + i9 + ' has offsets outside its bytes'); } G.push(function (bc) { return function (i) { return td.decode(bc.bytes.subarray(bc.start[i], bc.end[i])); }; }(a)); }
+      else if (!Array.isArray(a) && !(ArrayBuffer.isView(a) && !(a instanceof DataView) && !(typeof BigInt64Array !== 'undefined' && (a instanceof BigInt64Array || a instanceof BigUint64Array)))) return new Error('LfcPack: ' + who + ' needs an array, a number typed array or { bytes, start, end } for "' + keys[j] + '"');
+      else G.push(null);
+      var len = isByteCol(a) ? a.start.length : a.length;
+      if (n < 0) n = len; else if (len !== n) return new Error('LfcPack: ' + who + ' columns must all have the same length'); A.push(a); }
     if (n < 0) n = 0;
-    function rowsOf(i0, i1) { var out = new Array(Math.max(0, i1 - i0)), i, r, q; for (i = i0; i < i1; i++) { r = {}; for (q = 0; q < keys.length; q++) r[keys[q]] = A[q][i]; out[i - i0] = r; } return out; }
+    function rowsOf(i0, i1) { var out = new Array(Math.max(0, i1 - i0)), i, r, q; for (i = i0; i < i1; i++) { r = {}; for (q = 0; q < keys.length; q++) r[keys[q]] = G[q] ? G[q](i) : A[q][i]; out[i - i0] = r; } return out; }
     var CT = { __ct: { keys: keys, A: A }, length: n, slice: function (s0, s1) { if (s0 < 0) s0 = Math.max(0, n + s0); if (s1 == null || s1 > n) s1 = n; return rowsOf(s0, s1); } }, z;
     for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0];
-    if (!keys.length || n === 0) return packRowsParallel(rowsOf(0, n), opts);
-    return packRowsParallel(CT, opts);
+    return { CT: CT, empty: !keys.length || n === 0, rowsOf: rowsOf, n: n };
+  }
+  function packColumnsParallel(obj, opts) {
+    var t = colTable(obj, 'packColumnsParallel');
+    if (t instanceof Error) return Promise.reject(t);
+    if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
+    return packRowsParallel(t.CT, opts);
   }
   function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
     if (!rows.__ct) return packRows(rows, opts);
@@ -328,10 +337,10 @@
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
     var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0, cnt = hb0 || stp;   // P13i: the B22 head block, as packRows cuts it
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;
-    if (!y31) { for (ra = 0; ra < RA.length; ra += cnt, cnt = stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length) } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
+    if (!y31) { for (ra = 0; ra < RA.length; ra += cnt, cnt = stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
     ra = 0;
     return new Promise(function (res, rej) {
-      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length) } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += cnt; cnt = stp; if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
+      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += cnt; cnt = stp; if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
       one();
     });
     function b31Join(waits) { return Promise.all(waits).then(function (bs) {

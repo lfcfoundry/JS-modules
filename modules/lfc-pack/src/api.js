@@ -740,12 +740,26 @@
   }
   /* packBlock(chunk, opts): pack one chunk of whole lines on its own, for packStream().pushPacked() to append; the work can run in any worker, since the result
      is plain bytes (a small file of the chunk's blocks). Use the options the stream uses; share and exact are not supported (since 0.7.0) */
+  // packBlock(columns, opts) (since 0.10.27): the same for a block given as columns, { key: column } with every column the same length (arrays, number typed arrays, or text as
+  // { bytes, start, end }: UTF-8 bytes and one offset pair per value, so the caller never makes JS strings). Returns a Promise of the piece for pushPacked. Rows come back as
+  // { key: value } objects in key order; the bytes can differ from packing the same rows as text (column layouts are picked per block the same way)
   function packBlock(chunk, opts) {
     opts = packOpts(opts); need(true);
     if (opts.exact) throw new Error('LfcPack: packBlock does not support exact mode');
     if (opts.share) throw new Error('LfcPack: packBlock does not support share (each worker would build its own tables); pass share: false');
     var o = { _piece: true }, k; for (k in opts) if (k !== 'meta') o[k] = opts[k];
+    if (chunk && typeof chunk === 'object' && !ArrayBuffer.isView(chunk) && !(chunk instanceof ArrayBuffer) && !Array.isArray(chunk)) return packBlockColumns(chunk, o);
     return packMany([{ name: null, bytes: bytesOf(chunk) }], o);
+  }
+  function packBlockColumns(obj, o) {
+    var t = colTable(obj, 'packBlock'), fb = function () { return packMany([{ name: null, bytes: rowsBytes(t.rowsOf(0, t.n)) }], o); };
+    if (t instanceof Error) return Promise.reject(t);
+    if (t.empty) return Promise.resolve().then(fb);
+    return Promise.resolve().then(function () {
+      var out; try { out = packRowsBlocks(t.CT, Object.assign({}, o, { _b26: 1 })); } catch (e) { if (e === B26_BAIL) return fb(); throw e; }
+      if (out === null) return fb();
+      return out.then(function (b) { return b === null ? fb() : b; }, function (e) { if (e === B26_BAIL) return fb(); throw e; });
+    });
   }
   // hash(bytes, kind): 'crc32' (default; the number the file's checksums use) or 'xxh64' (16 lowercase hex digits); WebAssembly when init() has run, plain JavaScript for crc32 otherwise
   function hash(bytes, kind) {
@@ -879,4 +893,4 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.26', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.27', apiVersion: 0 };
