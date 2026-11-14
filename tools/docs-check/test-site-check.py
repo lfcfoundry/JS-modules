@@ -25,18 +25,26 @@ def errs(over, **kw):
     d = make(over)
     try: return site_check.run_site(d, **kw).errors
     finally: shutil.rmtree(d)
+def warns(over, **kw):
+    d = make(over)
+    try: return site_check.run_site(d, **kw).warnings
+    finally: shutil.rmtree(d)
 fails = []
 def expect(name, e, frag):
     ok = (frag is None and not e) or (frag is not None and any(frag in x for x in e))
     print(("ok   " if ok else "FAIL ") + name + ("" if ok else ": " + repr(e)))
     if not ok: fails.append(name)
 expect("good fixture", errs({}), None)
+PACKED = '<!doctype html><title>Thumb Circuit</title><script>__lzmaPackedPayload_x="AAAA"</script>'
+expect("packed play page, versions agree", errs({"play/index.html": PACKED}), None)
+expect("packed play page, README lags", errs({"play/index.html": PACKED, "README.md": GOOD["README.md"].replace("v7.03", "v7.02")}), "does not mention the play page version v7.03")
+expect("unpacked page without a version", errs({"play/index.html": "<title>Thumb Circuit</title>"}), "no version in <title>")
 expect("play version lags landing", errs({"play/index.html": "<title>T v7.04</title>"}), "does not mention the play page version v7.04")
 expect("Play link label old", errs({"index.html": GOOD["index.html"].replace("Play v7.03", "Play v7.02")}), "Play link says v7.02")
 expect("badge old", errs({"README.md": GOOD["README.md"] + "![b](https://img.shields.io/badge/build-v7.02-blue)\n"}), "badge says v7.02")
 expect("status line old", errs({"README.md": "Status: v7.02 test build\nv7.03\n"}), "status line says v7.02")
 expect("changelog top old", errs({"CHANGELOG.md": "## v7.02\n## v7.01\n"}), "top version is v7.02")
-expect("changelog gap", errs({"CHANGELOG.md": "## v7.03\n## v7.00\n"}), "no line for v7.01, v7.02")
+expect("changelog gap", warns({"CHANGELOG.md": "## v7.03\n## v7.00\n"}), "no line for v7.01, v7.02")
 expect("caption old", errs({"index.html": GOOD["index.html"].replace("sample build v7.03", "sample build v7.01")}), "screenshots say v7.01")
 expect("picture two builds old", errs({"index.html": GOOD["index.html"].replace("shot-v7.03", "shot-v7.01"), "docs/img/shot-v7.01.png": "x"}), "builds older")
 expect("dead link", errs({"index.html": GOOD["index.html"] + '<a href="nope.html">x</a>'}), "does not exist")

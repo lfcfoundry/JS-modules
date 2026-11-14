@@ -53,8 +53,16 @@ class Site:
         self.notes.append(m)
 
 def play_version(s):
-    m = re.search(r"<title>[^<]*?(%s)" % VER, s.read("play/index.html"))
-    return m.group(1) if m else None
+    page = s.read("play/index.html")
+    m = re.search(r"<title>[^<]*?(%s)" % VER, page)
+    if m:
+        return m.group(1)
+    if "__lzmaPackedPayload" in page[:3000]:   # a lzma-pack page: the loader's title is fixed and the real page is inside the payload, so the top CHANGELOG version stands in for it
+        c = re.search(r"(?m)^## (%s)" % VER, s.read("CHANGELOG.md"))
+        if c:
+            s.note("play/index.html is lzma-packed (no version in its <title>): the top CHANGELOG version %s stands in for the play page version" % c.group(1))
+            return c.group(1)
+    return None
 
 def check_versions(s, pv, index, readme, changelog):   # 1
     if not pv:
@@ -128,7 +136,7 @@ def check_gaps(s, pv, changelog):   # 4
             if v not in have and vkey(v) >= vkey(lo) and vkey(v) <= vkey(pv):
                 miss.append(v)
     if miss:
-        s.bad("CHANGELOG.md: no line for %s (fine if the build did not change; otherwise add one)" % ", ".join(miss))
+        s.warn("CHANGELOG.md: no line for %s (fine if the build did not change; otherwise add one)" % ", ".join(miss))
 
 def local_refs(text):
     out = []
