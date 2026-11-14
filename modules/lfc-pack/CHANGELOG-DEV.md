@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.14 · API 0 · 2026-11-13
+
+### Quick
+faster row reads in Firefox and WebKit
+
+### Details
+B36: outside V8, dense blocks (every key present in every row) are built 1,024 rows at a time, then each column is assigned down the chunk. unpackRows 100,000 rows vs 0.10.13: Firefox 0.85 to 1.02, WebKitGTK taxi later reads 0.82; WebKitGTK sensors first read 1.20 in the cloud test (owner accepted). Identical output on 9 sets x 4 ways of writing in Firefox and WebKitGTK; Chromium unchanged.
+
+### Deep
+B36 dense chunked rows, non-V8 only (owner Send B36, then Ship B36 as is after the WebKitGTK sensors first-read card). Output identical to 0.10.13 in Firefox and WebKitGTK. All lfc-pack checks pass.
+
 ## 0.10.13 · API 0 · 2026-11-13
 
 ### Quick
