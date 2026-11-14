@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.24 · API 0 · 2026-11-14
+
+### Quick
+faster text-heavy saves, about 0.4% larger logs
+
+### Details
+level: 3 gives the old bytes; readers unchanged
+
+### Deep
+lfc-pack 0.10.24: B46 LV_FLAT 3 to 2 (flat block column frames at zstd level 2 unless level is given; raw blocks and footer stay at 3; readers unchanged). Owner picked 'A: Level 2 by default' on the research thread's card (11.14 11:55 AM Eastern). Logs 200,000 rows 4,217,768 to 4,234,491 bytes (+0.4%), save 0.86-0.90 of 0.10.23; same page vs lz4-wasm 0.75 Chromium 156 / 0.92 Firefox 158 / 0.82 WebKitGTK 2.52.6 at 0.38 of lz4's bytes. Taxi 300,000 rows same time, 164 bytes smaller. Handoff HANDOFF-B46-flat-level-2-to-code-thread-2026.11.14.md.
+
 ## 0.10.23 · API 0 · 2026-11-14
 
 ### Quick
