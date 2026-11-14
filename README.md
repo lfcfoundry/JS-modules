@@ -45,7 +45,7 @@ Single-file offline apps cannot load code from a server, so any library has to b
 
 ## Compared with the usual choice
 
-lfc-pack 0.10.1 against Parquet readers in the browser, 100,000 rows each, measured 2026-11-12 in cloud Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (shared 4-core machine). Files are 28 to 69% smaller than Parquet at zstd level 3. Turning the file into plain row objects takes 0.18 to 0.59 of the time of parquet-wasm, hyparquet and DuckDB-WASM (taxi trips in Chromium 156: 38.7 ms against 92.6 to 147 ms). Twelve equality queries on one column: lfc-pack was ahead of the fastest Parquet reader in every cell (taxi trips in Chromium 156: 244 ms against 386 for DuckDB-WASM). Details and every cell: [lfc-pack README](modules/lfc-pack/README.md#how-it-compares).
+lfc-pack 0.10.35 against Parquet readers in the browser, 100,000 rows each, measured 2026-11-14 in cloud Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (shared 4-core machine; Parquet by pyarrow 26.0.1 at zstd level 3, read by parquet-wasm 0.9.0 with Arrow JS 21.2.0 and hyparquet 1.33.0). Files are 0.50 to 0.68 of the Parquet size. Turning the file into plain row objects takes 0.24 to 0.62 of the time of the faster reader, hyparquet (taxi trips in Chromium 156: 37.1 ms against 60.2 for hyparquet and 93.2 for parquet-wasm). Equality-query and DuckDB-WASM figures are from lfc-pack 0.10.1 and are marked so in the README. Details and every cell: [lfc-pack README](modules/lfc-pack/README.md#how-it-compares).
 
 lfc-pack 0.4.0 on 260 MB of real FHIR records, measured 2026.10.31 in cloud Chromium 153, Firefox 158 and WebKitGTK 2.52.6 (shared 4-core machine). Parquet written natively by pyarrow 26 after a DuckDB 2.0 read (zstd 3, 4 threads).
 
@@ -191,7 +191,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 | 115.0 | 39.0 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.10.35 | 617.8 | 275.1 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.36 | 618.4 | 275.2 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [memory-compression](modules/memory-compression/README.md) | 2.17.1 | 448.7 | 129.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 | 62.9 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |

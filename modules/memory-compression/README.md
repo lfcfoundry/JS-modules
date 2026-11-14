@@ -146,20 +146,20 @@ Also on the object: `pager(list, opts)` with `get`, `getAsync`, `load`, `range`,
 
 Size is smaller-is-better and times are lower-is-better in every table. Every result was restored and compared with the original.
 
-**Lists of objects** (300,000 network links for the size; 60,000 links for the time, pack and unpack in ms, version 2.0.1, best of 12 runs, one browser at a time; WebKitGTK round to whole milliseconds):
+**Lists of objects** (300,000 network links for the size; 60,000 links for the time, pack and unpack in ms, memory-compression 2.17.0, best of 12 runs, median of 3 rounds, measured 2026-11-14, one browser at a time; WebKitGTK rounds to whole milliseconds; avsc was not re-run, its row is from 2.0.1 and 2026-10):
 
-| Library | Size of 300,000 links | Chromium 155 | Firefox 158.0 | WebKitGTK 2.52.6 |
+| Library | Size of 300,000 links | Chromium 156 | Firefox 158.0 | WebKitGTK 2.52.6 |
 |---|---|---|---|---|
-| memory-compression, fast | 7.854 MB | 15.2 and 7.1 | 14.4 and 8.5 | 22 and 6 |
-| memory-compression, small | 6.716 MB | 208 and 26.8 | 141.7 and 17.6 | 134 and 22 |
-| msgpackr 2.1.4, records | 20.005 MB | 18.7 and 8.2 | 22.0 and 12.6 | 19 and 8 |
-| cbor-x 1.6.9, records | 20.905 MB | 25.6 and 7.5 | 29.7 and 12.7 | 13 and 10 |
-| avsc 5.7.9 (needs a schema) | 18.767 MB | 38.1 and 31.2 | 59.6 and 94.0 | 67 and 83 |
-| JSON text | 57.258 MB | 73.5 and 38.3 | 69.6 and 52.3 | 52 and 33 |
+| memory-compression, fast | 7.854 MB | 12.3 and 5.0 | 13 and 4 | 10 and 6 |
+| memory-compression, small | 6.549 MB | 110.5 and 17.6 | 111 and 15 | 93 and 18 |
+| msgpackr 2.1.4, records | 20.005 MB | 15.6 and 7.5 | 19 and 10 | 21 and 6 |
+| cbor-x 1.6.9, records | 20.905 MB | 21.6 and 8.9 | 26 and 13 | 14 and 8 |
+| avsc 5.7.9 (needs a schema; 2.0.1-era run) | 18.767 MB | 38.1 and 31.2 | 59.6 and 94.0 | 67 and 83 |
+| JSON text | 57.258 MB | 65.9 and 34.1 | 54 and 56 | 46 and 33 |
 
-The msgpackr and cbor-x rows were first measured with 2.1.0 and 1.6.6; runs with 2.1.4 and 1.6.9 on 2026-11-14 gave the same results within noise.
+The cloud container is shared, so gaps under about 15% are noise. The table was run in the module's own bench runner (`bench/page-main.js`).
 
-2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all three browsers; it loses on download size (since 2.12.0 the minified full file is 80.8 KB gzipped and the read-only file 35.0 KB, against 11 KB for msgpackr; the shipped unminified file is about 121 KB) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit).
+Fast mode is 2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all three browsers; it loses on download size (since 2.12.0 the minified full file is 80.8 KB gzipped and the read-only file 35.0 KB, against 11 KB for msgpackr; the shipped unminified file is about 121 KB) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit, from the 2.0.x runs; not re-run).
 
 **The same 60,000 links kept in pages of 2,048 rows, one page opened at a time** (version 2.2.0, `pager()` against page-by-page copies made with each library; median of 5 turns, one browser at a time; times in ms, lower is better, each cell is Chromium 155 / Firefox 158.0 / WebKitGTK 2.52.6; "open" is the mean of 29 pages timed as one block; every contender gave back equal rows):
 

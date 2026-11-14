@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.35 (API 0)
+ * Version 0.10.36 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1437,6 +1437,28 @@
   // returns null when the input is not flat rows (some line is not a JSON object)
   // B26 (research): packRows skips its flatScalars pass; the row scatter checks each row and value the same way and throws B26_BAIL on the first one that is not a flat scalar (packRows then takes the text path, as before)
   var B26_BAIL = { b26: 1 }, OP26 = Object.prototype;
+  // B61: the B21a row loop with two changes, same columns and planes: (1) a row that holds every key seen so far, in the order of the row before, sets no presence bit per cell (one bit in a
+  // whole-row plane, folded into each key's plane at the end, or before a new key appears); (2) outside Firefox, text and other generic columns are filled by index into an array made n long, not by push
+  var B61 = (typeof globalThis !== 'undefined' && globalThis.__B61 !== undefined) ? globalThis.__B61 : 1;
+  var B61I = !GECKO;   // indexed fill: Chromium 156 0.96, WebKitGTK 0.97; Firefox 158 keeps push (indexed fill made the later column passes slower there: Workbench-style 0.98, logs 1.02, against 0.92 / 0.985 with push)
+  function b61Fold(full, pls, pb) { for (var j = 0; j < pls.length; j++) { var pl = pls[j]; for (var b = 0; b < pb; b++) pl[b] |= full[b]; } full.fill(0); }
+  function b61Gen(c, n) { var a = new Array(n), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }
+  function b61Loop(rows, n, pb, keys, seen, cols, cs21, pls) {
+    var full = new Uint8Array(pb), any = 0, pk = [], px = [], rj = [], i, r, k, q, jx, dev, x21, c21, t, nk;
+    for (i = 0; i < n; i++) {
+      r = rows[i]; q = 0; dev = false; nk = keys.length;
+      for (k in r) {
+        if (pk[q] === k) jx = px[q];
+        else { dev = true; jx = seen.get(k); if (jx === undefined) { if (any) { b61Fold(full, pls, pb); any = 0; } jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; }
+        rj[q++] = jx; x21 = r[k]; c21 = cs21[jx];
+        if (c21.a !== null) { if (B61I) c21.a[c21.c++] = x21; else c21.a.push(x21); } else if (typeof x21 === 'number') { c21.nb[c21.m++] = x21; c21.c++; } else if (x21 === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = B61I ? b61Gen(c21, n) : b21Generic(c21); c21.nb = null; if (B61I) c21.a[c21.c++] = x21; else c21.a.push(x21); }
+      }
+      if (!dev && q === nk && q === keys.length) { full[i >> 3] |= 1 << (i & 7); any = 1; }
+      else for (t = 0; t < q; t++) pls[rj[t]][i >> 3] |= 1 << (i & 7);
+    }
+    if (any) b61Fold(full, pls, pb);
+    if (B61I) for (t = 0; t < cs21.length; t++) { c21 = cs21[t]; if (c21.a !== null) c21.a.length = c21.c; }
+  }
   function b26Rows(rows, n) { for (var i = 0, r, t; i < n; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null)) throw B26_BAIL; } }
   function b26Vals(a) { for (var i = 0, x, t; i < a.length; i++) { x = a[i]; t = typeof x; if (t === 'number') { if (x - x !== 0 || (x === 0 && 1 / x < 0)) throw B26_BAIL; } else if (t !== 'string' && t !== 'boolean' && x !== null) throw B26_BAIL; } }
   function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; } }
@@ -1532,6 +1554,7 @@
     var chk26 = !!(rowsIn && opts._b26), t26, pb = (n + 7) >> 3, ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq, pk = [], px = [], q, pls = [], cs21 = [], c21, x21, pre21 = [];
     if (chk26 && !colsIn) b26Rows(rows, n);
     if (colsIn) b34Fill(colsIn, n, pb, keys, seen, cols, cs21, pls);
+    else if (B61 && !ord) b61Loop(rows, n, pb, keys, seen, cols, cs21, pls);
     else for (i = 0; i < n; i++) {   // B21a: one pass; a key at the same position as in the previous row is matched by a string compare, not a Map lookup
       r = rows[i]; sq = ord ? [] : null; q = 0;
       for (k in r) { if (pk[q] === k) jx = px[q]; else { jx = seen.get(k); if (jx === undefined) { jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; }
@@ -3230,7 +3253,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.35', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.36', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
