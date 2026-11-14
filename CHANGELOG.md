@@ -357,7 +357,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-31 · **netflow-sankey** 2.4.1 · API 2: Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 - 2026-10-31 · **netflow-sankey** 2.4.0 · API 2: Big flow charts lay out 8 to 20% faster (20% at 1,500 items) with the same pictures. New stopCap / stopCapFrom options (off by default) draw more long links straight on big maps for a much faster layout (Chromium).
 - 2026-10-31 · **netflow-sankey** 2.3.3 · API 2: Bars settle into place in WebAssembly too: the same pictures in 3 to 26% less time for big flow charts (3 to 14% in cloud browsers, 7 to 26% on a laptop).
-- 2026-10-31 · **netflow-layers** 1.8.0 · API 1: Tidier by default: the lighter crossing search now keeps going until 4 rounds bring no gain (it stopped after 2), so it matches deep: true on every map tested. 1,000 random items take about 112 to 118 ms instead of 72 to 90.
+- 2026-10-31 · **netflow-layers** 1.8.0 · API 1: Tidier by default: the lighter crossing search runs until 4 rounds bring no gain (was 2), matching deep: true on every map tested. 1,000 items: 112 ms (was 73) in Chromium 155, 118 (90) Firefox 158, 117 (83) WebKitGTK 2.52.6.
 - 2026-10-31 · **netflow-layers** 1.7.2 · API 1: Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
 - 2026-10-31 · **netflow-layers** 1.7.1 · API 1: Starts a little faster: the built-in WebAssembly program is decoded by the browser's own base64 decoder (Uint8Array.fromBase64) in 0.08 to 0.18 of the old time (cloud tests); older browsers use the old way. Same bytes.
 - 2026-10-31 · **netflow-layers** 1.7.0 · API 1: Fewer crossings by default (deep: false and rows: 'route' keep the old picture): 3 to 11% fewer than dagre and ELK on random maps; 1,000 items take 77 to 83 ms instead of 11 to 39.
@@ -601,7 +601,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-17 · **stage-curtains** 1.1.0 · API 1: On a very busy page the curtain now lifts about 3.6 to 5.7 times sooner. A quiet page is unchanged.
 - 2026-10-17 · **sprite-baker** 1.5.0 · API 1: New trimming tool writes a smaller copy without the parts a game does not use. The full file draws the same pixels as before.
 - 2026-10-17 · **sprite-baker** 1.4.0 · API 1: Can now draw Fancy Banana's pictures: textures, two more numbers per point, and a pose function. Existing code works as before.
-- 2026-10-17 · **sprite-baker** 1.3.0 · API 1: Faster, with the same pictures: baking a rolling animation is about 2.4 times faster in Node.
+- 2026-10-17 · **sprite-baker** 1.3.0 · API 1: Faster, with the same pictures: baking a rolling animation is 1.1 to 1.6 times faster in Chromium 155, Firefox 158 and WebKitGTK 2.52.6.
 - 2026-10-17 · **spotlight-tour** 1.1.0 · API 1: The bright window now stays exactly on the part while you scroll and follows it when the page changes, with about 40% less work for the browser while scrolling.
 - 2026-10-17 · **spotlight-tour** 1.0.0 · API 1: New module: a short first-time tour of a page with a bright window over each part and Skip, Back and Next buttons. New visitors see it once.
 - 2026-10-17 · **speed-lab** 1.1.1 · API 1: The report and table say FPS. Words only.

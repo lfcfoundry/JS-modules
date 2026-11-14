@@ -36,7 +36,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Can now draw Fancy Banana's pictures: textures, two more numbers per point, and a pose function. Existing code works as before.
 
 ## 1.3.0 · API 1 · 2026-10-17
-- Faster, with the same pictures: baking a rolling animation is about 2.4 times faster in Node.
+- Faster, with the same pictures: baking a rolling animation is 1.1 to 1.6 times faster in Chromium 155, Firefox 158 and WebKitGTK 2.52.6.
 
 ## 1.2.0 · API 1 · 2026-10-15
 - First labeled version. Nothing in the code changed.
