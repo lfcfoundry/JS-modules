@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.8 · API 2 · 2026-11-14
+
+### Quick
+Fused decimal offsets (Enc.numbers + scaleU8/16/32): when the picker is off, a decimal column is scaled and written straight into Uint8/16/32 offsets in one pass; same CT_DEC header, same bytes (268 + 42 cases, research).
+
+### Deep
+Fused decimal offsets (Enc.numbers + scaleU8/16/32): when the picker is off, a decimal column is scaled and written straight into Uint8/16/32 offsets in one pass; same CT_DEC header, same bytes (268 + 42 cases, research). Decimal columns 0.71-0.82x in Chromium and Firefox (research). Whole 100k list with three decimal columns: Chromium 0.96, Firefox 0.95 median (page noise 0.73-1.17), WebKitGTK 0.85.
+
 ## 2.16.7 · API 2 · 2026-11-14
 
 ### Quick
