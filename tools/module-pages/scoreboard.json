@@ -82,6 +82,14 @@
    ]
   },
   {
+   "label": "zstd-kit decompress vs fzstd (low end)",
+   "x": 2.6,
+   "module": "zstd-kit",
+   "proof": [
+    "zstd-kit decompresses 4 MB of logs in 7 to 9 ms against 24 to 26"
+   ]
+  },
+  {
    "label": "walker-sim vs a plain loop",
    "x": 2.9,
    "module": "walker-sim",
