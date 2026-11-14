@@ -347,3 +347,45 @@ EXPORT("numcol") u32 numcol(const double*b,u32 n,u8*out,double*res,u32 mode){
 // B25b: b21Flags in one pass: res[0] 1 when some value is -0, res[1] 1 when every value is a whole number under 2^50 in size, res[2] 1 when some value is NaN or infinite
 EXPORT("numflags") void numflags(const double*a,u32 n,double*res){
   u32 i,nz=0,ai=1,nf=0; for(i=0;i<n;i++){ double x=a[i]; ai&=(x==__builtin_trunc(x))&(x<1125899906842624.0)&(x>-1125899906842624.0); nz|=(x==0)&(__builtin_signbit(x)!=0); nf|=!(x-x==0); } res[0]=nz; res[1]=ai; res[2]=nf; }
+// B57: the template layout (encodeColumn's 'L', templateFrames in flat.js) built from a text column's bytes (n values joined by 0 bytes, UTF-8): the same five frames.
+// Slots follow slotScan: a run of 8 or more hex digits [0-9a-f] holding a letter, else -?[0-9]+; every slot becomes byte 1 in its template. Templates are numbered first seen;
+// slot groups run in (template, slot) order. A group whose every value is canonical (0 or -?[1-9] then up to 14 digits) is stored as varints of the zigzag differences, else as text joined by '\n'.
+// Memory (caller lays out): tl (len + n), ids (4n), sg/ss/sl (4 * S each, S = slot capacity), gb (4*65537), gc (4*G cap), ht (16*T), out frames: txt (len + n), num (10 * S), kinds (G cap).
+// res: [0] tl length, [1] groups, [2] txt length, [3] num length, [4] templates, [5] slots. Returns 0, or 1 when the layout cannot be built (byte 1 in a value, over 65,536 templates, a template with 4,096 slots or more, or over the slot or group capacity).
+static inline u32 ishx(u8 c){ return (c>=48&&c<=57)||(c>=97&&c<=102); }
+EXPORT("tplbuild") u32 tplbuild(const u8*in,u32 len,u32 n,u8*tl,u32*ids,u32*sg,u32*ss,u32*sl,u32 S,u32*gb,u32*gc,u32 GC,u32*ht,u32 T,u8*txt,u8*num,u8*kinds,u32*ord,u32*res){
+  u32 i,p=0,tlE=0,D=0,G=0,ns=0,k;
+  for(i=0;i<4*T;i+=4) ht[i]=0;
+  for(u32 v=0;v<n;v++){
+    u32 s=p,e=p; while(e<len&&in[e]) e++; p=e+1;
+    u32 tp=tlE+(D?1:0),o=tp,last=s,q=s,m=0,s0=ns;
+    while(q<e){ u8 c=in[q];
+      if(c==1) return 1;
+      if(ishx(c)){ u32 j=q,h=0; while(j<e){ u8 d=in[j]; if(d>=97&&d<=102) h=1; else if(d<48||d>57) break; j++; }
+        if((h&&j-q>=8)||(!h&&c>=48&&c<=57)){ if(!h){ j=q+1; while(j<e&&in[j]>=48&&in[j]<=57) j++; } __builtin_memcpy(tl+o,in+last,q-last); o+=q-last; tl[o++]=1; if(ns>=S) return 1; ss[ns]=q; sl[ns]=j-q; sg[ns]=m++; ns++; q=last=j; continue; }   /* B57c: a digit run found by the hex scan is the number slot (one scan) */
+        if(c>=48&&c<=57){ j=q+1; while(j<e&&in[j]>=48&&in[j]<=57) j++; __builtin_memcpy(tl+o,in+last,q-last); o+=q-last; tl[o++]=1; if(ns>=S) return 1; ss[ns]=q; sl[ns]=j-q; sg[ns]=m++; ns++; q=last=j; continue; }
+        q++; continue; }
+      if(c==45&&q+1<e&&in[q+1]>=48&&in[q+1]<=57){ u32 j=q+2; while(j<e&&in[j]>=48&&in[j]<=57) j++; __builtin_memcpy(tl+o,in+last,q-last); o+=q-last; tl[o++]=1; if(ns>=S) return 1; ss[ns]=q; sl[ns]=j-q; sg[ns]=m++; ns++; q=last=j; continue; }
+      q++; }
+    for(k=last;k<e;k++){ if(in[k]==1) return 1; }
+    __builtin_memcpy(tl+o,in+last,e-last); o+=e-last;
+    u32 L=o-tp,h=hbytes(tl+tp,L);
+    u32 at=h&(T-1),x,id=0xFFFFFFFFu;
+    while((x=ht[4*at])!=0){ if(ht[4*at+1]==h&&ht[4*at+3]==L&&sameb(tl+tp,tl+ht[4*at+2],L)){ id=x-1; break; } at=(at+1)&(T-1); }
+    if(id==0xFFFFFFFFu){ if(D>65535) return 1; if(m>4096) return 1; id=D++; if(id) tl[tlE]=0; ht[4*at]=id+1; ht[4*at+1]=h; ht[4*at+2]=tp; ht[4*at+3]=L; tlE=tp+L; gb[id]=G; if(G+m>GC) return 1; for(k=0;k<m;k++) gc[G+k]=0; G+=m; }
+    ids[v]=id;
+    for(k=s0;k<ns;k++){ sg[k]=gb[id]+sg[k]; gc[sg[k]]++; }
+  }
+  if(p<len||(n&&p!=len+1)) { if(!(n==0&&len==0)) return 1; }
+  // counting sort of the slots by group, stable (value order inside a group)
+  u32 acc=0; for(k=0;k<G;k++){ u32 c=gc[k]; gc[k]=acc; acc+=c; }
+  for(k=0;k<ns;k++) ord[gc[sg[k]]++]=k;
+  u32 tO=0,nO=0,a=0,tg=0;
+  for(u32 g=0;g<G;g++){ u32 b=gc[g],canon=1;
+    for(k=a;k<b&&canon;k++){ u32 z=ord[k]; const u8*t=in+ss[z]; u32 L=sl[z],q=0; if(L==1&&t[0]=='0') continue; if(t[0]=='-') q=1; if(q>=L||t[q]<'1'||t[q]>'9'||L-q>15) { canon=0; break; } for(q++;q<L;q++) if(t[q]<'0'||t[q]>'9'){ canon=0; break; } }
+    kinds[g]=(u8)canon;
+    if(canon){ i64 prev=0; for(k=a;k<b;k++){ u32 z=ord[k]; const u8*t=in+ss[z]; u32 L=sl[z],q=0; i64 xv=0; int neg=0; if(t[0]=='-'){ neg=1; q=1; } for(;q<L;q++) xv=xv*10+(t[q]-'0'); if(neg) xv=-xv; i64 d=xv-prev; prev=xv; u64 u=d>=0?(u64)d*2:(u64)(-d)*2-1; while(u>=128){ num[nO++]=(u8)(u&127)|128; u>>=7; } num[nO++]=(u8)u; } }
+    else { if(tg) txt[tO++]=0; tg++; for(k=a;k<b;k++){ u32 z=ord[k]; if(k>a) txt[tO++]='\n'; for(u32 q=0;q<sl[z];q++) txt[tO++]=in[ss[z]+q]; } }
+    a=b; }
+  res[0]=tlE; res[1]=G; res[2]=tO; res[3]=nO; res[4]=D; res[5]=ns; return 0;
+}

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.32 · API 0 · 2026-11-14
+
+### Quick
+templates: true save time 0.52 / 0.57 / 0.60 of 0.10.31 (Chromium / Firefox / WebKitGTK); same bytes
+
+### Details
+B57 from compression research part 4: the template layout is built in wasm (tplbuild in flatscan.c, own instance) from the column's joined bytes, with the JS templateFrames as fallback. B57b: templates win without compressing the plain layout in full when their stored size is under 0.8 of its sampled size. B57c: leaner scan loop. flatscan.wasm 21,991 to 25,371 bytes. Templates stay off by default.
+
+### Deep
+B57 wasm template builder, sent by the owner ('A: Send now' on compression part 4's card, 4:39 PM).
+
 ## 0.10.31 · API 0 · 2026-11-14
 
 ### Quick

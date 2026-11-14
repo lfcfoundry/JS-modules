@@ -353,7 +353,7 @@
       if (sOk) {   // sj: ASCII without 0 bytes, so well formed
         if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || jn], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
-        if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { best = settle(zs, level, best); var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
+        if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = tplBytes(sj || jn, n); if (tf === undefined) tf = templateFrames(v); if (tf) { var sv = stored(tf.frames); if (B57B && sv.size < best.size * 0.8 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; else { best = settle(zs, level, best); var before = best.size; if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } } }   // B57b: templates under 0.8 of the plain layout's sampled size win without compressing the plain layout in full
         if (labels.length * 4 <= n && labels.length < 65536) {
           var wd = Math.max(1, 32 - Math.clz32(labels.length - 1)), cb = labels.length > 256 ? new Uint8Array(new Uint16Array(codes).buffer) : new Uint8Array(codes);
           cand('D', { w: 0, wide: labels.length > 256 }, [te.encode(labels.join('\0')), cb], { distinct: labels.length });
@@ -433,6 +433,26 @@
     var u = new Uint8Array(L); for (i = 0; i < n; i++) { x = v[i]; if (i) u[p++] = 0; for (k = 0; k < x.length; k++) { c = x.charCodeAt(k); if (c > 127 || c === 0) return null; u[p++] = c; } } return u; }
   // B45: the values of an all-string column joined by 0 chars, or null when some value holds a 0 char or is not well formed (the same test as checking each value: joining with 0 chars cannot pair surrogates)
   function strJoinOk(v, n) { var j = v.join('\0'), z = 0, k = j.indexOf('\0'); while (k >= 0) { z++; k = j.indexOf('\0', k + 1); } if (z !== (n ? n - 1 : 0)) return null; return (NATIVE_WF ? j.isWellFormed() : !RX_LONE.test(j)) ? j : null; }
+  // B57: one wasm instance of flatscan for the template builder (its own memory, so the flat writer's layout is untouched)
+  var SDW = null;
+  function sdw() { if (SDW) return SDW; fsw(); var fk = hasSimd() ? 'FSB64' : 'FSP64', x = new WebAssembly.Instance(MODS[fk], {}).exports; return (SDW = { x: x, heap: (x.__heap_base.value + 7) & ~7 }); }
+  // B57: the template layout's frames built in wasm (tplbuild in flatscan.c, its own instance) from the column's bytes (values joined by 0 bytes, as the plain layout holds them):
+  // the same frames as templateFrames, without a JS string per template or slot. -> { frames, nT }, null (no template layout, as templateFrames), or undefined (not built here: the JS path runs)
+  var B57B = (typeof globalThis !== 'undefined' && globalThis.__B57B !== undefined) ? globalThis.__B57B : 1;
+  var B57 = (typeof globalThis !== 'undefined' && globalThis.__B57 !== undefined) ? globalThis.__B57 : 1;
+  function tplBytes(u, n) {
+    if (!B57 || !u || !n) return undefined;
+    var K = sdw(), x = K.x, mem = x.memory, len = u.length, S = len + 16, GC = Math.min(S, 65536 * 64) + 16, T = 16; while (T < 2 * Math.min(n, 65536) + 2) T *= 2;
+    var o = K.heap, P = {}; function lay(k, b) { P[k] = o; o = (o + b + 15) & ~15; }
+    lay('in', len + 8); lay('tl', len + n + 16); lay('ids', 4 * n); lay('sg', 4 * S); lay('ss', 4 * S); lay('sl', 4 * S); lay('gb', 4 * 65537); lay('gc', 4 * GC); lay('ht', 16 * T); lay('txt', len + n + 16); lay('num', 10 * S); lay('kinds', GC); lay('ord', 4 * S); lay('res', 32);
+    if (o > 1610612736) return undefined;
+    if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536));
+    new Uint8Array(mem.buffer, P['in'], len).set(u);
+    if (x.tplbuild(P['in'], len, n, P.tl, P.ids, P.sg, P.ss, P.sl, S, P.gb, P.gc, GC, P.ht, T, P.txt, P.num, P.kinds, P.ord, P.res)) return null;
+    var r = new Uint32Array(mem.buffer, P.res, 6), ids = new Uint32Array(mem.buffer, P.ids, n), ib = new Uint8Array(n * 2), i;
+    for (i = 0; i < n; i++) { ib[i] = ids[i] & 255; ib[n + i] = ids[i] >> 8; }
+    return { frames: [new Uint8Array(mem.buffer, P.tl, r[0]).slice(), ib, new Uint8Array(mem.buffer, P.txt, r[2]).slice(), new Uint8Array(mem.buffer, P.num, r[3]).slice(), new Uint8Array(mem.buffer, P.kinds, r[1]).slice()], nT: r[4] };
+  }
   // B45: hex and IPv4 string columns checked and packed in one pass, no regex, no slices; the same acceptance as RX_HEX (lowercase) and RX_IP with parts under 256, the same bytes
   var HEXN = (function () { var t = new Int8Array(128), c; t.fill(-1); for (c = 48; c < 58; c++) t[c] = c - 48; for (c = 97; c < 103; c++) t[c] = c - 87; return t; })();
   function hexRaw(v, n, L) {

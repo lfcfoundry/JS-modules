@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.31 · API 0**
+**Version 0.10.32 · API 0**
 
-**Tested in:** Full lfc-pack suite; new test/b55.cjs (80 single-byte flips: no wrong sums, damage in one column breaks only that column's reads; fails on 0.10.30); research same-page save timing in Chromium 156, Firefox 158, WebKitGTK 2.52.6 within noise
+**Tested in:** Full lfc-pack suite; new test/b57.cjs (wasm and JS template builders give the same file in 12 cases, incl. byte 1 in a value, a 4,096-slot template, Unicode and 0 chars); research: same bytes in 46 cases, same-page template save time in Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
