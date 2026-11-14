@@ -7,7 +7,7 @@
 set -e
 cd "$(dirname "$0")"
 FLAGS="--target=wasm32 -O3 -ffp-contract=off -mnontrapping-fptoint -mbulk-memory -nostdlib -ffreestanding -fno-builtin"
-LINK="-Wl,--no-entry -Wl,--export=order -Wl,--export=place -Wl,--export-memory -Wl,--export=__heap_base -Wl,--initial-memory=1048576 -Wl,-z,stack-size=16384 -Wl,--strip-all -Wl,--global-base=1024"
+LINK="-Wl,--no-entry -Wl,--export=order -Wl,--export=sift -Wl,--export=place -Wl,--export-memory -Wl,--export=__heap_base -Wl,--initial-memory=1048576 -Wl,-z,stack-size=16384 -Wl,--strip-all -Wl,--global-base=1024"
 case "$1" in
   --check) T=$(mktemp); clang $FLAGS $LINK -o "$T" order.c; if cmp -s "$T" order.wasm; then echo "order.wasm is what order.c builds"; rm -f "$T"; else echo "order.wasm is NOT what order.c builds"; rm -f "$T"; exit 1; fi ;;
   *) clang $FLAGS $LINK -o order.wasm order.c; wc -c order.wasm ;;

@@ -39,7 +39,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.6.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
-| [netflow-layers](modules/netflow-layers/README.md) | 1.12.3 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
+| [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.17.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-14 · **netflow-layers** 1.13.0 · API 1: New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
 - 2026-11-14 · **memory-compression** 2.16.2 · API 2: Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
 - 2026-11-14 · **memory-compression** 2.16.1 · API 2: Unpacking lists with decimal numbers is about 10 to 15% faster
 - 2026-11-14 · **lfc-pack** 0.10.23 · API 0: Faster saves of tables with text columns such as logs (about a quarter to two fifths less time), with the same file bytes

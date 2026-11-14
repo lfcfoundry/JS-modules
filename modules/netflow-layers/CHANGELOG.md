@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.13.0 · API 1 · 2026-11-14
+- New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
+
 ## 1.12.3 · API 1 · 2026-11-06
 - Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 
