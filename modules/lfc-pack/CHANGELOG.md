@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.31 · API 0 · 2026-11-14
+- Row saves now get the same per-column checks as text saves
+
 ## 0.10.30 · API 0 · 2026-11-14
 - Faster saves of ASCII text columns in Chromium and WebKitGTK (B51), same bytes
 

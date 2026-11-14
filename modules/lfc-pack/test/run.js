@@ -64,6 +64,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('chosen rows of a block: block(i, { rows })', 'node', ['blockrows.cjs']);
   step('blocks given as columns: packBlock(columns)', 'node', ['packblockcols.cjs']);
   step('column reads of files with nested blocks', 'node', ['nestedcols.cjs']);
+  step('per-column checks on row saves (B55)', 'node', ['b55.cjs']);
   step('positions (W1)', 'node', ['positions.cjs']);
   step('nested equality: P13g late fallback', 'node', ['p13g-late-fallback.cjs']);
   step('sparse tables (rows with missing keys)', 'node', ['sparseread.cjs']);

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.31 · API 0 · 2026-11-14
+
+### Quick
+packRows over 4,096 rows and packRowsParallel record per-column XXH64 checks (+38 bytes on 300k rows); save time within noise
+
+### Details
+B55 from compression research part 4: the row path in packManyNow and packRowsBlocks now pass the flat block's prefix size to blockEntry, so B44's per-column checks are written. A one-column read checks only that column. Save time vs 0.10.30 (same page): logs 0.95 / 1.06 / 1.04, taxi 0.94 / 1.03 / 0.97 in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, all within page noise.
+
+### Deep
+B55 integrity fix from compression research part 4 (owner asked for the integrity gap to be closed if under 5% cost).
+
 ## 0.10.30 · API 0 · 2026-11-14
 
 ### Quick

@@ -346,7 +346,7 @@
     });
     function b31Join(waits) { return Promise.all(waits).then(function (bs) {
       var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b, eqf = [], eqAny = false, eqb;
-      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0)); zone.push(b.zone); eqb = b.kind === 'f' ? eqOf(b) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
+      for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0, b.kind === 'f' ? b.prefix : undefined));   /* B55: per-column checks on parallel saves too */ zone.push(b.zone); eqb = b.kind === 'f' ? eqOf(b) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
       var eqs = null; if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }   // NX A, as packManyNow
       var secs = [
         { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
