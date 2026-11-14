@@ -1212,6 +1212,29 @@
       return sel.subarray(0, m);
     }
     readPos = guard(readPos);
+    // chosen rows of a block (open().block(i, { rows }), since 0.10.26): rows at the block-local positions pos, in the order asked (a repeated position gives the same object twice).
+    // Each column gives only the asked values where it can (selAt / decodeAt, as equality reads do); the other row objects are never made. Same objects, same key order, as readBlock(...)[p]
+    function readRows(bytes, pos, want, verify) {
+      var F = flatFrames(zs, bytes, want, false, verify), meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, L = pos.length, i, j, p, m = 0;
+      var srt = new Int32Array(L), out = new Array(L), at, rows;
+      for (i = 0; i < L; i++) { p = pos[i]; if (typeof p !== 'number' || p !== Math.floor(p) || p < 0 || p >= n) throw new RangeError('LfcPack: block(i, { rows }): row ' + p + ' is not in this block (0 to ' + (n - 1) + ')'); srt[i] = p; }
+      if (!L) return out;
+      srt.sort();
+      var sel = new Int32Array(L); for (i = 0; i < L; i++) if (!m || srt[i] !== sel[m - 1]) sel[m++] = srt[i];
+      sel = sel.subarray(0, m);
+      if (gen || lazyOn || F.ordList || meta.keys.indexOf('__proto__') >= 0 || m * 2 > n) { rows = assemble(F, want); for (i = 0; i < L; i++) out[i] = rows[pos[i]]; return out; }   // half the block or more, or a layout the column path does not build: the whole-block read
+      var vals = new Array(K), sv;
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) { vals[j] = null; continue; }
+        if (F.cols[j].pre) { vals[j] = F.cols[j].pre; continue; }
+        sv = selAt(meta.cols[j], F.cols[j].fr, pl, j * pb, n, sel, m);
+        if (sv) { sv[1].m = 1; sv[1].sp = meta.cols[j].n !== n; vals[j] = sv[1]; } else vals[j] = decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+      }
+      rows = selRows(F, vals, sel, m);
+      for (i = 0; i < L; i++) { p = pos[i]; var lo = 0, hi = m - 1; while (lo < hi) { at = (lo + hi) >> 1; if (sel[at] < p) lo = at + 1; else hi = at; } out[i] = rows[lo]; }
+      return out;
+    }
+    readRows = guard(readRows);
     // B19: rows of a block whose value under key rk === val. mode 'plain' or 'codes' (see the patch notes). Same objects and key order as filtering readBlock(...)
     function readEq(bytes, want, verify, rk, val, mode, bc) {
       if (gen || lazyOn) return null;
@@ -1382,5 +1405,5 @@
       var out = { n: n, keys: Object.keys(cols), cols: cols, present: present };
       return nan ? nanCols(out) : out;
     }
-    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readPos: readPos, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify, nan) { return columns(flatFrames(zs, bytes, want, false, verify), want, nan); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readPos: readPos, readRows: readRows, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify, nan) { return columns(flatFrames(zs, bytes, want, false, verify), want, nan); } };
   }

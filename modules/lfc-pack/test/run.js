@@ -61,6 +61,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('aggregate (B40)', 'node', ['aggregate.cjs']);
   step("nulls: 'NaN' (B42)", 'node', ['nullsnan.cjs']);
   step('unpackRowsParallel (B38)', 'node', ['b38.cjs']);
+  step('chosen rows of a block: block(i, { rows })', 'node', ['blockrows.cjs']);
   step('positions (W1)', 'node', ['positions.cjs']);
   step('nested equality: P13g late fallback', 'node', ['p13g-late-fallback.cjs']);
   step('sparse tables (rows with missing keys)', 'node', ['sparseread.cjs']);

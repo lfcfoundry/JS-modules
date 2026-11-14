@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.25 (API 0)
+ * Version 0.10.26 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1986,6 +1986,29 @@
       return sel.subarray(0, m);
     }
     readPos = guard(readPos);
+    // chosen rows of a block (open().block(i, { rows }), since 0.10.26): rows at the block-local positions pos, in the order asked (a repeated position gives the same object twice).
+    // Each column gives only the asked values where it can (selAt / decodeAt, as equality reads do); the other row objects are never made. Same objects, same key order, as readBlock(...)[p]
+    function readRows(bytes, pos, want, verify) {
+      var F = flatFrames(zs, bytes, want, false, verify), meta = F.meta, n = F.n, K = meta.keys.length, pl = F.pl, pb = (n + 7) >> 3, L = pos.length, i, j, p, m = 0;
+      var srt = new Int32Array(L), out = new Array(L), at, rows;
+      for (i = 0; i < L; i++) { p = pos[i]; if (typeof p !== 'number' || p !== Math.floor(p) || p < 0 || p >= n) throw new RangeError('LfcPack: block(i, { rows }): row ' + p + ' is not in this block (0 to ' + (n - 1) + ')'); srt[i] = p; }
+      if (!L) return out;
+      srt.sort();
+      var sel = new Int32Array(L); for (i = 0; i < L; i++) if (!m || srt[i] !== sel[m - 1]) sel[m++] = srt[i];
+      sel = sel.subarray(0, m);
+      if (gen || lazyOn || F.ordList || meta.keys.indexOf('__proto__') >= 0 || m * 2 > n) { rows = assemble(F, want); for (i = 0; i < L; i++) out[i] = rows[pos[i]]; return out; }   // half the block or more, or a layout the column path does not build: the whole-block read
+      var vals = new Array(K), sv;
+      for (j = 0; j < K; j++) {
+        if (F.cols[j] === null) { vals[j] = null; continue; }
+        if (F.cols[j].pre) { vals[j] = F.cols[j].pre; continue; }
+        sv = selAt(meta.cols[j], F.cols[j].fr, pl, j * pb, n, sel, m);
+        if (sv) { sv[1].m = 1; sv[1].sp = meta.cols[j].n !== n; vals[j] = sv[1]; } else vals[j] = decodeColumn(meta.cols[j], zs, F.cols[j].fr);
+      }
+      rows = selRows(F, vals, sel, m);
+      for (i = 0; i < L; i++) { p = pos[i]; var lo = 0, hi = m - 1; while (lo < hi) { at = (lo + hi) >> 1; if (sel[at] < p) lo = at + 1; else hi = at; } out[i] = rows[lo]; }
+      return out;
+    }
+    readRows = guard(readRows);
     // B19: rows of a block whose value under key rk === val. mode 'plain' or 'codes' (see the patch notes). Same objects and key order as filtering readBlock(...)
     function readEq(bytes, want, verify, rk, val, mode, bc) {
       if (gen || lazyOn) return null;
@@ -2156,7 +2179,7 @@
       var out = { n: n, keys: Object.keys(cols), cols: cols, present: present };
       return nan ? nanCols(out) : out;
     }
-    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readPos: readPos, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify, nan) { return columns(flatFrames(zs, bytes, want, false, verify), want, nan); } };
+    return { generated: function (on) { gen = !!on; }, lazy: function (on) { lazyOn = on; }, readBlock: readBlock, readRange: readRange, readSel: readSel, readPos: readPos, readRows: readRows, readEq: readEq, assemble: assemble, columns: columns, columnsOf: function (bytes, want, verify, nan) { return columns(flatFrames(zs, bytes, want, false, verify), want, nan); } };
   }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
@@ -2631,6 +2654,7 @@
     };
     return z;
   }
+  function keepKeys(r, want) { if (!r || typeof r !== 'object') return r; var o = {}, k; for (k in r) if (Object.prototype.hasOwnProperty.call(r, k) && Object.prototype.hasOwnProperty.call(want, k)) o[k] = r[k]; return o; }   // block(i, { rows, keys }) on raw and nested blocks
   function arenaReader(rd, small) {   // each block starts at the front of the buffer again
     if (WA_ON && small) {
       var w = Object.create(rd), zs = S.zdec;
@@ -2638,6 +2662,7 @@
       if (rd.readRange) w.readRange = function (a, b, c) { return waRun(zs, a, function () { return rd.readRange(a, b, c); }); };
       if (rd.readSel) w.readSel = function (a, b, c, d, e, f) { return waRun(zs, a, function () { return rd.readSel(a, b, c, d, e, f); }); };
       if (rd.readPos) w.readPos = function (a, b, c, d, e, f) { return waRun(zs, a, function () { return rd.readPos(a, b, c, d, e, f); }); };
+      if (rd.readRows) w.readRows = function (a, b, c, d) { return waRun(zs, a, function () { return rd.readRows(a, b, c, d); }); };
       if (rd.readEq) w.readEq = function (a, b, c, d, e, f, g) { return waRun(zs, a, function () { return rd.readEq(a, b, c, d, e, f, g); }); };
       return w;
     }
@@ -2647,6 +2672,7 @@
     if (rd.readRange) r.readRange = function (a, b, c) { arenaReset(); return rd.readRange(a, b, c); };
     if (rd.readSel) r.readSel = function (a, b, c, d, e, f) { arenaReset(); return rd.readSel(a, b, c, d, e, f); };
     if (rd.readPos) r.readPos = function (a, b, c, d, e, f) { arenaReset(); return rd.readPos(a, b, c, d, e, f); };
+    if (rd.readRows) r.readRows = function (a, b, c, d) { arenaReset(); return rd.readRows(a, b, c, d); };
     if (rd.readEq) r.readEq = function (a, b, c, d, e, f, g) { arenaReset(); return rd.readEq(a, b, c, d, e, f, g); };
     return r;
   }
@@ -2983,9 +3009,19 @@
         var R = {
           size: size, blocks: blocks.map(function (b, k) { return { offset: b[0], length: b[1], rows: b[3], kind: b[4], table: b[5] || 0, first: at[k] }; }),
           info: { rows: file.header.rows, blocks: blocks.length, size: size, major: f.major, minor: f.minor }, meta: file.meta === undefined ? null : file.meta,
-          block: function (i) {
-            if (raw) return getAll().then(function (all) { var b = blocks[i]; if (!b) throw new Error('block ' + i + ' out of range'); return unpackRows(all, { table: b[5] || 0, from: at[i], count: b[3] }); });
-            return fetch(i).then(function (x) { return decode(i, x, 0, blocks[i][3]); });
+          // block(i, { rows, keys }) (rows since 0.10.26): only the rows at those block-local positions (0 = the block's first row), in the order given, so a sorted page decodes a few rows of
+          // each block instead of the whole block; keys (optional, with rows) names the keys to read. Same objects as block(i) would hold at those positions. Raw and nested blocks are read whole, then picked
+          block: function (i, o) {
+            var pos = o && o.rows != null ? o.rows : null, want = null, q;
+            if (pos !== null && (typeof pos.length !== 'number' || typeof pos === 'string')) return Promise.reject(new TypeError('LfcPack: block(i, { rows }): rows must be a list of row positions'));
+            if (pos !== null && o.keys) { want = {}; for (q = 0; q < o.keys.length; q++) want[o.keys[q]] = 1; }
+            var pick = function (r) { if (pos === null) return r; var out = new Array(pos.length), k, p; for (k = 0; k < pos.length; k++) { p = pos[k]; if (typeof p !== 'number' || p !== Math.floor(p) || p < 0 || p >= r.length) throw new RangeError('LfcPack: block(i, { rows }): row ' + p + ' is not in this block (0 to ' + (r.length - 1) + ')'); out[k] = want ? keepKeys(r[p], want) : r[p]; } return out; };
+            if (raw) return getAll().then(function (all) { var b = blocks[i]; if (!b) throw new Error('block ' + i + ' out of range'); return pick(unpackRows(all, { table: b[5] || 0, from: at[i], count: b[3] })); });
+            if (!blocks[i]) return Promise.reject(new Error('block ' + i + ' out of range'));
+            return fetch(i).then(function (x) {
+              if (pos !== null && blocks[i][4] === 'f') { seen[i] = 1; readers(); return rf.readRows(x, pos, want, false); }
+              return pick(decode(i, x, 0, blocks[i][3]));
+            });
           },
           // columns(i, { keys }) (since 0.5.9): block i as typed columns, the same entry unpackColumns gives for that block, fetching only that block. Flat-row blocks only (others throw)
           columns: function (i, o) {
@@ -3061,7 +3097,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.25', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.26', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
