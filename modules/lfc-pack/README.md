@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.18 · API 0**
+**Version 0.10.19 · API 0**
 
-**Tested in:** Node suite and b38.cjs (40 checks); same rows as unpackRows; Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Node suite and positions.cjs (725 checks, same row numbers as unpack(file) filtering); Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -70,6 +70,8 @@ LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } })
 LfcPack.unpack(file, { equals: { key: 'level', value: 'ERROR' } });
 // anyOf (since 0.10.2): several values in one pass, rows in file order, a missing key never matches; one pass over the file instead of one call per value
 LfcPack.unpack(file, { equals: { key: 'level', anyOf: ['WARN', 'ERROR', 'FATAL'] } });
+// row numbers instead of rows (since 0.10.19): a Uint32Array of the positions, in file order, of the rows the same equals / anyOf / range query returns, and no row objects made (keys, rows and cache have no effect; with table, numbers within that table's rows)
+LfcPack.unpack(file, { equals: { key: 'level', value: 'ERROR' }, positions: true });
 // asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
 LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
 LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
@@ -123,6 +125,8 @@ Saving columns you already have (since 0.10.12): `LfcPack.packColumnsParallel({ 
 Reading a whole table as columns (since 0.10.15): `await LfcPack.unpackColumnsParallel(bytes, { keys, workers })` resolves to `{ key: array }` with no row objects: blocks are decoded in helper workers and each key's pieces are joined on the calling thread. Number columns of one kind come back as typed arrays of that kind (mixed kinds as `Float64Array`), everything else as plain arrays, and a key some rows lack gives `undefined` at those rows. It works on flat-row files (not nested blocks), and the result can go straight to `packColumnsParallel`. The first call reads on the calling thread and starts the helpers afterwards (they close after 10 seconds idle); one-block files never use helpers. Later reads took 0.30 (Chromium 156), 0.37 (Firefox 158) and 0.41 (WebKitGTK 2.52.6) of the `unpackRows` time on 300,000 taxi-like rows, and 0.66 to 0.73 on logs (cloud runs); on an owner laptop the longest pause on the page fell from 354 to 46 ms. Since 0.10.14, `unpackRows` in Firefox and Safari-family engines builds dense blocks in chunks of 1,024 rows (0.85 to 1.02 of the 0.10.13 time in Firefox 158; Chrome and Edge are unchanged).
 
 Reading a whole table as rows (since 0.10.18): `await LfcPack.unpackRowsParallel(bytes, { workers })` resolves to the same rows as `unpackRows(bytes)`. Helper workers decode the blocks and the calling thread builds each block's rows in order, pausing between blocks, so the longest page pause during a 300,000-row read falls from 186-305 ms to 34-64 ms (Chromium 156, Firefox 158 and WebKitGTK 2.52.6 container runs). The first call reads on this thread and then starts helpers (at most 4, closed after 10 s idle); later reads took 0.78 of `unpackRows` in Chromium 156 and 0.77 to 0.93 in Firefox 158 (taxi-like table). WebKit browsers, other options, one-block files and non-flat files use plain `unpackRows`.
+
+Row numbers instead of rows (since 0.10.19): `LfcPack.unpack(file, { equals: { key, value }, positions: true })` (also `anyOf` and `range`) returns a `Uint32Array` of the numbers of the matching rows, in file order, without building any row object, for callers that keep their own columns. The numbers are the same as the indexes of the rows `unpack(file)` gives, so `unpack(file)[positions[i]]` is the i-th match. Measured on 200,000-row tables in cloud Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (median of 5 fresh pages, 9 runs each): a common or rare value takes 0.10 to 0.28 of the time the row read takes, a range that keeps half the rows 0.14 to 0.31, a value that is not there the same time. Without `positions` nothing changes.
 
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 
