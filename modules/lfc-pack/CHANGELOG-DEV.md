@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.23 · API 0 · 2026-11-14
+
+### Quick
+faster log and text-column saves, same bytes
+
+### Details
+same file bytes as 0.10.22, no new option
+
+### Deep
+lfc-pack 0.10.23: B45 one pass over strings in encodeColumn0 (hex and IPv4 checked and packed in one character pass; the text check is one native pass over one join, distinct values only for dictionary columns; distinct count stops at n/4 when the template layout cannot be tried). Same bytes as 0.10.22 (research: logs 200k 4,217,768, taxi 300k 2,832,211; verified here on generated logs 200k/5,000/40 rows with NUL, lone surrogates and emoji, taxi 300k and 1 row: identical). Log save 200,000 rows vs 0.10.22: 0.78 / 0.72 / 0.61 (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, 4 fresh pages). Same page vs lz4-wasm 0.9.2: 0.85 / 0.93 / 0.98 at 0.38 of lz4's bytes (was 1.34 / 1.38 / 1.59 on 0.10.20). Taxi save guard 0.95 / 0.91 / 1.03, weighted 0.96. Handoff HANDOFF-B45-log-save-to-code-thread-2026.11.14.md (compression part 3).
+
 ## 0.10.22 · API 0 · 2026-11-14
 
 ### Quick

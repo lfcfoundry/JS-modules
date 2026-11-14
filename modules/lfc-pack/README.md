@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.10.22 · API 0**
+**Version 0.10.23 · API 0**
 
-**Tested in:** Node suite incl. xxh.cjs (new default checks); files read unchanged by lfc-pack 0.10.18 and 0.10.19; owner laptop Firefox 161 and Chrome 157 first-call test v2 PASS
+**Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6 (research build); Node suite; same bytes as 0.10.22 on logs, taxi and odd-text tables
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
