@@ -2,7 +2,7 @@
 
 **Version 1.6.4 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); laptop not run
+**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud); real laptop (16 cores): Firefox 161, Chrome 157 (palette search only, 2026.11.14)
 
 ## What it is and how it works
 
@@ -95,7 +95,7 @@ A first small GIF on a fresh page (160 x 120, 4 pictures, start-up included): 44
 
 **Palette sampling (1.4.0).** Above 100,000 pixels in all, `makePalette` counts about every 3rd pixel (every 5th above 1,000,000), at a step with no common factor with the picture's pixel count (so never one that divides its width), and counts every pixel after all when the sample shows fewer than 4,096 distinct colors. WebAssembly and plain JavaScript count the same pixels and give the same palette. A GIF from big photo-like inputs is therefore not byte-identical to one from 1.3.0 (mean picture error within 0.3% on photo-like, gradient and one-pixel-line pictures in the tests); flat, pixel-art and most screenshot pictures give the same bytes as before.
 
-**Honest limits.** In WebKitGTK the palette search on flat pictures is about even with the JavaScript code: scrolling bands came out 0.70x to 1.55x over 5 runs (2026.11.05; the WebAssembly time holds at about 17 ms while the JavaScript time swings from 12 to 27 ms). The cost is copying every picture into WebAssembly memory (it goes in pieces of 16,384 pixels so the copy stays in the processor cache); the JavaScript code counts such pictures in runs at about the same speed. Everything else is 1.07x or faster, and encoding is 1.08x or faster everywhere. The `lzw()` function you can call directly is unchanged JavaScript. Size with terser 5.51.2 (smaller is better): 45,193 bytes as written, 26,530 minified, 12,730 gzipped. Not run: a phone, Safari.
+**Honest limits.** In WebKitGTK the palette search on flat pictures is about even with the JavaScript code: scrolling bands came out 0.70x to 1.55x over 5 runs (2026.11.05; the WebAssembly time holds at about 17 ms while the JavaScript time swings from 12 to 27 ms). The cost is copying every picture into WebAssembly memory (it goes in pieces of 16,384 pixels so the copy stays in the processor cache); the JavaScript code counts such pictures in runs at about the same speed. On a real laptop (2026.11.14, 16 cores) the palette search is 1.31x to 1.62x faster in Firefox 161 and 1.11x to 1.67x in Chrome 157, except flat game pictures in Chrome, which are level (0.97x). Everything else in the cloud browsers is 1.07x or faster, and encoding is 1.08x or faster everywhere. The `lzw()` function you can call directly is unchanged JavaScript. Size with terser 5.51.2 (smaller is better): 45,193 bytes as written, 26,530 minified, 12,730 gzipped. Not run: a phone, Safari.
 
 ## Compile early (since 1.3.0)
 
