@@ -86,7 +86,7 @@ For example, two allowed jobs each accepting a 2 GiB input can require over 4 Gi
 | Component | Candidate principle and first local experiment | Dominant constraint / likely non-fit |
 |---|---|---|
 | LFC-pack / LFCP | Measure private Buffer copies and worker transfer ownership for pooled, sliced, offset and shared inputs; compare one versus bounded workers on independent blocks. | Exact decoded bytes, caller-view preservation, LFCP compatibility; do not parallelize tiny blocks automatically. |
-| LFC Workbench | Trace file import stages, sort/group intermediates and in-flight bytes; test byte-budget admission with a slow consumer. | Browser memory and responsiveness; global sorts may require full materialization. |
+| LFCP Workbench | Trace file import stages, sort/group intermediates and in-flight bytes; test byte-budget admission with a slow consumer. | Browser memory and responsiveness; global sorts may require full materialization. |
 | Netflow Map | Profile grouping keys, aggregation and SVG serialization on varied cardinality; benchmark allocation reduction after correctness fixes. | Visual correctness and interaction latency; worker overhead may exceed chart work. |
 | Mind Mapper | Measure layout and canvas latency on deep/wide trees in read-only fixtures; compare incremental redraw only if edits dominate. | Visual standard, hierarchy, outline equivalence; parallel layout likely poor for ordinary small maps. |
 | Story Editor | Compare checker/map worker message-copy bytes and end-to-end latency on small and large stories. | Determinism and immediate feedback; no assumed benefit from extra workers. |
