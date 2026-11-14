@@ -293,6 +293,10 @@ t('text patterns: random strings built from a few pieces', function () {
     rt(col, { mode: round % 2 ? 'small' : 'fast' }, 'random pattern column ' + round);
   }
 });
+t('ASCII text straight to bytes (WebKit path, 2.16.4) gives the same bytes as the TextEncoder path, forced on and off, on every data set and edge cases', function () {
+  if (!NODE) return skip('ASCII path check');
+  require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'ascii.js')]);
+});
 t('pattern columns that differ only in a constant part decode right in the same instance (2.16.3: the decoder cache key left the constant out)', function () {
   var P = function (v, w) { return ('0000' + v).slice(-w); }, r = D.rng(9), bad = 0, cases = 0;
   var shapes = [function (c) { return function (i) { return '2025-' + P(1 + i % 12, 2) + '-' + P(1 + i % 28, 2) + 'T' + P(c % 24, 2) + ':00:00Z'; }; }, function (c) { return function (i) { return 'user-' + c + '-' + i; }; },

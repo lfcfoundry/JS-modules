@@ -550,7 +550,18 @@
     c.u8(CT_STRR); this.rawStrings(vals, n, pre);
   };
   // the lengths and the joined UTF-8 text of a list of strings (kept for the writer so it is made once); null when it is too long for one piece
+  // all-ASCII text written straight to bytes with no joined string and no TextEncoder pass (as lfc-pack B51); null at the first char above 127
+  var JT_ASCII = typeof globalThis !== 'undefined' && globalThis.__MC_JT_ASCII !== undefined ? !!globalThis.__MC_JT_ASCII : typeof navigator !== 'undefined' && /AppleWebKit\//.test(navigator.userAgent || '') && !/Chrome\/|Chromium\/|Edg\//.test(navigator.userAgent || '');   // WebKit only: Chromium 156 measured 1.03-1.07x slower, and Firefox's TextEncoder is fast
+  function asciiText(vals, n) {
+    var lens = new Uint32Array(n), total = 0, i, k, x, l, c, p = 0, u;
+    for (i = 0; i < n; i++) { l = vals[i].length; lens[i] = l; total += l; }
+    if (total > 67108864) return null;
+    u = new Uint8Array(total);
+    for (i = 0; i < n; i++) { x = vals[i]; l = x.length; for (k = 0; k < l; k++) { c = x.charCodeAt(k); if (c > 127) return null; u[p++] = c; } }
+    return { lens: lens, joined: null, bytes: u, ascii: true };
+  }
   function joinText(vals, n) {
+    if (JT_ASCII) { var a = asciiText(vals, n); if (a) return a; }
     var lens = new Uint32Array(n), total = 0, i, l, joined, bytes;
     for (i = 0; i < n; i++) { l = vals[i].length; lens[i] = l; total += l; }
     if (total > 67108864) return null;
