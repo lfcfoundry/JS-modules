@@ -337,23 +337,21 @@
     if (n && allOf(v, function (x) { return typeof x === 'boolean'; })) { var bb = new Array(n); for (i = 0; i < n; i++) bb[i] = v[i] ? 1 : 0; cand('T', {}, [bitpack(bb, 1)]); return best; }
     if (n && allOf(v, function (x) { return typeof x === 'string'; })) {
       var L = v[0].length, raw, p = 0, j;
-      if (L >= 16 && L % 2 === 0 && allOf(v, function (x) { return x.length === L && RX_HEX.test(x); })) {
-        raw = new Uint8Array(n * L / 2); for (i = 0; i < n; i++) { x = v[i]; for (j = 0; j < L; j += 2) raw[p++] = (hexv(x.charCodeAt(j)) << 4) | hexv(x.charCodeAt(j + 1)); }
-        cand('H', { L: L }, [raw]); return best;
-      }
+      if (L >= 16 && L % 2 === 0 && (raw = hexRaw(v, n, L))) { cand('H', { L: L }, [raw]); return best; }   // B45: one pass checks and packs (was a regex pass, then a packing pass)
       if (L === 36 && allOf(v, function (x) { return RX_UUID.test(x); })) {
         raw = new Uint8Array(n * 16); for (i = 0; i < n; i++) { x = v[i]; for (j = 0; j < 36; j += 2) { if (j === 8 || j === 13 || j === 18 || j === 23) j++; raw[p++] = (hexv(x.charCodeAt(j)) << 4) | hexv(x.charCodeAt(j + 1)); } }
         cand('U', {}, [raw]); return best;
       }
-      if (allOf(v, function (x) { var m = RX_IP.exec(x); return m && m[1] < 256 && m[2] < 256 && m[3] < 256 && m[4] < 256; })) {
-        raw = new Uint8Array(n * 4); for (i = 0; i < n; i++) { x = v[i]; var o1 = x.indexOf('.'), o2 = x.indexOf('.', o1 + 1), o3 = x.indexOf('.', o2 + 1); raw[p++] = +x.slice(0, o1); raw[p++] = +x.slice(o1 + 1, o2); raw[p++] = +x.slice(o2 + 1, o3); raw[p++] = +x.slice(o3 + 1); }
+      if ((raw = ipRaw(v, n))) {   // B45: one character pass checks (as RX_IP with parts under 256) and packs
         cand('I', {}, [raw]); return best;
       }
-      if (sj || allOf(v, function (x) { return x.indexOf('\0') < 0 && wellFormed(x); })) {   // sj: ASCII without 0 bytes, so well formed
-        var map = new Map(), labels = [], codes = new Array(n), c;
-        if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
-        else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * 2 > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
-        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || te.encode(v.join('\0'))], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
+      var map = new Map(), labels = [], codes = new Array(n), c, tp = n >= 16 && tmode && !(tmode === 1 && tmplSlow), cap = tp ? 2 : 4, jn = null;   // B45: when the template layout cannot be tried, the count can stop at n / 4 (all the dictionary test needs)
+      if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
+      else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * cap > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
+      // B45: the check (no 0 char, well formed) runs once on one join: of every value when the plain layout is next, or of the distinct values only when the loop above saw them all (a dictionary), which is the same test
+      var sOk = !!sj; if (!sj) { if (labels.length * 4 > n || labels.length >= 65536) { jn = strJoinOk(v, n); sOk = jn !== null; } else sOk = strJoinOk(labels, labels.length) !== null; }
+      if (sOk) {   // sj: ASCII without 0 bytes, so well formed
+        if (labels.length * 4 > n || labels.length >= 65536) cand('s', {}, dlOf([sj || te.encode(jn)], labels.length));   // a dictionary this small is the smaller layout; skip compressing the plain one as well
         // once the read check has failed (auto mode) the template layout can no longer win, so it is not built
         if (n >= 16 && labels.length * 2 > n && tmode && !(tmode === 1 && tmplSlow) && (tmode === 2 || templatesPlausible(v))) { var tf = templateFrames(v); if (tf) { best = settle(zs, level, best); var before = best.size, sv = stored(tf.frames); if (sv.size < before * 0.95 && (tmode === 2 || templatesReadOk(v, key))) best = { t: 'L', p: {}, z: sv.z, size: sv.size, n: n }; } }
         if (labels.length * 4 <= n && labels.length < 65536) {
@@ -428,6 +426,27 @@
       u += (c & 127) << 14; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = unzz(u) / sc; }
     return out; }
   function colV(frames, n, p) { var i, u, o; if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+  // B45: the values of an all-string column joined by 0 chars, or null when some value holds a 0 char or is not well formed (the same test as checking each value: joining with 0 chars cannot pair surrogates)
+  function strJoinOk(v, n) { var j = v.join('\0'), z = 0, k = j.indexOf('\0'); while (k >= 0) { z++; k = j.indexOf('\0', k + 1); } if (z !== (n ? n - 1 : 0)) return null; return (NATIVE_WF ? j.isWellFormed() : !RX_LONE.test(j)) ? j : null; }
+  // B45: hex and IPv4 string columns checked and packed in one pass, no regex, no slices; the same acceptance as RX_HEX (lowercase) and RX_IP with parts under 256, the same bytes
+  var HEXN = (function () { var t = new Int8Array(128), c; t.fill(-1); for (c = 48; c < 58; c++) t[c] = c - 48; for (c = 97; c < 103; c++) t[c] = c - 87; return t; })();
+  function hexRaw(v, n, L) {
+    var raw = new Uint8Array(n * L / 2), p = 0, i, j, x, a, b;
+    for (i = 0; i < n; i++) { x = v[i]; if (x.length !== L) return null;
+      for (j = 0; j < L; j += 2) { a = x.charCodeAt(j); b = x.charCodeAt(j + 1); if (a > 127 || b > 127) return null; a = HEXN[a]; b = HEXN[b]; if ((a | b) < 0) return null; raw[p++] = (a << 4) | b; } }
+    return raw;
+  }
+  function ipRaw(v, n) {
+    var raw = new Uint8Array(n * 4), p = 0, i, x, k, L, part, c, d, q;
+    for (i = 0; i < n; i++) { x = v[i]; L = x.length; k = 0;
+      for (part = 0; part < 4; part++) {
+        if (part) { if (k >= L || x.charCodeAt(k) !== 46) return null; k++; }
+        c = k < L ? x.charCodeAt(k) - 48 : -1; if (c < 0 || c > 9) return null; k++; q = c;
+        if (c !== 0) for (d = 0; d < 2 && k < L; d++) { c = x.charCodeAt(k) - 48; if (c < 0 || c > 9) break; q = q * 10 + c; k++; }
+        if (q > 255) return null; raw[p++] = q; }
+      if (k !== L) return null; }
+    return raw;
+  }
   // B40/B41 (research): bdec.wasm, kernels for bit-packed number columns. One small instance with its own memory (grown as needed, dropped by trim()).
   // B41: colB unpacks in wasm in Chrome/Edge and Firefox (1M taxi rows, whole-table unpackRows 0.92 Chromium 156, 0.78 Firefox 158; one column 0.84 / 0.78); WebKitGTK 2.52.6 was 1.19x slower in wasm, so Safari-family engines keep the JS loop
   var BDX = null, BDB64 = "/*BD:BEGIN*//*BD:END*/", BD_DEC = V8 || GECKO;

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.23 · API 0 · 2026-11-14
+- Faster saves of tables with text columns such as logs (about a quarter to two fifths less time), with the same file bytes
+
 ## 0.10.22 · API 0 · 2026-11-14
 - Faster first aggregate and column read on a page (warm() covers them, a second column skips re-checking the file); files now carry per-column XXH64 checks by default (about 85 bytes more per block)
 
