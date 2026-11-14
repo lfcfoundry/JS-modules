@@ -2,6 +2,28 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.32 · API 0 · 2026-11-14
+
+### Quick
+templates: true save time 0.52 / 0.57 / 0.60 of 0.10.31 (Chromium / Firefox / WebKitGTK); same bytes
+
+### Details
+B57 from compression research part 4: the template layout is built in wasm (tplbuild in flatscan.c, own instance) from the column's joined bytes, with the JS templateFrames as fallback. B57b: templates win without compressing the plain layout in full when their stored size is under 0.8 of its sampled size. B57c: leaner scan loop. flatscan.wasm 21,991 to 25,371 bytes. Templates stay off by default.
+
+### Deep
+B57 wasm template builder, sent by the owner ('A: Send now' on compression part 4's card, 4:39 PM).
+
+## 0.10.31 · API 0 · 2026-11-14
+
+### Quick
+packRows over 4,096 rows and packRowsParallel record per-column XXH64 checks (+38 bytes on 300k rows); save time within noise
+
+### Details
+B55 from compression research part 4: the row path in packManyNow and packRowsBlocks now pass the flat block's prefix size to blockEntry, so B44's per-column checks are written. A one-column read checks only that column. Save time vs 0.10.30 (same page): logs 0.95 / 1.06 / 1.04, taxi 0.94 / 1.03 / 0.97 in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, all within page noise.
+
+### Deep
+B55 integrity fix from compression research part 4 (owner asked for the integrity gap to be closed if under 5% cost).
+
 ## 0.10.30 · API 0 · 2026-11-14
 
 ### Quick

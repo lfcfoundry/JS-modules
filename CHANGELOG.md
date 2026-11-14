@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.16.3 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.10.30 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.32 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -67,6 +67,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-14 · **memory-compression** 2.16.3 · API 2: Fixes wrong text back from pattern columns that differ only in a constant part when unpacked in the same page (2.16.1-2.16.2 and earlier); faster ISO timestamp packing
 - 2026-11-14 · **memory-compression** 2.16.2 · API 2: Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
 - 2026-11-14 · **memory-compression** 2.16.1 · API 2: Unpacking lists with decimal numbers is about 10 to 15% faster
+- 2026-11-14 · **lfc-pack** 0.10.32 · API 0: Saves with templates: true are about twice as fast; files are unchanged
+- 2026-11-14 · **lfc-pack** 0.10.31 · API 0: Row saves now get the same per-column checks as text saves
 - 2026-11-14 · **lfc-pack** 0.10.30 · API 0: Faster saves of ASCII text columns in Chromium and WebKitGTK (B51), same bytes
 - 2026-11-14 · **lfc-pack** 0.10.29 · API 0: Faster first aggregate: branchless empty-value skip, wasm presence counts, kernel warm-up in warm() (init() unchanged)
 - 2026-11-14 · **lfc-pack** 0.10.28 · API 0: Fix: a file with one block in the nested layout (for example after an empty first number cell) can be read by columns again instead of being refused.
