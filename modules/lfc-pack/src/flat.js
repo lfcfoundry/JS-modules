@@ -235,7 +235,7 @@
     return { size: t, z: exact ? z : null };
   }
   function addCand(zs, level, best, t, p, fr, n, st) {   // -> the new best (it carries the runner-up in .next)
-    var e = sizeOf(zs, level, fr), c = { t: t, p: p, fr: fr, z: e.z, size: e.size, n: n, st: st, next: null, ord: best ? best.cnt : 0, cnt: best ? best.cnt + 1 : 1 };
+    var e = sizeOf(zs, level, fr), c = { lv: level, t: t, p: p, fr: fr, z: e.z, size: e.size, n: n, st: st, next: null, ord: best ? best.cnt : 0, cnt: best ? best.cnt + 1 : 1 };
     if (!best) return c;
     best.cnt = c.cnt;
     if (e.size < best.size) { c.next = best; return c; }
@@ -245,6 +245,7 @@
   function fullOf(zs, level, c) {
     var t = 0, z = [], q, f, k;
     if (c.z) return c;
+    if (c.lv !== undefined) level = c.lv;
     for (q = 0; q < c.fr.length; q++) { f = c.fr[q]; k = zs.compress(f, level); if (k.length < f.length) { z.push([f.length, k, 1]); t += k.length; } else { z.push([f.length, f, 0]); t += f.length; } }
     c.z = z; c.size = t; return c;
   }
@@ -346,6 +347,8 @@
         cand('I', {}, [raw]); return best;
       }
       var map = new Map(), labels = [], codes = new Array(n), c, tp = n >= 16 && tmode && !(tmode === 1 && tmplSlow), cap = tp ? 2 : 4, jn = null;   // B45: when the template layout cannot be tried, the count can stop at n / 4 (all the dictionary test needs)
+      if (FAST_ON && FLT !== null) level = FLT;   // fast: text frames at a faster zstd level
+      if (!sj && FAST_ON && FSK && n >= 4096 && manyDistinct(v)) sj = STR_ASCII ? strAscii(v, n) : null, sj = sj || (function () { var j = strJoinOk(v, n); return j === null ? null : te.encode(j); })(), sj = sj || undefined;   // fast: a column whose first 1,024 values are nearly all different skips the dictionary count (the plain layout, as the fast flat writer does)
       if (sj) labels.length = (n >> 1) + 1;   // where the loop below would stop
       else for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * cap > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
       // B45: the check (no 0 char, well formed) runs once on one join: of every value when the plain layout is next, or of the distinct values only when the loop above saw them all (a dictionary), which is the same test
@@ -453,6 +456,9 @@
     for (i = 0; i < n; i++) { ib[i] = ids[i] & 255; ib[n + i] = ids[i] >> 8; }
     return { frames: [new Uint8Array(mem.buffer, P.tl, r[0]).slice(), ib, new Uint8Array(mem.buffer, P.txt, r[2]).slice(), new Uint8Array(mem.buffer, P.num, r[3]).slice(), new Uint8Array(mem.buffer, P.kinds, r[1]).slice()], nT: r[4] };
   }
+  // fast: true (owner name 11.14): opt-in quicker saves of text-heavy rows, a little larger
+  var FAST_ON = false, FLT = 1, FSK = 1;   // FLT: the zstd level of text columns under fast; FSK: skip the dictionary count of nearly-distinct columns
+  function manyDistinct(v) { var s = new Set(), i; for (i = 0; i < 1024; i++) s.add(v[i]); return s.size > 900; }
   // B45: hex and IPv4 string columns checked and packed in one pass, no regex, no slices; the same acceptance as RX_HEX (lowercase) and RX_IP with parts under 256, the same bytes
   var HEXN = (function () { var t = new Int8Array(128), c; t.fill(-1); for (c = 48; c < 58; c++) t[c] = c - 48; for (c = 97; c < 103; c++) t[c] = c - 87; return t; })();
   function hexRaw(v, n, L) {
@@ -707,6 +713,7 @@
     return true;
   }
   function writeFlatBlock0(ctx, input, opts) {
+    FAST_ON = !!opts.fast;
     var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, colsIn = input && input.colsIn || null, rowsIn = input && (input.rowsIn || (colsIn ? [] : null)), text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
     if (!rowsIn) {   // B18b: row objects given, no text to parse
     // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
@@ -896,6 +903,7 @@
       var cut = input.subarray(0, 65536).lastIndexOf(10);
       if (cut > 0 && !writeFlatBlockFast(ctx, input.subarray(0, cut + 1), Object.assign({}, opts, { pre: true }))) return null;
     }
+    FAST_ON = !!opts.fast; var clv = 0;
     var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, W = fsw(), len = input.length, o = (W.heap + 15) & ~15, P = {}, q, i, j, c, nrows;
     function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
     lay('in', len + 8); lay('cnt', 16);
@@ -987,7 +995,7 @@
     }
     var frames = [], meta = { keys: keys, cols: [] }, zone = [], best, cd, z, k2, t;
     var ENCS = [];
-    function cand(tn, p, fr, n) { best = addCand(zs, level, best, tn, p, fr, n); }
+    function cand(tn, p, fr, n) { best = addCand(zs, clv ? FLT : level, best, tn, p, fr, n); }   // fast: text columns at the fast level
     function numCands(base, c, scale, key, zc) {   // the candidates of a number column held as scaled whole numbers (mantissas), as the general writer would try them
         if (c >= NK_MIN) { var R = nkRun(base, c, scale > 100 ? 0 : 1), a = R.a, dd = R.d, bb = R.b, mnk = R.mn, mxk = R.mx, wk = R.w, monok = R.mono;
           if (a) cand('V', { mono: monok, scale: scale }, [a], c);
@@ -1016,7 +1024,7 @@
         }
     }
     for (j = 0; j < nk; j++) {
-      best = null; c = count[j];
+      best = null; c = count[j]; clv = FAST_ON && FLT !== null && ktype[j] === 3 && !hexL[j] && !ipK[j] ? 1 : 0;
       if (hexL[j] === 3600) cand('U', {}, [colv[j]], c);   // as encodeColumn writes a UUID column
       else if (hexL[j] > 0) cand('H', { L: hexL[j] }, [colv[j]], c);   // as encodeColumn writes a hex column
       else if (ipK[j]) cand('I', {}, [sdOut[j]], c);   // as encodeColumn writes an IPv4 column

@@ -352,22 +352,28 @@ EXPORT("numflags") void numflags(const double*a,u32 n,double*res){
 // slot groups run in (template, slot) order. A group whose every value is canonical (0 or -?[1-9] then up to 14 digits) is stored as varints of the zigzag differences, else as text joined by '\n'.
 // Memory (caller lays out): tl (len + n), ids (4n), sg/ss/sl (4 * S each, S = slot capacity), gb (4*65537), gc (4*G cap), ht (16*T), out frames: txt (len + n), num (10 * S), kinds (G cap).
 // res: [0] tl length, [1] groups, [2] txt length, [3] num length, [4] templates, [5] slots. Returns 0, or 1 when the layout cannot be built (byte 1 in a value, over 65,536 templates, a template with 4,096 slots or more, or over the slot or group capacity).
-static inline u32 ishx(u8 c){ return (c>=48&&c<=57)||(c>=97&&c<=102); }
+static const u8 TCL[256]={[48 ... 57]=1,[97 ... 102]=2,[45]=3,[1]=4,[0]=5};   /* B58b: byte kinds for tplbuild: digit, hex letter, minus, byte 1, 0 */
 EXPORT("tplbuild") u32 tplbuild(const u8*in,u32 len,u32 n,u8*tl,u32*ids,u32*sg,u32*ss,u32*sl,u32 S,u32*gb,u32*gc,u32 GC,u32*ht,u32 T,u8*txt,u8*num,u8*kinds,u32*ord,u32*res){
   u32 i,p=0,tlE=0,D=0,G=0,ns=0,k;
   for(i=0;i<4*T;i+=4) ht[i]=0;
+  ((u8*)in)[len]=0;   /* B58b: a 0 byte after the last value ends it like the others (the caller lays out len + 8 bytes) */
   for(u32 v=0;v<n;v++){
-    u32 s=p,e=p; while(e<len&&in[e]) e++; p=e+1;
-    u32 tp=tlE+(D?1:0),o=tp,last=s,q=s,m=0,s0=ns;
-    while(q<e){ u8 c=in[q];
-      if(c==1) return 1;
-      if(ishx(c)){ u32 j=q,h=0; while(j<e){ u8 d=in[j]; if(d>=97&&d<=102) h=1; else if(d<48||d>57) break; j++; }
-        if((h&&j-q>=8)||(!h&&c>=48&&c<=57)){ if(!h){ j=q+1; while(j<e&&in[j]>=48&&in[j]<=57) j++; } __builtin_memcpy(tl+o,in+last,q-last); o+=q-last; tl[o++]=1; if(ns>=S) return 1; ss[ns]=q; sl[ns]=j-q; sg[ns]=m++; ns++; q=last=j; continue; }   /* B57c: a digit run found by the hex scan is the number slot (one scan) */
-        if(c>=48&&c<=57){ j=q+1; while(j<e&&in[j]>=48&&in[j]<=57) j++; __builtin_memcpy(tl+o,in+last,q-last); o+=q-last; tl[o++]=1; if(ns>=S) return 1; ss[ns]=q; sl[ns]=j-q; sg[ns]=m++; ns++; q=last=j; continue; }
-        q++; continue; }
-      if(c==45&&q+1<e&&in[q+1]>=48&&in[q+1]<=57){ u32 j=q+2; while(j<e&&in[j]>=48&&in[j]<=57) j++; __builtin_memcpy(tl+o,in+last,q-last); o+=q-last; tl[o++]=1; if(ns>=S) return 1; ss[ns]=q; sl[ns]=j-q; sg[ns]=m++; ns++; q=last=j; continue; }
-      q++; }
-    for(k=last;k<e;k++){ if(in[k]==1) return 1; }
+    u32 s=p,e,q=s,last=s,m=0,s0=ns,j,hx;
+    u32 tp=tlE+(D?1:0),o=tp;
+    for(;;){ u32 k;
+      while((k=TCL[in[q]])==0) q++;   /* B58b: one table lookup a byte; the 0 byte that ends the value is found in the same pass */
+      if(k==5) break;
+      if(k==4) return 1;
+      if(k==3){ if(TCL[in[q+1]]==1){ j=q+2; while(TCL[in[j]]==1) j++; goto slot; } q++; continue; }
+      j=q; hx=0; for(;;){ u32 kk=TCL[in[j]]; if(kk==2) hx=1; else if(kk!=1) break; j++; }
+      if(!hx||j-q>=8) goto slot;
+      while(q<j&&TCL[in[q]]==2) q++;   /* a short run holding a letter: its first digit starts a number slot (as stepping one byte at a time finds) */
+      if(q==j) continue;
+      j=q+1; while(TCL[in[j]]==1) j++;
+    slot:
+      __builtin_memcpy(tl+o,in+last,q-last); o+=q-last; tl[o++]=1; if(ns>=S) return 1; ss[ns]=q; sl[ns]=j-q; sg[ns]=m++; ns++; q=last=j;
+    }
+    e=q; if(e==len&&v+1<n) return 1; p=e+1;
     __builtin_memcpy(tl+o,in+last,e-last); o+=e-last;
     u32 L=o-tp,h=hbytes(tl+tp,L);
     u32 at=h&(T-1),x,id=0xFFFFFFFFu;

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.34 · API 0 · 2026-11-14
+
+### Quick
+fast: true (text columns at zstd level 1, skip dictionary count on nearly-distinct text) and B58b (tplbuild byte-table slot scan, same bytes).
+
+### Deep
+fast: true (text columns at zstd level 1, skip dictionary count on nearly-distinct text) and B58b (tplbuild byte-table slot scan, same bytes). From compression research part 4 handoff. fast logs 0.95/0.99/0.98; B58b templates saves 0.92/0.88/0.93 (100k log rows, Chromium 156/Firefox 158/WebKitGTK 2.52.6), default saves within noise.
+
 ## 0.10.33 · API 0 · 2026-11-14
 
 ### Quick
