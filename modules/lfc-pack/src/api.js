@@ -273,11 +273,11 @@
   function b39Small(ctx, blk, text, opts, st) {
     if (opts._piece || opts.block || st || !blk || ((blk.kind || 'n') !== 'f' && (blk.kind || 'n') !== 'n') || blk.rows > B39_ROWS) return blk;
     // the raw text keeps every row's keys in the block's key order (first seen), so rows read back exactly as the flat block gives them (key order included);
-    // a row already in that order keeps its own text (or JSON.stringify for row input), only rows in another order are written again
+    // a row already in that order keeps its own text (or JSON.stringify for row input), only rows in another order are written again (text rows with an integer-like key too: JavaScript lists those first, and the text must read back in that order)
     var isText = typeof text === 'string' || ArrayBuffer.isView(text), src = isText ? tdr.decode(text).split('\n').filter(function (l) { return l.trim(); }) : null, rows = isText ? src.map(function (l) { return JSON.parse(l); }) : text, K = [], seen = Object.create(null), i, k, j, q, lines = new Array(rows.length);
     var bad = [], v, p;   // one pass: the key order (first seen, positions in seen), and the rows whose text must be written again (another key order; for row input also -0, Infinity, NaN or an object value, which JSON.stringify would not keep)
     for (i = 0; i < rows.length; i++) { var r = rows[i], last = -1, ok = true; if (!r || typeof r !== 'object' || Array.isArray(r)) return blk;
-      for (k in r) { if (k === '__proto__') return blk; p = seen[k]; if (p === undefined) { p = seen[k] = K.length; K.push(k); } if (p < last) ok = false; last = p;
+      for (k in r) { if (k === '__proto__') return blk; if (isText && ok && k.charCodeAt(0) < 58 && /^(0|[1-9][0-9]*)$/.test(k)) ok = false; p = seen[k]; if (p === undefined) { p = seen[k] = K.length; K.push(k); } if (p < last) ok = false; last = p;
         if (!isText) { v = r[k]; if (typeof v === 'number' ? (v === 0 && 1 / v < 0) || v !== v || v === Infinity || v === -Infinity : v !== null && typeof v === 'object') ok = false; } }
       if (ok) lines[i] = isText ? src[i] : JSON.stringify(r); else bad.push(i); }
     for (q = 0; q < bad.length; q++) { i = bad[q]; var r = rows[i];
