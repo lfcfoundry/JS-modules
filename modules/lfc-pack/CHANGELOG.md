@@ -12,25 +12,25 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Fix: a file with one block in the nested layout (for example after an empty first number cell) can be read by columns again instead of being refused.
 
 ## 0.10.27 · API 0 · 2026-11-14
-- New: packBlock(columns) packs a block from columns you already hold; text can be given as UTF-8 bytes plus offsets, so no strings are made (about half the time of string columns).
+- New: packBlock(columns) packs a block from columns you hold; text as UTF-8 bytes plus offsets takes 0.32 to 0.58 of the time of string columns in Chromium, Firefox and WebKitGTK (cloud).
 
 ## 0.10.26 · API 0 · 2026-11-14
-- New: open().block(i, { rows }) reads only the rows you ask for from a block, about 2.5 times faster when a sorted page needs a few rows from many blocks.
+- New: open().block(i, { rows }) reads only the rows you ask for from a block: 0.38 to 0.41 of the whole-block read for 2 rows from each of 46 blocks in Chromium, Firefox and WebKitGTK (cloud).
 
 ## 0.10.25 · API 0 · 2026-11-14
 - Reading whole number columns that have empty values, with nulls: 'NaN', is about a sixth faster in Chrome and Edge and a quarter faster in Firefox.
 
 ## 0.10.24 · API 0 · 2026-11-14
-- Flat blocks are written at zstd level 2 by default (was 3): text-heavy saves such as logs are about 10-14% faster for about 0.4% more bytes; pass level: 3 for the old bytes
+- Flat blocks use zstd level 2 by default (was 3): log saves take 0.86 to 0.90 of the time (cloud browsers) for 0.4% more bytes, but big text columns of mostly different values are up to 10% larger. level: 3 gives the old bytes.
 
 ## 0.10.23 · API 0 · 2026-11-14
-- Faster saves of tables with text columns such as logs (about a quarter to two fifths less time), with the same file bytes
+- Faster saves of tables with text columns such as logs: 0.61 to 0.78 of the old time in Chromium, Firefox and WebKitGTK (cloud), with the same file bytes.
 
 ## 0.10.22 · API 0 · 2026-11-14
 - Faster first aggregate and column read on a page (warm() covers them, a second column skips re-checking the file); files now carry per-column XXH64 checks by default (about 85 bytes more per block)
 
 ## 0.10.21 · API 0 · 2026-11-14
-- New LfcPack.aggregate (sum, count, average of a number column, by group, 0.05 to 0.15 of the column-loop time); unpackColumns nulls: 'NaN'; faster bit-packed number reads in Chrome, Edge and Firefox
+- New LfcPack.aggregate (sum, count, average of a number column, by group): 0.05 to 0.15 of the column-loop time on laptops in Chrome 157 and Firefox 161. unpackColumns nulls: 'NaN'; faster number reads in Chrome, Edge and Firefox.
 
 ## 0.10.20 · API 0 · 2026-11-14
 - Tables of 32 rows or fewer are stored about 20 to 50% smaller; one-block files under 100 rows have no zone maps, so zone() returns null for them

@@ -69,13 +69,13 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-14 · **lfc-pack** 0.10.30 · API 0: Faster saves of ASCII text columns in Chromium and WebKitGTK (B51), same bytes
 - 2026-11-14 · **lfc-pack** 0.10.29 · API 0: Faster first aggregate: branchless empty-value skip, wasm presence counts, kernel warm-up in warm() (init() unchanged)
 - 2026-11-14 · **lfc-pack** 0.10.28 · API 0: Fix: a file with one block in the nested layout (for example after an empty first number cell) can be read by columns again instead of being refused.
-- 2026-11-14 · **lfc-pack** 0.10.27 · API 0: New: packBlock(columns) packs a block from columns you already hold; text can be given as UTF-8 bytes plus offsets, so no strings are made (about half the time of string columns).
-- 2026-11-14 · **lfc-pack** 0.10.26 · API 0: New: open().block(i, { rows }) reads only the rows you ask for from a block, about 2.5 times faster when a sorted page needs a few rows from many blocks.
+- 2026-11-14 · **lfc-pack** 0.10.27 · API 0: New: packBlock(columns) packs a block from columns you hold; text as UTF-8 bytes plus offsets takes 0.32 to 0.58 of the time of string columns in Chromium, Firefox and WebKitGTK (cloud).
+- 2026-11-14 · **lfc-pack** 0.10.26 · API 0: New: open().block(i, { rows }) reads only the rows you ask for from a block: 0.38 to 0.41 of the whole-block read for 2 rows from each of 46 blocks in Chromium, Firefox and WebKitGTK (cloud).
 - 2026-11-14 · **lfc-pack** 0.10.25 · API 0: Reading whole number columns that have empty values, with nulls: 'NaN', is about a sixth faster in Chrome and Edge and a quarter faster in Firefox.
-- 2026-11-14 · **lfc-pack** 0.10.24 · API 0: Flat blocks are written at zstd level 2 by default (was 3): text-heavy saves such as logs are about 10-14% faster for about 0.4% more bytes; pass level: 3 for the old bytes
-- 2026-11-14 · **lfc-pack** 0.10.23 · API 0: Faster saves of tables with text columns such as logs (about a quarter to two fifths less time), with the same file bytes
+- 2026-11-14 · **lfc-pack** 0.10.24 · API 0: Flat blocks use zstd level 2 by default (was 3): log saves take 0.86 to 0.90 of the time (cloud browsers) for 0.4% more bytes, but big text columns of mostly different values are up to 10% larger. level: 3 gives the old bytes.
+- 2026-11-14 · **lfc-pack** 0.10.23 · API 0: Faster saves of tables with text columns such as logs: 0.61 to 0.78 of the old time in Chromium, Firefox and WebKitGTK (cloud), with the same file bytes.
 - 2026-11-14 · **lfc-pack** 0.10.22 · API 0: Faster first aggregate and column read on a page (warm() covers them, a second column skips re-checking the file); files now carry per-column XXH64 checks by default (about 85 bytes more per block)
-- 2026-11-14 · **lfc-pack** 0.10.21 · API 0: New LfcPack.aggregate (sum, count, average of a number column, by group, 0.05 to 0.15 of the column-loop time); unpackColumns nulls: 'NaN'; faster bit-packed number reads in Chrome, Edge and Firefox
+- 2026-11-14 · **lfc-pack** 0.10.21 · API 0: New LfcPack.aggregate (sum, count, average of a number column, by group): 0.05 to 0.15 of the column-loop time on laptops in Chrome 157 and Firefox 161. unpackColumns nulls: 'NaN'; faster number reads in Chrome, Edge and Firefox.
 - 2026-11-14 · **lfc-pack** 0.10.20 · API 0: Tables of 32 rows or fewer are stored about 20 to 50% smaller; one-block files under 100 rows have no zone maps, so zone() returns null for them
 - 2026-11-14 · **lfc-pack** 0.10.19 · API 0: unpack(file, { equals or range, positions: true }) returns row numbers instead of rows
 - 2026-11-14 · **lfc-pack** 0.10.18 · API 0: unpackRowsParallel reads a whole table as rows on helper workers with short page pauses

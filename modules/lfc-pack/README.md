@@ -50,7 +50,7 @@ Options for `pack(input, options)`:
 | Option | Meaning |
 |---|---|
 | `exact: true` | the byte-exact switch: `unpackText(file)` returns the input bytes unchanged (spacing, key order, escapes, `1.0` spelled as written, CRLF, blank lines, invalid UTF-8). Costs size: rows whose text is not the canonical form keep their original line. Default is value-exact (same values, keys in first-seen order). |
-| `level: 19` | the archive setting: slower to write (about 15x), about 12% smaller. Default is 3. |
+| `level: 19` | the archive setting: slower to write (about 15x), about 12% smaller. Default is 2 for flat blocks since 0.10.24 (level 3 writes the old bytes). Logs are about 0.4% larger at 2 and save in 0.86 to 0.90 of the time. Where it loses: big plain-text columns of mostly different values compress 12 to 21% worse at level 2, so a 7.2 million row table with such a note column came out 10.3% bigger (9,145,467 against 8,292,231 bytes); pass `level: 3` for tables like that. 3 for raw blocks and the footer. |
 | `block: 'nested' \| 'flat'` | force one layout. Default: each block is written as nested columns and, when it could win, as flat columns too, and the smaller one is kept. |
 | `check: 'crc32'` | since 0.10.22 files carry the faster XXH64 checks by default (a whole-block check and one per column, so reading one column checks only that column's bytes; about 85 bytes more per block); `check: 'crc32'` writes the older table. The crc32 is written either way, so older readers, the Python and Go readers read both kinds unchanged. |
 | `blockBytes` | block size, default 13 MB (faster parallel pack than 21 MB, same size). |
