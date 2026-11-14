@@ -3,28 +3,28 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.10.15 · API 0 · 2026-11-13
-- New unpackColumnsParallel(bytes): reads a whole table as columns on helper workers with no row objects. Later reads of number-heavy tables take about 0.3 to 0.7 of unpackRows and pause the page far less.
+- New unpackColumnsParallel(bytes) reads a table as columns on helper workers, no row objects: later reads take 0.30 to 0.67 of unpackRows in Chromium, Firefox and WebKitGTK (cloud, 300,000 rows).
 
 ## 0.10.14 · API 0 · 2026-11-13
-- Reading whole tables or row ranges is faster in Firefox and Safari-family engines: rows are built in chunks of 1,024. Chrome and Edge are unchanged.
+- Reading whole tables is up to 15% faster in Firefox 158 (rows built in chunks of 1,024); a WebKitGTK sensors first read is 1.2 times slower. Chrome and Edge are unchanged.
 
 ## 0.10.13 · API 0 · 2026-11-13
-- Saving sparse tables and tables of repeated labels is faster: packRows now picks its route by how many strings are new, not how many are strings. Logs and other tables of many different strings are unchanged.
+- Saving sparse tables and tables of repeated labels is 0.46 to 0.93 of the old time on an owner laptop (Chrome, Firefox). Tables of many different strings are unchanged.
 
 ## 0.10.12 · API 0 · 2026-11-13
-- New packColumnsParallel({ key: array }): saves columns you already have without building row objects, on the same helpers as packRowsParallel. Later saves of number-heavy tables take about 0.4 to 0.75 of packRowsParallel.
+- New packColumnsParallel({ key: array }) saves columns you hold without row objects: later saves of number tables take 0.42 to 0.74 of packRowsParallel in Chromium, Firefox and WebKitGTK (cloud).
 
 ## 0.10.11 · API 0 · 2026-11-13
-- Random-access files now skip blocks that cannot hold the value in equality reads: a value that is not in the file comes back in about a quarter of the time. Files grow about 0.4% and older readers still read them.
+- Random-access files skip blocks that cannot hold the value: a value not in the file returns in about a quarter of the time (Chromium, Firefox, WebKitGTK). Files grow about 0.4%; older readers still open them.
 
 ## 0.10.10 · API 0 · 2026-11-13
-- packRowsParallel hands control back to the page between blocks, so the longest pause on the main thread drops from about 200 ms to 30 to 55 ms.
+- packRowsParallel hands control back to the page between blocks: the longest pause on the main thread drops from 178 to 214 ms to 27 to 53 ms in Chromium, Firefox and WebKitGTK (cloud).
 
 ## 0.10.9 · API 0 · 2026-11-13
 - packParallel now takes a File or Blob without reading it whole first (less memory, shorter main-thread pause). Nested equality and range reads take one pass instead of two.
 
 ## 0.10.8 · API 0 · 2026-11-13
-- New packRowsParallel(rows): saves big row arrays with number columns on helper workers, same bytes as packRows, later saves about 0.55 to 0.65 of the time. Nested range reads and row windows build only the rows they need.
+- New packRowsParallel(rows) saves big row arrays on helper workers: later saves take 0.54 to 0.64 of the time in Chromium, Firefox and WebKitGTK (cloud). Nested range reads are faster.
 
 ## 0.10.7 · API 0 · 2026-11-13
 - Filtered, range and row-window reads of tables with 20 or more keys where some rows lack keys are faster in Chrome and Edge.
@@ -36,13 +36,13 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Reading whole tables of 24 or more keys where some rows lack some keys is up to five times faster in Chrome and Edge. Tables of 16 to 23 keys with few complete rows could be up to 1.4 times slower; 0.10.6 fixes that.
 
 ## 0.10.4 · API 0 · 2026-11-13
-- Saving big number tables is up to twice as fast.
+- Saving big number tables is up to twice as fast in Chromium and Firefox (cloud runs).
 
 ## 0.10.3 · API 0 · 2026-11-13
-- Opening a big file in blocks uses about a third less memory at 1 to 4 MB blocks.
+- Opening a big file in blocks uses 32 to 39% less memory at 1 to 4 MB blocks (counted by the module's memory counters, same in every browser).
 
 ## 0.10.2 · API 0 · 2026-11-12
-- Saves are up to 11% faster, big files show their first rows much sooner, searching for several values at once is one call, and some filtered reads are faster.
+- Saves are up to 11% faster (Chromium, Firefox, WebKitGTK), big files show their first rows in 6 to 15% of the time, searching for several values at once is one call, and some filtered reads are faster.
 
 ## 0.10.1 · API 0 · 2026-11-12
 - Searching a file for rows with one exact text, ID or address value is about twice as fast.

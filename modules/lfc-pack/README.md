@@ -68,11 +68,12 @@ LfcPack.unpack(file, { keys: ['ts', 'status'] });
 LfcPack.unpack(file, { range: { key: 'ts', min: 1760000000, max: 1760003600 } });
 // rows where one key equals a value (strict ===; a missing key never matches null); same rows and key order as unpack(file).filter(...), without building the other rows
 LfcPack.unpack(file, { equals: { key: 'level', value: 'ERROR' } });
-// anyOf (since 0.10.2): several values in one pass, rows in file order, a missing key never matches; 5 values take about a third of the time of 5 separate calls
+// anyOf (since 0.10.2): several values in one pass, rows in file order, a missing key never matches; one pass over the file instead of one call per value
 LfcPack.unpack(file, { equals: { key: 'level', anyOf: ['WARN', 'ERROR', 'FATAL'] } });
 // asking again and again on the same file bytes: cache: true keeps what the first query decoded (up to LfcPack.cacheLimit(), 64 MB by default, least recently used blocks go first)
 LfcPack.unpack(file, { equals: { key: 'level', value: 'WARN' }, cache: true });
 LfcPack.clearCache();   // drop everything the cache holds (LfcPack.cacheBytes() says how much)
+// since 0.10.6 and 0.10.7, reads of tables with 20 or more keys where some rows lack keys build rows one at a time in Chrome and Edge only (whole tables, filtered, range and row-window reads); Chrome 157 laptop: whole tables 0.20 to 0.82 and filtered reads 0.44 to 0.93 of the 0.10.4 / 0.10.6 time; Firefox and Safari run the same code as before
 // opt-in lazy rows (see "Lazy rows" below): values are read when a key is first used
 LfcPack.unpack(file, { rows: 'lazy' });      // columns decoded at unpack, rows made cheaply
 LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when some row reads its key
@@ -96,7 +97,7 @@ LfcPack.pool({ workers: 3 }).then(function (pool) {
 Row objects in, row objects out (no NDJSON text), and whole documents made of several tables plus plain values (a map with nodes, links, states and view settings):
 
 ```js
-// array of objects -> file bytes
+// array of objects -> file bytes (since 0.10.4, number-heavy tables of 100,000 rows save in 0.45 to 0.72 of the 0.10.3 time in Chromium 156 and Firefox 158; same bytes)
 var bytes = LfcPack.packRows([{ id: 1, name: 'a' }, { id: 2 }]);
 // the same rows back
 var rows = LfcPack.unpack(bytes);
@@ -111,15 +112,15 @@ LfcPack.unpackTables(file, { keys: ['id'] });
 
 Works under a page policy of `script-src 'wasm-unsafe-eval'` and `worker-src blob:` only: no `eval`, no `new Function`, no remote scripts (the helper workers start from a blob made of this file).
 
-Saving big row arrays (since 0.10.8): `LfcPack.packRowsParallel(rows, opts)` returns a promise of the same bytes `packRows` writes. Rows are still read on the calling thread; number columns of 8,192 values or more are encoded and compressed in helper workers (at most 4, closed 3 seconds after the last call). Under about 52 MB of row text it just calls `packRows`. The first call in a page saves on the calling thread and starts the helpers afterwards (or call `warmPack()` first), so later saves are the fast ones: 0.54 to 0.64 of the `packRows` time on 300,000 rows of number-heavy data in the measured browsers (first call about the same). Same file format, same bytes.
+Saving big row arrays (since 0.10.8): `LfcPack.packRowsParallel(rows, opts)` returns a promise of the same bytes `packRows` writes. Rows are still read on the calling thread; number columns of 8,192 values or more are encoded and compressed in helper workers (at most 4, closed 3 seconds after the last call). Under about 52 MB of row text it just calls `packRows`. The first call in a page saves on the calling thread and starts the helpers afterwards (or call `warmPack()` first), so later saves are the fast ones: 0.54 (Chromium 156), 0.58 (Firefox 158) and 0.64 (WebKitGTK 2.52.6) of the `packRows` time on 300,000 rows of number-heavy data, cloud runs (first call 0.84 to 1.04). Since 0.10.10 it hands control back to the page after each block: the longest main-thread pause on 300,000 rows fell from 210 / 214 / 178 ms to 53 / 29 / 27 ms (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6), at a cost of 0.99 to 1.02 of the 0.10.9 time on later saves and 1.04 to 1.08 on the first call. Same file format, same bytes.
 
-Packing a file without reading it first (since 0.10.9): `LfcPack.packParallel(file)` takes a `File` or `Blob` as well as bytes. The calling thread only reads small windows to find where blocks end; each helper reads its own byte range. Same bytes as packing the bytes, a little faster, and the page never holds the whole file twice (about 30 to 110 MB less peak memory on a 121 MB file, and a much shorter pause on the main thread). The `exact`, `share` and `balance` options read the whole file as before.
+Packing a file without reading it first (since 0.10.9): `LfcPack.packParallel(file)` takes a `File` or `Blob` as well as bytes. The calling thread only reads small windows to find where blocks end; each helper reads its own byte range. Same bytes as packing the bytes, and faster (0.83 to 0.95 of the time in Firefox 158, 0.87 to 0.92 in WebKitGTK 2.52.6, cloud runs), and the page never holds the whole file twice (about 30 to 110 MB less peak memory on a 121 MB file, and a much shorter pause on the main thread). The `exact`, `share` and `balance` options read the whole file as before.
 
-Skipping blocks in equality reads (since 0.10.11): files written with the random-access preset (blocks of 1 MB or less, two or more blocks) also keep a small Bloom filter for each text column of each block, in their own compressed area after the blocks (about 0.4% more bytes). `unpack(file, { equals: { key, value } })` (or `anyOf`) then skips every block whose filter shows the value is not there; a value that is not in the file at all comes back in about a quarter of the time. Saves with the default settings are unchanged. Older readers ignore the area and read the file as before. Files written by `packStream` carry no filters yet.
+Skipping blocks in equality reads (since 0.10.11): files written with the random-access preset (blocks of 1 MB or less, two or more blocks) also keep a small Bloom filter for each text column of each block, in their own compressed area after the blocks (about 0.4% more bytes). `unpack(file, { equals: { key, value } })` (or `anyOf`) then skips every block whose filter shows the value is not there; a value that is not in the file at all comes back in about a quarter of the time (a weighted figure over the cloud test browsers, Chromium 156, Firefox 158 and WebKitGTK 2.52.6). Saves with the default settings are unchanged. Older readers ignore the area and read the file as before. Files written by `packStream` carry no filters yet.
 
-Saving columns you already have (since 0.10.12): `LfcPack.packColumnsParallel({ id: ids, price: prices, name: names }, opts)` returns a promise of the file for the rows `{ id: ids[i], price: prices[i], name: names[i] }`, without building row objects. Each value is a plain array or a number typed array (`Float64Array`, `Int32Array`, ...; not BigInt), all the same length; a wrong type or unequal lengths reject the call. It uses the same helpers, first-call rule and gates as `packRowsParallel`, and later saves of number-heavy tables take about 0.6 to 0.75 of the `packRowsParallel` time. Number tables give the same bytes as `packRows`; on tables that `packRows` sends down the text path (many string columns) the file can differ by a few hundredths of a percent, and it reads back exactly.
+Saving columns you already have (since 0.10.12): `LfcPack.packColumnsParallel({ id: ids, price: prices, name: names }, opts)` returns a promise of the file for the rows `{ id: ids[i], price: prices[i], name: names[i] }`, without building row objects. Each value is a plain array or a number typed array (`Float64Array`, `Int32Array`, ...; not BigInt), all the same length; a wrong type or unequal lengths reject the call. It uses the same helpers, first-call rule and gates as `packRowsParallel`, and later saves of number-heavy tables take 0.66 (Chromium 156), 0.42 (Firefox 158) and 0.74 (WebKitGTK 2.52.6) of the `packRowsParallel` time on 300,000 taxi-like rows, 0.71 to 0.73 for sensor rows in Chromium and Firefox, and 0.90 to 0.96 for logs (cloud runs). Number tables give the same bytes as `packRows`; on tables that `packRows` sends down the text path (many string columns) the file can differ by a few hundredths of a percent, and it reads back exactly.
 
-Reading a whole table as columns (since 0.10.15): `await LfcPack.unpackColumnsParallel(bytes, { keys, workers })` resolves to `{ key: array }` with no row objects: blocks are decoded in helper workers and each key's pieces are joined on the calling thread. Number columns of one kind come back as typed arrays of that kind (mixed kinds as `Float64Array`), everything else as plain arrays, and a key some rows lack gives `undefined` at those rows. It works on flat-row files (not nested blocks), and the result can go straight to `packColumnsParallel`. The first call reads on the calling thread and starts the helpers afterwards (they close after 10 seconds idle); one-block files never use helpers. Later reads of number-heavy tables took 0.3 to 0.7 of the `unpackRows` time and the longest pause on the page dropped to a fraction.
+Reading a whole table as columns (since 0.10.15): `await LfcPack.unpackColumnsParallel(bytes, { keys, workers })` resolves to `{ key: array }` with no row objects: blocks are decoded in helper workers and each key's pieces are joined on the calling thread. Number columns of one kind come back as typed arrays of that kind (mixed kinds as `Float64Array`), everything else as plain arrays, and a key some rows lack gives `undefined` at those rows. It works on flat-row files (not nested blocks), and the result can go straight to `packColumnsParallel`. The first call reads on the calling thread and starts the helpers afterwards (they close after 10 seconds idle); one-block files never use helpers. Later reads took 0.30 (Chromium 156), 0.37 (Firefox 158) and 0.41 (WebKitGTK 2.52.6) of the `unpackRows` time on 300,000 taxi-like rows, and 0.66 to 0.73 on logs (cloud runs); on an owner laptop the longest pause on the page fell from 354 to 46 ms. Since 0.10.14, `unpackRows` in Firefox and Safari-family engines builds dense blocks in chunks of 1,024 rows (0.85 to 1.02 of the 0.10.13 time in Firefox 158; Chrome and Edge are unchanged).
 
 Metadata: `pack`, `packStream` and `packParallel` take an optional `meta` object (a small JSON-able note about the file, kept in its own footer section that older readers skip). `LfcPack.metadata(bytes)` reads it back without decoding any block; in Python use `lfc_pack.metadata(path)`. See `SECTIONS.md`.
 
@@ -129,7 +130,7 @@ Text that arrives in pieces (since 0.8.0): `const ps = LfcPack.packParallelStrea
 
 Reading part of a file: `LfcPack.unpackRows(bytes, { from, count })` decodes only the blocks that hold those rows, `LfcPack.stats(bytes)` reads per-column facts from the footer, and `LfcPack.hash(bytes, kind)` gives `'crc32'` or `'xxh64'`.
 
-Files too big to hold in memory (since 0.5.0): `const R = await LfcPack.open(file)` takes a `File` or `Blob` (or a function `read(offset, length)` with its `size` set, or bytes) and reads only the 16-byte trailer and the footer. Then `await R.rows({ from, count, table })` and `await R.block(i)` fetch just the byte ranges of the blocks they need and give the same rows as `unpackRows`; `R.info`, `R.meta` and `R.blocks` (`{ offset, length, rows, kind, table, first }`) describe the file. Memory is bounded by the footer and one block. Saves of more than 4 MiB of text start with a 64 KiB first block (since 0.10.2), so a viewer shows its first rows at once. Files with raw blocks (byte-exact text that is not plain rows) are still read whole on the first call. Each block is checked against its checksum when it is read. Since 0.5.9 the reader adds two calls for column work:
+Files too big to hold in memory (since 0.5.0): `const R = await LfcPack.open(file)` takes a `File` or `Blob` (or a function `read(offset, length)` with its `size` set, or bytes) and reads only the 16-byte trailer and the footer. Then `await R.rows({ from, count, table })` and `await R.block(i)` fetch just the byte ranges of the blocks they need and give the same rows as `unpackRows`; `R.info`, `R.meta` and `R.blocks` (`{ offset, length, rows, kind, table, first }`) describe the file. Memory is bounded by the footer and one block; since 0.10.3 a block is decoded straight into the WebAssembly output buffer instead of a second JavaScript copy, which cut memory by 32 to 39% at 1 to 4 MB blocks (counted by the module's memory counters, same rows and files; `LFC_WA=0` turns it off in Node). Saves of more than 4 MiB of text start with a 64 KiB first block (since 0.10.2), so a viewer shows its first rows sooner: the first screen of a big file took 6 to 15% of the time in Chromium 156, Firefox 158 and WebKitGTK 2.52.6 (cloud). Files grow 0.04 to 0.26%. Files with raw blocks (byte-exact text that is not plain rows) are still read whole on the first call. Each block is checked against its checksum when it is read. Since 0.5.9 the reader adds two calls for column work:
 
 - `await R.columns(i, { keys })` gives block `i` as typed columns, the same entry `unpackColumns` gives for that block, while fetching only that block. It works on flat-row blocks only; nested and raw blocks throw and are read with `R.block(i)`.
 - `R.readAhead()` (since 0.10.2, opt-in): call it after showing the first rows; when the page is idle it reads and decodes the next block that has not been read, so the next big read does not pay the browser's warm-up. One block per call, one at a time. It returns a promise: `true` when it read a block, `false` for a raw-block file, a file already fully read, or an error (it is only a hint).
@@ -196,6 +197,43 @@ First call after warm(), compared with no warm-up (fresh browser per run, median
 - **Worker pool**: a helper does CRC32, zstd and the number columns for a block and sends typed arrays back (transferred, not copied); strings and row objects are made on the calling thread because objects cannot cross threads cheaply. Full row objects are built on the calling thread, so on a 106 MB events file 1 to 4 helpers all took about the same time (laptop: 704, 948, 923 ms; container: about 500 ms each); helpers pay off for packing and for reading only some keys.
 
 ## How it compares
+**Against Parquet readers in the browser** (lfc-pack 0.10.1, measured 2026-11-12 on a shared 4-core cloud machine in Chromium 156, Firefox 158 and WebKitGTK 2.52.6; the file format is unchanged through 0.10.5). Parquet files are written by pyarrow 26.0.1 with zstd level 3, and every reader opens that same file. The readers are parquet-wasm 0.9.0 with Arrow JS 21.2.0, hyparquet 1.33.0 and DuckDB-WASM 1.33.1 (it did not run in Firefox 158). Full charts: `js-modules-research/lfc-pack-vs-parquet-readers-2026.11.12` (KB M147).
+
+File size, 100,000 rows each, MB (lower is better):
+
+| Data | Parquet zstd 3 | Parquet zstd 19 | lfc-pack |
+|---|---|---|---|
+| Taxi trips, 7 numeric columns | 1.0 | 0.9 | **0.6** |
+| Orders, nullable text, dates, money | 1.4 | 1.3 | **0.4** |
+| Logs, text, ids, addresses | 2.9 | 2.5 | **2.1** |
+
+Rows as plain JavaScript objects, median of 7 reads in a warm page, ms (lower is better; lfc-pack is 0.18 to 0.59 of the time of the Parquet readers):
+
+| Data | Browser | lfc-pack | parquet-wasm + Arrow JS | hyparquet | DuckDB-WASM |
+|---|---|---|---|---|---|
+| Logs | Chromium 156 | **68.0** | 356 | 260 | 373 |
+| | Firefox 158 | **51.0** | 257 | 189 | n/a |
+| | WebKitGTK 2.52.6 | **51.0** | 249 | 167 | 259 |
+| Orders | Chromium 156 | **47.6** | 176 | 144 | 209 |
+| | Firefox 158 | **35.0** | 177 | 128 | n/a |
+| | WebKitGTK 2.52.6 | **34.0** | 115 | 89.0 | 170 |
+| Taxi | Chromium 156 | **38.7** | 117 | 92.6 | 147 |
+| | Firefox 158 | **35.0** | 115 | 91.0 | n/a |
+| | WebKitGTK 2.52.6 | **34.0** | 82.0 | 58.0 | 96.0 |
+
+Fresh page to first rows (library start-up plus one read, taxi trips, ms): lfc-pack 81.4 / 53.0 / 79.0 (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6), hyparquet 120 / 118 / 103, parquet-wasm 250 / 262 / 280, DuckDB-WASM 1,716 (Chromium) and 6,155 (WebKitGTK), which loads a 36 MB WebAssembly file.
+
+Rows with one value, 12 equality queries, total ms (taxi `rate`, 5 values; lfc-pack `equals` and, in brackets, with `cache: true`), against the fastest Parquet reader (DuckDB-WASM `SELECT ... WHERE` where it ran, else parquet-wasm filtering the Arrow column):
+
+| Browser | lfc-pack | fastest Parquet reader |
+|---|---|---|
+| Chromium 156 | **244** (73.2) | 386 (DuckDB-WASM) |
+| Firefox 158 | **306** (64.0) | 798 (parquet-wasm, Arrow column filter) |
+| WebKitGTK 2.52.6 | **190** (61.0) | 492 (DuckDB-WASM) |
+
+The logs (`ip`) and orders (`cust`) sets give the same order of results: with `cache: true` lfc-pack takes 38 to 68 ms in every browser; without it, 139 to 180 ms. DuckDB-WASM is the closest Parquet reader (Chromium 156: 285 ms on logs `ip` against 170 for lfc-pack; WebKitGTK 2.52.6: 537 against 139). In every cell where it ran, uncached lfc-pack was ahead. Every reader returned the same rows (checked by row count).
+
+Older size comparison (an early version, measured then, not re-run):
 Sizes are exact byte counts, the same everywhere. Parquet numbers are from the project's research runs (pyarrow, zstd level 3 unless stated), see `columns-v2` in the LFC-pack research folder.
 
 | Data | Input | lfc-pack 0.1.1 (measured then; not re-run) | Parquet |
@@ -228,7 +266,7 @@ Used right now in Netflow Map (its repository is private, so there is no link), 
 Zstandard (Yann Collet and Meta Platforms, BSD-3-Clause) does the compression; the library is compiled unchanged by `wasm/build.sh` (see [NOTICE-zstd.txt](NOTICE-zstd.txt)). The ideas of columns plus a footer with per-block statistics come from Apache Parquet and ORC; the shape-plus-columns split for nested data follows the "shredding" of Dremel (Melnik et al., Google, 2010) and the Parquet and Arrow nesting rules, with a simpler path-hash column naming. Log templates follow the log-parsing line of work (Drain, He et al. 2017; LogHub samples by the Logpai group were used for tests). The code here is written from scratch for this repository.
 
 ## For AI agents
-Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and wait for it. Pack once with `pack(text)` and keep the `Uint8Array`. Read with `unpack(file, { keys, range })` when you need a few fields or a time slice (blocks outside the range are never decoded), and with `pool()` for files over a few blocks. Use `exact: true` only when the original bytes must come back. WebAssembly memory only grows, so after a big job call `trim()` to give back what it grew: the next call starts with fresh, small memory and gives the same results. The sources are `src/*.js` joined by `build.py`; the wasm sources are in `wasm/` (`build.sh` for zstd, `build-core.sh` for the tokenizer and string dictionary); `python/lfc_pack.py` reads files in Python. Run `node test/roundtrip.cjs`, `node test/exact.cjs`, `node test/query.cjs`, `node test/pool.cjs` and `python3 -I test/pyread.py <file.lfc>=<source.ndjson>` after any change.
+Load `lfc-pack.js` (global `LfcPack`) or `require` it; call `init()` first and wait for it. Pack once with `pack(text)` and keep the `Uint8Array`. Read with `unpack(file, { keys, range })` when you need a few fields or a time slice (blocks outside the range are never decoded), and with `pool()` for files over a few blocks. Use `exact: true` only when the original bytes must come back. For big saves from row arrays use `packRowsParallel(rows)`, or `packColumnsParallel({ key: array })` when you already hold columns; for big reads of flat tables use `await unpackColumnsParallel(bytes, { keys })`, which gives `{ key: array }` without row objects (all three keep the page responsive and need `init()` first). WebAssembly memory only grows, so after a big job call `trim()` to give back what it grew: the next call starts with fresh, small memory and gives the same results. The sources are `src/*.js` joined by `build.py`; the wasm sources are in `wasm/` (`build.sh` for zstd, `build-core.sh` for the tokenizer and string dictionary); `python/lfc_pack.py` reads files in Python. Run `node test/roundtrip.cjs`, `node test/exact.cjs`, `node test/query.cjs`, `node test/pool.cjs` and `python3 -I test/pyread.py <file.lfc>=<source.ndjson>` after any change.
 
 ## Decoder-only build
 
