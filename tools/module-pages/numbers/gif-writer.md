@@ -42,3 +42,13 @@ Same bytes by default. The thorough palette saves under 0.1% for about 40% more 
 
 
 **New in 1.6.1: faster picture effects, same pictures.** Cloud-browser runs (Chromium, Firefox and WebKitGTK on a shared machine, not noise-guarded, not the laptop). At 1920 x 1080 the time is 0.73 to 0.77 of before for glow, 0.74 to 0.78 for Soft dream, 0.79 to 0.85 for blur and 0.87 to 0.92 for sharpen. A laptop run will replace these.
+
+**Palette search on a real laptop, WebAssembly against the JavaScript code (30 pictures of 640 x 480), 2026.11.14, 9:26 AM Eastern, 16 cores.** Medians of 9 rounds, ms, lower is faster. One run per browser on one machine.
+
+| pictures | Firefox 161 JavaScript | Firefox 161 WebAssembly | Chrome 157 JavaScript | Chrome 157 WebAssembly |
+|---|---:|---:|---:|---:|
+| flat game picture | 11.3 | 8.7 | 7.6 | 7.8 |
+| scrolling bands | 10.7 | 6.7 | 7.1 | 6.4 |
+| photo-like | 284 | 176 | 283 | 170 |
+
+WebAssembly is 1.3 to 1.6 times faster in Firefox and 1.1 to 1.7 times faster in Chrome, except flat game pictures in Chrome, where the two are level (0.97x).
