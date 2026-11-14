@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.2 · API 2 · 2026-11-14
+- Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
+
 ## 2.16.1 · API 2 · 2026-11-14
 - Unpacking lists with decimal numbers is about 10 to 15% faster
 

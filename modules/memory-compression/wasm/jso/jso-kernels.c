@@ -12,12 +12,45 @@ typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u
  *   minL, maxL (R ints) and lead (R bytes): shortest and longest digit run and whether any run had a leading zero, per slot.
  *   out[0] = the row where it stopped (n when finished), out[1] = that row's first byte.
  * It stops at the first row that does not fit a known pattern so that JavaScript can add one. */
+/* A row is first tried against the pattern of the first row this call read successfully (its literal pieces are compared as they are, the numbers are read as runs of digits): no walk through the tree.
+ * A row that does not fit goes through the tree as before, so the results are the same. */
+static inline int tpl_lit_eq(const u8 *a, const u8 *c, u32 len) {
+  while (len >= 8) { u64 x, y; __builtin_memcpy(&x, a, 8); __builtin_memcpy(&y, c, 8); if (x != y) return 0; a += 8; c += 8; len -= 8; }
+  while (len) { if (*a != *c) return 0; a++; c++; len--; }
+  return 1;
+}
 EXPORT int tpl_scan(const u8 *b, const u32 *lens, int start, int n, u32 p, const i16 *next, const i8 *term,
                     double *slots, int R, u8 *tid, i32 *minL, i32 *maxL, u8 *lead, u32 *out) {
-  int i;
+  int i, have = 0, ek = 0, et = 0;
+  u32 ep = 0, ls[17], ll[17];                                 /* the first good row: where it starts and where its literal pieces are inside it */
   for (i = start; i < n; i++) {
     u32 end = p + lens[i], q = p;
     int node = 0, k = 0, t;
+    if (have) {                                               /* same pattern as that row? */
+      int j, ok = 1; u64 vv[17]; u8 lk[17]; int lw[17];
+      for (j = 0; j <= ek; j++) {
+        if (q + ll[j] > end || !tpl_lit_eq(b + q, b + ep + ls[j], ll[j])) { ok = 0; break; }
+        q += ll[j];
+        if (j < ek) {
+          u32 e = q, ch; u64 v = 0; int len;
+          while (e < end && (ch = b[e]) - 48u < 10u) { v = v * 10 + (ch - 48u); e++; }
+          len = (int)(e - q);
+          if (len == 0 || len > 15) { ok = 0; break; }
+          vv[j] = v; lw[j] = len; lk[j] = (u8)(len > 1 && b[q] == 48);
+          q = e;
+        }
+      }
+      if (ok && q == end) {                                   /* it fits: now the numbers and the statistics are written */
+        for (j = 0; j < ek; j++) {
+          slots[(u64)j * (u64)n + (u64)i] = (double)vv[j];
+          if (lw[j] < minL[j]) minL[j] = lw[j];
+          if (lw[j] > maxL[j]) maxL[j] = lw[j];
+          if (lk[j]) lead[j] = 1;
+        }
+        tid[i] = (u8)et; p = end; continue;
+      }
+      q = p;                                                  /* not this pattern: the tree decides  */
+    }
     while (q < end) {
       u32 ch = b[q];
       if (ch - 48u < 10u) {
@@ -41,6 +74,15 @@ EXPORT int tpl_scan(const u8 *b, const u32 *lens, int start, int n, u32 p, const
     t = term[node];
     if (t < 0) goto fail;
     tid[i] = (u8)t;
+    if (!have && k <= 16) {                                   /* remember this row's pattern */
+      u32 r = p, lit0 = p; int m = 0;
+      while (r < end) {
+        if (b[r] - 48u < 10u) { ls[m] = lit0 - p; ll[m] = r - lit0; m++; while (r < end && b[r] - 48u < 10u) r++; lit0 = r; }
+        else r++;
+      }
+      ls[m] = lit0 - p; ll[m] = end - lit0;
+      if (m == k) { have = 1; ek = k; et = t; ep = p; }
+    }
     p = end;
     continue;
   fail:

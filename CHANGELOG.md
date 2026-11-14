@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.16.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.16.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.10.19 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -61,6 +61,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-14 · **memory-compression** 2.16.2 · API 2: Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
 - 2026-11-14 · **memory-compression** 2.16.1 · API 2: Unpacking lists with decimal numbers is about 10 to 15% faster
 - 2026-11-14 · **lfc-pack** 0.10.19 · API 0: unpack(file, { equals or range, positions: true }) returns row numbers instead of rows
 - 2026-11-14 · **lfc-pack** 0.10.18 · API 0: unpackRowsParallel reads a whole table as rows on helper workers with short page pauses

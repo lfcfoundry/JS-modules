@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.2 · API 2 · 2026-11-14
+
+### Quick
+faster pattern scan for text columns
+
+### Details
+tpl_scan compares each row with the first good row; wasm kernels 7,282 to 8,177 bytes
+
+### Deep
+memory-compression 2.16.2: template-scan fast path in jso-kernels.c (tpl_scan only); rebuilt wasm reproduces byte-identical from the .c; invisible, no format change, no setting. Paired fresh pages (api-users, events, nfm-links, geojson; 15-27 rounds): whole-list pack within 0.92-1.07 in Chromium 156, Firefox 158, WebKitGTK 2.52.6; cells over 1.05 reran at 27 rounds: 1.00-1.03, one Firefox first pack 1.05 (whole-ms timer). The per-column gain (Chromium text columns 0.60-0.70) is from the research brief and was not re-measured here.
+
 ## 2.16.1 · API 2 · 2026-11-14
 
 ### Quick
