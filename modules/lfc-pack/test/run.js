@@ -23,6 +23,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('byte-exact switch', 'node', ['exact.cjs']);
   step('per-path strings pick', 'node', ['pathspick.cjs']);
   step('key and range reads', 'node', ['query.cjs']);
+  step('nested equality: P13g late fallback', 'node', ['p13g-late-fallback.cjs']);
   step('equality reads (B19)', 'node', ['equalsread.cjs']);
   step('equality reads in stored bytes (P13, P14)', 'node', ['eqbytes.cjs']);
   step('column reads (B20)', 'node', ['b20cols.cjs']);
