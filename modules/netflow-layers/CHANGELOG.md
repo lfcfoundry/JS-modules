@@ -30,7 +30,7 @@ What changed in each version, newest first, in plain words. The full details (nu
 - Layouts are 7 to 34% faster with the same picture, and better: true never ends with more line crossings than the usual search.
 
 ## 1.8.0 · API 1 · 2026-10-31
-- Tidier by default: the lighter crossing search now keeps going until 4 rounds bring no gain (it stopped after 2), so it matches deep: true on every map tested. 1,000 random items take about 112 to 118 ms instead of 72 to 90.
+- Tidier by default: the lighter crossing search runs until 4 rounds bring no gain (was 2), matching deep: true on every map tested. 1,000 items: 112 ms (was 73) in Chromium 155, 118 (90) Firefox 158, 117 (83) WebKitGTK 2.52.6.
 
 ## 1.7.2 · API 1 · 2026-10-31
 - Same behavior, lighter in memory: the characters above U+00FF in the code (arrows, an ellipsis, curly quotes) are now written as escapes, so a page that bundles the file can keep its text at 1 byte per character.
