@@ -1245,12 +1245,15 @@
       return out;
     }
     // B19b: [value position per selected row (-1 = the row lacks the key), values] for column cm, or null to decode whole
+    // P13k: in V8 a typed array of more than 64 bytes gets its own backing store, about a microsecond each; with 256 KB blocks this ran once per wanted column per block (3 per call), which made selAt 8 times slower than with 13 MB blocks. V8 reuses one scratch list for the asked positions (decodeAt reads it during the call only) and keeps the positions of the rows in a plain list; the other engines keep typed arrays (no gain in Firefox 158 or WebKitGTK 2.52.6)
+    var SA_VI = new Int32Array(1024);
     function selAt(cm, frames, pl, base, n, sel, m) {
-      var dense = cm.n === n, vi = new Int32Array(m), vv = [], mi = new Int32Array(m), i, c, q, k = 0;
+      if (V8 && SA_VI.length < m) SA_VI = new Int32Array(Math.max(m, SA_VI.length * 2));
+      var dense = cm.n === n, vi = V8 ? SA_VI : new Int32Array(m), mi = V8 ? new Array(m) : new Int32Array(m), i, c, q, k = 0;
       if (dense) { for (q = 0; q < m; q++) { vi[q] = sel[q]; mi[q] = q; } k = m; }
       else { for (i = 0, c = 0, q = 0; q < m; i++) { var has = (pl[base + (i >> 3)] >> (i & 7)) & 1; if (i === sel[q]) { if (has) { vi[k] = c; mi[q] = k++; } else mi[q] = -1; q++; } if (has) c++; } }
       var got = decodeAt(cm, frames, vi, k); if (!got) return null;
-      var pos = new Int32Array(m), out = new Array(m); for (q = 0; q < m; q++) { pos[q] = mi[q]; out[q] = mi[q] >= 0 ? got[mi[q]] : undefined; } return [pos, out];
+      var out = new Array(m); for (q = 0; q < m; q++) out[q] = mi[q] >= 0 ? got[mi[q]] : undefined; return [mi, out];   // mi is the position list (it used to be copied)
     }
     // P13e, V8 only: the selected rows of a block whose rows lack some keys (from 20 wanted keys, gated as P13d: with 16 keys row windows were 1.10-1.15 warm) are made one row at a time from per-row value lists, as P13d does for whole blocks (assigning one key at a time down the selected rows gave each row a long chain of shape changes, so a 40% match read took longer than reading every row). Same objects, same key order
     function sparseV8(F, K, n, sel, m) { if (!V8 || K < 20 || K > 250 || F.ordList) return false; var j, nk = 0, sp = false, pv = new Array(K); for (j = 0; j < K; j++) if (F.cols[j] !== null) { nk++; pv[j] = { length: F.cols[j].pre ? F.cols[j].pre.length : F.meta.cols[j].n }; if (pv[j].length !== n) sp = true; } return sp && nk >= 20 && rowWise(pv, K, n, F.pl, (n + 7) >> 3, sel, m); }

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.17 · API 0 · 2026-11-13
+
+### Quick
+Equality reads on random-access files run in 0.82 to 0.92 of the time in Chromium; Firefox is unchanged
+
+### Details
+The equality reader made three small typed arrays per wanted column per block, which V8 allocates slowly. It now reuses one list in V8. Laptop, 200,000 rows: Chrome 157 0.82 to 0.92 of 0.10.15 on 7 cases; Firefox 161 even.
+
+### Deep
+Equality reads on files with many small blocks (such as access: 'random') are 8 to 18% faster in Chromium (Chrome 157 laptop 0.82 to 0.92 of the 0.10.15 time, cloud Chromium 156 0.70 to 0.97); Firefox 161 is unchanged and the rows are identical.
+
 ## 0.10.16 · API 0 · 2026-11-13
 
 ### Quick
