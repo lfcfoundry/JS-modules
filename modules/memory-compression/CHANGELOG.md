@@ -2,6 +2,10 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.1 · API 2 · 2026-11-14
+- Text like user123@example.org packs a little faster in Chromium and WebKit.
+- ISO date-time text packs a little faster in Firefox.
+
 ## 2.17.0 · API 2 · 2026-11-14
 - New packColumns(): pack a table held as columns, same bytes as pack(). 100,000 records: 6 to 8% faster than msgpackr in Chromium 156 and Firefox 158, 4% slower in WebKitGTK 2.52.6.
 

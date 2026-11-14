@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.1 · API 2 · 2026-11-14
+
+### Quick
+Two same-bytes speedups from research part 3.
+
+### Deep
+Two same-bytes speedups from research part 3. (1) One-pattern row check generated per word pair with constant char codes (opCheck, GEN_CACHE key 'o'+pre+U+0001+suf) in Chromium and WebKit; Firefox keeps startsWith/endsWith, no-eval pages keep the old loop; 344 + 270 byte cases; whole pack 0.96-0.98x Chromium 156, about 0.97x WebKitGTK 2.52.6. (2) tsFixed day cache: digits checked four at a time, month/day check and day math once per new day; 3,459 timestamp edge cases plus the others byte-identical to 2.17.0; whole pack 0.974x Firefox 158, level in Chromium 156. New test/timestamps.js keeps the edge cases.
+
 ## 2.17.0 · API 2 · 2026-11-14
 
 ### Quick
