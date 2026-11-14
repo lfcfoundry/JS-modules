@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.28 · API 0 · 2026-11-14
+- Fix: a file with one block in the nested layout (for example after an empty first number cell) can be read by columns again instead of being refused.
+
 ## 0.10.27 · API 0 · 2026-11-14
 - New: packBlock(columns) packs a block from columns you already hold; text can be given as UTF-8 bytes plus offsets, so no strings are made (about half the time of string columns).
 
