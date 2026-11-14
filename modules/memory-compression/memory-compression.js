@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.17.0 (API 2)
+ * Version 2.17.1 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -2662,7 +2662,7 @@
   // has any other kind of row, an impossible date, or that would cost more as one number returns null and goes the pattern way unchanged. The fixed-position read is the idea behind
   // the date fast paths in other JSON/CBOR/MessagePack parsers; the layout of the result is this module's own.
   function tsFixed(vals, n, g) {
-    var L = g === 6 ? 20 : 24, out = new Float64Array(n), mask = 0, i, s, y, mo, d, h, mi, sec, ms = 0, a, b, c, e, days, yy, era, yoe, doy, v, x, j,
+    var L = g === 6 ? 20 : 24, out = new Float64Array(n), mask = 0, i, s, y, mo, d, h, mi, sec, ms = 0, a, b, c, e, days, dk, lk = -1, ld = 0, yy, era, yoe, doy, v, x, j,
         mn = [], mx = [], dm = [], pv = [0, 0, 0, 0, 0, 0, 0], cu = [0, 0, 0, 0, 0, 0, 0], tmin = Infinity, tmax = -Infinity, tdm = 0, cost = 0, own;
     while ((n >> (mask + 1)) > 1024) mask++;
     mask = (1 << mask) - 1;
@@ -2671,25 +2671,30 @@
       s = vals[i];
       if (s.length !== L) return null;
       a = s.charCodeAt(0) - 48; b = s.charCodeAt(1) - 48; c = s.charCodeAt(2) - 48; e = s.charCodeAt(3) - 48;
-      if ((a >>> 0) > 9 || (b >>> 0) > 9 || (c >>> 0) > 9 || (e >>> 0) > 9) return null;
+      if ((a | b | c | e | (9 - a) | (9 - b) | (9 - c) | (9 - e)) < 0) return null;       // each 0-9: x and 9 - x both not negative
       y = ((a * 10 + b) * 10 + c) * 10 + e;
       if (s.charCodeAt(4) !== 45 || s.charCodeAt(7) !== 45 || s.charCodeAt(10) !== 84 || s.charCodeAt(13) !== 58 || s.charCodeAt(16) !== 58) return null;
-      a = s.charCodeAt(5) - 48; b = s.charCodeAt(6) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; mo = a * 10 + b;
-      a = s.charCodeAt(8) - 48; b = s.charCodeAt(9) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; d = a * 10 + b;
-      a = s.charCodeAt(11) - 48; b = s.charCodeAt(12) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; h = a * 10 + b;
-      a = s.charCodeAt(14) - 48; b = s.charCodeAt(15) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; mi = a * 10 + b;
-      a = s.charCodeAt(17) - 48; b = s.charCodeAt(18) - 48; if ((a >>> 0) > 9 || (b >>> 0) > 9) return null; sec = a * 10 + b;
+      a = s.charCodeAt(5) - 48; b = s.charCodeAt(6) - 48; c = s.charCodeAt(8) - 48; e = s.charCodeAt(9) - 48;
+      if ((a | b | c | e | (9 - a) | (9 - b) | (9 - c) | (9 - e)) < 0) return null; mo = a * 10 + b; d = c * 10 + e;
+      a = s.charCodeAt(11) - 48; b = s.charCodeAt(12) - 48; c = s.charCodeAt(14) - 48; e = s.charCodeAt(15) - 48;
+      if ((a | b | c | e | (9 - a) | (9 - b) | (9 - c) | (9 - e)) < 0) return null; h = a * 10 + b; mi = c * 10 + e;
+      a = s.charCodeAt(17) - 48; b = s.charCodeAt(18) - 48; if ((a | b | (9 - a) | (9 - b)) < 0) return null; sec = a * 10 + b;
       if (g === 6) { if (s.charCodeAt(19) !== 90) return null; }
       else {
         if (s.charCodeAt(19) !== 46 || s.charCodeAt(23) !== 90) return null;
         a = s.charCodeAt(20) - 48; b = s.charCodeAt(21) - 48; c = s.charCodeAt(22) - 48;
         if ((a >>> 0) > 9 || (b >>> 0) > 9 || (c >>> 0) > 9) return null; ms = (a * 10 + b) * 10 + c;
       }
-      if (mo < 1 || mo > 12 || d < 1 || d > (mo === 2 && y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : DIM[mo - 1]) || h > 23 || mi > 59 || sec > 59) return null;
-      yy = mo <= 2 ? y - 1 : y;
-      era = yy >= 0 ? (yy / 400) | 0 : -(((399 - yy) / 400) | 0); yoe = yy - era * 400;
-      doy = (((153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5) | 0) + d - 1;
-      days = era * 146097 + yoe * 365 + ((yoe / 4) | 0) - ((yoe / 100) | 0) + doy - 719468;
+      if (h > 23 || mi > 59 || sec > 59) return null;
+      dk = y * 10000 + mo * 100 + d;
+      if (dk !== lk) {                                           // a new day: checked and turned into days once (sorted or nearby times repeat the day for many rows)
+        if (mo < 1 || mo > 12 || d < 1 || d > (mo === 2 && y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : DIM[mo - 1])) return null;
+        yy = mo <= 2 ? y - 1 : y;
+        era = yy >= 0 ? (yy / 400) | 0 : -(((399 - yy) / 400) | 0); yoe = yy - era * 400;
+        doy = (((153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5) | 0) + d - 1;
+        ld = era * 146097 + yoe * 365 + ((yoe / 4) | 0) - ((yoe / 100) | 0) + doy - 719468; lk = dk;
+      }
+      days = ld;
       v = days * 86400 + h * 3600 + mi * 60 + sec;
       if (g === 7) v = v * 1000 + ms;
       out[i] = v;
@@ -2803,6 +2808,21 @@
   // text, no UTF-8 pass and no pattern scan. The same bytes as the pattern path writes for one pattern with one number; false (nothing written) for anything else.
   var OP_NATIVE = typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent || '');   // Firefox: startsWith/endsWith are the faster check; Chromium and WebKit: comparing char codes (measured 0.55-0.65x of startsWith there)
   function asciiNoDigits(t) { var i, ch; for (i = 0; i < t.length; i++) { ch = t.charCodeAt(i); if (ch > 127 || (ch >= 48 && ch <= 57)) return false; } return true; }
+  var OPS = { lead: 0, total: 0, minL: 99, maxL: 0 };
+  function opCheck(pre, suf) {                                    // onePattern's row loop for one pair of words, generated; true and OPS filled, or false
+    var sig = 'o' + pre + '\u0001' + suf, f = GEN_CACHE[sig], a = pre.length, b = suf.length, ab = a + b, k, cond = [], src;
+    if (f) return f;
+    for (k = 0; k < a; k++) cond.push('s.charCodeAt(' + k + ')!==' + pre.charCodeAt(k));
+    for (k = 0; k < b; k++) cond.push('s.charCodeAt(e+' + k + ')!==' + suf.charCodeAt(k));
+    src = 'var i,s,l,e,k,v,ch,lead=0,total=0,minL=99,maxL=0;for(i=0;i<n;i++){s=vals[i];l=s.length;e=l-' + b + ';if(l<' + (ab + 1) + '||l>' + (ab + 15) + ')return false;';
+    if (cond.length) src += 'if(' + cond.join('||') + ')return false;';
+    src += 'v=s.charCodeAt(' + a + ')-48;if((v>>>0)>9)return false;if(v===0&&e-' + a + '>1)lead=1;';
+    src += 'for(k=' + (a + 1) + ';k<e;k++){ch=s.charCodeAt(k)-48;if((ch>>>0)>9)return false;v=v*10+ch;}f[i]=v;total+=l;l=e-' + a + ';if(l<minL)minL=l;if(l>maxL)maxL=l;}';
+    src += 'o.lead=lead;o.total=total;o.minL=minL;o.maxL=maxL;return true;';
+    f = new Function('vals', 'n', 'f', 'o', src);
+    genStore(sig, f);
+    return f;
+  }
   Enc.prototype.onePattern = function (vals, n) {
     var s = vals[0], lits = tplOf(s), pre, suf, a, b, ab, l, ch, f, i, k, v, e, minL = 99, maxL = 0, lead = 0, total = 0, w, c = this.ctl;
     if (!lits || lits.length !== 2) return false;
@@ -2810,7 +2830,10 @@
     if (!asciiNoDigits(pre) || !asciiNoDigits(suf)) return false;
     var pc = new Int32Array(a), sc = new Int32Array(b); for (k = 0; k < a; k++) pc[k] = pre.charCodeAt(k); for (k = 0; k < b; k++) sc[k] = suf.charCodeAt(k);
     f = new Float64Array(n);
-    for (i = 0; i < n; i++) {
+    if (!OP_NATIVE && CAN_EVAL) {                                  // Chromium and WebKit: the words as constants in generated code (one compare per char, no table reads)
+      if (!opCheck(pre, suf)(vals, n, f, OPS)) return false;
+      lead = OPS.lead; total = OPS.total; minL = OPS.minL; maxL = OPS.maxL;
+    } else for (i = 0; i < n; i++) {
       s = vals[i]; l = s.length; e = l - b;
       if (l - ab < 1 || l - ab > 15) return false;
       if (!OP_NATIVE) { for (k = 0; k < a; k++) if (s.charCodeAt(k) !== pc[k]) return false; for (k = 0; k < b; k++) if (s.charCodeAt(e + k) !== sc[k]) return false; }

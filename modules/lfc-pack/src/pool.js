@@ -213,21 +213,49 @@
   var B35_POOL = null, B35_TIMER = null, B35_W = 0;
   // B42: with nulls: 'NaN' every block's number column is already a typed array of one value per row (nanCols); a key that some block lacks entirely is NaN there
   function b35Num(blocks, k) { for (var i = 0; i < blocks.length; i++) { var v = blocks[i].cols[k]; if (v && (Array.isArray(v) || blocks[i].present[k])) return false; } return true; }
+  function b35Keys(blocks) { var keys = [], seen = {}, i, j, k; for (i = 0; i < blocks.length; i++) for (j = 0; j < blocks[i].keys.length; j++) { k = blocks[i].keys[j]; if (!seen[k]) { seen[k] = 1; keys.push(k); } } return keys; }
+  // one key's typed result (typed arrays of one kind stay that kind, mixed kinds become Float64Array, null-plane numbers NaN), or null when the key needs a plain array
+  function b35Col(blocks, k, n, nan) {
+    var T, i, b, v, a, off;
+    for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; if (!v || b.present[k] || Array.isArray(v)) { T = Array; break; } var C = Array.isArray(v) ? Array : v.constructor; if (T === undefined) T = C; else if (T !== C) T = (T === Array || C === Array) ? Array : Float64Array; }
+    if (T !== Array) { a = new T(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } return a; }
+    if (nan && b35Num(blocks, k)) { a = new Float64Array(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; if (v) a.set(v, off); else a.fill(NaN, off, off + blocks[i].n); off += blocks[i].n; } return a; }
+    return null;
+  }
+  // the plain-array fill of block i of key k into a at offset off; returns the next offset
+  function b35Fill(a, blocks, k, i, off) {
+    var b = blocks[i], v = b.cols[k], pr = b.present[k], m = b.n, q, z = 0;
+    if (!v) { for (q = 0; q < m; q++) a[off + q] = undefined; }
+    else if (!pr) { for (q = 0; q < m; q++) a[off + q] = v[q]; }
+    else for (q = 0; q < m; q++) a[off + q] = (pr[q >> 3] >> (q & 7)) & 1 ? v[z++] : undefined;
+    return off + m;
+  }
   function b35Join(blocks, n, nan) {
-    var keys = [], seen = {}, i, j, k, out = {}, b, v, T, off, a;
-    for (i = 0; i < blocks.length; i++) for (j = 0; j < blocks[i].keys.length; j++) { k = blocks[i].keys[j]; if (!seen[k]) { seen[k] = 1; keys.push(k); } }
-    for (j = 0; j < keys.length; j++) { k = keys[j]; T = undefined;
-      for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; if (!v || b.present[k] || Array.isArray(v)) { T = Array; break; } var C = Array.isArray(v) ? Array : v.constructor; if (T === undefined) T = C; else if (T !== C) T = (T === Array || C === Array) ? Array : Float64Array; }
-      if (T !== Array) { a = new T(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } out[k] = a; continue; }
-      if (nan && b35Num(blocks, k)) { a = new Float64Array(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; if (v) a.set(v, off); else a.fill(NaN, off, off + blocks[i].n); off += blocks[i].n; } out[k] = a; continue; }
-      a = new Array(n); off = 0;
-      for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; var pr = b.present[k], m = b.n, q, z = 0;
-        if (!v) { for (q = 0; q < m; q++) a[off + q] = undefined; }
-        else if (!pr) { for (q = 0; q < m; q++) a[off + q] = v[q]; }
-        else for (q = 0; q < m; q++) a[off + q] = (pr[q >> 3] >> (q & 7)) & 1 ? v[z++] : undefined;
-        off += m; }
+    var keys = b35Keys(blocks), j, k, i, a, off, out = {};
+    for (j = 0; j < keys.length; j++) { k = keys[j]; a = b35Col(blocks, k, n, nan);
+      if (!a) { a = new Array(n); off = 0; for (i = 0; i < blocks.length; i++) off = b35Fill(a, blocks, k, i, off); }
       out[k] = a; }
     return out;
+  }
+  // B62: the same join for the helper path, with a pause for the event loop after about 500,000 cells of a plain array (Firefox needed about 300 ms to join one 7 million string column in a single piece,
+  // and a page waiting on that thread, the Workbench's score sort for one, waited with it)
+  var B62_CELLS = (typeof globalThis !== 'undefined' && globalThis.__B62CELLS !== undefined) ? globalThis.__B62CELLS : 524288;
+  function b35Tick() { return new Promise(function (res) { if (typeof MessageChannel === 'function') { var c = new MessageChannel(); c.port1.onmessage = function () { c.port1.onmessage = null; c.port1.close(); res(); }; c.port2.postMessage(0); } else setTimeout(res, 0); }); }
+  function b35JoinAsync(blocks, n, nan) {
+    var keys = b35Keys(blocks), out = {}, j = 0;
+    if (!B62_CELLS) return Promise.resolve(b35Join(blocks, n, nan));
+    function nextKey() {
+      if (j >= keys.length) return Promise.resolve(out);
+      var k = keys[j++], a = b35Col(blocks, k, n, nan);
+      if (a) { out[k] = a; return nextKey(); }
+      a = new Array(n); var i = 0, off = 0, cells = 0;
+      function step() {
+        for (; i < blocks.length; i++) { off = b35Fill(a, blocks, k, i, off); cells += blocks[i].n; if (cells >= B62_CELLS && i + 1 < blocks.length) { i++; cells = 0; return b35Tick().then(step); } }
+        out[k] = a; return nextKey();
+      }
+      return step();
+    }
+    return nextKey();
   }
   function unpackColumnsParallel(bytes, opts) {
     opts = opts || {};
@@ -245,7 +273,7 @@
       var pp = B35_POOL && B35_W === w ? B35_POOL : (B35_POOL ? B35_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B35_W = w; return (B35_POOL = makePool({ workers: w })); });
       return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys }); }).then(function (blocks) {
         B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
-        return b35Join(blocks, n, opts.nulls === 'NaN'); });
+        return b35JoinAsync(blocks, n, opts.nulls === 'NaN'); });
     });
   }
   // B38 (research): unpackRowsParallel(bytes, { workers }) -> Promise of the rows unpackRows returns, for whole-table reads of flat-row files.

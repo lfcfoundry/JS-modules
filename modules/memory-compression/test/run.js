@@ -297,6 +297,10 @@ t('ASCII text straight to bytes (WebKit path, 2.16.4) gives the same bytes as th
   if (!NODE) return skip('ASCII path check');
   require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'ascii.js')]);
 });
+t('ISO date-time edge cases round-trip exactly (2.17.1 day cache)', function () {
+  if (!NODE) return skip('timestamp check');
+  require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'timestamps.js')]);
+});
 t('packColumns(columns) (2.17.0) writes the same bytes as pack(rows) on every same-shape data set, three modes, typed and nested columns; bad input fails', function () {
   if (!NODE) return skip('packColumns check');
   require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'packcolumns.js')]);
