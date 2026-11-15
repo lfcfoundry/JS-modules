@@ -164,9 +164,9 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 		if q != m {
 			fail("damaged block: N count")
 		}
-	case "W": // date-time text (format minor 2): the inner column is the epoch milliseconds; f 0 is YYYY-MM-DDTHH:MM:SS.mmm, f 1 is YYYY-MM-DDTHH:MM:SS
+	case "W": // date-time text (format minor 2, minor 3 for forms 2 to 6): the inner column is the epoch milliseconds (microseconds for forms 4 and 6); f 0 is YYYY-MM-DDTHH:MM:SS.mmm, 1 is YYYY-MM-DDTHH:MM:SS, 2 and 3 the same with a space instead of T, 4 and 6 six fraction digits (T and space)
 		f := int(pf("f"))
-		if f != 0 && f != 1 {
+		if f != 0 && f != 1 && f != 2 && f != 3 && f != 4 && f != 6 {
 			fail("unknown date format")
 		}
 		wc := &Obj{}
@@ -176,15 +176,28 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 		wc.Set("p", wp)
 		wc.Set("n", float64(n))
 		layout := "2006-01-02T15:04:05.000"
-		if f == 1 {
+		switch f {
+		case 1:
 			layout = "2006-01-02T15:04:05"
+		case 2:
+			layout = "2006-01-02 15:04:05.000"
+		case 3:
+			layout = "2006-01-02 15:04:05"
+		case 4:
+			layout = "2006-01-02T15:04:05.000000"
+		case 6:
+			layout = "2006-01-02 15:04:05.000000"
 		}
 		for _, x := range decodeCol(wc, fr) {
 			v, ok := x.(float64)
 			if !ok {
 				fail("damaged block: W value")
 			}
-			out = append(out, time.UnixMilli(int64(v)).UTC().Format(layout))
+			if f&4 != 0 {
+				out = append(out, time.UnixMicro(int64(v)).UTC().Format(layout))
+			} else {
+				out = append(out, time.UnixMilli(int64(v)).UTC().Format(layout))
+			}
 		}
 	case "V":
 		u := varints(need(0), n)

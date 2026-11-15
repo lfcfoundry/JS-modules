@@ -333,7 +333,7 @@
   }
   function packRowsBlocks(RA, opts) {   // packManyNow's row path, with blocks that may wait on helpers -> Promise of bytes, or null when a block cannot take the row path
     need(true);
-    var bb = opts.blockBytes || BLOCK_BYTES, nm0 = NMARK, wm0 = WMARK, ctx = { zs: S.zfull, sh: S.sh, st: null, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, waits = [], ra, sl, blk;
+    var bb = opts.blockBytes || BLOCK_BYTES, nm0 = NMARK, wm0 = WMARK, w30 = W3MARK, ctx = { zs: S.zfull, sh: S.sh, st: null, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, waits = [], ra, sl, blk;
     if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;
     if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
@@ -357,7 +357,7 @@
         { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
         { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: true })) }
       ].concat(eqs ? [eqs] : [], metaSecs(opts));
-      parts.push(writeFooter(S.zfull, secs, true, WMARK > wm0 ? 2 : NMARK > nm0 ? 1 : 0));
+      parts.push(writeFooter(S.zfull, secs, true, W3MARK > w30 ? 3 : WMARK > wm0 ? 2 : NMARK > nm0 ? 1 : 0));
       return concat(parts);
     }); }
   }
