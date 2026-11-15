@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.0 · API 1 · 2026-11-15
+- nested-view tiles can be typed arrays (S.rectsT)
+
 ## 1.13.1 · API 1 · 2026-11-14
 - Internal: a layout can ask for item colors without building zero-size dots (used by netflow-hierarchy 1.6.1).
 

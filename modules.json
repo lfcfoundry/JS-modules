@@ -471,7 +471,7 @@
     },
     {
       "id": "netflow-hierarchy",
-      "version": "1.6.1",
+      "version": "1.7.0",
       "api": 1,
       "global": "NetflowHierarchy",
       "summary": "The nested views of Netflow Map as a netflow-engine add-on: Treemap, Sunburst, Icicle, Circle pack and Tree, nested by links or by groups and drawn as netflow-scene drawing lists; ahead of d3-hierarchy on 35 of 36 measured cases; one call, toSvg(data), draws a picture.",
@@ -498,7 +498,7 @@
     },
     {
       "id": "netflow-scene",
-      "version": "1.13.1",
+      "version": "1.14.0",
       "api": 1,
       "global": "NetflowScene",
       "summary": "Turns a Netflow Map layout into plain drawing lists (dots, links, labels, ribbons, shapes) that Canvas 2D, WebGL2, WebGPU or SVG can draw the same way; big flat maps keep links in typed lists and reuse link looks between pictures.",

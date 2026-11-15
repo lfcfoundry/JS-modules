@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.7.0 · API 1 · 2026-11-15
+
+### Quick
+New option typedRects: true (treemap, icicle): the tiles are written to S.rectsT (typed arrays) instead of one object each in S.rects.
+
+### Deep
+New option typedRects: true (treemap, icicle): the tiles are written to S.rectsT (typed arrays) instead of one object each in S.rects. Same picture text; the object form stays the default. Needs netflow-scene 1.14.0; with an older scene the option is ignored.
+
 ## 1.6.1 · API 1 · 2026-11-14
 
 ### Quick

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.6.1 (API 1)
+ * Version 1.7.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -494,6 +494,7 @@ var NetflowHierarchy = (function () {
       var Rm = ch.R, cw = ch.colW, Hh = ch.H, rectLine = alpha(T.bg, 0.9), lookM = new Map(), seen = type === 'treemap' ? new Array(ch.N) : null, heads = [];   /* treemap: the color each box shows (laid over its parent box), so text is checked on the pixels a reader sees */
       /* a box's fill from its base color: made once per base color and kind and shared (nothing changes these arrays in place) */
       var look = function (base, k) { var e = lookM.get(base); if (!e) lookM.set(base, e = [null, null]); return e[k] || (e[k] = k ? alpha(mix(base, T.bg, 0.55), 0.9) : alpha(base, type === 'icicle' ? 0.85 : 0.92)); };
+      var TR = o.typedRects === true && NS.makeRectsT ? NS.makeRectsT(ch.order.length, rectLine) : null;   /* since 1.7.0: typedRects: true keeps the tiles as typed arrays in S.rectsT instead of one object each in S.rects */
       for (var oi = 0; oi < ch.order.length; oi++) {
         var v = ch.order[oi]; if (type === 'icicle' && ch.depth[v] < ch.skipRoot) continue; if (type === 'treemap' && v === ch.root && ch.item[v] < 0) continue;
         var x0, y0, x1, y1;
@@ -504,7 +505,8 @@ var NetflowHierarchy = (function () {
         var fill = look(base, type === 'treemap' && box ? 1 : 0), pv0 = seen ? ch.par[v] : -1, under = pv0 >= 0 && seen[pv0] ? seen[pv0] : T.bg, fit = fitFill(fill, under);
         if (fit) fill = fit;
         if (seen) seen[v] = over(fill, under);
-        S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
+        if (TR) NS.pushRectT(TR, x0, y0, w2, h2, fill, it >= 0 ? recOf(it).i : -1);
+        else S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
         var size = (type === 'treemap' && box ? 12 : 11) * iscale, txt = ch.label[v];
         if (itemShow && w2 > size * 2.2 && h2 > size * 1.3) {
           var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = ink(fill, type === 'treemap' && box ? T.fg : null, under);
@@ -512,6 +514,7 @@ var NetflowHierarchy = (function () {
           if (seen && box) heads.push(lb, v, 0);
         }
       }
+      if (TR) S.rectsT = NS.endRectsT(TR);
       for (var hq = 0; hq < heads.length; hq += 3) {   /* box names: also read on the tiles drawn over the box under the name */
         var hl = heads[hq], hv = heads[hq + 1], hb = textBox(hl), clear = true, hk = ch.kids[hv];
         for (var kq0 = 0; kq0 < hk.length && clear; kq0++) { var k0 = hk[kq0]; if (seen[k0] && Rm[k0 * 4] < hb[2] && Rm[k0 * 4 + 2] > hb[0] && Rm[k0 * 4 + 1] < hb[3] && Rm[k0 * 4 + 3] > hb[1]) clear = false; }
@@ -598,6 +601,7 @@ var NetflowHierarchy = (function () {
     var x0b = Infinity, y0b = Infinity, x1b = -Infinity, y1b = -Infinity;
     var grow = function (x, y) { if (x < x0b) x0b = x; if (x > x1b) x1b = x; if (y < y0b) y0b = y; if (y > y1b) y1b = y; };
     S.rects.forEach(function (r) { grow(r.x, r.y); grow(r.x + r.w, r.y + r.h); });
+    if (S.rectsT) for (var qT = 0; qT < S.rectsT.n; qT++) { grow(S.rectsT.x[qT], S.rectsT.y[qT]); grow(S.rectsT.x[qT] + S.rectsT.w[qT], S.rectsT.y[qT] + S.rectsT.h[qT]); }
     S.dots.forEach(function (d) { grow(d.cx - d.r, d.cy - d.r); grow(d.cx + d.r, d.cy + d.r); });
     if (dfill) L.nodes.forEach(function (nd, q) { if (dfill[q]) grow(nd.cx, nd.cy); });   /* the zero-size dots that were not built still counted at their centers */
     S.polys.forEach(function (p) { for (var i = 0; i < p.pts.length; i += 2) grow(p.pts[i], p.pts[i + 1]); });
