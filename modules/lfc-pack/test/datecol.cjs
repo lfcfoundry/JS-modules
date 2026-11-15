@@ -21,6 +21,8 @@ const JF = require('../lfc-pack.js'), assert = require('assert'), { spawnSync } 
   roundTrip(edges.map((d, i) => ({ id: i, d: d.slice(0, 19) })), 'edges sec', true);
   // every day of four years, written each second of noon
   { const rows = []; for (let t = Date.UTC(1999, 0, 1, 12); t < Date.UTC(2003, 0, 1); t += 86400000) rows.push({ d: iso(t, 0) }); roundTrip(rows, 'daily', true); }
+  // dates spread over 1970 to 9999, unsorted (the wasm writer of the digits and the JavaScript one agree with Date)
+  { const rows = []; for (let i = 0; i < 4000; i++) { const t = Math.floor(r() * 253402300799999); rows.push({ d: iso(t, i & 1 ? 1 : 0) }); } roundTrip(rows.map((x) => ({ d: x.d.length === 19 ? x.d + '.000' : x.d })), 'wide range', true); roundTrip(Array.from({ length: 3000 }, () => ({ d: iso(Math.floor(r() * 253402300799999), 1) })), 'wide range sec', true); }
   // not dates (or not exactly this form): the column is written as before and reads back unchanged
   const fall = {
     'feb 30': (d) => d.map((x, i) => i === 7 ? '2001-02-30T00:00:00.000' : x), 'feb 29 in 1900': (d) => d.map((x, i) => i === 7 ? '1900-02-29T00:00:00.000' : x), 'before 1970': (d) => d.map((x, i) => i === 7 ? '1969-12-31T23:59:59.999' : x),

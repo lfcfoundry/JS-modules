@@ -301,6 +301,12 @@
   var P2 = new Uint8Array(200); for (var pi = 0; pi < 100; pi++) { P2[pi * 2] = 48 + ((pi / 10) | 0); P2[pi * 2 + 1] = 48 + (pi % 10); }
   function dateCol(nums, n, f) {   // the text of n epoch-millisecond values: the digits go into one byte buffer (the calendar day is worked out once per day), decoded and cut once
     if (f !== 0 && f !== 1) throw new Error('damaged block: unknown date form');
+    var X = BD_DEC && n >= 512 ? bdx() : null;
+    if (X && X.datefmt) {   // the digits are written in WebAssembly (bdec.wasm, datefmt); a value outside the date range makes it stop and the JavaScript loop below refuses the block
+      var ww = f ? 20 : 24, L = bdLay([n * 8, n * ww]), mem = bdMem(L.end), put = new Float64Array(mem, L.at[0], n), ii;
+      for (ii = 0; ii < n; ii++) put[ii] = nums[ii];
+      if (X.datefmt(L.at[0], n, f, L.at[1]) === 0) return tdr.decode(new Uint8Array(X.memory.buffer, L.at[1], n * ww - 1)).split('\0');
+    }
     var w = f ? 19 : 23, buf = new Uint8Array(n * (w + 1)), o = 0, i, t, day, lastDay = -1, rem, ms, sod, hh, mm, ss, x, y = 0, mo = 0, d = 0, ymd0 = 0, ymd1 = 0, ymd2 = 0, ymd3 = 0, ymd5 = 0, ymd6 = 0, ymd8 = 0, ymd9 = 0;
     for (i = 0; i < n; i++, o += w + 1) {
       t = nums[i]; if (!(t >= 0 && t <= 253402300799999 && t % 1 === 0)) throw new Error('damaged block: date out of range');
