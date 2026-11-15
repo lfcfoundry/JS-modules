@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func unzstdB(b []byte) []byte { return unzstd(b) }
@@ -162,6 +163,28 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 		}
 		if q != m {
 			fail("damaged block: N count")
+		}
+	case "W": // date-time text (format minor 2): the inner column is the epoch milliseconds; f 0 is YYYY-MM-DDTHH:MM:SS.mmm, f 1 is YYYY-MM-DDTHH:MM:SS
+		f := int(pf("f"))
+		if f != 0 && f != 1 {
+			fail("unknown date format")
+		}
+		wc := &Obj{}
+		wt, _ := p.Get("t")
+		wp, _ := p.Get("p")
+		wc.Set("t", wt)
+		wc.Set("p", wp)
+		wc.Set("n", float64(n))
+		layout := "2006-01-02T15:04:05.000"
+		if f == 1 {
+			layout = "2006-01-02T15:04:05"
+		}
+		for _, x := range decodeCol(wc, fr) {
+			v, ok := x.(float64)
+			if !ok {
+				fail("damaged block: W value")
+			}
+			out = append(out, time.UnixMilli(int64(v)).UTC().Format(layout))
 		}
 	case "V":
 		u := varints(need(0), n)

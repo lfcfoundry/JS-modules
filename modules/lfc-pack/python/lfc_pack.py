@@ -434,6 +434,14 @@ def _untemplate(n, fr):
     return out
 
 
+def _date_text(t, f):
+    ms = t % 1000; s = t // 1000; se = s % 60; m = s // 60; mi = m % 60; h = (m // 60) % 24; z = (m // 60) // 24 + 719468
+    era = z // 146097; doe = z - era * 146097; yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365; y = yoe + era * 400
+    doy = doe - (365 * yoe + yoe // 4 - yoe // 100); mp = (5 * doy + 2) // 153; d = doy - (153 * mp + 2) // 5 + 1; mo = mp + 3 if mp < 10 else mp - 9
+    if mo <= 2: y += 1
+    return '%04d-%02d-%02dT%02d:%02d:%02d' % (y, mo, d, h, mi, se) + ('' if f else '.%03d' % ms)
+
+
 def _decode_col(c, fr):
     n, t, p = c['n'], c['t'], c['p']
     if t == 'N':   # null plane (format minor 1): frame 0 marks the null rows, the other frames hold the inner column of the non-null values
@@ -448,6 +456,9 @@ def _decode_col(c, fr):
                 o.append(inner[q]); q += 1
         if q != m: raise ValueError('damaged block: N count')
         return o
+    if t == 'W':   # date-time text (format minor 2): the inner column is the epoch milliseconds; f 0 is YYYY-MM-DDTHH:MM:SS.mmm, f 1 is YYYY-MM-DDTHH:MM:SS
+        if p.get('f') not in (0, 1): raise ValueError('unknown date format')
+        return [_date_text(int(x), p['f']) for x in _decode_col({'t': p['t'], 'p': p['p'], 'n': n}, fr)]
     if t == 'V':
         u = _varints(fr[0], n)
         if p['mono']:

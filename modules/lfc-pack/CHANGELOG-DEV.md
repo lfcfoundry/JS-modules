@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.0 · API 0 · 2026-11-15
+
+### Quick
+Date columns: a text column of YYYY-MM-DDTHH:MM:SS(.mmm) dates is stored as numbers and reads back as the same text (new column type W, file format minor 2).
+
+### Deep
+Date columns: a text column of YYYY-MM-DDTHH:MM:SS(.mmm) dates is stored as numbers and reads back as the same text (new column type W, file format minor 2). Only used when every cell is a real date in that exact form; other files keep today's bytes. Older readers refuse a file that uses it.
+
 ## 0.10.42 · API 0 · 2026-11-14
 
 ### Quick
