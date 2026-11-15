@@ -288,6 +288,11 @@
   function dateNumsBC(B, S, E, a0, n) {   // a text column as bytes plus offsets -> { f, a } or null (also null when fewer than n / 2 + 1 values differ)
     if (n < 2) return null;
     var f = E[a0] - S[a0] === 19 ? 1 : 0, w = f ? 19 : 23, arr = new Float64Array(n), i, t; if (E[a0] - S[a0] !== w) return null;
+    if (n >= 1024) {   // B72: three windows (start, middle, end) of 256 values; when each holds at most 60% distinct values the column cannot pass the more-than-half rule worth taking, so the full parse is skipped (a column of 15 distinct dates cost +51% to refuse, a 46% distinct one +54%)
+      var wi, wo, wj, ws, lo = [0, (n >> 1) - 128, n - 256], dist = 0, sd;
+      for (wi = 0; wi < 3; wi++) { wo = lo[wi]; sd = new Set(); for (wj = 0; wj < 256; wj++) { if (E[a0 + wo + wj] - S[a0 + wo + wj] !== w) return null; ws = dateAt(B, S[a0 + wo + wj], f); if (!(ws >= 0)) return null; sd.add(ws); } if (sd.size * 5 > 256 * 3) dist = 1; }
+      if (!dist) return null;
+    }
     for (i = 0; i < n; i++) { if (E[a0 + i] - S[a0 + i] !== w) return null; t = dateAt(B, S[a0 + i], f); if (!(t >= 0)) return null; arr[i] = t; }
     return dateMany(arr, n) ? { f: f, a: arr } : null;
   }
@@ -994,12 +999,12 @@
       codes[i] = c;
     }
     function joinOf(idx, cnt) { var len = 0, j, p = 0, o; for (j = 0; j < cnt; j++) len += E[a + idx(j)] - S[a + idx(j)]; o = new Uint8Array(len + (cnt ? cnt - 1 : 0)); for (j = 0; j < cnt; j++) { if (j) o[p++] = 0; var x = S[a + idx(j)], y = E[a + idx(j)]; if (y - x > 16) { o.set(B.subarray(x, y), p); p += y - x; } else while (x < y) o[p++] = B[x++]; } return o; }
-    var all = KL ? bkJoin(bk, KL, null, n) : joinOf(function (j) { return j; }, n);
-    if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(all); } catch (er) { throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); } }
+    function utf8Check(u) { if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(u); } catch (er) { throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); } } }
     function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
     var nl = lab.length;
-    if (stop || nl * 4 > n || nl >= 65536) { cand('s', {}, dlOf([all], nl)); return settle(zs, level, best); }
-    var lb = KL ? bkJoin(bk, KL, lab, nl) : joinOf(function (j) { return lab[j]; }, nl), wd = Math.max(1, 32 - Math.clz32(nl - 1)), cb, ca = new Array(n);
+    if (stop || nl * 4 > n || nl >= 65536) { var all = KL ? bkJoin(bk, KL, null, n) : joinOf(function (j) { return j; }, n); utf8Check(all); cand('s', {}, dlOf([all], nl)); return settle(zs, level, best); }
+    var lb = KL ? bkJoin(bk, KL, lab, nl) : joinOf(function (j) { return lab[j]; }, nl); utf8Check(lb);   // B73: every value is one of the labels, so checking the distinct values checks them all
+    var wd = Math.max(1, 32 - Math.clz32(nl - 1)), cb, ca = new Array(n);
     for (i = 0; i < n; i++) ca[i] = codes[i];
     if (nl > 256) { var u16 = new Uint16Array(n); for (i = 0; i < n; i++) u16[i] = codes[i]; cb = new Uint8Array(u16.buffer); } else { cb = new Uint8Array(n); for (i = 0; i < n; i++) cb[i] = codes[i]; }
     cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });

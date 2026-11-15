@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.3 · API 0 · 2026-11-15
+
+### Quick
+B72: a date column given as bytes is checked in three 256-value windows (start, middle, end) before the full parse; when each window holds at most 60% distinct dates the column is refused at once (0.11.1 parsed it in full first: +51% on a…
+
+### Deep
+B72: a date column given as bytes is checked in three 256-value windows (start, middle, end) before the full parse; when each window holds at most 60% distinct dates the column is refused at once (0.11.1 parsed it in full first: +51% on a 15-distinct column, +54% on a 46% distinct sorted one). B73: the UTF-8 check of a dictionary column looks at the distinct values only (the whole joined column is checked only on the string path); same error text. Both from the text-column thread (real Chicago and 311 data). Page check (34,000 rows; sorted 46% distinct dates, 15-distinct dates, two non-ASCII dictionary columns), new over old, same bytes: pack Chromium 0.61 first / 0.54 steady, Firefox 0.73 / 0.63, WebKitGTK 0.78 / 0.71 (best case: every column here is one the change speeds up). Layout choice can differ only for a column with more than half distinct dates but at most 60% distinct in all three windows; its bytes are unchanged on the test columns.
+
 ## 0.11.2 · API 0 · 2026-11-15
 
 ### Quick
