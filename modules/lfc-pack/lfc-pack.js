@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.13.0 (API 0)
+ * Version 0.13.1 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -3462,7 +3462,21 @@
   var warmP = null;
   // B43: a 485-byte flat file of 300 rows { a: i % 50, b: i / 4, c: i % 3 ? null : i } (packRows, check crc32), so warm() needs no save to reach the read paths
   var WARM_FLAT = 'LQAAAHsiayI6ImYiLCJuIjozMDAsIm0iOlsyNjgsMTQwXSwicGwiOlsxMTQsMjRdfSi1L/1gDAAVBADChxgcYGvTAbY4J5XpM3EScX1gJgkwCRKhMR9QEERxAQ01hLAD7B2eEpLbDAW8a0MIKwCckyP3LpAvbluOBpMnhq3ExXyxpJa7FpaQXFkoyU3OuB/OmRumqItWd8Q9ffLlsRQ3AQsAVwwCC4WiMAC8FzhMBMUnQGBlARSegxY7ojXxKLUv/SByfQAAIP//D/8DAJIqQUBiJMACKLUv/WAsAIUAACAAAmECAwDFqigQiHARwAIotS/9YCwATQAAEAAZAQAnKsACKLUv/SAmVQAAILZt2w0BADpuCCi1L/0gZEUAABAAAwEAPwEsASi1L/0g0y0FAOKKIx9QS+vEYWy+OIgq6FbmO+tM3ObYCtGEQScMr7pmHJICC7iQLEvjwS26UIkOWbo8xwAH0qRAa7/HVfI/UnrDf3n7SOgk9N5sm/LldX5WjY43Q8jMgNZ4FVlPiPvPwfe6OsuMZSZBmgRYaDLa4ALEcwoGD4m6NIHLIVHo9lIF8RIxQZcZLVUUiUQbMrPTpAkHADMjpnOXxPbkWQyIlfScOtpwBq8AAACNMeAQAQABAExGQzE=';
-  function warm() {
+  // B76 (owner card 11.15, both browsers): warm({ rows }) also packs the first 3,000 of the caller's own rows three times, each pack in a task of its own, so the first real packRows has run the same row paths; the bytes of later saves do not change. Returns the same promise for the same call shape; without rows it is the plain warm() below.
+  var warmRowsP = null;
+  function warm(o) {
+    var base = warmBase();
+    if (!o || !o.rows || !o.rows.length) return base;
+    if (warmRowsP) return warmRowsP;
+    var sample = o.rows.length > 3000 ? o.rows.slice(0, 3000) : o.rows, k = 0, step = function (ok) {
+      if (!ok || k === 3) return ok === true;
+      k++;
+      return new Promise(function (res) { setTimeout(function () { try { packRows(sample); res(true); } catch (e) { res(false); } }, 0); }).then(step);
+    };
+    warmRowsP = base.then(step, function () { return false; });
+    return warmRowsP;
+  }
+  function warmBase() {
     if (warmP) return warmP;
     var later = function (f) { return new Promise(function (res) { setTimeout(function () { try { res(f()); } catch (e) { res(false); } }, 0); }); };
     var file = null;
@@ -3481,7 +3495,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.13.0', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.13.1', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })

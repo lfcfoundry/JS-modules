@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.1 · API 0 · 2026-11-15
+- warm({ rows }) also runs your own first rows through the save paths, so the first real save in Chromium is up to 19% faster; same bytes
+
 ## 0.13.0 · API 0 · 2026-11-15
 - wide tables with many repeated-text columns, saved as pieces of several blocks, write each column's label list once: NYC 311 files are 15% smaller; format minor 4
 
