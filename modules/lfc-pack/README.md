@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.13.3 · API 0**
+**Version 0.13.4 · API 0**
 
-**Tested in:** not recorded.
+**Tested in:** Node suite; Chromium 156 timing; Firefox 158 and WebKitGTK 2.52.6 pending
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -147,6 +147,8 @@ Workers: `LfcPack.packBlock(chunk, opts)` packs one chunk of whole lines on its 
 Blocks given as columns (since 0.10.27): `await LfcPack.packBlock({ id: ids, name: names, note: notes }, opts)` packs one block from columns you already hold and resolves to the same kind of piece for `pushPacked`, with no JSON text and no row objects. A column is an array, a number typed array (a `Float64Array` is read in place), or text as `{ bytes, start, end }`: UTF-8 bytes (a CSV chunk, say) plus one start and one end offset per value, read in place, so no JS string is made (`packColumnsParallel` takes this form too). Text given as bytes is written exactly as the same text given as strings. Building columns from CSV bytes and packing 1,045,512 rows took 0.52 of the time with string columns in Chromium 156, 0.58 in Firefox 158 and 0.32 in WebKitGTK 2.52.6 (cloud, ratio of median times). Every column must have the same length; offsets outside the bytes and text that is not valid UTF-8 are refused.
 
 Dictionary columns (since 0.10.38): a text column you already hold as small numbers goes in as `{ kind: 'dict', labels: { bytes, start, end }, ids }`, where `ids` is a Uint8Array, Uint16Array or Int32Array with one label number per row. The file is the same bytes as packing the same text, the text comes back exactly, and packing skips the work of finding the distinct values (about a quarter of the time for ten low-variety columns of a 21,800-row block in Chromium 156, Firefox 158 and WebKitGTK 2.52.6). Labels the block never uses are fine, so one dictionary can serve several blocks.
+
+Timestamp columns (since 0.13.4): a column you hold as epoch numbers goes in as `{ kind: 'ts', unit: 's' | 'ms' | 'us', values: Float64Array, fmt }` and is packed as the same date column the text of those times gives, with no text built or parsed, so the bytes equal packing the text (Chromium 156, 200,000 rows with two timestamp columns: first call 0.52, steady 0.62 to 0.65 of the time with strings). `fmt` is the text form the column stands for, `'YYYY-MM-DD HH:MM:SS.ffffff'` or the same with `T` instead of the space, and without the fraction or with `.fff`; without it the form is T and no fraction for `'s'`, `.fff` for `'ms'` and `.ffffff` for `'us'`. NaN means an empty cell and reads back as `null`; a value before 1970, after year 9999 or with more precision than its form throws an error that names the column.
 
 Text that arrives in pieces (since 0.8.0): `const ps = LfcPack.packParallelStream({ workers: 3 })`, then `ps.push(bytes)` for each piece (a parser's output, a download chunk; you may reuse your buffer right after the call) and `const file = await ps.finish()`. Blocks are cut where `pack` cuts them and go to helper Web Workers at once, so packing runs while the rest of the text is still being read. The file is byte for byte the one `pack` writes. `share` and `exact` are not supported. It pays on big inputs: 99 MB of 5-column rows pushed in 64 KB pieces took 0.65 to 0.82 (Chromium 156), 0.70 to 0.77 (Firefox 158) and 1.09 to 1.20 (WebKitGTK 2.52.6, slower) of the time `pack` takes on the main thread (two runs of 3 paired rounds, 3 workers, 4-core cloud machine, text already in memory, so no overlap with a parser is counted); for 33 MB it was no faster, so use `pack` for small inputs. Check: `tests/lfc-pack-stream-browser.js`.
 
