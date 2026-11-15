@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.4 · API 0 · 2026-11-15
+
+### Quick
+New packBlock column input { kind: 'ts', unit: 's'|'ms'|'us', values: Float64Array (NaN = empty), fmt?
+
+### Deep
+New packBlock column input { kind: 'ts', unit: 's'|'ms'|'us', values: Float64Array (NaN = empty), fmt? } (name approved by card pending at build time; asked for by the Workbench Save thread). It writes the same date column (W) the text of those times writes, or the text path's own answer when W does not apply (empty cells, at most half different values), so the bytes equal the text's (tscol.cjs: four forms, ms, us, NaN, errors). Chromium 156, 200,000 rows x 2 timestamp columns plus 3 number columns: first call 256 to 133 ms and 309 to 127 ms, steady 102 to 63 ms and 112 to 73 ms. A value outside 1970-9999 or finer than the form throws; colTable now returns column errors found while reading the first rows instead of throwing.
+
 ## 0.13.3 · API 0 · 2026-11-15
 
 ### Quick

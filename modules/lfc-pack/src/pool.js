@@ -281,16 +281,17 @@
     for (j = 0; j < keys.length; j++) { a = obj[keys[j]];
       if (isDictCol(a)) { for (var i8 = 0, NL8 = a.labels.start.length, BL8 = a.labels.bytes.length, s8, e8; i8 < NL8; i8++) { s8 = a.labels.start[i8]; e8 = a.labels.end[i8]; if (!(s8 >= 0 && e8 >= s8 && e8 <= BL8)) return new Error('LfcPack: text column "' + keys[j] + '": label ' + i8 + ' has offsets outside its bytes'); }
         for (i8 = 0; i8 < a.ids.length; i8++) if (!(a.ids[i8] >= 0 && a.ids[i8] < NL8)) return new Error('LfcPack: text column "' + keys[j] + '": id out of range at row ' + i8); }
-      if (isDictCol(a)) { G.push(function (dc) { var cache = []; return function (i) { var c = dc.ids[i]; return cache[c] !== undefined ? cache[c] : (cache[c] = td.decode(dc.labels.bytes.subarray(dc.labels.start[c], dc.labels.end[c]))); }; }(a)); }
+      if (isTsCol(a)) { var tf; try { tf = tsForm(a); } catch (e7) { return e7; } for (var i7 = 0, v7; i7 < a.values.length; i7++) { v7 = a.values[i7]; if (v7 === v7 && !(v7 >= 0)) return new Error('LfcPack: timestamp column "' + keys[j] + '": value ' + i7 + ' is not a time since 1970'); } G.push(function (tc, ff) { return function (i) { var t = tsText(tc, i, 1, ff)[0]; return t; }; }(a, tf)); }
+      else if (isDictCol(a)) { G.push(function (dc) { var cache = []; return function (i) { var c = dc.ids[i]; return cache[c] !== undefined ? cache[c] : (cache[c] = td.decode(dc.labels.bytes.subarray(dc.labels.start[c], dc.labels.end[c]))); }; }(a)); }
       else if (isByteCol(a)) { for (var i9 = 0, BL9 = a.bytes.length, s9, e9; i9 < a.start.length; i9++) { s9 = a.start[i9]; e9 = a.end[i9]; if (!(s9 >= 0 && e9 >= s9 && e9 <= BL9)) return new Error('LfcPack: text column "' + keys[j] + '": value ' + i9 + ' has offsets outside its bytes'); } G.push(function (bc) { return function (i) { return td.decode(bc.bytes.subarray(bc.start[i], bc.end[i])); }; }(a)); }
       else if (!Array.isArray(a) && !(ArrayBuffer.isView(a) && !(a instanceof DataView) && !(typeof BigInt64Array !== 'undefined' && (a instanceof BigInt64Array || a instanceof BigUint64Array)))) return new Error('LfcPack: ' + who + ' needs an array, a number typed array or { bytes, start, end } for "' + keys[j] + '"');
       else G.push(null);
-      var len = isDictCol(a) ? a.ids.length : isByteCol(a) ? a.start.length : a.length;
+      var len = isTsCol(a) ? a.values.length : isDictCol(a) ? a.ids.length : isByteCol(a) ? a.start.length : a.length;
       if (n < 0) n = len; else if (len !== n) return new Error('LfcPack: ' + who + ' columns must all have the same length'); A.push(a); }
     if (n < 0) n = 0;
     function rowsOf(i0, i1) { var out = new Array(Math.max(0, i1 - i0)), i, r, q; for (i = i0; i < i1; i++) { r = {}; for (q = 0; q < keys.length; q++) r[keys[q]] = G[q] ? G[q](i) : A[q][i]; out[i - i0] = r; } return out; }
     var CT = { __ct: { keys: keys, A: A }, length: n, slice: function (s0, s1) { if (s0 < 0) s0 = Math.max(0, n + s0); if (s1 == null || s1 > n) s1 = n; return rowsOf(s0, s1); } }, z;
-    for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0];
+    try { for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0]; } catch (e8) { return e8 instanceof Error ? e8 : new Error(String(e8)); }   // a timestamp column value that does not fit its fmt is refused here
     return { CT: CT, empty: !keys.length || n === 0, rowsOf: rowsOf, n: n };
   }
   // Save path (since 0.13.3): a piece of plain string arrays that is cut into several blocks gets its low-variety text columns turned into { kind: 'dict' } inputs first, so the blocks share one

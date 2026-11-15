@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.4 · API 0 · 2026-11-15
+- packBlock takes timestamp columns as numbers ({ kind: 'ts', unit, values }): same bytes as the text, taxi-like pack about 0.5x on the first call
+
 ## 0.13.3 · API 0 · 2026-11-15
 - packBlock on plain string arrays: low-variety text columns of a piece cut into blocks share one label table (NYC 311 Save piece 15% smaller, pack steady 5-13% faster)
 
