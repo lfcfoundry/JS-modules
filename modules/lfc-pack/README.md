@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.12.0 · API 0**
+**Version 0.12.1 · API 0**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; same-page save A/B and fresh-page reads of default-saved files
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; same-page packBlock and fresh-page reads
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 

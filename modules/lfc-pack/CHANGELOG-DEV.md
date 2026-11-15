@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.12.1 · API 0 · 2026-11-15
+
+### Quick
+Date column forms 2 to 6 (code part 5, from the taxi pack profile of rivals part 4): W gains a space separator (forms 2, 3, 6) and six fraction digits stored as whole microseconds (forms 4, 6; years up to 2255).
+
+### Deep
+Date column forms 2 to 6 (code part 5, from the taxi pack profile of rivals part 4): W gains a space separator (forms 2, 3, 6) and six fraction digits stored as whole microseconds (forms 4, 6; years up to 2255). The wasm kernel datefmt (bdec.wasm) writes them; JS, Go and Python readers and the specs know them; files that use them say format minor 3, older readers refuse them with their unknown-layout error. Taxi-shaped block of 77,000 rows with two timestamp columns (2024-01-01 00:57:55.000000), same page, new over before: pack first / steady Chromium 0.44 / 0.59, Firefox 0.85 / 0.77, WebKitGTK 0.91 / 0.73; file 0.86x; fresh-page first full read Chromium 1.09, Firefox 1.11, steady 0.94 / 1.00.
+
 ## 0.12.0 · API 0 · 2026-11-15
 
 ### Quick
