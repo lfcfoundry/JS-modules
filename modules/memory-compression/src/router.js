@@ -44,6 +44,12 @@
   unified.unpackAsync = function (bytes, opts) {                                              // the same value as unpack(); a long list of records is opened in short slices
     try { return layerOf(bytes) === 'objects' ? jso.unpackAsync(bytes, opts) : Promise.resolve(MC.unpack(bytes, opts)); } catch (err) { return Promise.reject(err); }
   };
+  var CHROMIUM_UA = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');     // measured: Chromium 156 first pack of 10,000 records after warm() 29.5 -> 21.8 ms; Firefox 158 no gain (17.0 / 17.5), so not there
+  function madeUpRecords(n) {
+    var out = [], i, lines = ['bolt', 'nut', 'washer', 'gear'], ctry = ['US', 'DE', 'JP'];
+    for (i = 0; i < n; i++) out.push({ order_id: 5000 + i, customer: 'Customer ' + (i % 40), sku: 'SKU-' + ('000' + (i * 7 % 900)).slice(-4), paid: i % 3 !== 0, placed: '2026-0' + (1 + i % 9) + '-1' + (i % 10) + 'T0' + (i % 10) + ':30:00Z', total: Math.round(i * 137.5) / 100, lines: lines.slice(0, 1 + i % 4), ship: { country: ctry[i % 3], postcode: String(10000 + i * 31 % 89999), pos: [Math.round(i * 1.37 * 1e4) / 1e4, Math.round(i * 2.11 * 1e4) / 1e4] } });
+    return out;
+  }
   unified.warm = function (opts) {                                                            // call once when the page is idle: the first big pack then skips 30 to 60 ms of cold-start work. A made-up 1,200-row list is packed and opened one column at a time, every pack and every open in a task of its own (each about 3 to 10 ms), and the result is thrown away
     opts = opts || {}; var po = { mode: 'balanced', wasm: opts.wasm }, wo = { wasm: opts.wasm }, N = 1200, names = ['id', 'from', 'to', 'w', 'x', 'y', 't', 'kind', 'hot'], make = [
       function (i) { return i; }, function (i) { return i % 97; }, function (i) { return (i * 7) % 211; }, function (i) { return (i % 13) * 0.25; }, function (i) { return i * 0.5; },
@@ -59,6 +65,7 @@
     }
     return Promise.resolve(unified.ready ? unified.ready() : true).then(function () { return step(0); }).then(function () {
       var sm = Array.isArray(opts.sample) ? opts.sample.slice(0, 300) : null, b2;                                    // the app's own rows (up to 300): packed and opened twice, each in a task of its own
+      if (!sm && opts.sample !== false && CHROMIUM_UA) sm = madeUpRecords(300);                                                    // none given: made-up records of the usual mix (whole numbers, short and patterned text, flags, date-times, decimals, lists, a nested record with a coordinate pair) so the first real pack of records starts warm too
       if (!sm || sm.length < 16) return true;
       function rep(k) { return nextTask().then(function () { b2 = autoPack(sm, po); return nextTask(); }).then(function () { autoUnpack(b2, wo); return k < 1 ? rep(k + 1) : true; }); }
       return rep(0);
