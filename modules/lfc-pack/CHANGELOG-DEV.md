@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.3 · API 0 · 2026-11-15
+
+### Quick
+packBlock turns plain string array columns with few different values (at most a quarter of the rows, under 65,535, no 0 byte or unpaired surrogate, piece at least 4,096 rows and over 1.5 blocks of estimated text) into dictionary inputs, so…
+
+### Deep
+packBlock turns plain string array columns with few different values (at most a quarter of the rows, under 65,535, no 0 byte or unpaired surrogate, piece at least 4,096 rows and over 1.5 blocks of estimated text) into dictionary inputs, so the blocks of one piece share a label table per column as 0.13.0 does for dictionary input. _nolabels: true gives the old bytes. NYC 311 piece as plain arrays (14,500 rows x 44 columns, 2 MiB blocks): 1,210,920 to 1,032,993 B (-14.7%); pack steady 0.92 Chromium, 0.87 Firefox, 0.96 WebKitGTK; first call on a fresh page 1.06, 1.26, 1.08. Taxi 16,384-row batch: same bytes (single block, not converted). Format minor 4, readers unchanged.
+
 ## 0.13.2 · API 0 · 2026-11-15
 
 ### Quick

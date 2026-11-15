@@ -293,6 +293,29 @@
     for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0];
     return { CT: CT, empty: !keys.length || n === 0, rowsOf: rowsOf, n: n };
   }
+  // Save path (since 0.13.3): a piece of plain string arrays that is cut into several blocks gets its low-variety text columns turned into { kind: 'dict' } inputs first, so the blocks share one
+  // label table per column (the same as when the caller hands dictionaries over). A column is left alone when it has a non-string, a 0 byte, an unpaired surrogate, or many different values.
+  var DICTIFY_MIN = 4096;
+  function dictifyColumns(obj, bb) {
+    var keys = Object.keys(obj), n = -1, est = 0, j, k, a, i, m, v, any = false, out = null;
+    for (j = 0; j < keys.length; j++) { a = obj[keys[j]]; if (!a || typeof a.length !== 'number') return obj; if (n < 0) n = a.length; else if (a.length !== n) return obj;
+      if (Array.isArray(a)) { m = Math.min(64, a.length); k = 0; for (i = 0; i < m; i++) k += typeof a[i] === 'string' ? a[i].length + 3 : 8; est += m ? k / m : 8; } else est += isDictCol(a) ? 4 : isByteCol(a) ? 12 : 8; }
+    if (n < DICTIFY_MIN || est * n < bb * 1.5) return obj;
+    var te = new TextEncoder(), cap = n >> 2, SURR = /[\uD800-\uDFFF\0]/;
+    for (j = 0; j < keys.length; j++) { a = obj[keys[j]]; if (!Array.isArray(a) || typeof a[0] !== 'string') continue;
+      var map = new Map(), lab = [], ids = new Int32Array(n), c, ok = true;
+      for (i = 0; i < n; i++) { v = a[i]; if (typeof v !== 'string') { ok = false; break; } c = map.get(v);
+        if (c === undefined) { c = lab.length; if (c >= cap || c >= 65535 || (i === 1023 && c > 768)) { ok = false; break; } map.set(v, c); lab.push(v); }
+        ids[i] = c; }
+      if (!ok || lab.length < 2) continue;
+      if (SURR.test(lab.join(''))) continue;
+      var bs = te.encode(lab.join('\0')), st = new Int32Array(lab.length), en = new Int32Array(lab.length), q = 0, z;   // one encode, the labels are split at their 0 bytes
+      for (z = 0; z < bs.length; z++) if (bs[z] === 0) { en[q++] = z; st[q] = z + 1; }
+      en[q] = bs.length; if (q !== lab.length - 1) continue;
+      if (!out) { out = {}; for (k in obj) out[k] = obj[k]; }
+      out[keys[j]] = { kind: 'dict', labels: { bytes: bs, start: st, end: en }, ids: ids }; any = true; }
+    return any ? out : obj;
+  }
   function packColumnsParallel(obj, opts) {
     var t = colTable(obj, 'packColumnsParallel');
     if (t instanceof Error) return Promise.reject(t);

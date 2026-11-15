@@ -34,5 +34,13 @@ const JF = require('../lfc-pack.js'), assert = require('assert'), enc = new Text
     // damaged: a block without its table is refused
     const R2 = JF.unpackRows; void R2;
   }
+  {   // plain string arrays (the Save path, since 0.13.3): a piece cut into blocks gets shared tables, rows read back the same; odd values keep the plain path
+    const N = 20000, T = (f) => Array.from({ length: N }, (_, i) => f(i));
+    const cols = { lab: T((i) => 'label number ' + (i % 300) + ' with some padding text'), num: T((i) => String(i % 40)), lone: T((i) => 'x\ud800' + (i % 9)), nul: T((i) => 'a\u0000' + (i % 9)), mixed: T((i) => (i === 7 ? null : 'm' + (i % 11))), uni: T((i) => 'é😀' + (i % 50) + ' padding padding padding') };
+    const o = { share: false, blockBytes: 65536, level: 3 };
+    const a = await JF.packBlock(cols, o), b = await JF.packBlock(cols, Object.assign({ _nolabels: true }, o));
+    const r = JF.unpackRows(a); assert.strictEqual(r.length, N); for (const k in cols) for (let i = 0; i < N; i += 97) assert.strictEqual(r[i][k], cols[k][i], 'plain strings ' + k + ' row ' + i);
+    assert.ok(a.length < b.length, 'plain strings: shared tables make the piece smaller (' + a.length + ' vs ' + b.length + ')'); assert.strictEqual(JF.info(a).minor, 4);
+  }
   console.log('labels19 ok');
 })().catch((e) => { console.error(e); process.exit(1); });
