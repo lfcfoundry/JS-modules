@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.5 · API 0 · 2026-11-15
+- packBlock number columns pack faster: decimal counting and NaN check no longer format or rescan every value; same bytes
+
 ## 0.13.4 · API 0 · 2026-11-15
 - packBlock takes timestamp columns as numbers ({ kind: 'ts', unit, values }): same bytes as the text, taxi-like pack about 0.5x on the first call
 
