@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.2 · API 0 · 2026-11-15
+- saving mid-size tables (5k to about 230k rows) is 1.4 to 2.8x faster; files with mostly new strings gain a small first block (about 10% larger on a 100k-row Workbench-style table)
+
 ## 0.11.1 · API 0 · 2026-11-15
 - Firefox: dictionary codes in a reused typed array
 

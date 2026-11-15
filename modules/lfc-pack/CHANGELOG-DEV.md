@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.2 · API 0 · 2026-11-15
+
+### Quick
+Row path for every flat table (B71, research handoff from compression part 6, owner card B 11.15).
+
+### Deep
+Row path for every flat table (B71, research handoff from compression part 6, owner card B 11.15). b18Pays no longer sends tables under 16 MB of text with mostly new strings to the wasm text scanner, because the row loops since B59-B68 are faster. Same-page, 8 fresh pages, new/old: first save Chromium 0.55/0.56, Firefox 0.38/0.38, WebKitGTK 0.70/0.70 (wb100k/logs60k); steady save Chromium 0.36/0.48, Firefox 0.49/0.49, WebKitGTK 0.49/0.54. Bytes: wb100k 102602 to 113494 (+10.6%, head block kept by owner choice), logs60k 1274297 to 1275108 (+0.06%). Cold-page full read of either file: Chromium 1.05, Firefox 0.96-1.12 (noise, 10 pages). First full unpack right after saves in the same page was 1.38-1.71x in Chromium (JIT timing: the old 100 ms save lets the decoder tier up first); a fresh page reading the file shows no gap.
+
 ## 0.11.1 · API 0 · 2026-11-15
 
 ### Quick
