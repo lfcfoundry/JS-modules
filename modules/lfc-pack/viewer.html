@@ -75,7 +75,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.13.4 (API 0)
+ * Version 0.13.5 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1055,7 +1055,15 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   }
   // a column's candidate encodings; every frame is { raw: Uint8Array } and gets compressed by the caller
   // numbers with up to 9 decimals: the smallest power of ten that turns every value into a whole number and back exactly (value = whole / scale), or 0 when there is none; the decimals are counted on up to 512 evenly spaced values and then checked on all of them (a miss counts all values once)
-  function decimalsOf(x) { var t = String(x), e = t.indexOf('.'); return e < 0 ? 0 : t.indexOf('e') >= 0 ? -1 : t.length - e - 1; }
+  function decimalsSlow(x) { var t = String(x), e = t.indexOf('.'); return e < 0 ? 0 : t.indexOf('e') >= 0 ? -1 : t.length - e - 1; }
+  var P10D = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9];
+  // same answer as decimalsSlow (the digits after the point in the shortest text of x), but found by trying round trips for magnitudes below 4e6 instead of formatting the number (formatting costs about 0.5 us per value)
+  function decimalsOf(x) {
+    var a = x < 0 ? -x : x, d, s;
+    if (a < 1e21 && a === Math.floor(a)) return 0;   // a whole number below 1e21 prints without a point (this also skips the slow formatting of large whole numbers such as microsecond timestamps)
+    if (a < 4e6 && a >= 1e-6) { for (d = 1; d <= 9; d++) { s = P10D[d]; if (Math.round(x * s) / s === x) return d; } }
+    return decimalsSlow(x);
+  }
   function scaledInts(v, scale) { var n = v.length, b = new Float64Array(n), i, x; for (i = 0; i < n; i++) { x = Math.round(v[i] * scale); if (!(Math.abs(x) < 9007199254740992 / 8 && x / scale === v[i])) return null; b[i] = x; } return b; }
   var DS_INTS = null;   // the whole numbers of the column decimalScale just accepted (so the caller does not compute them again)
   function decimalScale(v) {
@@ -1758,9 +1766,9 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
         if (sq) sq.push(jx); }
       if (ord) { var sk = sq.join(','), oid = ord.map.get(sk); if (oid === undefined) { oid = ord.list.length; ord.map.set(sk, oid); ord.list.push(sq); } ord.ids[i] = oid; }
     }
-    var planes = new Uint8Array(pb * keys.length); for (j = 0; j < pls.length; j++) planes.set(pls[j], j * pb);
+    var fl21 = []; var planes = new Uint8Array(pb * keys.length); for (j = 0; j < pls.length; j++) planes.set(pls[j], j * pb);
     for (j = 0; j < cs21.length; j++) { c21 = cs21[j]; pre21.push(null); if (c21.bc) { cols[j] = c21; pre21[j] = 3; continue; } if (c21.a !== null) { cols[j] = c21.a; if (chk26) b26Vals(c21.a); continue; }   // B21c: number columns, typed
-      if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = 1; }   // B25d: flags are taken just before the column is encoded, so the kernel reads the column once
+      if (c21.m === c21.c && c21.c > 0) { cols[j] = c21.nb.subarray(0, c21.c); pre21[j] = 1; fl21[j] = c21.fl || null; }   // B25d: flags are taken just before the column is encoded, so the kernel reads the column once
       else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
       else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
@@ -1769,7 +1777,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       if (rc && pre21[j] && pre21[j] !== 3 && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
         (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; if (r.e.t === 'W') WMARK++; es[j2] = r; }; }(j)));
         cols[j] = []; continue; }
-      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26);
+      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26, fl21[j]);
     }
     function finish() {
       for (j = 0; j < cols.length; j++) {
@@ -1937,7 +1945,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   }
   var B28_MIN = 8192;
   // B74p6: a Float64Array column with NaN (an empty cell) becomes the numbers-and-nulls state the row loop builds ({ nb: the numbers, np: null plane, m, c }), in one pass: the same bytes as a plain array with nulls, without the generic path (7-9x slower in Chromium and Firefox)
-  function nanSplit(v, n, pb) { var i, m = 0, np = null, o; for (i = 0; i < n; i++) if (v[i] !== v[i]) break; if (i === n) return null; o = new Float64Array(n); np = new Uint8Array(pb); for (i = 0; i < n; i++) { if (v[i] !== v[i]) np[i >> 3] |= 1 << (i & 7); else o[m++] = v[i]; } return { a: null, nb: o, np: np, m: m, c: n }; }
+  var NANFL = null;   // the flags the kernel computed for the column nanSplit just found free of NaN (so b28Col does not read the column again)
+  function nanSplit(v, n, pb) { var i, m = 0, np = null, o; NANFL = null; if (n >= NK_MIN && v instanceof Float64Array) { var f0 = nkFlags(v, n); if (!f0.nf) { NANFL = f0; return null; } } for (i = 0; i < n; i++) if (v[i] !== v[i]) break; if (i === n) return null; o = new Float64Array(n); np = new Uint8Array(pb); for (i = 0; i < n; i++) { if (v[i] !== v[i]) np[i >> 3] |= 1 << (i & 7); else o[m++] = v[i]; } return { a: null, nb: o, np: np, m: m, c: n }; }
   // B34 (research): a block given as columns ({ keys, A: one array per key, a, b }) fills the same column state the B21a row loop builds, with no row objects. Every row holds every key.
   function b34Fill(ci, n, pb, keys, seen, cols, cs21, pls) {
     var full = new Uint8Array(pb), j, i, x, c21, arr, a = ci.a; full.fill(255); if (n & 7) full[pb - 1] = (1 << (n & 7)) - 1;
@@ -1945,15 +1954,15 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       if (isDictCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a, dc: true }); continue; }
       if (isTsCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a, ts: true }); continue; }
       if (isByteCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a }); continue; }   // a text column as UTF-8 bytes plus value offsets: encoded from the bytes (byteCol), no strings
-      if (!Array.isArray(arr)) { if (ci.view && arr instanceof Float64Array) { c21 = nanSplit(arr.subarray(a, a + n), n, pb); cs21.push(c21 || { a: null, nb: arr.subarray(a, a + n), np: null, m: n, c: n }); continue; } c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); c21 = nanSplit(c21.nb, n, pb) || c21; cs21.push(c21); continue; }   // ci.view (packBlock(columns), no helpers): a Float64Array is read in place, not copied   // a typed number column: one copy, no per-value work
+      if (!Array.isArray(arr)) { if (ci.view && arr instanceof Float64Array) { var vw = arr.subarray(a, a + n); c21 = nanSplit(vw, n, pb); cs21.push(c21 || { a: null, nb: vw, np: null, m: n, c: n, fl: NANFL }); continue; } c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); c21 = nanSplit(c21.nb, n, pb) || c21; cs21.push(c21); continue; }   // ci.view (packBlock(columns), no helpers): a Float64Array is read in place, not copied   // a typed number column: one copy, no per-value work
       c21 = { a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }; cs21.push(c21);
       for (i = 0; i < n; i++) { x = arr[a + i];
         if (c21.a !== null) c21.a.push(x); else if (typeof x === 'number') { c21.nb[c21.m++] = x; c21.c++; } else if (x === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x); c21.nb = null; } } }
   }
   // one column of the general flat writer, as writeFlatBlock0 encodes it: pre 1 = a typed number column, 2 = numbers and nulls ({ nb, np, m, c }), else a generic array; -> { e, zn: zone entry [min, max, count] or null }
-  function b28Col(pre, a, key, zs, level, tm21, chk26) {
+  function b28Col(pre, a, key, zs, level, tm21, chk26, pf) {
     var e, fl = null, zn = null, i, mn, mx, c21;
-    if (pre === 1) fl = b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
+    if (pre === 1) fl = pf || b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
     if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
     if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
     else if (pre === 3) e = a.ts ? tsCol(a.bc, a.a0, a.c, zs, level, tm21, key) : a.dc ? byteColDict(a.bc, a.a0, a.c, zs, level, tm21, key) : byteCol(a.bc, a.a0, a.c, zs, level, tm21, key);
@@ -3601,7 +3610,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.13.4', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.13.5', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })

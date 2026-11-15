@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.5 · API 0 · 2026-11-15
+
+### Quick
+From compression part 7 (pack-fixed-costs diff): decimalsOf answers by round trips for magnitudes 1e-6 to 4e6 and returns 0 for whole numbers below 1e21 instead of formatting each value as text (26,000,000 fuzzed values: 0 differences from…
+
+### Deep
+From compression part 7 (pack-fixed-costs diff): decimalsOf answers by round trips for magnitudes 1e-6 to 4e6 and returns 0 for whole numbers below 1e21 instead of formatting each value as text (26,000,000 fuzzed values: 0 differences from the text answer); nanSplit asks the kernel's flags for NaN and passes them on so b28Col does not read a Float64Array column again. Packed bytes identical on NYC 311, taxi job, Chicago piece and a synthetic mix with NaN. Decimal-heavy 16,384-row batch (7 decimal columns, ints, ms and us timestamps as numbers): pack steady new/old Chromium 156 0.89, Firefox 158 0.93, WebKitGTK 2.52.6 0.81 (decimalsOf alone, before the combined diff).
+
 ## 0.13.4 · API 0 · 2026-11-15
 
 ### Quick
