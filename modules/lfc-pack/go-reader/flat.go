@@ -166,6 +166,14 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 		}
 	case "W": // date-time text (format minor 2, minor 3 for forms 2 to 6): the inner column is the epoch milliseconds (microseconds for forms 4 and 6); f 0 is YYYY-MM-DDTHH:MM:SS.mmm, 1 is YYYY-MM-DDTHH:MM:SS, 2 and 3 the same with a space instead of T, 4 and 6 six fraction digits (T and space)
 		f := int(pf("f"))
+		sc := int64(1)
+		if f&8 != 0 { // form bit 8: the stored numbers are whole seconds
+			sc = 1000
+			if f&4 != 0 {
+				sc = 1000000
+			}
+			f &= 7
+		}
 		if f != 0 && f != 1 && f != 2 && f != 3 && f != 4 && f != 6 {
 			fail("unknown date format")
 		}
@@ -194,9 +202,9 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 				fail("damaged block: W value")
 			}
 			if f&4 != 0 {
-				out = append(out, time.UnixMicro(int64(v)).UTC().Format(layout))
+				out = append(out, time.UnixMicro(int64(v)*sc).UTC().Format(layout))
 			} else {
-				out = append(out, time.UnixMilli(int64(v)).UTC().Format(layout))
+				out = append(out, time.UnixMilli(int64(v)*sc).UTC().Format(layout))
 			}
 		}
 	case "V":

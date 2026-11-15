@@ -21,7 +21,7 @@ Blocks come first so a writer can stream them out. Readers start from the end.
 | 0-3 | footer length `flen` (u32) |
 | 4-7 | CRC-32 of the footer bytes (zlib polynomial 0xEDB88320, the same as zlib.crc32) |
 | 8-9 | format major (u16). This text is major 1. |
-| 10-11 | format minor (u16). This text is minor 3. A writer sets 3 when the file holds a date column (`W`) of form 2, 3, 4 or 6 (a space instead of `T`, or six fraction digits; LAYOUT-SPEC.md 2.5), 2 when it may hold a `W` of form 0 or 1, 1 when it holds a null-plane column (`N`) and no `W`; every other file says 0, as before. |
+| 10-11 | format minor (u16). This text is minor 3. A writer sets 3 when the file holds a date column (`W`) of form 2, 3, 4 or 6 (a space instead of `T`, or six fraction digits) or any date column stored as whole seconds (form bit 8; LAYOUT-SPEC.md 2.5), 2 when it may hold a `W` of form 0 or 1, 1 when it holds a null-plane column (`N`) and no `W`; every other file says 0, as before. |
 | 12-15 | magic `LFC1` |
 
 Reader rules: the last four bytes MUST be the magic, else it is not an LFC-pack file. A major above the reader's own MUST be refused. A higher minor MAY be read; unknown optional parts are ignored. `flen` MUST NOT exceed file length minus 16. The footer CRC MUST be checked.

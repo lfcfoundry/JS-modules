@@ -463,8 +463,9 @@ def _decode_col(c, fr):
         if q != m: raise ValueError('damaged block: N count')
         return o
     if t == 'W':   # date-time text (format minor 2): the inner column is the epoch milliseconds; f 0 is YYYY-MM-DDTHH:MM:SS.mmm, f 1 is YYYY-MM-DDTHH:MM:SS
-        if p.get('f') not in (0, 1): raise ValueError('unknown date format')
-        return [_date_text(int(x), p['f']) for x in _decode_col({'t': p['t'], 'p': p['p'], 'n': n}, fr)]
+        wf = p.get('f'); sc = (1000000 if wf & 4 else 1000) if isinstance(wf, int) and wf & 8 else 1; wf = wf & 7 if isinstance(wf, int) else wf   # form bit 8: the stored numbers are whole seconds
+        if wf not in (0, 1, 2, 3, 4, 6): raise ValueError('unknown date format')
+        return [_date_text(int(x) * sc, wf) for x in _decode_col({'t': p['t'], 'p': p['p'], 'n': n}, fr)]
     if t == 'V':
         u = _varints(fr[0], n)
         if p['mono']:
