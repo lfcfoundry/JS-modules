@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.3 · API 2 · 2026-11-14
+- Firefox buffer reuse, one fast pass for text columns
+
 ## 2.17.2 · API 2 · 2026-11-14
 - pooled number arrays in Chromium, Object.keys row check in Firefox
 

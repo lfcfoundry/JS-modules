@@ -52,8 +52,23 @@
     a = POOL.splice(best, 1)[0]; POOL_BYTES -= a.byteLength;
     return a.length === n ? a : a.subarray(0, n);
   }
-  // the number arrays of tuples, one-pattern text and ISO times come from the pool too, in Chromium only (measured 0.95-0.96x of a whole pack in Chromium 156; Firefox 158 1.01x, WebKitGTK 2.52.6 0.95-1.05x)
-  var POOL_MORE = typeof navigator === 'undefined' || /Chrome\/|Chromium\//.test(navigator.userAgent || '');
+  // the number arrays of tuples, one-pattern text and ISO times come from the pool too, in Chromium and Firefox (Chromium 156 whole pack 0.95-0.96x; Firefox 158 only together with
+  // the Array pool below; WebKitGTK 2.52.6 0.95-1.05x, so not there)
+  var IS_FIREFOX = typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent || '');
+  var POOL_MORE = typeof navigator === 'undefined' || IS_FIREFOX || /Chrome\/|Chromium\//.test(navigator.userAgent || '');
+  // Firefox: the plain Arrays of the record split are kept too (same length only), emptied when handed back so they hold no rows' values between packs.
+  // Chromium 156 measured 1.15-1.18x slower with this, so it is Firefox only.
+  var APOOL = [], APOOL_MAX = 24, APOOL_ON = IS_FIREFOX;
+  function takeArr(n) {
+    var i, a;
+    if (APOOL_ON && POOL_ON) for (i = APOOL.length - 1; i >= 0; i--) { a = APOOL[i]; if (a.length === n) { APOOL[i] = APOOL[APOOL.length - 1]; APOOL.pop(); return a; } }
+    return new Array(n);
+  }
+  function giveArr(cols) {
+    var i, c;
+    if (!APOOL_ON || !POOL_ON) return;
+    for (i = 0; i < cols.length; i++) { c = cols[i]; if (Array.isArray(c) && c.length >= 1024 && APOOL.length < APOOL_MAX) { c.fill(undefined); APOOL.push(c); } }
+  }
   function takeF64b(n) { return POOL_MORE ? takeF64(n) : new Float64Array(n); }
   function giveF64(cols) {
     var i, c, a;
@@ -337,6 +352,13 @@
     st.min = min; st.max = max; st.same = same; st.nonInt = nonInt; st.nonF32 = nonF32; st.neg0 = neg0;
     return true;
   }
+  function sameKind(vals, n, first) {                                 // -1 all text and not all the same, -2 all the same text, 0 something that is not text
+    var i, x;
+    for (i = 1; i < n; i++) { x = vals[i]; if (typeof x !== 'string') return 0; if (x !== first) break; }
+    if (i === n) return -2;
+    for (; i < n; i++) if (typeof vals[i] !== 'string') return 0;
+    return -1;
+  }
   function kindScan(vals, n, first) {                                 // the mixed-kind pass on its own, so number columns never share its type feedback
     var i, x, t, nNum = 0, nStr = 0, nBool = 0, nNull = 0, nUndef = 0, nArr = 0, nObj = 0, nOther = 0, allInt = true, f32 = true, neg0 = false, min = Infinity, max = -Infinity, same = true;
     for (i = 0; i < n; i++) {
@@ -379,6 +401,11 @@
     } else if (typeof first === 'object' && first !== null) {          // a column of arrays or plain objects with one layout: checked and split in a single pass
       if (Array.isArray(first)) { if ((first.length > 0 && first.length <= 8 && this.fusedTuples(vals, n, first.length)) || this.fusedArrays(vals, n)) return; }
       else if (Object.getPrototypeOf(first) === OP && this.fusedRecords(vals, n)) return;
+    }
+    if (typeof first === 'string' && n > 1) {                      // text columns (the usual case): one tight pass; anything else in it goes to the full kind pass
+      i = sameKind(vals, n, first);
+      if (i === -1) { this.strings(vals, n); return; }
+      if (i === -2) { c.u8(CT_CONST); this.value(first); return; }
     }
     var K = kindScan(vals, n, first);
     nNum = K.nNum; nStr = K.nStr; nBool = K.nBool; nNull = K.nNull; nUndef = K.nUndef; nArr = K.nArr; nObj = K.nObj; nOther = K.nOther;
@@ -1479,7 +1506,7 @@
     c.u8(CT_RECORDS); c.varint(1); c.varint(nk);
     for (j = 0; j < nk; j++) { if (wellFormed(keys[j])) { c.u8(0); c.str(keys[j]); } else { c.u8(1); this.str16(keys[j]); } }
     this.dirColumns(cols, n, keys, path);
-    giveF64(cols);
+    giveF64(cols); giveArr(cols);
     return true;
   };
   // refs: true. Objects are numbered in the order they are written. A column whose values are all objects written before is just their numbers;
@@ -1642,7 +1669,7 @@
     if (f) return f;
     if (CAN_EVAL) {
       src = 'var r=[],i,o,k,p,v;';
-      for (j = 0; j < nk; j++) src += 'var c' + j + '=' + (types[j] === 'n' ? 'T(n)' : 'new Array(n)') + ';r.push(c' + j + ');';
+      for (j = 0; j < nk; j++) src += 'var c' + j + '=' + (types[j] === 'n' ? 'T(n)' : 'A(n)') + ';r.push(c' + j + ');';
       if (KEYS_CHECK) src += 'for(p in OP)return -1;var ks;';      // Firefox: Object.keys is the faster key check; it lists what for-in lists while Object.prototype has nothing enumerable (checked here)
       src += 'for(i=0;i<n;i++){o=rows[i];if(typeof o!=="object"||o===null||Object.getPrototypeOf(o)!==OP)return -1;';
       src += KEYS_CHECK ? 'ks=Object.keys(o);if(ks.length!==' + nk + ')return -1;for(k=0;k<' + nk + ';k++)if(ks[k]!==keys[k])return -1;' : 'k=0;for(p in o){if(p!==keys[k++])return -1;}if(k!==' + nk + ')return -1;';
@@ -1651,8 +1678,8 @@
         else src += 'c' + j + '[i]=o[' + JSON.stringify(keys[j]) + '];';
       }
       src += '}return r;';
-      f = new Function('rows', 'n', 'keys', 'OP', 'T', src);
-      f = (function (g) { return function (rows, n, ks) { return g(rows, n, ks, OP, takeF64); }; })(f);
+      f = new Function('rows', 'n', 'keys', 'OP', 'T', 'A', src);
+      f = (function (g) { return function (rows, n, ks) { return g(rows, n, ks, OP, takeF64, takeArr); }; })(f);
     } else if (FIXED_FUSE[nk]) {
       f = function (rows, n, ks) {
         var r = [], jj, c;

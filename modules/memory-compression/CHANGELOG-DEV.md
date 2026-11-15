@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.3 · API 2 · 2026-11-14
+
+### Quick
+In Firefox the number pool is on and the record split reuses its text arrays.
+
+### Deep
+In Firefox the number pool is on and the record split reuses its text arrays. Text columns get one tight all-text pass before the full kind scan, in every engine. Same bytes, no option.
+
 ## 2.17.2 · API 2 · 2026-11-14
 
 ### Quick
