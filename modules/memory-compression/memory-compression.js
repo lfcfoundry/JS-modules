@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.17.6 (API 2)
+ * Version 2.18.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -783,8 +783,8 @@
   }
   var hist1 = new Int32Array(256), hist2 = new Int32Array(256);
   // Looks at a sample and returns {w, mask} (w = 0 means "leave the bytes as they are")
-  function chooseTransform(src, widths, wantDelta, useW) {
-    var n = src.length, best = { w: 0, mask: null }, sampleBytes = widths.length > 3 ? 32768 : 16384, i, j, k, w, N, sh, base, size, bestSize, start, len, mask, h1, h2, nm, prevB;
+  function chooseTransform(src, widths, wantDelta, useW, light) {
+    var n = src.length, best = { w: 0, mask: null }, sampleBytes = light ? (widths.length > 3 ? 16384 : 8192) : (widths.length > 3 ? 32768 : 16384), i, j, k, w, N, sh, base, size, bestSize, start, len, mask, h1, h2, nm, prevB;
     if (n < 256 || !widths.length) return best;
     // sample from the middle, aligned to the largest width so every candidate sees whole elements
     var wmax = 1; for (i = 0; i < widths.length; i++) if (widths[i] > wmax) wmax = widths[i];
@@ -842,7 +842,10 @@
     if (opts.width === 'auto' && inp.size > 1 && widths.indexOf(inp.size) < 0) widths.push(inp.size);
     var wantDelta = opts.delta !== false, tr;
     if (opts.shuffle !== false && widths.length) {
-      tr = chooseTransform(src, widths, wantDelta, wasmOn(opts) && wasmRoom(65536));
+      if (opts.trialMemo) {                                          // a wide table: the first column of each kind and size decides for the rest
+        var mk = widths.join(',') + ':' + wantDelta + ':' + (31 - Math.clz32(n));
+        tr = opts.trialMemo[mk] || (opts.trialMemo[mk] = chooseTransform(src, widths, wantDelta, wasmOn(opts) && wasmRoom(65536), opts.lightTrial === true));
+      } else tr = chooseTransform(src, widths, wantDelta, wasmOn(opts) && wasmRoom(65536), opts.lightTrial === true);
       if (tr.w) { w = tr.w; mask = tr.mask; } else if (opts.shuffle === true) w = widths[0];   // shuffle:true skips the "is it worth it" test
     }
     var chunk = opts.chunk === undefined ? DEFAULT_CHUNK : opts.chunk;
@@ -1880,8 +1883,8 @@
   var T_UNDEF = 0, T_NULL = 1, T_FALSE = 2, T_TRUE = 3, T_INT = 4, T_F64 = 5, T_STR = 6, T_STR16 = 7, T_ARR = 8, T_OBJ = 9, T_OBJ0 = 10,
     T_COLS = 11, T_BIGINT = 12, T_DATE = 13, T_TYPED = 14, T_ABUF = 15, T_MAP = 16, T_SET = 17, T_REF = 18, T_REGEX = 19;
   var CT_CONST = 0, CT_INT = 1, CT_DEC = 2, CT_F32 = 3, CT_F64 = 4, CT_BOOL = 5, CT_STRD = 6, CT_STRR = 7, CT_NULLABLE = 8,
-    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18, CT_FRONT = 19, CT_ADAPT = 20, CT_STRDP = 21;
-  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, ADAPT_MIN = 1024, DEFAULT_MAX_ITEMS = 100000000;
+    CT_ARRAYS = 9, CT_TUPLE = 10, CT_RECORDS = 11, CT_ANY = 12, CT_TEMPLATE = 13, CT_REFS = 14, CT_REFRECS = 15, CT_TIMES = 16, CT_FSST = 17, CT_PCO = 18, CT_FRONT = 19, CT_ADAPT = 20, CT_STRDP = 21, CT_HEX = 22, CT_SHAPED = 23;
+  var MIN_COLUMN = 16, MAX_TEMPLATES = 32, MAX_SLOTS = 32, MAX_SHAPES = 64, MAX_SHAPES_FAST = 16, MAX_FUSED_KEYS = 64, MAX_DEPTH = 400, RAW_LIMIT = 48, ADAPT_MIN = 1024, DEFAULT_MAX_ITEMS = 100000000;
   var TYPED_CTORS = [Uint8Array, Int8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array];
   var G = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : {};
   var OP = Object.prototype, TEXT_ENC = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null, TEXT_DEC = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true }) : null;
@@ -2082,7 +2085,7 @@
 
   // ================================================================ writer
   function Enc(opts) {
-    this.ctl = new Out(); this.blobs = new Chunks();
+    this.ctl = new Out(); this.blobs = new Chunks(); this.nBlobs = 0; this.light = null;
     this.mode = opts && opts.mode === 'small' ? 'small' : 'fast';
     this.picker = opts && opts.mode === 'balanced' ? opts.picker !== false : this.mode === 'small' ? !(opts && opts.picker === false) : !!(opts && opts.picker);     // fast: off unless asked; balanced and small: on
     this.level = opts && opts.level;
@@ -2104,11 +2107,12 @@
     this.blobBytes = 0;
     this.defer = opts && opts.defer || null;                          // packAsync: the picker runs later (on workers); the plain form is written now and its place in the streams is noted
   }
+  Enc.prototype.lightOpts = function () { return this.light || (this.light = Object.assign({}, this.mcOpts, { lightTrial: true, trialMemo: {} })); };
   Enc.prototype.blob = function (t, name, pre, ck) {      // t: a typed array. Raw when tiny, else packed by the core when that is smaller (pre: that packed form, when the caller already made it)
     var o = this.blobs, raw = t.length * t.BYTES_PER_ELEMENT, packed, start = o.pos();
     if (raw < RAW_LIMIT) { o.u8(0); rawPut(o, t); }
     else {
-      packed = pre || MC.pack(t, ck ? Object.assign({}, this.mcOpts, { chunk: ck }) : this.mcOpts);
+      packed = pre || MC.pack(t, ck ? Object.assign({}, this.mcOpts, { chunk: ck }) : (++this.nBlobs > 16 ? this.lightOpts() : this.mcOpts));     // a wide table (more than 16 blobs in one pack): the transform trials look at half as much, which is faster
       if (packed.length < raw) { o.u8(1); o.varint(packed.length); o.bytes(packed); }
       else { o.u8(2); rawPut(o, t); }
     }
@@ -2306,6 +2310,31 @@
     else if (nArr) this.arrays(vals, n);
     else this.records(vals, n);
   };
+  // Plain objects with many different key sets (optional fields): each object is its layout number (a byte, packed as a column) and then its values in order; the names are written once per layout.
+  Enc.prototype.shapedRows = function (vals, n) {
+    var c = this.ctl, ids = new Uint8Array(n), root = { m: Object.create(null), sh: undefined }, shapes = [], i, j, o, keys, k, nd, nx, nk, ns;
+    for (i = 0; i < n; i++) {
+      o = vals[i]; if (Object.getPrototypeOf(o) !== OBJ_PROTO) return false;
+      keys = Object.keys(o); nk = keys.length; nd = root;
+      for (j = 0; j < nk; j++) {                                  // one walk down a tree of names finds the layout: one lookup per name, no number written per value
+        k = keys[j]; nx = nd.m[k]; if (nx === undefined) nx = nd.m[k] = { m: Object.create(null), sh: undefined };
+        nd = nx;
+      }
+      if (nd.sh === undefined) { if (shapes.length >= 256) return false; nd.sh = { id: shapes.length, keys: keys }; shapes.push(nd.sh); }
+      ids[i] = nd.sh.id;
+    }
+    ns = shapes.length;
+    c.u8(CT_SHAPED); c.varint(ns);
+    for (i = 0; i < ns; i++) {
+      keys = shapes[i].keys; nk = keys.length; c.varint(nk);
+      for (j = 0; j < nk; j++) { if (wellFormed(keys[j])) { c.u8(0); c.str(keys[j]); } else { c.u8(1); this.str16(keys[j]); } }
+    }
+    c.bytes(ids);
+    if (++this.depth > MAX_DEPTH) jfail('nested too deeply');
+    for (i = 0; i < n; i++) { o = vals[i]; keys = shapes[ids[i]].keys; for (j = 0; j < keys.length; j++) this.value(o[keys[j]]); }
+    this.depth--;
+    return true;
+  };
   Enc.prototype.any = function (vals, n) {
     var i; this.ctl.u8(CT_ANY);
     for (i = 0; i < n; i++) this.value(vals[i]);
@@ -2478,6 +2507,7 @@
     }
     if (n >= 32 && this.patterns && this.timesFixed(vals, n)) return;
     if (n >= 32 && this.patterns && this.onePattern(vals, n)) return;
+    if (n >= 32 && this.patterns && this.mode === 'small' && this.hexColumn(vals, n)) return;
     pre = joinText(vals, n);
     if (n >= 32 && this.patterns && pre && pre.ascii && this.template(vals, n, pre)) return;
     if (this.front && pre && pre.bytes && n >= 64 && this.frontColumn(vals, n, pre)) return;
@@ -2932,6 +2962,44 @@
     for (j = 0; j <= g; j++) c.str(lits[j]);
     for (j = 0; j < g; j++) c.varint(lead[j] ? (j === 0 ? 4 : j === 6 ? 3 : 2) : 0);
     for (j = 0; j < g; j++) this.column(f.subarray(j * n, (j + 1) * n), n);
+    return true;
+  };
+  // Text of one length whose changing places hold only the digits 0-9 a-f (ids, hashes, UUIDs): the same-everywhere characters are kept once as a mask, and each changing place is 4 bits.
+  // The packed 4-bit stream is half the size of the text before the compressor sees it, so the compressor has half the bytes to go through.
+  var HEXV = new Int8Array(65536).fill(-1);                       // indexed by the UTF-16 unit itself: no range check in the hot loop
+  (function () { var i; for (i = 0; i < 10; i++) HEXV[48 + i] = i; for (i = 0; i < 6; i++) HEXV[97 + i] = 10 + i; })();
+  Enc.prototype.hexColumn = function (vals, n) {
+    var s0 = vals[0], L = s0.length, first, vary, i, k, x, ch, v, H, nib, p, mask, c = this.ctl, hv = HEXV, nv = 0, pos, letters = 0, probe = n < 64 ? n : 64;
+    if (L < 4 || L > 256) return false;
+    first = new Uint8Array(L); vary = new Uint8Array(L);
+    for (k = 0; k < L; k++) { ch = s0.charCodeAt(k); if (ch > 126 || ch === 0) return false; first[k] = ch; }
+    for (i = 1; i < probe; i++) {                                    // the first 64 rows say which places change
+      x = vals[i]; if (typeof x !== 'string' || x.length !== L) return false;
+      for (k = 0; k < L; k++) {
+        ch = x.charCodeAt(k);
+        if (ch !== first[k] && !vary[k]) { vary[k] = 1; nv++; }
+      }
+    }
+    if (nv < 8) return false;
+    pos = new Uint16Array(nv); H = 0;
+    for (k = 0; k < L; k++) if (vary[k]) { if (hv[first[k]] < 0) return false; pos[H++] = k; }
+    nib = new Uint8Array((n * H + 1) >> 1); p = 0;
+    for (i = 0; i < n; i++) {                                        // one pass over every row: a changing place must hold 0-9 a-f, any other place must equal the first row's
+      x = vals[i]; if (typeof x !== 'string' || x.length !== L) return false;
+      for (k = 0; k < L; k++) {
+        ch = x.charCodeAt(k);
+        if (vary[k]) {
+          v = hv[ch]; if (v < 0) return false;
+          letters |= v > 9;
+          if (p & 1) nib[p >> 1] |= v; else nib[p >> 1] = v << 4;
+          p++;
+        } else if (ch !== first[k]) return false;
+      }
+    }
+    if (!letters) return false;                                    // digits only (dates, numbers): the pattern and number columns do those better
+    mask = ''; for (k = 0; k < L; k++) mask += vary[k] ? '\0' : s0[k];
+    c.u8(CT_HEX); c.varint(L); c.str(mask);
+    this.blob(nib, 'hex');
     return true;
   };
   Enc.prototype.template = function (vals, n, pre) {
@@ -3462,7 +3530,7 @@
     return true;
   };
   Enc.prototype.records = function (vals, n) {
-    var c = this.ctl, i, j, o, keys, sig, shapes = [], bySig = {}, sh, last = null, lk, shapeOf = null, nk, same;
+    var c = this.ctl, i, j, m, o, keys, list, shapes = [], byLen = [], sh, last = null, lk, shapeOf = null, nk, same;
     for (i = 0; i < n; i++) {
       o = vals[i]; keys = Object.keys(o);
       if (last !== null && keys.length === last.keys.length) {
@@ -3470,11 +3538,16 @@
         for (j = 0; j < lk.length; j++) if (keys[j] !== lk[j]) { same = false; break; }
         if (same) { if (shapeOf) { shapeOf[i] = last.id; last.rows.push(o); } else last.count++; continue; }
       }
-      sig = keys.join('\u0001') + '\u0002' + keys.length;
-      sh = bySig[sig];
+      list = byLen[keys.length]; sh = undefined;
+      if (list === undefined) list = byLen[keys.length] = [];
+      else for (m = 0; m < list.length; m++) {                                    // a layout seen before: compare the names one by one (no joined text per row)
+        lk = list[m].keys;
+        for (j = 0; j < lk.length; j++) if (keys[j] !== lk[j]) break;
+        if (j === lk.length) { sh = list[m]; break; }
+      }
       if (sh === undefined) {
-        if (shapes.length >= MAX_SHAPES) { this.any(vals, n); return; }
-        sh = { id: shapes.length, keys: keys, rows: [], count: 0 }; bySig[sig] = sh; shapes.push(sh);
+        if (shapes.length >= (this.mode === 'small' ? MAX_SHAPES : MAX_SHAPES_FAST)) { if (this.mode !== 'small' && this.shapedRows(vals, n)) return; this.any(vals, n); return; }   // small mode takes up to 64 layouts: much smaller for sparse optional fields, but slower to start (balanced and fast keep 16)
+        sh = { id: shapes.length, keys: keys, rows: [], count: 0 }; list.push(sh); shapes.push(sh);
         if (shapes.length === 2 && !shapeOf) {                                  // a second shape appeared: go back and number the earlier rows
           shapeOf = new Uint8Array(n); shapes[0].rows = new Array(shapes[0].count); for (j = 0; j < i; j++) shapes[0].rows[j] = vals[j];
         }
@@ -3491,7 +3564,7 @@
     for (i = 0; i < shapes.length; i++) {
       sh = shapes[i]; var rows = shapeOf ? sh.rows : vals, cnt = rows.length;
       if (shapes.length > 1) c.varint(cnt);
-      var cols = extractor(sh.keys)(rows, cnt), path = this.path;
+      var cols = (cnt < 1024 && shapes.length > MAX_SHAPES_FAST ? extractorPlain(sh.keys) : extractor(sh.keys))(rows, cnt), path = this.path;     // many small layouts: no generated function for each (making 64 of them costs more than it saves)
       if (shapes.length === 1) this.dirColumns(cols, cnt, sh.keys, path);
       else for (j = 0; j < sh.keys.length; j++) {
         if (this.report) this.path = path + '.' + sh.keys[j];
@@ -3502,6 +3575,14 @@
   };
 
   // ---- generated helpers (new Function when allowed; otherwise plain loops that do the same)
+  function extractorPlain(keys) {
+    return function (rows, n) {
+      var r = [], i, jj, o, nk = keys.length;
+      for (jj = 0; jj < nk; jj++) r.push(new Array(n));
+      for (i = 0; i < n; i++) { o = rows[i]; for (jj = 0; jj < nk; jj++) r[jj][i] = o[keys[jj]]; }
+      return r;
+    };
+  }
   function extractor(keys) {
     var sig = 'x' + keys.join('\u0001'), f = GEN_CACHE[sig], j, src;
     if (f) return f;
@@ -4107,8 +4188,22 @@
         for (i = 0; i < n; i++) { j = col.get(i); if (j !== Math.floor(j) || j < 0 || j >= this.refs.length || this.refs[j] === RESERVED) jfail('bad reference'); out[i] = this.refs[j]; }
         return new Col(n, 0, out, null);
       case CT_TEMPLATE: return this.template(n);
+      case CT_HEX: return this.hexColumn(n);
       case CT_TIMES: return this.times(n);
       case CT_FSST: return this.fsst(n);
+      case CT_SHAPED: {
+        var ns = c.varint(), shp = [], nk, keys, ids2, r, o2, q;
+        if (ns < 1 || ns > 256) jfail('bad shape count');
+        for (i = 0; i < ns; i++) { nk = c.varint(); if (nk > 100000) jfail('too many keys'); keys = []; for (j = 0; j < nk; j++) keys.push(c.u8() === 0 ? c.str() : this.str16()); shp.push(keys); }
+        if (c.p + n > c.end) jfail('damaged shape index'); ids2 = c.b.subarray(c.p, c.p + n); c.p += n; out = new Array(n); this.spend(n);
+        for (i = 0; i < n; i++) {
+          q = ids2[i]; if (q >= ns) jfail('bad shape index');
+          keys = shp[q]; o2 = {}; this.spend(keys.length);
+          for (j = 0; j < keys.length; j++) define(o2, keys[j], this.value());
+          out[i] = o2;
+        }
+        return new Col(n, 0, out, null);
+      }
       case CT_ANY:
         out = new Array(n); this.spend(n);
         for (i = 0; i < n; i++) out[i] = this.value();
@@ -4316,6 +4411,56 @@
     for (j = g; j < R; j++) cols.push(this.column(n));
     return buildTemplate(n, [L], R, widths, null, cols, false);
   };
+  Dec.prototype.hexColumn = function (n) {
+    var c = this.c, L = c.varint(), mask = c.str(), i, k, H = 0, pos, nib, lit, buf, p, q, b, out, joined, HX;
+    if (L < 4 || L > 256 || mask.length !== L) jfail('bad hex column');
+    lit = new Uint8Array(L); pos = [];
+    for (k = 0; k < L; k++) { b = mask.charCodeAt(k); if (b === 0) pos.push(k); else if (b > 126) jfail('bad hex column'); lit[k] = b; }
+    H = pos.length; if (H < 1) jfail('bad hex column');
+    this.spend(n * L);
+    nib = this.blob(Uint8Array, (n * H + 1) >> 1);
+    buf = new Uint8Array(n * L); HX = HEXCH;
+    if ((H & 1) === 0) {                                              // an even count of places: each byte is two places, a table gives both characters, the same-everywhere text is tiled once
+      var ne = n * L, w, ex = hexExpander(pos, H, L);
+      buf.set(lit, 0);
+      for (w = L; w < ne; w *= 2) buf.copyWithin(w, 0, w < ne - w ? w : ne - w);
+      ex(buf, nib, HEXPAIR, n);
+    } else {
+      for (i = 0, p = 0; i < n; i++) {
+        q = i * L; buf.set(lit, q);
+        for (k = 0; k < H; k++, p++) buf[q + pos[k]] = HX[(p & 1) ? nib[p >> 1] & 15 : nib[p >> 1] >> 4];
+      }
+    }
+    joined = TEXT_DEC.decode(buf);
+    if (this.lazyNow()) {                                              // like a plain text column: keep the text whole, cut a row out when it is read
+      var off = new Uint32Array(n + 1);
+      for (i = 0; i < n; i++) off[i + 1] = off[i] + L;
+      return lazyCol(n, 5, { big: joined, off: off, wide: false });
+    }
+    out = new Array(n);
+    for (i = 0; i < n; i++) out[i] = joined.substring(i * L, i * L + L);
+    return new Col(n, 0, out, null);
+  };
+  function hexExpander(pos, H, L) {                               // a function that writes the two characters of each byte at the changing places of every row; one per mask (unrolled when code may be made)
+    var sig = 'hx' + pos.join(','), f = GEN_CACHE[sig], src, j;
+    if (f) return f;
+    if (CAN_EVAL && H <= 128) {
+      src = 'var p=0,q=0,t,i;for(i=0;i<n;i++){';
+      for (j = 0; j < H; j += 2) src += 't=T[nib[p++]];buf[q+' + pos[j] + ']=t&255;buf[q+' + pos[j + 1] + ']=t>>8;';
+      src += 'q+=' + L + ';}';
+      f = new Function('buf', 'nib', 'T', 'n', src);
+    } else {
+      f = function (buf, nib, T, n) {
+        var p = 0, q = 0, t, i, k;
+        for (i = 0; i < n; i++, q += L) for (k = 0; k < H; k += 2) { t = T[nib[p++]]; buf[q + pos[k]] = t & 255; buf[q + pos[k + 1]] = t >> 8; }
+      };
+    }
+    genStore(sig, f);
+    return f;
+  }
+  var HEXCH = new Uint8Array([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102]);
+  var HEXPAIR = new Uint16Array(256);
+  (function () { var b; for (b = 0; b < 256; b++) HEXPAIR[b] = HEXCH[b >> 4] | (HEXCH[b & 15] << 8); })();
   Dec.prototype.template = function (n) {
     var c = this.c, nt = c.varint(), R = c.varint(), tpls = [], widths = [], tid = null, cols = [], t, j, i, L, w;
     if (nt < 1 || nt > MAX_TEMPLATES || R < 1 || R > MAX_SLOTS) jfail('bad string pattern');

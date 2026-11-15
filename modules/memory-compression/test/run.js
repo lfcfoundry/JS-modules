@@ -297,6 +297,14 @@ t('ASCII text straight to bytes (WebKit path, 2.16.4) gives the same bytes as th
   if (!NODE) return skip('ASCII path check');
   require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'ascii.js')]);
 });
+t('hex text columns and 64 layouts in small mode round-trip (2.18.0)', function () {
+  if (!NODE) return skip('hex small check');
+  require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'hexsmall.js')]);
+});
+t('shaped rows (2.18.0): 40 layouts, 300 layouts (falls back), odd and numeric key names, different key order round-trip in every mode', function () {
+  if (!NODE) return skip('shaped rows check');
+  require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'shapedrows.js')]);
+});
 t('ISO date-time edge cases round-trip exactly (2.17.1 day cache)', function () {
   if (!NODE) return skip('timestamp check');
   require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'timestamps.js')]);
