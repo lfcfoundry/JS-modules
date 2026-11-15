@@ -591,6 +591,7 @@
     return { D: D, codes: dict ? new Uint32Array(mem.buffer, P.codes, n).slice() : null, lab: dict ? new Uint8Array(mem.buffer, P.out, r[0]).slice() : null, all: dict ? null : new Uint8Array(mem.buffer, P.inP, len).slice() };
   }
   // fast: true (owner name 11.14): opt-in quicker saves of text-heavy rows, a little larger
+  var FAST_DEFAULT = !(typeof globalThis !== 'undefined' && globalThis.__FAST_DEFAULT === 0);   // B72 (owner 11.15): fast is on unless opts.fast === false
   var FAST_ON = false, FLT = 1, FSK = 1;   // FLT: the zstd level of text columns under fast; FSK: skip the dictionary count of nearly-distinct columns
   function manyDistinct(v) { var s = new Set(), i; for (i = 0; i < 1024; i++) s.add(v[i]); return s.size > 900; }
   // B45: hex and IPv4 string columns checked and packed in one pass, no regex, no slices; the same acceptance as RX_HEX (lowercase) and RX_IP with parts under 256, the same bytes
@@ -871,7 +872,7 @@
     return true;
   }
   function writeFlatBlock0(ctx, input, opts) {
-    FAST_ON = !!opts.fast;
+    FAST_ON = opts.fast === undefined ? FAST_DEFAULT : !!opts.fast;
     var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, colsIn = input && input.colsIn || null, rowsIn = input && (input.rowsIn || (colsIn ? [] : null)), text = rowsIn ? '' : td.decode(input), lines, rows = rowsIn || [], i, j, r, nl = 0, at = -1;
     if (!rowsIn) {   // B18b: row objects given, no text to parse
     // fast path: one JSON.parse of the whole block as an array (same row count as lines, or fall back to line by line)
@@ -1112,7 +1113,7 @@
       var cut = input.subarray(0, 65536).lastIndexOf(10);
       if (cut > 0 && !writeFlatBlockFast(ctx, input.subarray(0, cut + 1), Object.assign({}, opts, { pre: true }))) return null;
     }
-    FAST_ON = !!opts.fast; var clv = 0;
+    FAST_ON = opts.fast === undefined ? FAST_DEFAULT : !!opts.fast; var clv = 0;
     var zs = ctx.zs, level = opts.level == null ? LV_FLAT : opts.level, W = fsw(), len = input.length, o = (W.heap + 15) & ~15, P = {}, q, i, j, c, nrows;
     function lay(name, bytes) { P[name] = o; o = (o + bytes + 15) & ~15; }
     lay('in', len + 8); lay('cnt', 16);
