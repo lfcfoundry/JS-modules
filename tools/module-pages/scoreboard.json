@@ -67,10 +67,10 @@
   },
   {
    "label": "LFC-pack row reads vs Parquet readers (low end)",
-   "x": 1.7,
+   "x": 1.6,
    "module": "lfc-pack",
    "proof": [
-    "lfc-pack takes 34 to 39 ms against 58 to 147"
+    "lfc-pack takes 21 to 37 ms against 44 to 93"
    ]
   },
   {
