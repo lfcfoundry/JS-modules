@@ -2180,8 +2180,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       cols[j] = (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
     }
     if (qSrc) for (j = 0; j < K; j++) if (meta.cols[j].t === 'Q' && cols[j]) {   // rebuild each wanted location column from its two source columns
-      var q = meta.cols[j].p, qa = qsrc(q.a), qb = qsrc(q.b), qo = new Array(n), qx = q.x, qm = q.m, qy = q.y;
-      for (i = 0; i < n; i++) { if (typeof qa[i] !== 'string' || typeof qb[i] !== 'string') throw new Error('damaged block: location source is not text'); qo[i] = `${qx}${qa[i]}${qm}${qb[i]}${qy}`; }
+      var q = meta.cols[j].p, qx = q.x, qm = q.m, qy = q.y, qa = qsrc(q.a), qb = qsrc(q.b), qo = new Array(n);
+      for (i = 0; i < n; i++) { if (typeof qa[i] !== 'string' || typeof qb[i] !== 'string') throw new Error('damaged block: location source is not text'); qo[i] = qx + qa[i] + qm + qb[i] + qy; }
       cols[j] = qCol(qo);
     }
     function qsrc(k) { var ck = cols[k]; if (!ck) return decodeColumn(meta.cols[k], zs, hid[k]); return ck.pre ? ck.pre : (ck.pre = decodeColumn(meta.cols[k], zs, ck.fr)); }   // a source that is wanted too keeps its values, so it is decoded once
