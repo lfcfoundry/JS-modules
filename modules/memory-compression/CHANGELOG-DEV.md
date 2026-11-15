@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.4 · API 2 · 2026-11-14
+
+### Quick
+The general path (rows of mixed shapes) takes a plain-object fast path, reads short ASCII strings without a TextEncoder pass, and writes 32-bit integers inline.
+
+### Deep
+The general path (rows of mixed shapes) takes a plain-object fast path, reads short ASCII strings without a TextEncoder pass, and writes 32-bit integers inline. About 5-8% faster on mixed-shape data in Chromium, Firefox and WebKitGTK. Same bytes, no option.
+
 ## 2.17.3 · API 2 · 2026-11-14
 
 ### Quick
