@@ -435,11 +435,17 @@ def _untemplate(n, fr):
 
 
 def _date_text(t, f):
+    # f bit 1: no fraction; bit 2: a space instead of T; bit 4: six fraction digits, t in whole microseconds (else milliseconds)
+    if f not in (0, 1, 2, 3, 4, 6) or t < 0 or t > (2 ** 53 if f & 4 else 253402300799999): raise ValueError('damaged block: unknown date form or out of range')
+    us = 0
+    if f & 4: us = t % 1000; t = t // 1000
     ms = t % 1000; s = t // 1000; se = s % 60; m = s // 60; mi = m % 60; h = (m // 60) % 24; z = (m // 60) // 24 + 719468
     era = z // 146097; doe = z - era * 146097; yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365; y = yoe + era * 400
     doy = doe - (365 * yoe + yoe // 4 - yoe // 100); mp = (5 * doy + 2) // 153; d = doy - (153 * mp + 2) // 5 + 1; mo = mp + 3 if mp < 10 else mp - 9
     if mo <= 2: y += 1
-    return '%04d-%02d-%02dT%02d:%02d:%02d' % (y, mo, d, h, mi, se) + ('' if f else '.%03d' % ms)
+    out = '%04d-%02d-%02d%s%02d:%02d:%02d' % (y, mo, d, ' ' if f & 2 else 'T', h, mi, se)
+    if f & 1: return out
+    return out + ('.%03d%03d' % (ms, us) if f & 4 else '.%03d' % ms)
 
 
 def _decode_col(c, fr):

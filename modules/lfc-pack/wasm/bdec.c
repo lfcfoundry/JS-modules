@@ -31,10 +31,11 @@ __attribute__((export_name("popc"))) u32 popc(const u8* p, u32 len) {
 // datefmt (date columns 'W'): n epoch-millisecond doubles (whole numbers 0 to 253402300799999, UTC) -> n texts of YYYY-MM-DDTHH:MM:SS.mmm (f 0, 24 bytes with a 0 after each) or YYYY-MM-DDTHH:MM:SS (f 1, 20 bytes); returns 1 if a value is out of range or not whole, else 0.
 // The calendar day is worked out only when it changes from the row before (dates are mostly sorted).
 __attribute__((export_name("datefmt"))) u32 datefmt(const double* ms, u32 n, u32 f, u8* out) {
-  typedef long long i64; u32 w = f ? 20 : 24, i; i64 lastDay = -1; u8 ymd[10];
+  typedef long long i64; if (f > 6 || f == 5) return 1; u32 w = (f & 4) ? 27 : (f & 1) ? 20 : 24, i; i64 lastDay = -1; u8 ymd[10]; double lim = (f & 4) ? 9007199254740991.0 : 253402300799999.0; u32 usv = 0;
   for (i = 0; i < n; i++, out += w) {
-    double d = ms[i]; if (!(d >= 0.0 && d <= 253402300799999.0)) return 1;
+    double d = ms[i]; if (!(d >= 0.0 && d <= lim)) return 1;
     i64 t = (i64)d; if ((double)t != d) return 1;
+    if (f & 4) { usv = (u32)(t % 1000); t = t / 1000; }
     i64 day = t / 86400000; u32 rem = (u32)(t - day * 86400000);
     if (day != lastDay) {
       lastDay = day; i64 z = day + 719468, era = z / 146097, doe = z - era * 146097, yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365, y = yoe + era * 400, doy = doe - (365 * yoe + yoe / 4 - yoe / 100), mp = (5 * doy + 2) / 153;
@@ -43,8 +44,8 @@ __attribute__((export_name("datefmt"))) u32 datefmt(const double* ms, u32 n, u32
     }
     u32 k, msv = rem % 1000, sod = rem / 1000, hh = sod / 3600, mm = sod % 3600 / 60, ss = sod % 60;
     for (k = 0; k < 10; k++) out[k] = ymd[k];
-    out[10] = 84; out[11] = (u8)(48 + hh / 10); out[12] = (u8)(48 + hh % 10); out[13] = 58; out[14] = (u8)(48 + mm / 10); out[15] = (u8)(48 + mm % 10); out[16] = 58; out[17] = (u8)(48 + ss / 10); out[18] = (u8)(48 + ss % 10);
-    if (!f) { out[19] = 46; out[20] = (u8)(48 + msv / 100); out[21] = (u8)(48 + msv / 10 % 10); out[22] = (u8)(48 + msv % 10); out[23] = 0; } else out[19] = 0;
+    out[10] = (f & 2) ? 32 : 84; out[11] = (u8)(48 + hh / 10); out[12] = (u8)(48 + hh % 10); out[13] = 58; out[14] = (u8)(48 + mm / 10); out[15] = (u8)(48 + mm % 10); out[16] = 58; out[17] = (u8)(48 + ss / 10); out[18] = (u8)(48 + ss % 10);
+    if (f & 1) out[19] = 0; else { out[19] = 46; out[20] = (u8)(48 + msv / 100); out[21] = (u8)(48 + msv / 10 % 10); out[22] = (u8)(48 + msv % 10); if (f & 4) { out[23] = (u8)(48 + usv / 100); out[24] = (u8)(48 + usv / 10 % 10); out[25] = (u8)(48 + usv % 10); out[26] = 0; } else out[23] = 0; }
   }
   return 0;
 }

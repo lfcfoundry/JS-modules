@@ -268,26 +268,33 @@
     var yy = mo <= 2 ? y - 1 : y, era = Math.floor(yy / 400), yoe = yy - era * 400, doy = Math.floor((153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5) + d - 1, doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
     return (((era * 146097 + doe - 719468) * 24 + h) * 60 + mi) * 60000 + se * 1000 + ms;
   }
-  function dateMs(x, f) {   // -> epoch ms, or NaN if x is not exactly that form
-    if (x.length !== (f ? 19 : 23) || x.charCodeAt(4) !== 45 || x.charCodeAt(7) !== 45 || x.charCodeAt(10) !== 84 || x.charCodeAt(13) !== 58 || x.charCodeAt(16) !== 58 || (!f && x.charCodeAt(19) !== 46)) return NaN;
-    return dateParts(dig(x, 0, 4), dig(x, 5, 2), dig(x, 8, 2), dig(x, 11, 2), dig(x, 14, 2), dig(x, 17, 2), f ? 0 : dig(x, 20, 3));
+  // The date forms (the W column's f): bit 1 (value 1) = no fraction, bit 2 (value 2) = a space between the date and the time instead of T, bit 4 = six fraction digits stored as whole microseconds (years up to 2255); f 0 = T and .mmm, 1 = T only, 2 = space and .mmm, 3 = space only, 4 = T and .uuuuuu, 6 = space and .uuuuuu. The values are epoch milliseconds, or microseconds for 4 and 6.
+  function dateW(f) { return f & 4 ? 26 : f & 1 ? 19 : 23; }
+  function dateForm(len, s10) { var f = len === 19 ? 1 : len === 23 ? 0 : len === 26 ? 4 : -1; return f < 0 ? -1 : s10 === 84 ? f : s10 === 32 ? f | 2 : -1; }
+  function dateMs(x, f) {   // -> the epoch value (ms, or us for forms 4 and 6), or NaN if x is not exactly that form
+    if (x.length !== dateW(f) || x.charCodeAt(4) !== 45 || x.charCodeAt(7) !== 45 || x.charCodeAt(10) !== (f & 2 ? 32 : 84) || x.charCodeAt(13) !== 58 || x.charCodeAt(16) !== 58 || (!(f & 1) && x.charCodeAt(19) !== 46)) return NaN;
+    var u = f & 4, fr = f & 1 ? 0 : dig(x, 20, u ? 6 : 3); if (!(fr >= 0)) return NaN;
+    var t = dateParts(dig(x, 0, 4), dig(x, 5, 2), dig(x, 8, 2), dig(x, 11, 2), dig(x, 14, 2), dig(x, 17, 2), u ? 0 : fr);
+    if (!u) return t; t = t * 1000 + fr; return t <= 9007199254740991 ? t : NaN;
   }
   function digB(b, i, k) { var r = 0, c; for (; k > 0; k--, i++) { c = b[i] - 48; if (c < 0 || c > 9) return -1; r = r * 10 + c; } return r; }
-  function dateAt(b, o, f) {   // one date-time of 19 (f 1) or 23 (f 0) bytes at o -> epoch ms, or NaN
-    if (b[o + 4] !== 45 || b[o + 7] !== 45 || b[o + 10] !== 84 || b[o + 13] !== 58 || b[o + 16] !== 58 || (!f && b[o + 19] !== 46)) return NaN;
-    return dateParts(digB(b, o, 4), digB(b, o + 5, 2), digB(b, o + 8, 2), digB(b, o + 11, 2), digB(b, o + 14, 2), digB(b, o + 17, 2), f ? 0 : digB(b, o + 20, 3));
+  function dateAt(b, o, f) {   // one date-time (19, 23 or 26 bytes by the form f) at o -> the epoch value (ms, or us for forms 4 and 6), or NaN
+    if (b[o + 4] !== 45 || b[o + 7] !== 45 || b[o + 10] !== (f & 2 ? 32 : 84) || b[o + 13] !== 58 || b[o + 16] !== 58 || (!(f & 1) && b[o + 19] !== 46)) return NaN;
+    var u = f & 4, fr = f & 1 ? 0 : digB(b, o + 20, u ? 6 : 3); if (!(fr >= 0)) return NaN;
+    var t = dateParts(digB(b, o, 4), digB(b, o + 5, 2), digB(b, o + 8, 2), digB(b, o + 11, 2), digB(b, o + 14, 2), digB(b, o + 17, 2), u ? 0 : fr);
+    if (!u) return t; t = t * 1000 + fr; return t <= 9007199254740991 ? t : NaN;
   }
   function dateMany(a, n) { var h = new Set(), i, half = n >> 1; for (i = 0; i < n; i++) { h.add(a[i]); if (h.size > half) return true; } return false; }   // more than n / 2 distinct values: fewer would be written as a dictionary
   function dateNumsB(b, n) {   // b: n values joined by 0 bytes (ASCII), more than n / 2 distinct (the caller knows) -> { f, a } or null
     if (n < 2) return null;
-    var f = b.length === n * 20 - 1 ? 1 : b.length === n * 24 - 1 ? 0 : -1, w = f ? 20 : 24, a, i, o, t; if (f < 0) return null;
+    var f = b.length === n * 20 - 1 ? 1 : b.length === n * 24 - 1 ? 0 : b.length === n * 27 - 1 ? 4 : -1, w, a, i, o, t; if (f < 0 || (b[10] !== 84 && b[10] !== 32)) return null; if (b[10] === 32) f |= 2; w = dateW(f) + 1;
     a = new Float64Array(n);
     for (i = 0, o = 0; i < n; i++, o += w) { if (i < n - 1 && b[o + w - 1] !== 0) return null; t = dateAt(b, o, f); if (!(t >= 0)) return null; a[i] = t; }
     return { f: f, a: a };
   }
   function dateNumsBC(B, S, E, a0, n) {   // a text column as bytes plus offsets -> { f, a } or null (also null when fewer than n / 2 + 1 values differ)
     if (n < 2) return null;
-    var f = E[a0] - S[a0] === 19 ? 1 : 0, w = f ? 19 : 23, arr = new Float64Array(n), i, t; if (E[a0] - S[a0] !== w) return null;
+    var f = dateForm(E[a0] - S[a0], B[S[a0] + 10]), w = dateW(f), arr = new Float64Array(n), i, t; if (f < 0) return null;
     if (n >= 1024) {   // B72: three windows (start, middle, end) of 256 values; when each holds at most 60% distinct values the column cannot pass the more-than-half rule worth taking, so the full parse is skipped (a column of 15 distinct dates cost +51% to refuse, a 46% distinct one +54%)
       var wi, wo, wj, ws, lo = [0, (n >> 1) - 128, n - 256], dist = 0, sd;
       for (wi = 0; wi < 3; wi++) { wo = lo[wi]; sd = new Set(); for (wj = 0; wj < 256; wj++) { if (E[a0 + wo + wj] - S[a0 + wo + wj] !== w) return null; ws = dateAt(B, S[a0 + wo + wj], f); if (!(ws >= 0)) return null; sd.add(ws); } if (sd.size * 5 > 256 * 3) dist = 1; }
@@ -305,38 +312,39 @@
   }
   var P2 = new Uint8Array(200); for (var pi = 0; pi < 100; pi++) { P2[pi * 2] = 48 + ((pi / 10) | 0); P2[pi * 2 + 1] = 48 + (pi % 10); }
   function dateCol(nums, n, f) {   // the text of n epoch-millisecond values: the digits go into one byte buffer (the calendar day is worked out once per day), decoded and cut once
-    if (f !== 0 && f !== 1) throw new Error('damaged block: unknown date form');
+    if (f !== 0 && f !== 1 && f !== 2 && f !== 3 && f !== 4 && f !== 6) throw new Error('damaged block: unknown date form');
     var X = BD_DEC && n >= 512 ? bdx() : null;
     if (X && X.datefmt) {   // the digits are written in WebAssembly (bdec.wasm, datefmt); a value outside the date range makes it stop and the JavaScript loop below refuses the block
-      var ww = f ? 20 : 24, L = bdLay([n * 8, n * ww]), mem = bdMem(L.end), put = new Float64Array(mem, L.at[0], n), ii;
+      var ww = dateW(f) + 1, L = bdLay([n * 8, n * ww]), mem = bdMem(L.end), put = new Float64Array(mem, L.at[0], n), ii;
       for (ii = 0; ii < n; ii++) put[ii] = nums[ii];
       if (X.datefmt(L.at[0], n, f, L.at[1]) === 0) return tdr.decode(new Uint8Array(X.memory.buffer, L.at[1], n * ww - 1)).split('\0');
     }
-    var w = f ? 19 : 23, buf = new Uint8Array(n * (w + 1)), o = 0, i, t, day, lastDay = -1, rem, ms, sod, hh, mm, ss, x, y = 0, mo = 0, d = 0, ymd0 = 0, ymd1 = 0, ymd2 = 0, ymd3 = 0, ymd5 = 0, ymd6 = 0, ymd8 = 0, ymd9 = 0;
+    var w = dateW(f), u = f & 4, us = 0, buf = new Uint8Array(n * (w + 1)), o = 0, i, t, day, lastDay = -1, rem, ms, sod, hh, mm, ss, x, y = 0, mo = 0, d = 0, ymd0 = 0, ymd1 = 0, ymd2 = 0, ymd3 = 0, ymd5 = 0, ymd6 = 0, ymd8 = 0, ymd9 = 0;
     for (i = 0; i < n; i++, o += w + 1) {
-      t = nums[i]; if (!(t >= 0 && t <= 253402300799999 && t % 1 === 0)) throw new Error('damaged block: date out of range');
+      t = nums[i]; if (!(t >= 0 && t <= (u ? 9007199254740991 : 253402300799999) && t % 1 === 0)) throw new Error('damaged block: date out of range');
+      if (u) { us = t % 1000; t = (t - us) / 1000; }
       day = Math.floor(t / 86400000);
       if (day !== lastDay) { lastDay = day; var z = day + 719468, era = Math.floor(z / 146097), doe = z - era * 146097, yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365), doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100)), mp = Math.floor((5 * doy + 2) / 153);
         y = yoe + era * 400; d = doy - Math.floor((153 * mp + 2) / 5) + 1; mo = mp < 10 ? mp + 3 : mp - 9; if (mo <= 2) y++;
         ymd0 = 48 + ((y / 1000) | 0); ymd1 = 48 + (((y / 100) | 0) % 10); ymd2 = 48 + (((y / 10) | 0) % 10); ymd3 = 48 + (y % 10); ymd5 = 48 + ((mo / 10) | 0); ymd6 = 48 + (mo % 10); ymd8 = 48 + ((d / 10) | 0); ymd9 = 48 + (d % 10); }
       buf[o] = ymd0; buf[o + 1] = ymd1; buf[o + 2] = ymd2; buf[o + 3] = ymd3; buf[o + 4] = 45; buf[o + 5] = ymd5; buf[o + 6] = ymd6; buf[o + 7] = 45; buf[o + 8] = ymd8; buf[o + 9] = ymd9; rem = (t - day * 86400000) | 0; ms = rem % 1000; sod = (rem - ms) / 1000; hh = (sod / 3600) | 0; mm = ((sod - hh * 3600) / 60) | 0; ss = sod - hh * 3600 - mm * 60;
-      buf[o + 10] = 84; buf[o + 11] = P2[hh * 2]; buf[o + 12] = P2[hh * 2 + 1]; buf[o + 13] = 58; buf[o + 14] = P2[mm * 2]; buf[o + 15] = P2[mm * 2 + 1]; buf[o + 16] = 58; buf[o + 17] = P2[ss * 2]; buf[o + 18] = P2[ss * 2 + 1];
-      if (!f) { x = (ms / 100) | 0; ms -= x * 100; buf[o + 19] = 46; buf[o + 20] = 48 + x; buf[o + 21] = P2[ms * 2]; buf[o + 22] = P2[ms * 2 + 1]; }
+      buf[o + 10] = f & 2 ? 32 : 84; buf[o + 11] = P2[hh * 2]; buf[o + 12] = P2[hh * 2 + 1]; buf[o + 13] = 58; buf[o + 14] = P2[mm * 2]; buf[o + 15] = P2[mm * 2 + 1]; buf[o + 16] = 58; buf[o + 17] = P2[ss * 2]; buf[o + 18] = P2[ss * 2 + 1];
+      if (!(f & 1)) { x = (ms / 100) | 0; ms -= x * 100; buf[o + 19] = 46; buf[o + 20] = 48 + x; buf[o + 21] = P2[ms * 2]; buf[o + 22] = P2[ms * 2 + 1]; if (u) { x = (us / 100) | 0; us -= x * 100; buf[o + 23] = 48 + x; buf[o + 24] = P2[us * 2]; buf[o + 25] = P2[us * 2 + 1]; } }
       buf[o + w] = 0;
     }
     return n ? tdr.decode(buf.subarray(0, o - 1)).split('\0') : [];
   }
   function dateNums(v, n) {   // -> { f, a } or null
     if (n < 2 || typeof v[0] !== 'string') return null;
-    var f = v[0].length === 19 ? 1 : 0, a = new Float64Array(n), i, t; if (v[0].length !== (f ? 19 : 23)) return null;
+    var f = dateForm(v[0].length, v[0].charCodeAt(10)), a = new Float64Array(n), i, t; if (f < 0) return null;
     for (i = 0; i < n; i++) { if (typeof v[i] !== 'string') return null; t = dateMs(v[i], f); if (!(t >= 0)) return null; a[i] = t; }
     return dateMany(a, n) ? { f: f, a: a } : null;
   }
-  var WMARK = 0;   // counts the date columns written, so a pack call can tell whether its file needs format minor 2
+  var WMARK = 0, W3MARK = 0;   // count the date columns written (WMARK), and those in a space-separated or six-digit form (W3MARK), so a pack call can tell whether its file needs format minor 2 or 3
   function dateWrap(dn, zs, level, key) {   // the date numbers as the best number layout, as one 'W' column; null if the number layouts did not get a typed column
     var wi = settle(zs, level, encodeColumn0(dn.a, zs, level, 0, undefined, key, { nz: 0, ai: 1 }));
     if (!wi || !(wi.t === 'V' || wi.t === 'B' || wi.t === 'F')) return null;
-    WMARK++; return { t: 'W', p: { t: wi.t, p: wi.p, f: dn.f }, n: wi.n, z: wi.z, size: wi.size, st: wi.st };
+    WMARK++; if (dn.f >= 2) W3MARK++; return { t: 'W', p: { t: wi.t, p: wi.p, f: dn.f }, n: wi.n, z: wi.z, size: wi.size, st: wi.st };
   }
   function encodeColumn(v, zs, level, tmode, sj, key) {
     var nb = nullBest(v, zs, level, tmode, key); if (nb) return nb;
