@@ -997,6 +997,11 @@
     if (FAST_ON && FSK && n >= 4096 && manyDistinctDC(dc, a)) return fb();
     if (SHW && n < codes.length && NL * 4 <= codes.length && NL < 65536) {   // a block of a bigger piece: the labels go once into the piece's table, the codes stay the piece's own
       var sj = dc.__shj; if (sj === undefined) { sj = dc.__shj = shJoin(dc, hi); }
+      if (sj && NL > 256) {   // wider piece-wide codes than the block needs: share only when the labels saved pay for the extra code bits (taxi fares)
+        var sn = new Uint8Array(NL), nd = 0, lbb = 0, ex;
+        for (i = 0; i < n; i++) { ex = codes[a + i]; if (ex >= 0 && ex < NL && !sn[ex]) { sn[ex] = 1; nd++; lbb += E[ex] - S[ex] + 1; } }
+        if (((32 - Math.clz32(NL - 1)) - Math.max(1, 32 - Math.clz32(nd - 1))) * n / 8 > lbb * 0.25) sj = null;
+      }
       if (sj) {
         if (!SHW.tabs[sj.id]) { SHW.tabs[sj.id] = sj; SHW.n++; }
         var cg = new Array(n), cx, wg = Math.max(1, 32 - Math.clz32(NL - 1)), cbg, bestg = null;
