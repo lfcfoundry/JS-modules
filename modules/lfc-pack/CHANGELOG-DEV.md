@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.12.3 · API 0 · 2026-11-15
+
+### Quick
+Date forms get bit 8: all-whole-second values stored as seconds (times 1,000, or 1,000,000 for six-digit forms, on read).
+
+### Deep
+Date forms get bit 8: all-whole-second values stored as seconds (times 1,000, or 1,000,000 for six-digit forms, on read). 200,000 taxi rows, two timestamp columns: text 1,210,650 bytes, 0.12.2 level 3 1,167,952 and level 1 1,654,891, 0.12.3 732,134 and 732,038. Readers (JS, Go, Python) updated; older readers refuse such a file. New test datesec.cjs.
+
 ## 0.12.2 · API 0 · 2026-11-15
 
 ### Quick

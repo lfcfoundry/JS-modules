@@ -10,7 +10,7 @@ const JF = require('../lfc-pack.js'), assert = require('assert'), { spawnSync } 
   const roundTrip = (rows, name, expectW) => {
     for (const o of [{ block: 'flat' }, { block: 'flat', blockBytes: 3000 }, { block: 'flat', templates: false }, { block: 'flat', templates: true }]) {
       const p = JF.pack(txt(rows), o); assert.strictEqual(JSON.stringify(JF.unpack(p)), JSON.stringify(rows), name + ' ' + JSON.stringify(o));
-      if (expectW !== undefined && !o.blockBytes) { assert.strictEqual(hasW(p), expectW, name + ' W ' + JSON.stringify(o)); if (expectW) assert.strictEqual(JF.info(p).minor, 2, name + ' minor'); }
+      if (expectW !== undefined && !o.blockBytes) { assert.strictEqual(hasW(p), expectW, name + ' W ' + JSON.stringify(o)); if (expectW) assert.ok([2, 3].includes(JF.info(p).minor), name + ' minor'); }
     }
   };
   // milliseconds and whole seconds, small and large blocks

@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.12.2 · API 0**
+**Version 0.12.3 · API 0**
 
 **Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; same-page packBlock and fresh-page reads
 

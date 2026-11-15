@@ -16,7 +16,7 @@ const JF = require('../lfc-pack.js'), assert = require('assert');
     const b = await JF.packBlock({ id: Float64Array.from(v, (_, i) => i), t: col(v) }, { share: false }), back = JF.unpackRows(b);
     assert.strictEqual(JSON.stringify(back.map((x) => x.t)), JSON.stringify(v), 'bytes column ' + JSON.stringify([sep, fr, n]));
     assert.ok(hasW(b), 'bytes column uses W ' + JSON.stringify([sep, fr, n]));
-    const minor = JF.info(b).minor; assert.strictEqual(minor, sep === ' ' || fr === 6 ? 3 : 2, 'minor ' + JSON.stringify([sep, fr, n]) + ' got ' + minor);
+    const minor = JF.info(b).minor; assert.strictEqual(minor, sep === ' ' || fr === 6 || fr === 0 ? 3 : 2, 'minor ' + JSON.stringify([sep, fr, n]) + ' got ' + minor);
   }
   // not a date: wrong separator, a mix of forms, a seventh digit, a year past 2255, a bad month all stay text and read back exactly
   const bad = [['2024-01-01 00:57:55.1234567', 'seven digits'], ['2024-01-01x00:57:55.000000', 'separator x'], ['2024-13-01 00:57:55.000000', 'month 13'], ['2300-01-01 00:57:55.000000', 'year 2300']];
