@@ -184,5 +184,15 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   ok(HY.warm() === true && CI.warm() === true, 'warm() runs and returns true in both modules');
   ok(HY.toSvg(rows) === h0 && HY.toSvg(rows, { type: 'sunburst' }) === s0 && CI.toSvg(rows) === c0 && CI.toSvg(rows, { type: 'bundles' }) === b0, 'pictures are the same after warm()');
 }
+{   /* treemap, icicle and sunburst build no zero-size dots (1.6.1): only choke markers are dots, item colors come from the scene's dotFills, and no invisible r="0" circle is written */
+  const G = graph(400, 0, 3, 5); G.nodes.forEach((x, i) => { x.choke = i % 50 === 7; });
+  for (const view of ['treemap', 'icicle', 'sunburst']) {
+    const L = C.layout(view, copy(G), { nest: 'auto', chordBy: 'auto', sized: true }); L.view = view; L.groups = ['g0', 'g1', 'g2', 'g3', 'g4'];
+    const S = C.scene(L, {}, global.NetflowScene);
+    ok(S.dots.length === 8 && S.dots.every((d) => d.r > 0), view + ' keeps only the 8 choke markers as dots (' + S.dots.length + ')');
+    ok(S.nodes.length === 400 && S.dotFills && S.dotFills.filter((c) => c).length === 400, view + ' still names every item and has a color for each');
+    ok(!/r="0"/.test(global.NetflowScene.toSvg(S, 't')), view + ' writes no invisible circles');
+  }
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

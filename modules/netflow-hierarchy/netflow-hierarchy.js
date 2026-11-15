@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.6.0 (API 1)
+ * Version 1.6.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -422,12 +422,12 @@ var NetflowHierarchy = (function () {
     /* the scene module gets its own copy of each item (plain objects of one shape, so reading them stays fast); the copies are kept on the layout and filled in again for the next picture, so a look change makes no new ones */
     /* Each item is read in full only once per layout: items that came from a worker are slow dictionary objects, and copying all their fields
        on every look change cost about 1 s per 100,000 items in Chromium. Later pictures refresh only the size, which is all a look change alters here. */
-    var SN = L.__stub; if (!SN || SN.src !== L.nodes || SN.nodes.length !== L.nodes.length) SN = L.__stub = { src: L.nodes, nodes: L.nodes.map(function (nd) { var c = {}; for (var k in nd) c[k] = nd[k]; return c; }) };
+    var SN = L.__stub; if (!SN || SN.src !== L.nodes || SN.nodes.length !== L.nodes.length) SN = L.__stub = { src: L.nodes, nodes: L.nodes.map(function (nd) { return { ...nd }; }) };
     var nodes = SN.nodes;
     L.nodes.forEach(function (nd, q) { var c = nodes[q]; if (nd.w !== undefined) c.w = nd.w; if (nd.h !== undefined) c.h = nd.h; if (!showDots || (type === 'pack' && ch.kids[nd.hv].length)) { c.w = 0; c.h = 0; } });
     if (type === 'pack') nodes.forEach(function (nd) { if (!ch.kids[nd.hv].length) { nd.w = nd.h = 2 * ch.Rr[nd.hv]; } });
     if (type === 'tree' || type === 'bundles') nodes.forEach(function (nd) { nd.w = nd.h = 9; });
-    var stub = { kind: 'network', view: 'network', dir: 'none', nodes: nodes, edges: [], width: L.width, height: L.height, ch: L.ch, flow: L.flow, cls: L.cls, imp: L.imp, groups: L.groups, startId: L.startId, n: L.n, m: L.m };
+    var stub = { kind: 'network', view: 'network', dir: 'none', nodes: nodes, edges: [], width: L.width, height: L.height, ch: L.ch, flow: L.flow, cls: L.cls, imp: L.imp, groups: L.groups, startId: L.startId, n: L.n, m: L.m, dotFills: type === 'treemap' || type === 'icicle' || type === 'sunburst' };
     var lab0 = o.lab || {};
     var S = NS.make(stub, Object.assign({}, o, { hulls: false, lab: { items: Object.assign({}, lab0.items || {}, { show: false }), links: lab0.links || { show: true, scale: 1 }, groups: { show: false, scale: 1 } }, lens: null, flat: false }));
     S.view = type; S.kind = type; S.chart = true;
@@ -443,7 +443,8 @@ var NetflowHierarchy = (function () {
     var itemShow = !(lab0.items && lab0.items.show === false), iscale = lab0.items && lab0.items.scale || 1;
     var colOfNode = function (q) { var rec = S.nodes[q], d = rec && S.dots.filter ? null : null; return gcol(L.nodes[q].group || ''); };
     var dotOf = new Array(S.nodes.length), dl = S.dots, di; for (di = 0; di < dl.length; di++) { if (dl[di].node >= 0) dotOf[dl[di].node] = dl[di]; }   /* item record number to its dot (the last one wins) */
-    var fillOf = function (q) { var d = q >= 0 && q < dotOf.length ? dotOf[q] : undefined; return d ? d.fill : gcol(L.nodes[q].group || ''); };
+    var dfill = S.dotFills || null;   /* shapes drawn here: the scene gave the colors and no zero-size dots */
+    var fillOf = function (q) { var d = q >= 0 && q < dotOf.length ? dotOf[q] : undefined; return d ? d.fill : dfill && dfill[q] ? dfill[q] : gcol(L.nodes[q].group || ''); };
     var lab = function (x, y, t, size, c, op) { var l = { x: x, y: y, t: t, size: size, color: c, align: 'c', bold: false, rot: 0, minK: 0, node: -1 }; if (op) for (var k in op) l[k] = op[k]; if (l.rot) l.rot *= 180 / Math.PI; S.labels.push(l); return l; };   /* angles in radians here, the renderer takes degrees */
     var clip = function (s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; };
     var recOf = function (q) { return S.nodes[q]; };
@@ -598,6 +599,7 @@ var NetflowHierarchy = (function () {
     var grow = function (x, y) { if (x < x0b) x0b = x; if (x > x1b) x1b = x; if (y < y0b) y0b = y; if (y > y1b) y1b = y; };
     S.rects.forEach(function (r) { grow(r.x, r.y); grow(r.x + r.w, r.y + r.h); });
     S.dots.forEach(function (d) { grow(d.cx - d.r, d.cy - d.r); grow(d.cx + d.r, d.cy + d.r); });
+    if (dfill) L.nodes.forEach(function (nd, q) { if (dfill[q]) grow(nd.cx, nd.cy); });   /* the zero-size dots that were not built still counted at their centers */
     S.polys.forEach(function (p) { for (var i = 0; i < p.pts.length; i += 2) grow(p.pts[i], p.pts[i + 1]); });
     S.curves.forEach(function (c) { for (var i = 0; i < c.P.length; i += 2) grow(c.P[i], c.P[i + 1]); });
     S.labels.forEach(function (l) { if (l.rot) { var r = l.t.length * l.size * 0.6, a = l.rot * Math.PI / 180, sg = l.align === 'r' ? -1 : 1; grow(l.x + Math.cos(a) * r * sg, l.y + Math.sin(a) * r * sg); grow(l.x - Math.sin(a) * l.size, l.y + Math.cos(a) * l.size * 0.4); }   /* label angles are kept in degrees (for the renderer): turn them back for the bounds, so a tilted name is never cut off */ else { var b = NS.labelBox(l); if (b) { grow(b[0], b[1]); grow(b[2], b[3]); } } });

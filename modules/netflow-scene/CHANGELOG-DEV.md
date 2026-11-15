@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.13.1 · API 1 · 2026-11-14
+
+### Quick
+A layout may set dotFills: true (flat map, no 3D plan): the scene then records each item's color in S.dotFills by item record and builds no dot for items that show no name or icon; a choke item still gets its gold marker.
+
+### Deep
+A layout may set dotFills: true (flat map, no 3D plan): the scene then records each item's color in S.dotFills by item record and builds no dot for items that show no name or icon; a choke item still gets its gold marker. Without the flag nothing changes. Used by netflow-hierarchy 1.6.1; results as there.
+
 ## 1.13.0 · API 1 · 2026-11-08
 
 ### Quick

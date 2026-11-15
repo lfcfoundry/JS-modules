@@ -39,9 +39,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.6.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.6.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.13.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.17.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -63,7 +63,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-14 · **zstd-kit** 1.0.0 · API 1: First release: Zstandard compress and decompress, XXH64 and CRC-32 from one WebAssembly build, split out of lfc-pack with its own tests and credits; a decode-only file too.
+- 2026-11-14 · **netflow-scene** 1.13.1 · API 1: Internal: a layout can ask for item colors without building zero-size dots (used by netflow-hierarchy 1.6.1).
 - 2026-11-14 · **netflow-layers** 1.13.0 · API 1: New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
+- 2026-11-14 · **netflow-hierarchy** 1.6.1 · API 1: Treemap, icicle and sunburst scenes are built without 50,000 invisible dots: the 50,000-item scene takes 0.55 (Chromium), 0.95 (Firefox) and 0.85 (WebKitGTK) of the time; same picture, smaller SVG.
 - 2026-11-14 · **memory-compression** 2.17.5 · API 2: coordinate lists use the number pool
 - 2026-11-14 · **memory-compression** 2.17.4 · API 2: general path: plain-object fast path, short ASCII strings, inline small ints
 - 2026-11-14 · **memory-compression** 2.17.3 · API 2: Firefox buffer reuse, one fast pass for text columns
