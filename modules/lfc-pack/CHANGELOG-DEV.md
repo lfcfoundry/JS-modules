@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.2 · API 0 · 2026-11-15
+
+### Quick
+Shared label tables are written only where they pay: a column with 32 labels or fewer, or one whose piece-wide codes would be wider than a block needs and whose saved labels do not pay for the extra bits, keeps its own labels per block.
+
+### Deep
+Shared label tables are written only where they pay: a column whose piece-wide codes would be wider than a block needs, and whose saved labels do not pay for the extra code bits (taxi fares and tolls: 692 labels in the piece, 184 in a block), keeps its own labels per block. A real taxi pack job: 1.2% larger than no tables with 0.13.0, 0.22% larger with 0.13.2 (file 1.0% smaller than 0.13.1). NYC 311 piece: 14.7% smaller than no tables (14.8% before). Same format (minor 4), readers unchanged.
+
 ## 0.13.1 · API 0 · 2026-11-15
 
 ### Quick
