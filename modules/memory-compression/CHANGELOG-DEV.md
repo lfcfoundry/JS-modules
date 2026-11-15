@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.6 · API 2 · 2026-11-15
+
+### Quick
+MemoryCompression.warm() with no opts.sample also packs and opens 300 made-up multi-field records (opts.sample: false turns this off).
+
+### Deep
+MemoryCompression.warm() with no opts.sample also packs and opens 300 made-up multi-field records (opts.sample: false turns this off). Chromium only (Firefox 158 no gain, gated off). Same bytes; the warm result is thrown away. First 10,000-record pack in the default fast mode after await warm(), fresh pages, alternating: cloud Chromium 156 paired median 0.76-0.84 (research thread, 32-34 pages); phone Chrome 157 Android 10, 40 pairs per shape: users 28.3 to 25.2 ms (0.858, 35 of 40), orders 18.2 to 15.7 ms (0.861, 36 of 40). My own busy-container race (66 pages) showed 0.97-1.06, inside the noise; the device run meets the median <= 1.00 over 30+ pairs rule.
+
 ## 2.17.5 · API 2 · 2026-11-14
 
 ### Quick

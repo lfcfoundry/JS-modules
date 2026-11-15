@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.17.5 · API 2**
+**Version 2.17.6 · API 2**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; phone Chrome 157 (Android 10)
 
 ## What it is and how it works
 
