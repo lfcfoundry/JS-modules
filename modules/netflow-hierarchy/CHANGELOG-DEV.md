@@ -1,5 +1,13 @@
 # netflow-hierarchy developer changelog
 
+## 1.6.1 · API 1 · 2026-11-14
+
+### Quick
+Treemap, icicle and sunburst no longer build one zero-size dot per item through the scene module: the scene gives the item colors in a list (dotFills) and the hierarchy reads them from there.
+
+### Deep
+Treemap, icicle and sunburst no longer build one zero-size dot per item through the scene module: the scene gives the item colors in a list (dotFills) and the hierarchy reads them from there. The first copy of the items uses object spread instead of a for-in loop (Chromium: 104-153 ms to 9 ms for 50,000 items). 50,000-item treemap scene (cold, first picture): Chromium 156 275.7 to 166.1 ms (0.548, 9 paired fresh pages, 9 of 9 faster), Firefox 158 164 to 147 ms (0.945, 7 pages), WebKitGTK 2.52.6 115 to 98 ms (0.852, 5 pages). Pictures pixel-identical in Chromium on 6 pictures; the SVG export is 16-33% smaller because the invisible r=0 circles are no longer written (nothing is drawn by them). 35,840 equality checks against 1.6.0 on scene fields, item records, dots, SVG text apart from the zero-size circles, and 25 hover answers per picture.
+
 ## 1.6.0 · API 1 · 2026-11-08
 
 ### Quick

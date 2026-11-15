@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.13.0 (API 1)
+ * Version 1.13.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1240,6 +1240,7 @@ var NFMScene = (function () {
     }
     /* What moving one item by hand needs (see S.moveNodes below): where each item's dot, choke dot, icon and name sit in the lists. Only for a big flat map of plain straight links with no arrows, hulls, group names or fisheye, where building the whole picture again for every mouse move is the slow part. */
     var FM = !n3 && !lens && !o.hulls && m >= FAST_MOVE_MIN && !X.LC.groups.show && !ST ? { dot: new Int32Array(L.nodes.length).fill(-1), chk: new Int32Array(L.nodes.length).fill(-1), ico: new Int32Array(L.nodes.length).fill(-1), lab: new Array(L.nodes.length), box: new Array(L.nodes.length) } : null;
+    var NOD = L.dotFills === true && !n3 && !ST ? (S.dotFills = []) : null;   /* L.dotFills (set by a chart that draws its own shapes): the colors go in S.dotFills, by item record, and the dots that would be zero-size are not built */
     var topN = X.LC.items.topN, recOf = n3 && ST ? new Int32Array(L.nodes.length).fill(-1) : null, dotOf = recOf ? new Int32Array(L.nodes.length).fill(-1) : null;
     /* one item's name under it: the same call for a normal picture and for a turn frame */
     var boxLine = alpha(T.box, 0.9), solidM = new Map(), solidOf = function (c) { var v = solidM.get(c); if (v === undefined) solidM.set(c, v = [c[0], c[1], c[2], Math.max(c[3], 0.92)]); return v; };   /* the fill with at least 0.92 opacity, made once per fill array */
@@ -1260,6 +1261,7 @@ var NFMScene = (function () {
       }
       var fill = n3 ? alpha(np.fill, np.fill[3] * fd) : np.fill, kind = np.kind, replace = np.replace;
       if (FM) { FM.dot[q] = S.dots.length; FM.box[q] = rec; }
+      if (NOD) { NOD[rec.i] = fill; if (!replace && !(X.LC.items.show || (st && st.labelShow))) { if (n.choke) S.dots.push({ cx: p.px + r * 0.72, cy: p.py - r * 0.72, r: Math.max(2.5, r * 0.3), fill: T.gold, stroke: alpha(T.box, 0.9), sw: 1, layer: 1, node: rec.i }); X.addIcon(n, rec, p.px, p.py, r); return; } }   /* items the caller draws itself: no dot record, only the color it would have had */
       S.dots.push({ cx: p.px, cy: p.py, r: r, fill: replace ? alpha(fill, 0.15) : fill, stroke: np.stroke, sw: np.sw, layer: 1, node: rec.i, kind: kind });
       if (n.choke) { if (FM) FM.chk[q] = S.dots.length; S.dots.push({ cx: p.px + r * 0.72, cy: p.py - r * 0.72, r: Math.max(2.5, r * 0.3), fill: T.gold, stroke: alpha(T.box, 0.9), sw: 1, layer: 1, node: rec.i }); }
       if (FM) FM.ico[q] = S.icons.length;

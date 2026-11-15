@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.6.0 · API 1**
+**Version 1.6.1 · API 1**
 
-**Tested in:** node tests (953); first-picture paired runs, fresh page per sample, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; 35,840 equality checks vs 1.6.0 and 6 pixel-compared pictures
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
