@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.12.3 · API 0**
+**Version 0.13.0 · API 0**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; same-page packBlock and fresh-page reads
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; same-page first packRows (compression part 6 handoff B76)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -199,6 +199,8 @@ The first save and the first open in a fresh page pay for starting the WebAssemb
 ```js
 LfcPack.warm();   // returns a promise: true when done, false if it could not run; calling it again returns the same promise
 ```
+
+Since 0.13.0, `LfcPack.warm({ rows })` also packs the first 3,000 of your own rows three times, each in a task of its own, so the first real `packRows` has already run the same row paths on rows shaped like yours. Your rows are not changed and later saves write the same bytes; calling it again with rows returns the same promise, and without `rows` it is the plain `warm()`. Cloud first `packRows` in Chromium 156: 113 ms with no warm-up, 107.5 ms after `warm()`, 91.6 ms after `warm({ rows })`; Firefox 158 shows no gain (43, 47, 43 ms), so there it only costs the idle work.
 
 It starts the WebAssembly, then packs and opens one made-up table set (400 rows and 1,200 links), each step in a task of its own, so the page stays responsive. In Chromium 155, warm() itself takes 44 to 52 ms of wall time, with no task over 50 ms. Nothing changes unless a page calls it, and the bytes written are the same. The decoder-only build has no writer, so its warm() resolves false.
 

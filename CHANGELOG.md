@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.17.6 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.12.3 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.13.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-15 · **netflow-sankey** 2.14.0 · API 2: Dragging a bar: layout() can resume from the last result (opts.resume), so a move at 10,000 items takes 0.32 (Chromium), 0.22 (Firefox) and 0.28 (WebKitGTK) of the time. Same picture.
 - 2026-11-15 · **netflow-hierarchy** 1.7.0 · API 1: typedRects: true keeps treemap and icicle tiles as typed arrays
 - 2026-11-15 · **memory-compression** 2.17.6 · API 2: warm() also warms the pack of record lists, so the first big pack in Chromium is about 15-20% faster. Same bytes.
+- 2026-11-15 · **lfc-pack** 0.13.0 · API 0: warm({ rows }) also runs your own first rows through the save paths, so the first real save in Chromium is up to 19% faster; same bytes
 - 2026-11-15 · **lfc-pack** 0.12.3 · API 0: date columns whose values are all whole seconds (taxi timestamps, plain date-times) are stored as seconds: the taxi file is 0.6x the size of the same text; format minor 3
 - 2026-11-15 · **lfc-pack** 0.12.2 · API 0: date and time text with a space and six fraction digits (taxi timestamps) is saved as numbers and read back as the same text; files with them are format minor 3
 - 2026-11-15 · **lfc-pack** 0.12.1 · API 0: fast now also applies to text and dictionary columns given as bytes (live import); typed number columns with empty cells (NaN) pack 4 to 6 times faster, same bytes as an array with nulls

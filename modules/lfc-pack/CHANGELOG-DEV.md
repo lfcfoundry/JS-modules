@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.0 · API 0 · 2026-11-15
+
+### Quick
+B76 from compression part 6 (owner card 11.15, both browsers): warm({ rows }) runs the plain warm(), then packs the first 3,000 caller rows three times, each in its own task; no bytes change; same promise on repeat calls.
+
+### Deep
+B76 from compression part 6 (owner card 11.15, both browsers): warm({ rows }) runs the plain warm(), then packs the first 3,000 caller rows three times, each in its own task; no bytes change; same promise on repeat calls. Cloud first packRows Chromium 156: 113 ms none, 107.5 warm(), 91.6 warm({ rows }); Firefox 158 43/47/43. New test warmrows.cjs.
+
 ## 0.12.3 · API 0 · 2026-11-15
 
 ### Quick
