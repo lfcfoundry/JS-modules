@@ -216,11 +216,11 @@ Draw maps, flow charts and animated pictures from data.
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 | 45.8 | 17.7 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.4.0 | 24.5 | 8.9 | Chord and Bundles views for netflow-engine, drawn with netflow-scene. | — |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 | 209.9 | 65.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.6.1 | 57.3 | 19.6 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.7.0 | 57.8 | 19.8 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 | 76.6 | 26.6 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.17.0 | 124.1 | 39.8 | 22 plain chart types from a table, drawn with netflow-scene. | — |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 | 79.7 | 28.4 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.13.1 | 140.8 | 46.1 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.14.0 | 143.3 | 46.9 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 
 #### Size and packaging
 

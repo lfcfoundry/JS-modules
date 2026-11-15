@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.13.1 (API 1)
+ * Version 1.14.0 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1448,6 +1448,21 @@ var NFMScene = (function () {
       if (r.node >= 0 && S.nodes[r.node] && r.layer === 1) ring(r, r.node);
       r.a = r.node >= 0 && S.nodes[r.node] ? S.nodes[r.node].a : r.from !== undefined ? (edgeBright(r) ? 1 : 0.08) : 1;
     });
+    var RT = S.rectsT;
+    if (RT) {   /* the typed tiles: the same ring and dimming the objects above get */
+      if (!RT.base) RT.base = { sw: RT.sw.slice(), stroke: RT.stroke.slice() };
+      var strokeIx = function (key, c) { if (!RT.sk) RT.sk = new Map(); var k = RT.sk.get(key); if (k === undefined) { k = RT.strokes.length; RT.strokes.push(c); RT.sk.set(key, k); } return k; }, nd, id, mk, i;   /* one table entry per color, however often style() runs */
+      for (i = 0; i < RT.n; i++) {
+        nd = RT.node[i] >= 0 ? S.nodes[RT.node[i]] : null;
+        if (nd) {
+          id = nd.key; mk = marks && marks.get(id);
+          if (sel && sel.has(id)) { RT.stroke[i] = strokeIx('accent', S.theme.accent); RT.sw[i] = Math.max(RT.base.sw[i], 4); }
+          else if (mk) { RT.stroke[i] = strokeIx('m' + mk, hex(mk)); RT.sw[i] = Math.max(RT.base.sw[i], 4); }
+          else { RT.stroke[i] = RT.base.stroke[i]; RT.sw[i] = RT.base.sw[i]; }
+          RT.a[i] = nd.a;
+        } else RT.a[i] = 1;
+      }
+    }
     S.dots.forEach(function (d) { if (d.node >= 0 && S.nodes[d.node] && d.r > 4 && d.fill[3] > 0.1 && !d.isMark) ring(d, d.node); d.a = d.node >= 0 && S.nodes[d.node] ? S.nodes[d.node].a : 1; });
     S.icons.forEach(function (ic) { ic.a = ic.node >= 0 && S.nodes[ic.node] ? S.nodes[ic.node].a : 1; });
     S.labels.forEach(function (l) { l.a = l.node >= 0 && S.nodes[l.node] ? S.nodes[l.node].a : (l.edge !== undefined && S.curveCount() ? 1 : 1); });
@@ -1637,6 +1652,7 @@ var NFMScene = (function () {
       if (c.arrow) { var tri = arrowTri(c); out.push('<path d="M' + tri.map(f).join(' ').replace(/(\S+ \S+) /g, '$1L') + 'Z" fill="' + css(c.color) + '"' + op(c) + '/>'); }
     });
     S.rects.filter(function (r) { return r.layer === 1; }).forEach(function (r) { out.push(rectSvg(r, css, f, op)); });
+    if (S.rectsT) for (var qr = 0; qr < S.rectsT.n; qr++) out.push(rectSvg(rectTAt(S.rectsT, qr), css, f, op));
     /* dots in a row that share fill, stroke and width go in one <g> that carries the look (the same picture, much shorter text on big
        scatters); dimming stays on each dot, since opacity on a group would blend overlapping dots differently */
     var lf = null, ls = null, lw, open = false, run = [], gi = 0;
@@ -1682,6 +1698,18 @@ var NFMScene = (function () {
     out.push('</svg>');
     return out.join('\n');
   }
+  /* Typed rects (since 1.14.0): nested-view tiles kept as typed arrays beside S.rects (S.rectsT) instead of one object each. Fields per tile i: x, y, w, h (Float64Array), node (Int32Array, -1 none), fill (index into fills),
+     stroke (index into strokes), sw, a (the dimming style() sets); every tile has layer 1 and corner radius 0. */
+  function makeRectsT(cap, stroke0) {
+    return { n: 0, cap: cap, x: new Float64Array(cap), y: new Float64Array(cap), w: new Float64Array(cap), h: new Float64Array(cap), node: new Int32Array(cap), fill: new Uint32Array(cap), stroke: new Uint32Array(cap), sw: new Float32Array(cap).fill(1), a: new Float64Array(cap).fill(1),
+      fills: [], fillMap: new Map(), strokes: [stroke0], layer: 1, r: 0, base: null };
+  }
+  function pushRectT(T, x, y, w, h, fill, node) {
+    var i = T.n++, k = T.fillMap.get(fill); if (k === undefined) { k = T.fills.length; T.fills.push(fill); T.fillMap.set(fill, k); }
+    T.x[i] = x; T.y[i] = y; T.w[i] = w; T.h[i] = h; T.node[i] = node; T.fill[i] = k;
+  }
+  function endRectsT(T) { var n = T.n; ['x', 'y', 'w', 'h', 'node', 'fill', 'stroke', 'sw', 'a'].forEach(function (k) { T[k] = T[k].subarray(0, n); }); T.fillMap = null; return T; }
+  function rectTAt(T, i) { return { x: T.x[i], y: T.y[i], w: T.w[i], h: T.h[i], r: 0, fill: T.fills[T.fill[i]], stroke: T.strokes[T.stroke[i]], sw: T.sw[i], layer: 1, node: T.node[i], a: T.a[i] }; }
   function rectSvg(r, css, f, op) { return '<rect x="' + f(r.x) + '" y="' + f(r.y) + '" width="' + f(r.w) + '" height="' + f(r.h) + '" rx="' + f(Math.min(r.r, r.w / 2, r.h / 2)) + '" fill="' + css(r.fill) + '" stroke="' + (r.sw ? css(r.stroke) : 'none') + '" stroke-width="' + f(r.sw) + '"' + (op ? op(r) : '') + '/>'; }
   /** The outline of a tapered link as an SVG path (without the closing Z): a polyline along the curve, offset to both sides, narrowing from c.w to c.w1. */
   function taperSvg(c, f) {
@@ -1707,7 +1735,7 @@ var NFMScene = (function () {
   }
 
   return {
-    make: make, addTitles: addTitles, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, threeGroups: threeGroups, familyColors: familyColors, THEMES: THEMES,
+    make: make, makeRectsT: makeRectsT, pushRectT: pushRectT, endRectsT: endRectsT, rectTAt: rectTAt, addTitles: addTitles, rigStyle: rigStyle, pick: pick, hit: hit, pickEdge: pickEdge, pickLabel: pickLabel, inRect: inRect, inLasso: inLasso, restyle: restyle, style: style, toSvg: toSvg, palette: palette, threeGroups: threeGroups, familyColors: familyColors, THEMES: THEMES,
     PALETTES: PALETTES, RAMPS: RAMPS, RAMP_NAMES: RAMP_NAMES, rampAt: rampAt, ICONS: ICONS, SHAPE_KIND: SHAPE_KIND, SHAPE_NAMES: SHAPE_NAMES, shapePts: shapePts,
     css: css, hex: hex, toHex: toHex, mix: mix, alpha: alpha, arrowTri: arrowTri, bez: bez, HEAD: HEAD, labelBox: labelBox
   };

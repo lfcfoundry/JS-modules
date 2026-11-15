@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-15
+- typedRects: true keeps treemap and icicle tiles as typed arrays
+
 ## 1.6.1 · API 1 · 2026-11-14
 - Treemap, icicle and sunburst scenes are built without 50,000 invisible dots: the 50,000-item scene takes 0.55 (Chromium), 0.95 (Firefox) and 0.85 (WebKitGTK) of the time; same picture, smaller SVG.
 

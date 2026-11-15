@@ -194,5 +194,21 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
     ok(!/r="0"/.test(global.NetflowScene.toSvg(S, 't')), view + ' writes no invisible circles');
   }
 }
+{   /* typedRects: true (1.7.0): treemap and icicle tiles as typed arrays in S.rectsT; the picture is the same text as the object form, also after style() with a focus, a selection and marks */
+  const NS = global.NetflowScene, G = graph(400, 0, 3, 5);
+  for (const view of ['treemap', 'icicle']) for (const nest of ['auto', 'groups']) {
+    const L = C.layout(view, copy(G), { nest, chordBy: 'auto', sized: true }); L.view = view; L.groups = ['g0', 'g1', 'g2', 'g3', 'g4'];
+    const A = C.scene(L, {}, NS), B = C.scene(L, { typedRects: true }, NS), tag = view + ' ' + nest;
+    ok(B.rectsT && B.rectsT.n > 100 && B.rects.length === 0 && A.rects.length === B.rectsT.n && !A.rectsT, tag + ': typed tiles are in rectsT, the object form is unchanged (' + A.rects.length + ')');
+    ok(NS.toSvg(A, 't') === NS.toSvg(B, 't') && A.x0 === B.x0 && A.w === B.w && A.h === B.h, tag + ': same picture text and bounds');
+    ok(A.rects.every((r, i) => r.x === B.rectsT.x[i] && r.w === B.rectsT.w[i] && r.node === B.rectsT.node[i] && r.fill.join() === B.rectsT.fills[B.rectsT.fill[i]].join()), tag + ': same tiles, nodes and fills');
+    const keys = A.nodes.map((n) => n.key), st = { focus: new Set(keys.slice(0, 120)), sel: new Set(keys.slice(5, 9)), marks: new Map([[keys[20], '#ff8800'], [keys[21], '#00aa55']]) };
+    for (let pass = 0; pass < 3; pass++) { NS.style(A, pass === 1 ? {} : st); NS.style(B, pass === 1 ? {} : st); ok(NS.toSvg(A, 't') === NS.toSvg(B, 't'), tag + ': same picture after style() pass ' + pass); }
+    ok(B.rectsT.strokes.length <= 4, tag + ': the stroke table does not grow with every style() call (' + B.rectsT.strokes.length + ')');
+  }
+  const L2 = C.layout('treemap', copy(G), { nest: 'auto', chordBy: 'auto', sized: true }); L2.view = 'treemap'; L2.groups = ['g0'];
+  const S2 = C.scene(L2, { typedRects: true }, { ...global.NetflowScene, makeRectsT: undefined });
+  ok(S2.rects.length > 100 && !S2.rectsT, 'a scene module without typed rects (older) gives the object form');
+}
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

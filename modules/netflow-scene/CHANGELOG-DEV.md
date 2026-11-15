@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.0 · API 1 · 2026-11-15
+
+### Quick
+New: makeRectsT, pushRectT, endRectsT, rectTAt; style() and toSvg() handle S.rectsT.
+
+### Deep
+New: makeRectsT, pushRectT, endRectsT, rectTAt; style() and toSvg() handle S.rectsT. Tiles kept as typed arrays instead of one object each; the picture text is identical. Used by netflow-hierarchy typedRects: true.
+
 ## 1.13.1 · API 1 · 2026-11-14
 
 ### Quick
