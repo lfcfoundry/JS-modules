@@ -287,15 +287,15 @@ Cloud WebKitGTK 2.52.6: logs 0.95, hex columns about the same.
 
 **Against Parquet readers in the browser, cloud-browser runs.**
 
-Compared: lfc-pack 0.10.35 against Parquet written by pyarrow 26.0.1 with zstd level 3 (100,000 rows each, file size in MB, smaller is better; measured 2026-11-14).
+Compared: lfc-pack against Parquet written by pyarrow 26.0.1 at zstd level 3 (100,000 rows each, file size in MB, smaller is better; lfc-pack 0.10.35, shared 4-core cloud machine).
 
-<!-- title: lfc-pack files are 0.50 to 0.68 the size of Parquet zstd 3 on taxi trips, orders and logs -->
+<!-- title: lfc-pack files are 0.5 to 0.7 the size of Parquet zstd 3 on taxi trips, orders and logs -->
 | way | Taxi trips | Orders | Logs |
 |---|---:|---:|---:|
 | lfc-pack | 0.64 | 0.60 | 0.59 |
 | Parquet zstd 3 | 1.11 | 1.20 | 0.87 |
 
-Compared: lfc-pack 0.10.35 against parquet-wasm with Arrow JS 21.2.0 and hyparquet 1.33.0 on reading every row as plain JavaScript objects (taxi trips, median of 7 warm reads, ms, lower is faster; measured 2026-11-14).
+Compared: lfc-pack against parquet-wasm with Arrow JS 21.2.0 and hyparquet 1.33.0 on reading every row as plain JavaScript objects (taxi trips, median of 7 warm reads, ms, lower is faster; gaps under about 15% are noise).
 
 <!-- title: Reading 100,000 taxi trips as plain objects, lfc-pack takes 21 to 37 ms against 44 to 93 for the Parquet readers -->
 | way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
@@ -304,7 +304,7 @@ Compared: lfc-pack 0.10.35 against parquet-wasm with Arrow JS 21.2.0 and hyparqu
 | hyparquet | 60.2 | 64.0 | 44.0 |
 | parquet-wasm + Arrow JS | 93.2 | 84.0 | 47.0 |
 
-Compared: lfc-pack against the same Parquet readers on orders (nullable text, dates and money, ms, lower is faster).
+Compared: lfc-pack against the same two Parquet readers on orders (nullable text, dates and money, ms, lower is faster).
 
 <!-- title: Reading 100,000 orders as plain objects, lfc-pack takes 17 to 25 ms against 58 to 175 for the Parquet readers -->
 | way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
@@ -313,7 +313,7 @@ Compared: lfc-pack against the same Parquet readers on orders (nullable text, da
 | hyparquet | 57.6 | 71.0 | 71.0 |
 | parquet-wasm + Arrow JS | 172 | 175 | 119 |
 
-Compared: lfc-pack against the same Parquet readers on logs (text, ids and addresses, ms, lower is faster).
+Compared: lfc-pack against the same two Parquet readers on logs (text, ids and addresses, ms, lower is faster).
 
 <!-- title: Reading 100,000 log rows as plain objects, lfc-pack takes 32 to 53 ms against 130 to 348 for the Parquet readers -->
 | way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
@@ -322,7 +322,7 @@ Compared: lfc-pack against the same Parquet readers on logs (text, ids and addre
 | hyparquet | 186 | 130 | 135 |
 | parquet-wasm + Arrow JS | 348 | 222 | 166 |
 
-Compared: lfc-pack 0.10.1 against the fastest Parquet reader on rows with one value (12 equality queries on taxi rate, total ms, lower is faster; the fastest reader is DuckDB-WASM in Chromium and WebKitGTK and parquet-wasm in Firefox; measured 2026-11-12, not re-run).
+Compared: lfc-pack against the fastest Parquet reader on rows with one value (12 equality queries on taxi rate, total ms, lower is faster; lfc-pack 0.10.1 on the older data sets, not re-run; the fastest reader is DuckDB-WASM 1.33.1 in Chromium and WebKitGTK and parquet-wasm in Firefox, where DuckDB-WASM did not run).
 
 <!-- title: Finding the rows with one value, lfc-pack is 1.6 to 2.6 times faster than the fastest Parquet reader, and 5 to 12 times faster with cache: true -->
 | way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
@@ -331,7 +331,7 @@ Compared: lfc-pack 0.10.1 against the fastest Parquet reader on rows with one va
 | lfc-pack | 244 | 306 | 190 |
 | fastest Parquet reader | 386 | 798 | 492 |
 
-Cloud-browser runs (shared 4-core machine). The size and read charts above are lfc-pack 0.10.35 measured 2026-11-14 on new seeded data sets; DuckDB-WASM was not re-run there. The equality chart and this start-up line are lfc-pack 0.10.1 from 2026-11-12, not re-run; DuckDB-WASM did not run in Firefox 158. Fresh page to first rows on taxi trips: lfc-pack 81.4, 53.0 and 79.0 ms (Chromium, Firefox, WebKitGTK), hyparquet 120, 118 and 103, parquet-wasm 250, 262 and 280; DuckDB-WASM takes 1,716 ms in Chromium and 6,155 in WebKitGTK because it loads a 36 MB WebAssembly file. Every reader returned the same rows.
+DuckDB-WASM reads were not re-run on the new data sets (it loads a 36 MB WebAssembly file); the 0.10.1 runs on the older sets took 96 to 147 ms for taxi trips, against 34 to 39 for lfc-pack then.
 
 **Against DuckDB-WASM on sums and averages, cloud-browser runs.**
 
