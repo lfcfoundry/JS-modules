@@ -36,7 +36,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.13.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.6.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
@@ -62,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-15 · **netflow-sankey** 2.14.0 · API 2: Dragging a bar: layout() can resume from the last result (opts.resume), so a move at 10,000 items takes 0.32 (Chromium), 0.22 (Firefox) and 0.28 (WebKitGTK) of the time. Same picture.
 - 2026-11-14 · **zstd-kit** 1.0.0 · API 1: First release: Zstandard compress and decompress, XXH64 and CRC-32 from one WebAssembly build, split out of lfc-pack with its own tests and credits; a decode-only file too.
 - 2026-11-14 · **netflow-scene** 1.13.1 · API 1: Internal: a layout can ask for item colors without building zero-size dots (used by netflow-hierarchy 1.6.1).
 - 2026-11-14 · **netflow-layers** 1.13.0 · API 1: New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
