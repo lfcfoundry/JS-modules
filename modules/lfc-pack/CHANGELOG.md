@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.0 · API 0 · 2026-11-15
+- dates saved as numbers: files half size, saves 16-27% faster
+
 ## 0.10.42 · API 0 · 2026-11-14
 - Firefox joins every text column and fills by index
 

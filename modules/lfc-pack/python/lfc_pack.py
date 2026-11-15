@@ -525,15 +525,7 @@ def _read_flat(b):
         fr = []
         for rawlen, slen, z in cm['f']:
             sb = c.take(slen); fr.append(_dz(sb, rawlen) if z else bytes(sb))
-        vals.append(None if cm['t'] == 'Q' else _decode_col(cm, fr))
-    for j, cm in enumerate(meta['cols']):   # location columns (format minor 2): rebuilt from the two source columns
-        if cm['t'] != 'Q': continue
-        q = cm['p']; a, b2 = q.get('a'), q.get('b')
-        if not (isinstance(a, int) and isinstance(b2, int) and 0 <= a < K and 0 <= b2 < K and a != b2 and a != j and b2 != j) or meta['cols'][a]['t'] == 'Q' or meta['cols'][b2]['t'] == 'Q' or meta['cols'][a]['n'] != n or meta['cols'][b2]['n'] != n or not all(isinstance(q.get(k), str) for k in ('x', 'm', 'y')):
-            raise ValueError('damaged block: location column')
-        va, vb = vals[a], vals[b2]
-        if not all(isinstance(x, str) for x in va) or not all(isinstance(x, str) for x in vb): raise ValueError('damaged block: location source is not text')
-        vals[j] = [q['x'] + x + q['m'] + y + q['y'] for x, y in zip(va, vb)]
+        vals.append(_decode_col(cm, fr))
     ptr = [0] * K; out = []
     if ordl is not None:
         for i in range(n):

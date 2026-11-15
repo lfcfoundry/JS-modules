@@ -53,43 +53,7 @@ func readFlat(b []byte) []any {
 				fr = append(fr, sb)
 			}
 		}
-		if tv, _ := field(cm, "t").(string); tv == "Q" {
-			continue // a location column (format minor 2): rebuilt below from its two source columns
-		}
 		vals[ci] = decodeCol(cm, fr)
-	}
-	for ci, cmv := range colsA {
-		cm, _ := cmv.(*Obj)
-		if tv, _ := field(cm, "t").(string); tv != "Q" {
-			continue
-		}
-		qp, _ := field(cm, "p").(*Obj)
-		if qp == nil {
-			fail("damaged block: location column")
-		}
-		ai, bi := -1, -1
-		if v, ok := field(qp, "a").(float64); ok && v == float64(int(v)) {
-			ai = int(v)
-		}
-		if v, ok := field(qp, "b").(float64); ok && v == float64(int(v)) {
-			bi = int(v)
-		}
-		qx, ok1 := field(qp, "x").(string)
-		qm, ok2 := field(qp, "m").(string)
-		qy, ok3 := field(qp, "y").(string)
-		if ai < 0 || bi < 0 || ai >= K || bi >= K || ai == bi || ai == ci || bi == ci || !ok1 || !ok2 || !ok3 || vals[ai] == nil || vals[bi] == nil || len(vals[ai]) != n || len(vals[bi]) != n {
-			fail("damaged block: location column")
-		}
-		col := make([]any, n)
-		for i := 0; i < n; i++ {
-			sa, oka := vals[ai][i].(string)
-			sb, okb := vals[bi][i].(string)
-			if !oka || !okb {
-				fail("damaged block: location source is not text")
-			}
-			col[i] = qx + sa + qm + sb + qy
-		}
-		vals[ci] = col
 	}
 	ptr := make([]int, K)
 	out := make([]any, 0, n)

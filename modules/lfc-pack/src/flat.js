@@ -338,7 +338,6 @@
     if (DATE_MODE) { var dn = dateNums(v, v.length), w = dn && dateWrap(dn, zs, level, key); if (w) return w; }
     return settle(zs, level, encodeColumn0(v, zs, level, tmode, sj, key));
   }
-  var LOC_MODE = !(typeof globalThis !== 'undefined' && globalThis.__NOLOC);
   var DATE_MODE = !(typeof globalThis !== 'undefined' && globalThis.__NODATE);
   // research prototype (null plane, type N): a column whose values are one scalar kind plus some nulls keeps the typed encoding of its non-null values, plus one bit plane that marks the nulls
   var NMARK = 0;   // counts the null-plane (N) columns written, so a pack call can tell whether its file needs format minor 1
@@ -750,7 +749,6 @@
       for (i = 0; i < n; i++) { an = al[i]; aa = new Array(an); ac = 0; for (aj = 0; aj < an; aj++) { ac += ar ? av[ap++] : unzz(av[ap++]); aa[aj] = ac; } o[i] = aa; }
       return o;
     }
-    if (t === 'Q') return n ? tdr.decode(frames[0]).split('\0') : [];   // the rebuilt text of a location column, joined (see flatFrames)
     if (t === 'W') return dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f);
     if (t === 'L') return untemplate(n, frames);
     if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
@@ -897,9 +895,7 @@
       else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
     var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol;
-    if (!opts.exact && LOC_MODE) locPass(cols, pre21, keys, n, es);
     for (j = 0; j < cols.length; j++) {
-      if (es[j]) continue;
       if (rc && pre21[j] && pre21[j] !== 3 && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
         (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; if (r.e.t === 'W') WMARK++; es[j2] = r; }; }(j)));
         cols[j] = []; continue; }
@@ -1006,43 +1002,6 @@
     cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
     cand('D', { w: wd, wide: false }, [lb.slice(), bitpack(ca, wd)], { distinct: nl });
     return settle(zs, level, best);
-  }
-  // 'Q' (since 0.11.0): a text column whose every cell is x + (the same row of text column a) + m + (the same row of text column b) + y, such as the "(41.8, -87.6)" of a Socrata point column beside its latitude and longitude
-  // columns. Stored as the three short pieces and the two column numbers, no frames; the reader rebuilds the text from the two source columns. Found from row 0 and checked on every row; no nulls, no templates.
-  function locPass(cols, pre21, keys, n, es) {
-    var K = cols.length, j, a, b, d0;
-    if (n < 32 || K < 3 || K > 4096) return;
-    function cell(c, i) { var bc = c.bc; return td.decode(bc.bytes.subarray(bc.start[c.a0 + i], bc.end[c.a0 + i])); }
-    function txt(jj) { var c = cols[jj]; if (pre21[jj] === 3) return c.dc ? 0 : 1; return Array.isArray(c) && c.length === n && typeof c[0] === 'string' ? 2 : 0; }
-    var kd = new Array(K), isSrc = new Uint8Array(K); for (j = 0; j < K; j++) kd[j] = txt(j);
-    for (j = 0; j < K; j++) {
-      if (!kd[j] || es[j] || isSrc[j]) continue;
-      d0 = kd[j] === 1 ? cell(cols[j], 0) : cols[j][0]; if (d0.length < 5 || d0.length > 200) continue;
-      var cands = [], m0, a0s, b0s, pa, pb2;
-      for (a = 0; a < K; a++) { if (a === j || kd[a] !== kd[j] || es[a]) continue; a0s = kd[a] === 1 ? cell(cols[a], 0) : cols[a][0]; if (a0s.length < 2 || d0.indexOf(a0s) < 0) continue; cands.push([a, a0s]); }
-      if (cands.length < 2 || cands.length > 6) continue;
-      search: for (a = 0; a < cands.length; a++) for (b = 0; b < cands.length; b++) {
-        if (a === b) continue; pa = d0.indexOf(cands[a][1]); pb2 = d0.indexOf(cands[b][1], pa + cands[a][1].length); if (pb2 < 0) continue;
-        var x = d0.slice(0, pa), m = d0.slice(pa + cands[a][1].length, pb2), y = d0.slice(pb2 + cands[b][1].length);
-        if (m.length === 0 || x.length + m.length + y.length > 16 || !locCheck(cols[j], cols[cands[a][0]], cols[cands[b][0]], kd[j], n, x, m, y)) continue;
-        es[j] = { e: { t: 'Q', p: { a: cands[a][0], b: cands[b][0], x: x, m: m, y: y }, n: n, z: [], size: 0 }, zn: null }; WMARK++; cols[j] = []; isSrc[cands[a][0]] = 1; isSrc[cands[b][0]] = 1; break search;
-      }
-    }
-  }
-  function locCheck(D, A, B, kind, n, x, m, y) {
-    var i;
-    if (kind === 2) { for (i = 0; i < n; i++) if (D[i] !== x + A[i] + m + B[i] + y) return false; return true; }
-    var db = D.bc, ab = A.bc, bb = B.bc, DB = db.bytes, AB = ab.bytes, BB = bb.bytes, xb = te.encode(x), mb = te.encode(m), yb = te.encode(y), s, e, la, lb, p, q, t;
-    for (i = 0; i < n; i++) {
-      s = db.start[D.a0 + i]; e = db.end[D.a0 + i]; la = ab.end[A.a0 + i] - ab.start[A.a0 + i]; lb = bb.end[B.a0 + i] - bb.start[B.a0 + i];
-      if (e - s !== xb.length + la + mb.length + lb + yb.length) return false;
-      p = s; for (q = 0; q < xb.length; q++) if (DB[p++] !== xb[q]) return false;
-      for (q = ab.start[A.a0 + i], t = ab.end[A.a0 + i]; q < t; q++) if (DB[p++] !== AB[q]) return false;
-      for (q = 0; q < mb.length; q++) if (DB[p++] !== mb[q]) return false;
-      for (q = bb.start[B.a0 + i], t = bb.end[B.a0 + i]; q < t; q++) if (DB[p++] !== BB[q]) return false;
-      for (q = 0; q < yb.length; q++) if (DB[p++] !== yb[q]) return false;
-    }
-    return true;
   }
   var B28_MIN = 8192;
   // B34 (research): a block given as columns ({ keys, A: one array per key, a, b }) fills the same column state the B21a row loop builds, with no row objects. Every row holds every key.
@@ -1317,33 +1276,19 @@
     var meta = JSON.parse(tdr.decode(zs.decompressView(take(h.m[1]), h.m[0]))), pl = zs.decompress(take(h.pl[1]), h.pl[0]), n = h.n, K = meta.keys.length, cols = new Array(K), ordList = null, ordIds = null;
     if (meta.ord) { var om = meta.ord; ordList = JSON.parse(tdr.decode(zs.decompressView(take(om[1]), om[0]))); var odr = zs.decompress(take(om[4]), om[3]); ordIds = new KIND[om[2]](odr.buffer, odr.byteOffset, n); }
     base = p;
-    var qSrc = null, hid = null;   // 'Q' columns: the two source columns of every wanted one are read too (and left out of the result when they are not wanted themselves)
-    for (j = 0; j < K; j++) if (meta.cols[j].t === 'Q') {
-      var qp = meta.cols[j].p; lazy = false;
-      if (!(!want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]))) continue;
-      if (!qp || !(qp.a >= 0 && qp.a < K && qp.b >= 0 && qp.b < K && qp.a % 1 === 0 && qp.b % 1 === 0) || qp.a === qp.b || qp.a === j || qp.b === j || meta.cols[qp.a].t === 'Q' || meta.cols[qp.b].t === 'Q' || meta.cols[qp.a].n !== n || meta.cols[qp.b].n !== n || typeof qp.x !== 'string' || typeof qp.m !== 'string' || typeof qp.y !== 'string') throw new Error('damaged block: location column');
-      if (!qSrc) { qSrc = new Uint8Array(K); hid = new Array(K); } qSrc[qp.a] = 1; qSrc[qp.b] = 1;
-    }
     for (j = 0; j < K; j++) {
-      var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]), need = wanted || (qSrc !== null && qSrc[j] === 1);
+      var c = meta.cols[j], fr = [], wanted = !want || Object.prototype.hasOwnProperty.call(want, meta.keys[j]);
       if (verify) {
         if (typeof c.o !== 'number' || typeof c.x !== 'string') throw new Error('damaged block: column offsets missing');
-        if (!need) { cols[j] = null; continue; }
+        if (!wanted) { cols[j] = null; continue; }
         var tl = 0, st0 = base + c.o; for (i = 0; i < c.f.length; i++) tl += c.f[i][1];
         if (st0 < base || st0 + tl > bytes.length || xhex(zs, bytes.subarray(st0, st0 + tl)) !== c.x) throw new Error('block checksum mismatch (column ' + meta.keys[j] + ')');
         p = st0;
       }
       if (lazy && wanted) { var zf = []; for (i = 0; i < c.f.length; i++) zf.push([c.f[i], take(c.f[i][1])]); cols[j] = { fr: null, zf: zf, zs: zs }; continue; }   // B19: compressed frames kept, decompressed on first use
-      for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (need) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
-      if (!wanted) { if (need) hid[j] = fr; cols[j] = null; continue; }
-      cols[j] = (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
+      for (i = 0; i < c.f.length; i++) { var f = c.f[i], sb = take(f[1]); if (wanted) fr.push(f[2] ? zs.decompress(sb, f[0]) : sb.slice()); }
+      cols[j] = !wanted ? null : (predecode && (c.t === 'V' || c.t === 'B' || c.t === 'F')) ? { pre: decodeColumn(c, zs, fr) } : { fr: fr };
     }
-    if (qSrc) for (j = 0; j < K; j++) if (meta.cols[j].t === 'Q' && cols[j]) {   // rebuild each wanted location column from its two source columns
-      var q = meta.cols[j].p, qx = q.x, qm = q.m, qy = q.y, qa = qsrc(q.a), qb = qsrc(q.b), qo = new Array(n);
-      for (i = 0; i < n; i++) { if (typeof qa[i] !== 'string' || typeof qb[i] !== 'string') throw new Error('damaged block: location source is not text'); qo[i] = qx + qa[i] + qm + qb[i] + qy; }
-      cols[j] = qCol(qo);
-    }
-    function qsrc(k) { var ck = cols[k]; if (!ck) return decodeColumn(meta.cols[k], zs, hid[k]); return ck.pre ? ck.pre : (ck.pre = decodeColumn(meta.cols[k], zs, ck.fr)); }   // a source that is wanted too keeps its values, so it is decoded once
     if (!ordList) {   // the presence bits of a key must be as many as its column has values (a dense column is read without looking at its bits, so a damaged bit plane would otherwise go unnoticed there)
       var pb = (n + 7) >> 3, cnt, b;
       if (pl.length < K * pb) throw new Error('damaged block: presence bits cut off');
@@ -1357,7 +1302,6 @@
     }
     return { t: 'f', n: n, meta: meta, pl: pl, ordList: ordList, ordIds: ordIds, cols: cols };
   }
-  function qCol(strs) { var o = { pre: strs }; Object.defineProperty(o, 'fr', { get: function () { return [te.encode(strs.join('\0'))]; }, enumerable: true }); return o; }   // frame 0 is built only if a read path asks for frames instead of the values
   flatFrames = guard(flatFrames);
   // B19 helpers: frame k of a lazily read column, all its frames, every column of a lazily read block
   function frOne(c, k) { if (c.fr) return c.fr[k]; if (!c.one) c.one = []; if (!c.one[k]) { var f = c.zf[k][0], sb = c.zf[k][1]; c.one[k] = f[2] ? (c.keep ? c.zs.decompress(sb, f[0]).slice() : c.zs.decompress(sb, f[0])) : sb.slice(); } return c.one[k]; }
