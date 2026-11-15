@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.5 · API 2 · 2026-11-14
+
+### Quick
+Pooled number arrays for coordinate lists (GeoJSON-style): about 8% faster in Chromium and 9% in Firefox on geojson-shaped data, other shapes unchanged.
+
+### Deep
+Pooled number arrays for coordinate lists (GeoJSON-style): about 8% faster in Chromium and 9% in Firefox on geojson-shaped data, other shapes unchanged. Same bytes, no option.
+
 ## 2.17.4 · API 2 · 2026-11-14
 
 ### Quick

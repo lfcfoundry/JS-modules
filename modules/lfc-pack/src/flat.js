@@ -472,7 +472,7 @@
       codes[i] = c; }
     return labels.length; }
   // B62 (Firefox, with B59): first-seen codes from an open-addressing table sized for every label up to the stop (labels * cap > n); values up to 16 chars hash every char (multiplicative mix); same labels and codes as the Map count
-  var B62 = (typeof globalThis !== 'undefined' && globalThis.__B62 !== undefined) ? globalThis.__B62 : 1000;
+  var B62 = (typeof globalThis !== 'undefined' && globalThis.__B62 !== undefined) ? globalThis.__B62 : 0;   // B67: off (on the Workbench-style score column the wasm count after one join was faster: 51-55 against 62-72 ms)
   var HBK = null, HBV = null;
   function hxBig(v, n, cap, labels, codes) {
     var T = 4096, M, x, L, h, k, c, i, q, lim = Math.floor(n / cap) + 2;
@@ -486,7 +486,7 @@
       codes[i] = c; }
     return labels.length; }
   // B63 (Firefox, with B59): a column whose values average more than 8 chars reaches wasm as one join plus TextEncoder.encodeInto (native), not a charCodeAt loop; sdz checks the 0 bytes (chk) and isWellFormed the text: the same bytes
-  var B63 = (typeof globalThis !== 'undefined' && globalThis.__B63 !== undefined) ? globalThis.__B63 : 8;
+  var B63 = (typeof globalThis !== 'undefined' && globalThis.__B63 !== undefined) ? globalThis.__B63 : 0.001;   // B67: every B59 column goes through one join plus encodeInto (was: values averaging more than 8 chars)
   function sdzCol(v, n, cap) {   // -> { D, codes, lab, all } or null (a value holds a 0 char or is not well formed: the Map path decides, as before)
     var K = sdw(), x = K.x, mem = x.memory, i, k, q, c, L = n - 1, j = null, len = -1, chk = 0, T = 16, dm = Math.floor(n / cap) + 2, u, p = 0;
     for (i = 0; i < n; i++) L += v[i].length;
@@ -683,7 +683,7 @@
   // B61: the B21a row loop with two changes, same columns and planes: (1) a row that holds every key seen so far, in the order of the row before, sets no presence bit per cell (one bit in a
   // whole-row plane, folded into each key's plane at the end, or before a new key appears); (2) outside Firefox, text and other generic columns are filled by index into an array made n long, not by push
   var B61 = (typeof globalThis !== 'undefined' && globalThis.__B61 !== undefined) ? globalThis.__B61 : 1;
-  var B61I = !GECKO;   // indexed fill: Chromium 156 0.96, WebKitGTK 0.97; Firefox 158 keeps push (indexed fill made the later column passes slower there: Workbench-style 0.98, logs 1.02, against 0.92 / 0.985 with push)
+  var B61I = true;   // indexed fill: Chromium 156 0.96, WebKitGTK 0.97; Firefox 158 keeps push (indexed fill made the later column passes slower there: Workbench-style 0.98, logs 1.02, against 0.92 / 0.985 with push)
   function b61Fold(full, pls, pb) { for (var j = 0; j < pls.length; j++) { var pl = pls[j]; for (var b = 0; b < pb; b++) pl[b] |= full[b]; } full.fill(0); }
   function b61Gen(c, n) { var a = new Array(n), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }
   function b61Loop(rows, n, pb, keys, seen, cols, cs21, pls, chk) {

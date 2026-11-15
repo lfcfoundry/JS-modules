@@ -29,10 +29,10 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.17.4 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.17.5 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.10.41 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.10.42 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -64,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-11-14 · **zstd-kit** 1.0.0 · API 1: First release: Zstandard compress and decompress, XXH64 and CRC-32 from one WebAssembly build, split out of lfc-pack with its own tests and credits; a decode-only file too.
 - 2026-11-14 · **netflow-layers** 1.13.0 · API 1: New sift option: fewer link crossings than Graphviz on big maps for about a fifth to a third more layout time (off by default)
+- 2026-11-14 · **memory-compression** 2.17.5 · API 2: coordinate lists use the number pool
 - 2026-11-14 · **memory-compression** 2.17.4 · API 2: general path: plain-object fast path, short ASCII strings, inline small ints
 - 2026-11-14 · **memory-compression** 2.17.3 · API 2: Firefox buffer reuse, one fast pass for text columns
 - 2026-11-14 · **memory-compression** 2.17.2 · API 2: pooled number arrays in Chromium, Object.keys row check in Firefox
@@ -78,6 +79,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-14 · **memory-compression** 2.16.3 · API 2: Fixes wrong text back from pattern columns that differ only in a constant part when unpacked in the same page (2.16.1-2.16.2 and earlier); faster ISO timestamp packing
 - 2026-11-14 · **memory-compression** 2.16.2 · API 2: Faster scan of text columns that follow a pattern (timestamps, user ids); same data and size
 - 2026-11-14 · **memory-compression** 2.16.1 · API 2: Unpacking lists with decimal numbers is about 10 to 15% faster
+- 2026-11-14 · **lfc-pack** 0.10.42 · API 0: Firefox joins every text column and fills by index
 - 2026-11-14 · **lfc-pack** 0.10.41 · API 0: text columns given as bytes go to the string path only when they look like unique ids
 - 2026-11-14 · **lfc-pack** 0.10.40 · API 0: saving rows faster in Firefox
 - 2026-11-14 · **lfc-pack** 0.10.39 · API 0: wasm byteCol kernel for text columns given as bytes

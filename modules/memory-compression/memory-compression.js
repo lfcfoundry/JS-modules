@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.17.4 (API 2)
+ * Version 2.17.5 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -3261,6 +3261,7 @@
       if (cols) {
         this.ctl.u8(CT_TUPLE); this.ctl.varint(k);
         for (j = 0; j < k; j++) this.column(cols[j], q);
+        if (!this.defer) giveF64(cols);
         return true;
       }
     }
@@ -3626,18 +3627,19 @@
     if (f) return f;
     if (CAN_EVAL) {
       src = 'var r=[],i,m,a,t,v,q=0,len;';
-      for (j = 0; j < k; j++) src += 'var c' + j + '=new ' + (types[j] === 'n' ? 'Float64Array' : 'Array') + '(total);r.push(c' + j + ');';
+      for (j = 0; j < k; j++) src += 'var c' + j + '=' + (types[j] === 'n' ? 'T(total)' : 'new Array(total)') + ';r.push(c' + j + ');';     // number columns from the pool (handed back by fusedArrays)
       src += 'for(i=0;i<n;i++){a=rows[i];len=a.length;for(m=0;m<len;m++){t=a[m];if(!Array.isArray(t)||t.length!==' + k + ')return -1;';
       for (j = 0; j < k; j++) {
         if (types[j] === 'n') src += 'v=t[' + j + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[q]=v;';
         else src += 'c' + j + '[q]=t[' + j + '];';
       }
       src += 'q++;}}return r;';
-      f = new Function('rows', 'n', 'keys', 'total', src);
+      f = new Function('rows', 'n', 'keys', 'total', 'T', src);
+      f = (function (g) { return function (rows, n, ks, total) { return g(rows, n, ks, total, takeF64b); }; })(f);
     } else {
       f = function (rows, n, ks, total) {
         var r = [], i, m, jj, a, t, v, q = 0, len;
-        for (jj = 0; jj < k; jj++) r.push(types[jj] === 'n' ? new Float64Array(total) : new Array(total));
+        for (jj = 0; jj < k; jj++) r.push(types[jj] === 'n' ? takeF64b(total) : new Array(total));
         for (i = 0; i < n; i++) {
           a = rows[i]; len = a.length;
           for (m = 0; m < len; m++) {
