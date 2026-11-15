@@ -753,8 +753,8 @@
   }
   var hist1 = new Int32Array(256), hist2 = new Int32Array(256);
   // Looks at a sample and returns {w, mask} (w = 0 means "leave the bytes as they are")
-  function chooseTransform(src, widths, wantDelta, useW) {
-    var n = src.length, best = { w: 0, mask: null }, sampleBytes = widths.length > 3 ? 32768 : 16384, i, j, k, w, N, sh, base, size, bestSize, start, len, mask, h1, h2, nm, prevB;
+  function chooseTransform(src, widths, wantDelta, useW, light) {
+    var n = src.length, best = { w: 0, mask: null }, sampleBytes = light ? (widths.length > 3 ? 16384 : 8192) : (widths.length > 3 ? 32768 : 16384), i, j, k, w, N, sh, base, size, bestSize, start, len, mask, h1, h2, nm, prevB;
     if (n < 256 || !widths.length) return best;
     // sample from the middle, aligned to the largest width so every candidate sees whole elements
     var wmax = 1; for (i = 0; i < widths.length; i++) if (widths[i] > wmax) wmax = widths[i];
@@ -812,7 +812,10 @@
     if (opts.width === 'auto' && inp.size > 1 && widths.indexOf(inp.size) < 0) widths.push(inp.size);
     var wantDelta = opts.delta !== false, tr;
     if (opts.shuffle !== false && widths.length) {
-      tr = chooseTransform(src, widths, wantDelta, wasmOn(opts) && wasmRoom(65536));
+      if (opts.trialMemo) {                                          // a wide table: the first column of each kind and size decides for the rest
+        var mk = widths.join(',') + ':' + wantDelta + ':' + (31 - Math.clz32(n));
+        tr = opts.trialMemo[mk] || (opts.trialMemo[mk] = chooseTransform(src, widths, wantDelta, wasmOn(opts) && wasmRoom(65536), opts.lightTrial === true));
+      } else tr = chooseTransform(src, widths, wantDelta, wasmOn(opts) && wasmRoom(65536), opts.lightTrial === true);
       if (tr.w) { w = tr.w; mask = tr.mask; } else if (opts.shuffle === true) w = widths[0];   // shuffle:true skips the "is it worth it" test
     }
     var chunk = opts.chunk === undefined ? DEFAULT_CHUNK : opts.chunk;

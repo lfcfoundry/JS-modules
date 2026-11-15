@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.18.0 · API 2 · 2026-11-15
+
+### Quick
+Shaped rows (new column type 23, fast and balanced): a record list that would need more than 16 layouts is written row by row with the layout found by one walk down a tree of key names, up to 256 layouts, else the old path.
+
+### Deep
+Shaped rows (new column type 23, fast and balanced): a record list that would need more than 16 layouts is written row by row with the layout found by one walk down a tree of key names, up to 256 layouts, else the old path. Sparse 20,000-record set: 232,959 to 204,152 bytes (12.4% smaller). Owner laptop, 31 alternating pairs, fresh page per sample: Firefox 161 pack 1.000, Chrome 157 pack 0.92/0.93, round trips exact. Small mode: hex-digit text of one length kept as 4-bit places (CT_HEX 22), up to 64 layouts; small uuid list 62,581 to 48,093, sparse small 12,720 to 8,293. Fast and balanced bytes for lists without many layouts equal 2.17.6.
+
 ## 2.17.6 · API 2 · 2026-11-15
 
 ### Quick

@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.20.2 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.17.6 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.18.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.13.6 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -65,6 +65,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-15 · **netflow-scene** 1.14.0 · API 1: nested-view tiles can be typed arrays (S.rectsT)
 - 2026-11-15 · **netflow-sankey** 2.14.0 · API 2: Dragging a bar: layout() can resume from the last result (opts.resume), so a move at 10,000 items takes 0.32 (Chromium), 0.22 (Firefox) and 0.28 (WebKitGTK) of the time. Same picture.
 - 2026-11-15 · **netflow-hierarchy** 1.7.0 · API 1: typedRects: true keeps treemap and icicle tiles as typed arrays
+- 2026-11-15 · **memory-compression** 2.18.0 · API 2: records with many optional fields take far fewer bytes in every mode (fast and balanced up to 256 layouts as shaped rows, small up to 64); small mode keeps ids and hashes in hex text as 4-bit places
 - 2026-11-15 · **memory-compression** 2.17.6 · API 2: warm() also warms the pack of record lists, so the first big pack in Chromium is about 15-20% faster. Same bytes.
 - 2026-11-15 · **lfc-pack** 0.13.6 · API 0: unpackColumns can return date columns as numbers (dates: 'numbers'): 0.24 to 0.36 of the read time on a taxi-like file
 - 2026-11-15 · **lfc-pack** 0.13.5 · API 0: packBlock number columns pack faster: decimal counting and NaN check no longer format or rescan every value; same bytes
