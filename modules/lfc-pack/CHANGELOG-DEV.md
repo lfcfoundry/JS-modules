@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.6 · API 0 · 2026-11-15
+
+### Quick
+New read option dates: 'numbers' for unpackColumns, unpackColumnsParallel (read on the calling thread) and open().columns: a date column (W) comes back as a Float64Array of epoch values (ms, or us for the six-digit forms) and each block en…
+
+### Deep
+New read option dates: 'numbers' for unpackColumns, unpackColumnsParallel (read on the calling thread) and open().columns: a date column (W) comes back as a Float64Array of epoch values (ms, or us for the six-digit forms) and each block entry carries dates: { key: { unit, fmt } }, which the ts input (0.13.4) takes back to write the same column (datesnum.cjs: same bytes after the round trip). Name approved by the owner's card. 200,000 rows with two timestamp columns, steady read, numbers over text: Chromium 156 0.36, Firefox 158 0.32, WebKitGTK 2.52.6 0.24; first call 0.41 and 0.36.
+
 ## 0.13.5 · API 0 · 2026-11-15
 
 ### Quick

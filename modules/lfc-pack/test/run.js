@@ -46,6 +46,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('date refusal sample and UTF-8 labels check (bytes columns)', 'node', ['bytecol-b72.cjs']);
   step('label tables for dictionary columns cut into several blocks (section 19, format minor 4)', 'node', ['labels19.cjs']);
   step('typed timestamp columns for packBlock give the text path\'s bytes (0.13.4)', 'node', ['tscol.cjs']);
+  step('dates: numbers read option (0.13.6)', 'node', ['datesnum.cjs']);
   step('warm({ rows }) packs the first caller rows (B76)', 'node', ['warmrows.cjs']);
   step('typed NaN number columns (B74p6)', 'node', ['nancol.cjs']);
   step('non-ASCII text in the flat path (SIMD and not)', 'node', ['nonascii.cjs']);

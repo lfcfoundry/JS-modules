@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.6 · API 0 · 2026-11-15
+- unpackColumns can return date columns as numbers (dates: 'numbers'): 0.24 to 0.36 of the read time on a taxi-like file
+
 ## 0.13.5 · API 0 · 2026-11-15
 - packBlock number columns pack faster: decimal counting and NaN check no longer format or rescan every value; same bytes
 

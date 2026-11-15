@@ -231,7 +231,12 @@
   }
   function unpackColumnsParallel(bytes, opts) {
     opts = opts || {};
-    try { nullsOpt(opts); } catch (e) { return Promise.reject(e); }
+    try { nullsOpt(opts); datesOpt(opts); } catch (e) { return Promise.reject(e); }
+    if (opts.dates) return init({ readOnly: true }).then(function () {   // dates: 'numbers' (since 0.13.6): read on the calling thread; the result's non-enumerable `dates` says each date column's unit and fmt
+      var blocks = unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' }), n = 0, i, res, info = {}, k;
+      for (i = 0; i < blocks.length; i++) { n += blocks[i].n; for (k in blocks[i].dates) info[k] = blocks[i].dates[k]; }
+      res = b35Join(blocks, n, opts.nulls === 'NaN'); Object.defineProperty(res, 'dates', { value: info }); return res;
+    });
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] === 'n') nest = true; n += file.blocks[i][3]; }

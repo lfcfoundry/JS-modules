@@ -343,6 +343,9 @@
     }
     return n ? tdr.decode(buf.subarray(0, o - 1)).split('\0') : [];
   }
+  var DATES_LOG = null;   // while a read asks for dates: 'numbers', the date columns it decoded as { a: Float64Array, f: form }
+  function setDatesLog(l) { var o = DATES_LOG; DATES_LOG = l; return o; }
+  function dateFmt(f) { return 'YYYY-MM-DD' + (f & 2 ? ' ' : 'T') + 'HH:MM:SS' + (f & 1 ? '' : f & 4 ? '.ffffff' : '.fff'); }
   function dateNums(v, n) {   // -> { f, a } or null
     if (n < 2 || typeof v[0] !== 'string') return null;
     var f = dateForm(v[0].length, v[0].charCodeAt(10)), a = new Float64Array(n), i, t; if (f < 0) return null;
@@ -780,7 +783,13 @@
       for (i = 0; i < n; i++) { an = al[i]; aa = new Array(an); ac = 0; for (aj = 0; aj < an; aj++) { ac += ar ? av[ap++] : unzz(av[ap++]); aa[aj] = ac; } o[i] = aa; }
       return o;
     }
-    if (t === 'W') return dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f);
+    if (t === 'W') {
+      if (DATES_LOG) {   // dates: 'numbers' (since 0.13.6): the epoch values, in milliseconds (microseconds for the six-digit forms), not their text
+        var dv = decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), dsc = p.f & 8 ? (p.f & 4 ? 1e6 : 1000) : 1, dout = new Float64Array(n), dk; for (dk = 0; dk < n; dk++) dout[dk] = dv[dk] * dsc;
+        DATES_LOG.push({ a: dout, f: p.f & 7 }); return dout;
+      }
+      return dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f);
+    }
     if (t === 'L') return untemplate(n, frames);
     if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
     if (t === 'D') return colD(frames, n, p);
