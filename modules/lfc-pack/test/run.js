@@ -41,6 +41,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('range reads build matching rows only', 'node', ['rangesel.cjs']);
   step('null plane (column type N)', 'node', ['nullplane.cjs'])
   step('date columns (column type W)', 'node', ['datecol.cjs']);
+  step('date forms with a space and six fraction digits (format minor 3)', 'node', ['datecol2.cjs']);
   step('date refusal sample and UTF-8 labels check (bytes columns)', 'node', ['bytecol-b72.cjs']);
   step('typed NaN number columns (B74p6)', 'node', ['nancol.cjs']);
   step('non-ASCII text in the flat path (SIMD and not)', 'node', ['nonascii.cjs']);
