@@ -432,7 +432,7 @@
       if (sj) nD = (n >> 1) + 1;   // where the loop below would stop
       else if (B59 && B62 && n >= 4096 && (sd = someDistinct(v)) > 128 && sd < B62 && (codes = new Array(n), (nD = hxBig(v, n, cap, labels, codes)) >= 0)) { }   // B62 (Firefox): many, but not nearly all, distinct values: a JS table hashed on every char of a short value
       else if (B59 && n >= 4096 && (sd || (sd = someDistinct(v))) > 128 && (r59 = sdzCol(v, n, cap))) { nD = r59.D; codes = r59.codes; labB = r59.lab; jn = r59.all; }   // B59 (Firefox): the count, codes and bytes from wasm (a Map of strings costs about 5x Chromium's there)
-      else if (B59 && sd > 0 && sd <= 128 && (codes = new Array(n), (nD = hxCount(v, n, cap, labels, codes)) >= 0)) { }   // B60
+      else if (B59 && sd > 0 && sd <= 128 && (codes = hxCodes(n), (nD = hxCount(v, n, cap, labels, codes)) >= 0)) { }   // B60
       else { labels.length = 0; map = new Map(); codes = new Array(n); for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * cap > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; } nD = labels.length; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
       // B45: the check (no 0 char, well formed) runs once on one join: of every value when the plain layout is next, or of the distinct values only when the loop above saw them all (a dictionary), which is the same test
       var sOk = !!sj || !!r59; if (!sOk) { if (nD * 4 > n || nD >= 65536) { jn = STR_ASCII ? strAscii(v, n) : null; if (jn === null) { jn = strJoinOk(v, n); if (jn !== null) jn = te.encode(jn); } sOk = jn !== null; } else sOk = strJoinOk(labels, nD) !== null; }
@@ -545,6 +545,9 @@
   function someDistinct(v) { var s = new Set(), i; for (i = 0; i < 1024; i++) s.add(v[i]); return s.size; }
   // B60 (Firefox only): first-seen dictionary codes of a column with few distinct values from a small open-addressing table hashed on a value's length and four chars (=== compares the content), instead of a Map of strings; -> the distinct count, or -1 past 2,048 distinct values (the Map path runs). The same labels and codes.
   var HXK = null, HXV = null;
+  // B70 (Firefox): the codes go into one reused Uint16Array view (the Uint8/Uint16 copy and bitpack read it; both copy)
+  var HXC = null;
+  function hxCodes(n) { if (!HXC || HXC.byteLength < 2 * n) HXC = new ArrayBuffer(2 * n); return new Uint16Array(HXC, 0, n); }
   function hxCount(v, n, cap, labels, codes) {
     var M = 4095, x, L, h, k, c, i; if (!HXK) { HXK = new Array(4096); HXV = new Int32Array(4096); } HXK.fill(undefined);
     for (i = 0; i < n; i++) { x = v[i]; L = x.length; h = L; if (L) { h = (h * 31 + x.charCodeAt(0)) | 0; h = (h * 31 + x.charCodeAt(L - 1)) | 0; h = (h * 31 + x.charCodeAt(L >> 1)) | 0; if (L > 2) h = (h * 31 + x.charCodeAt(L - 2)) | 0; } h = (h ^ (h >>> 7)) & M;
