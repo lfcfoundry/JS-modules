@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.12.0 · API 0 · 2026-11-15
+
+### Quick
+B72 (compression part 6 handoff, owner card 11.15 11:05 AM Detroit 'Yes, default for every save'): opts.fast defaults to on; fast: false keeps the previous bytes.
+
+### Deep
+B72 (compression part 6 handoff, owner card 11.15 11:05 AM Detroit 'Yes, default for every save'): opts.fast defaults to on; fast: false keeps the previous bytes. Same bytes as fast: true. Compression part 6 same page, new over 0.11.1: Workbench-style 600k Chromium 0.82, WebKitGTK 0.77, Firefox 0.99; logs 200k 0.95 to 1.00. Files: wb100k 66,670 vs 102,602 bytes, wb600k 300,456 vs 498,182, logs +0.24%.
+
 ## 0.11.3 · API 0 · 2026-11-15
 
 ### Quick
