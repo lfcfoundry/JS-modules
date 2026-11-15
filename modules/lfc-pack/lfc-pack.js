@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.13.5 (API 0)
+ * Version 0.13.6 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1117,6 +1117,9 @@
     }
     return n ? tdr.decode(buf.subarray(0, o - 1)).split('\0') : [];
   }
+  var DATES_LOG = null;   // while a read asks for dates: 'numbers', the date columns it decoded as { a: Float64Array, f: form }
+  function setDatesLog(l) { var o = DATES_LOG; DATES_LOG = l; return o; }
+  function dateFmt(f) { return 'YYYY-MM-DD' + (f & 2 ? ' ' : 'T') + 'HH:MM:SS' + (f & 1 ? '' : f & 4 ? '.ffffff' : '.fff'); }
   function dateNums(v, n) {   // -> { f, a } or null
     if (n < 2 || typeof v[0] !== 'string') return null;
     var f = dateForm(v[0].length, v[0].charCodeAt(10)), a = new Float64Array(n), i, t; if (f < 0) return null;
@@ -1554,7 +1557,13 @@
       for (i = 0; i < n; i++) { an = al[i]; aa = new Array(an); ac = 0; for (aj = 0; aj < an; aj++) { ac += ar ? av[ap++] : unzz(av[ap++]); aa[aj] = ac; } o[i] = aa; }
       return o;
     }
-    if (t === 'W') return dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f);
+    if (t === 'W') {
+      if (DATES_LOG) {   // dates: 'numbers' (since 0.13.6): the epoch values, in milliseconds (microseconds for the six-digit forms), not their text
+        var dv = decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), dsc = p.f & 8 ? (p.f & 4 ? 1e6 : 1000) : 1, dout = new Float64Array(n), dk; for (dk = 0; dk < n; dk++) dout[dk] = dv[dk] * dsc;
+        DATES_LOG.push({ a: dout, f: p.f & 7 }); return dout;
+      }
+      return dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f);
+    }
     if (t === 'L') return untemplate(n, frames);
     if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
     if (t === 'D') return colD(frames, n, p);
@@ -3255,10 +3264,17 @@
   }
   // unpackColumns(bytes, { keys }): flat-row blocks come back as typed columns, no row objects (experimental): [{ n, keys, cols, present }] one entry per block; other block kinds throw
   function nullsOpt(o) { var v = o && o.nulls; if (v === undefined || v === null) return false; if (v === 'NaN') return true; throw new Error("LfcPack: nulls must be 'NaN'"); }
+  function datesOpt(o) { var v = o && o.dates; if (v === undefined || v === null) return false; if (v === 'numbers') return true; throw new Error("LfcPack: dates must be 'numbers'"); }
+  function datesOf(block, log) { var d = {}, k, j, any = false; for (j = 0; j < log.length; j++) for (k in block.cols) if (block.cols[k] === log[j].a) { d[k] = { unit: log[j].f & 4 ? 'us' : 'ms', fmt: dateFmt(log[j].f) }; any = true; } log.length = 0; block.dates = d; return any; }
   function unpackColumns(bytes, opts) {
-    var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k, nan = nullsOpt(opts), off = 0;
+    var file = openFile(bytes), rf = makeFlatReader(S.zdec), out = [], i, want = null, k, nan = nullsOpt(opts), off = 0, dt = datesOpt(opts), dl = null;
+    if (dt) { dl = []; var dprev = setDatesLog(dl); try { return unpackColumns0(file, rf, out, want, nan, off, opts, dl); } finally { setDatesLog(dprev); } }
+    return unpackColumns0(file, rf, out, want, nan, off, opts, null);
+  }
+  function unpackColumns0(file, rf, out, want, nan, off, opts, dl) {
+    var i, k;
     opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
-    for (i = 0; i < file.blocks.length; i++) { if (i) off += out[i - 1].n; if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] === 'n') { var nbk = b39Cols(nestedRowsOf(file, i, want), want); out.push(nan ? nanCols(nbk) : nbk); continue; } /* a nested block (auto mode can write one, often a small first block) is read as rows, then turned into columns, so the file keeps its column path */ { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan, opts.into, off)); } }
+    for (i = 0; i < file.blocks.length; i++) { if (i) off += out[i - 1].n; if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] === 'n') { var nbk = b39Cols(nestedRowsOf(file, i, want), want); out.push(nan ? nanCols(nbk) : nbk); continue; } /* a nested block (auto mode can write one, often a small first block) is read as rows, then turned into columns, so the file keeps its column path */ { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan, opts.into, off)); if (dl) datesOf(out[out.length - 1], dl); } }
     return out;
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
@@ -3452,7 +3468,7 @@
             if (b[4] === 'n') { var wn = null, qn; if (o && o.keys) { wn = {}; for (qn = 0; qn < o.keys.length; qn++) wn[o.keys[qn]] = 1; } var nanN = nullsOpt(o); return fetch(i).then(function (x) { if (!file._nr) file._nr = makeNestedReader(S.zdec, sharedOf(file)); var c = b39Cols(file._nr.readBlock(x, wn), wn); return nanN ? nanCols(c) : c; }); }   // a nested block: rows, then columns
             if (b[4] !== 'f') return Promise.reject(new Error('LfcPack: columns() needs a flat-row block; block ' + i + ' is ' + (b[4] === 'r' ? 'raw (exact mode)' : 'nested') + ': read it with block(i)'));
             var want = null, q; if (o && o.keys) { want = {}; for (q = 0; q < o.keys.length; q++) want[o.keys[q]] = 1; }
-            var nan2 = nullsOpt(o); return fetch(i).then(function (x) { if (!cf) cf = makeFlatReader(S.zdec); return cf.columnsOf(x, want, false, nan2); });   /* its own reader, not the shared arena: the arrays stay valid after the next block */
+            var nan2 = nullsOpt(o), dt2 = datesOpt(o); return fetch(i).then(function (x) { if (!cf) cf = makeFlatReader(S.zdec); if (!dt2) return cf.columnsOf(x, want, false, nan2); var l2 = [], p2 = setDatesLog(l2); try { var r2 = cf.columnsOf(x, want, false, nan2); datesOf(r2, l2); return r2; } finally { setDatesLog(p2); } });   /* its own reader, not the shared arena: the arrays stay valid after the next block */
           },
           // zone(i, key) (since 0.5.9): { min, max, count } of the number column key in block i, from the footer (nothing is decoded), or null when the block has none for that key. A filter such as id >= 7000000 can skip block i when max < 7000000
           zone: function (i, key) {
@@ -3537,7 +3553,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.13.5', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.13.6', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -3896,7 +3912,12 @@
   }
   function unpackColumnsParallel(bytes, opts) {
     opts = opts || {};
-    try { nullsOpt(opts); } catch (e) { return Promise.reject(e); }
+    try { nullsOpt(opts); datesOpt(opts); } catch (e) { return Promise.reject(e); }
+    if (opts.dates) return init({ readOnly: true }).then(function () {   // dates: 'numbers' (since 0.13.6): read on the calling thread; the result's non-enumerable `dates` says each date column's unit and fmt
+      var blocks = unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' }), n = 0, i, res, info = {}, k;
+      for (i = 0; i < blocks.length; i++) { n += blocks[i].n; for (k in blocks[i].dates) info[k] = blocks[i].dates[k]; }
+      res = b35Join(blocks, n, opts.nulls === 'NaN'); Object.defineProperty(res, 'dates', { value: info }); return res;
+    });
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] === 'n') nest = true; n += file.blocks[i][3]; }
