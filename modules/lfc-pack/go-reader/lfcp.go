@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"math"
@@ -48,7 +49,7 @@ type File struct {
 	shared  *sharedTables
 }
 
-var knownSections = map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 9: true, 10: true, 11: true, 12: true, 14: true, 15: true, 16: true}
+var knownSections = map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 9: true, 10: true, 11: true, 12: true, 14: true, 15: true, 16: true, 19: true}
 
 func num(v any) int {
 	f, ok := v.(float64)
@@ -117,6 +118,9 @@ func Open(data []byte) (f *File, err error) {
 			fail("required section %d not supported by this reader", id)
 		}
 		p += 8 + ln
+	}
+	if lt, ok := f.sec[19]; ok {
+		regLabels(lt)
 	}
 	tab, ok := f.sec[2]
 	if !ok {
@@ -581,3 +585,34 @@ func fnv(s string) uint32 {
 }
 
 func splitNul(b []byte) []string { return strings.Split(string(b), "\x00") }
+
+// label tables (footer section 19, format minor 4): u32 hl, JSON {name: [offset, length, count]}, then the joined labels; kept by name so any block that names one finds it
+var labelTables = map[string][]string{}
+
+func regLabels(b []byte) {
+	if len(b) < 4 {
+		fail("damaged file: label tables")
+	}
+	hl := int(binary.LittleEndian.Uint32(b))
+	if 4+hl > len(b) {
+		fail("damaged file: label tables")
+	}
+	var t map[string][]float64
+	if err := json.Unmarshal(b[4:4+hl], &t); err != nil {
+		fail("damaged file: label tables")
+	}
+	base := 4 + hl
+	for name, e := range t {
+		if len(e) != 3 || e[0] < 0 || e[1] < 0 || e[2] < 1 || base+int(e[0])+int(e[1]) > len(b) {
+			fail("damaged file: label tables")
+		}
+		if _, ok := labelTables[name]; ok {
+			continue
+		}
+		lab := strings.Split(string(b[base+int(e[0]):base+int(e[0])+int(e[1])]), "\x00")
+		if len(lab) != int(e[2]) {
+			fail("damaged file: label table count")
+		}
+		labelTables[name] = lab
+	}
+}

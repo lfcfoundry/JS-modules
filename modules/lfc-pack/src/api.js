@@ -613,7 +613,7 @@
       }
       var cb = jb >= 0 && F.cols[jb] ? F.meta.cols[jb] : null, fb = cb ? aggFr(F.cols[jb]) : null, kin = null, kw = 0, lab = null;
       if (cb && cb.n === n && cb.t === 'B' && cb.p.w <= 16) { kin = fb[0]; kw = cb.p.w; lab = (function (p) { return function (k) { return (k + p.mn) / p.scale; }; })(cb.p); }
-      else if (cb && cb.n === n && cb.t === 'D' && !(cb.p.w === 0 && cb.p.wide)) { var labs = tdr.decode(fb[0]).split('\0'); kin = fb[1]; kw = cb.p.w || 8; lab = function (k) { return labs[k]; }; }
+      else if (cb && cb.n === n && cb.t === 'D' && !(cb.p.w === 0 && cb.p.wide)) { var labs = cb.p.sh ? labsOf(cb.p.sh) : tdr.decode(fb[0]).split('\0'); kin = fb[1]; kw = cb.p.w || 8; lab = function (k) { return labs[k]; }; }
       if (exact && kin && m === n && kw > 0 && kw <= 16) {
         var nk = 1 << kw, L2 = bdLay([vin.length, np ? np.length : 0, kin.length, nk * 8, nk * 4]), u = new Uint8Array(bdMem(L2.end)), k, g, c2;
         bdPut(u, L2.at[0], vin); if (np) bdPut(u, L2.at[1], np); bdPut(u, L2.at[2], kin); u.fill(0, L2.at[3], L2.at[4] + nk * 4);
@@ -674,7 +674,7 @@
     opts = packOpts(opts); need(true);
     if (opts.exact) throw new Error('LfcPack: packStream does not support exact mode yet');
     var st = opts.share ? sharedState() : null, mopts = Object.assign({}, opts, st ? { _st: st } : {}, { _nohead: true, _piece: true });   // each chunk is one block: the head rule is applied here, not inside packMany
-    var bb = opts.blockBytes || BLOCK_BYTES, blocks = [], zone = [], off = 0, rows = 0, tail = true, done = false, fmin = 0;
+    var bb = opts.blockBytes || BLOCK_BYTES, blocks = [], zone = [], off = 0, rows = 0, tail = true, done = false, fmin = 0; var labTabs = {}, nLab = 0;
     var b39Last = null; function cut(chunk) { b39Last = chunk; return add(packMany([{ name: null, bytes: chunk }], mopts)); }   // one chunk of whole lines -> its block bytes
     function add(mini) {   // a one-chunk file -> its block bytes, with the table entries moved to this file's offsets
       var f = openFile(mini), out = [], i, b, e; if (f.footer.minor > fmin) fmin = f.footer.minor;
@@ -724,6 +724,7 @@
         if (plen) throw new Error('LfcPack: pushPacked cannot follow text that push has not packed yet; push whole blocks or use one of the two');
         var f = openFile(bytesOf(mini)), fl = jsonSec(f.footer.sec[SEC_FLAGS]) || {};
         if (fl.exact || f.footer.sec[SEC_SHARED]) throw new Error('LfcPack: pushPacked needs a file from packBlock');
+        if (f.footer.sec[SEC_LABELS]) nLab += parseLabels(f.footer.sec[SEC_LABELS], labTabs);   // the piece's label tables: kept by name, written once behind the last block
         if (!f.blocks.length) return [];
         tail = fl.tail !== false; return add(f.bytes);
       },
@@ -735,7 +736,7 @@
           { id: SEC_HEADER, flags: 1, payload: te.encode(JSON.stringify({ rows: rows, blocks: blocks.length, writer: 'lfc-pack 0.1.5' })) },
           { id: SEC_BLOCKS, flags: 1, payload: te.encode(JSON.stringify(blocks)) },
           { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
-          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }].concat(metaSecs(opts), st && st.used ? [sharedSection(st)] : []), true, fmin));
+          { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: tail })) }].concat(metaSecs(opts), st && st.used ? [sharedSection(st)] : [], nLab ? [labelSection(labTabs)] : []), true, nLab && fmin < 4 ? 4 : fmin));
         return out;
       }
     };
@@ -898,4 +899,4 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.12.3', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.13.0', apiVersion: 0 };

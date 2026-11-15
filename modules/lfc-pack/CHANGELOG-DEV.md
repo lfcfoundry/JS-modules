@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.0 · API 0 · 2026-11-15
+
+### Quick
+Shared label tables: a dictionary column handed to packBlock whole as { kind: 'dict', labels, ids } and cut into several blocks writes its labels once in footer section 19 (name = XXH64 of the joined labels); blocks hold only the piece-wid…
+
+### Deep
+Shared label tables: a dictionary column handed to packBlock whole as { kind: 'dict', labels, ids } and cut into several blocks writes its labels once in footer section 19 (name = XXH64 of the joined labels); blocks hold only the piece-wide codes (D layout p.sh). Readers register section 19 on opening a file and look tables up by name. 14,500 rows x 44 columns of NYC 311, 2 MiB blocks (11 blocks), 32 dictionary columns: 1,210,920 to 1,031,154 bytes (-14.8%, level 3), 1,213,024 to 1,033,112 (level 1). New test labels19.cjs (rows, columns, equals/anyOf/positions/aggregate, open(), pushPacked stream of two pieces, parallel readers).
+
 ## 0.12.3 · API 0 · 2026-11-15
 
 ### Quick
