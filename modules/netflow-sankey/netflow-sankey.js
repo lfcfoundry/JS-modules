@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.13.0 (API 2)
+ * Version 2.14.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -227,6 +227,8 @@
     return { layer: layer, feedback: feedback, levels: maxL + 1, order: seq };
   }
 
+  /** The settings that decide everything before the hand-placed bars (not fixY): a resumed layout must match them. */
+  function resumeSig(o) { var f = o.fixedOrder; return [o.nodeW, o.gapLayer, o.autoGap, o.pad, o.height, o.justifySinks, o.unweighted, o.stopCap, o.stopCapFrom, o.wasm, o.restarts, o.quick, o.seed].join('|') + '|' + (f ? 'o' : '-') + (f && f.layers ? f.layers.length : 0) + (f && f.loops ? f.loops.length : 0); }
   /**
    * layout(L, opts). L: the Sankey drawing from the engine (L.nodes with .id .layer .label, L.edges with .from .to .flow .kind and, for long links, .pts).
    * opts: unweighted (order as the old picture does: every link counts the same, no restarts), stopCap and stopCapFrom (see the stand-in cap below), justifySinks, height (picture height to aim for), nodeW (bar width), gapLayer, pad (space between bars), restarts, budgetMs, seed, quick (true: skip the extra restarts of the order search, for speed on small charts; the order is still searched once, so the picture can have more crossings than the default; owner's card 2026.11.05).
@@ -240,6 +242,14 @@
     var byId = {}, layers = [], i, k, idx = {}, nk = function (n) { return n.nodeId !== undefined ? String(n.nodeId) : String(n.id); };   // nk: the name an item keeps across rebuilds
     var usable = []; L.edges.forEach(function (e, ei) { if (e.kind !== 'self' && e.from !== e.to && e.flow > EPS && L.pos[e.from] && L.pos[e.to]) usable.push(ei); });
     L.nodes.forEach(function (n, q) { idx[n.id] = q; });
+    /* opts.resume: the state a layout() result carries (r.state) for the same items and settings, with only fixY different (dragging a bar): the order, bar sizes and relaxed places are not worked out again, only the pins, band ends and pieces after them. Same picture as the full call. */
+    var RS = opts.resume && opts.resume.L === L && opts.resume.ne === L.edges.length && opts.resume.nn === L.nodes.length && opts.resume.sig === resumeSig(opts) ? opts.resume : null, snap = null, Rb, bLay, bSize, Hh, Dm, Y, bPos, bPin, bX, bW, bLOT, bLIT, nN, nV, nL, nSeg, loops, simplified, upS, dnS, upSeg, dnSeg, segU, segV, segW, segEi, ky, bottom, crossingWeight, idOf, gapBetween, vi, qi, k;
+    if (RS) {
+      Rb = RS.Rb; byId = RS.byId; bLay = RS.bLay; bSize = RS.bSize; Hh = RS.Hh; Dm = RS.Dm; bX = RS.bX; bW = RS.bW; bLOT = RS.bLOT; bLIT = RS.bLIT; nN = RS.nN; nV = RS.nV; nL = RS.nL; nSeg = RS.nSeg; loops = RS.loops; simplified = RS.simplified;
+      upS = RS.upS; dnS = RS.dnS; upSeg = RS.upSeg; dnSeg = RS.dnSeg; segU = RS.segU; segV = RS.segV; segW = RS.segW; segEi = RS.segEi; ky = RS.ky; crossingWeight = RS.crossingWeight; idOf = RS.idOf; gapBetween = RS.gapBetween; gapLayer = RS.gapLayer; nodeW = RS.nodeW; pad = RS.pad; padD = RS.padD;
+      Y = RS.Y0.slice(); bPos = RS.bPos0.slice(); bPin = new Uint8Array(nV); bottom = RS.bottom0; layers = RS.layers0.map(function (l) { return l.slice(); });
+      for (vi = 0; vi < nN; vi++) Rb[vi].pinned = false;
+    } else {
     var fo = opts.fixedOrder, foLayer = null;
     if (fo && fo.layers && fo.loops) {   // reuse an earlier order (moving things by hand must not shuffle the rest)
       foLayer = {}; var okFo = true;
@@ -468,6 +478,8 @@
     }
     var top = Infinity, bottom = -Infinity; for (vi = 0; vi < nV; vi++) { top = Math.min(top, Y[vi] - Hh[vi] / 2); bottom = Math.max(bottom, Y[vi] + Hh[vi] / 2); }
     var off = 30 - top; for (vi = 0; vi < nV; vi++) Y[vi] += off; bottom += off;
+    snap = { L: L, ne: L.edges.length, nn: L.nodes.length, sig: resumeSig(opts), Rb: Rb, byId: byId, bLay: bLay, bSize: bSize, Hh: Hh, Dm: Dm, bX: bX, bW: bW, bLOT: bLOT, bLIT: bLIT, nN: nN, nV: nV, nL: nL, nSeg: nSeg, loops: loops, simplified: simplified, upS: upS, dnS: dnS, upSeg: upSeg, dnSeg: dnSeg, segU: segU, segV: segV, segW: segW, segEi: segEi, ky: ky, crossingWeight: crossingWeight, idOf: idOf, gapBetween: gapBetween, gapLayer: gapLayer, nodeW: nodeW, pad: pad, padD: padD, Y0: Y.slice(), bPos0: bPos.slice(), bottom0: bottom, layers0: layers.map(function (l) { return l.slice(); }) };
+    }
     /* ---- bars the person placed by hand: put them exactly there, keep the order by height, nudge only the others out of the way ---- */
     var fixY = opts.fixY || {}, anyPin = false;
     for (vi = 0; vi < nN; vi++) { var ub = Rb[vi].ukey; if (typeof fixY[ub] === 'number' && isFinite(fixY[ub])) { Y[vi] = Math.max(0, fixY[ub]) + Hh[vi] / 2; bPin[vi] = 1; Rb[vi].pinned = true; anyPin = true; } }
@@ -549,7 +561,9 @@
     var height = nV ? Math.max(bottom, yLane) + 30 : 0, width = colX[nL - 1] + nodeW + 30;
     var nodes = Rb.map(function (v, q) { return { id: v.id, label: v.node.label || v.id, x: bX[q], y: Y[q] - Hh[q] / 2, w: bW[q], h: Hh[q], layer: bLay[q], flow: bSize[q], inFlow: v.inAll, outFlow: v.outAll, pinned: !!v.pinned }; });
     var orderOut = { layers: layers.map(function (list) { return list.map(idOf); }), loops: loops.map(function (ei) { var e1 = L.edges[ei]; return nk(L.pos[e1.from]) + '>' + nk(L.pos[e1.to]); }) };
-    return { nodes: nodes, bands: bands, loops: loopOut, width: width, height: height, simplified: simplified, note: simplified ? simplified + ' very long links are drawn as one straight-through band each, because routing all of them would make the picture too slow. The rest are laid out as usual.' : '', ky: ky, crossingWeight: crossingWeight, order: orderOut, cols: nL, ms: Date.now() - t0 };
+    var res = { nodes: nodes, bands: bands, loops: loopOut, width: width, height: height, simplified: simplified, note: simplified ? simplified + ' very long links are drawn as one straight-through band each, because routing all of them would make the picture too slow. The rest are laid out as usual.' : '', ky: ky, crossingWeight: crossingWeight, order: orderOut, cols: nL, ms: Date.now() - t0 };
+    Object.defineProperty(res, 'state', { value: RS || snap, enumerable: false });   /* for opts.resume; not part of the result's own fields */
+    return res;
   }
 
   /** A polyline with rounded corners, as an SVG path. */

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.14.0 · API 2 · 2026-11-15
+
+### Quick
+New opts.resume on layout(): results carry a hidden (non-enumerable) state; passing it back with the same items, settings and fixedOrder and a different fixY skips the order setup, bar sizes and wasm relaxation and redoes the pins, band en…
+
+### Deep
+New opts.resume on layout(): results carry a hidden (non-enumerable) state; passing it back with the same items, settings and fixedOrder and a different fixY skips the order setup, bar sizes and wasm relaxation and redoes the pins, band ends and pieces. Rival data (10,000 items, 14,963 links, 50 layers), layout()+apply() per move, same-page A/B, 24 moves per page, medians: Chromium 156 28 to 8.2 ms (0.32, 6 pages), Firefox 158 32 to 7 ms (0.22, 6 pages), WebKitGTK 2.52.6 36 to 10 ms (0.28, 4 pages). Bands identical (JSON equal) every move; 144 equality checks on random nets with loops and long links and 10 on the 10,000-item data, 0 mismatches. State from other settings is ignored (full layout runs). Name chosen per the owner card (recommended option layout(L, { resume })).
+
 ## 2.13.0 · API 2 · 2026-11-07
 
 ### Quick

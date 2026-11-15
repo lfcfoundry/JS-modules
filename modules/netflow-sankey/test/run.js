@@ -334,5 +334,21 @@ const warmTest = (async () => {
     ok(after === before, 'picture changed after warm()');
   });
 })();
+t('resume (since 2.14.0): a layout with fixY resumed from an earlier result equals the full layout, bands and bars, over several pins and nets with loops and long links', () => {
+  for (const [nl, per, seed, loops] of [[4, 6, 3, 0], [7, 10, 5, 3], [9, 25, 8, 6]]) {
+    const L = RL.fromLinks(synth(nl, per, seed, loops)), first = RL.layout(L, RL.options({})), ids = first.nodes.map((n) => n.id), r = rng(seed + 100);
+    let st = null;
+    for (let step = 0; step < 8; step++) {
+      const fix = {}; for (let q = 0, np = 1 + Math.floor(r() * 3); q < np; q++) fix[ids[Math.floor(r() * ids.length)]] = Math.floor(r() * 400) - 10;
+      const mk = (res) => { const o = RL.options({ fixY: fix }); o.fixedOrder = first.order; if (res) o.resume = res; return o; };
+      const full = RL.layout(L, mk(null)), got = RL.layout(L, mk(st)); st = got.state;
+      ok(JSON.stringify(Object.assign({}, full, { ms: 0 })) === JSON.stringify(Object.assign({}, got, { ms: 0 })), 'resumed layout differs at step ' + step + ' of net ' + nl + 'x' + per);
+      ok(!('state' in JSON.parse(JSON.stringify(got))), 'state stays out of the result fields');
+    }
+    const o = RL.options({ nodeW: 30 }); o.fixedOrder = first.order; o.resume = st;
+    const o2 = RL.options({ nodeW: 30 }); o2.fixedOrder = first.order;
+    ok(JSON.stringify(RL.layout(L, o).bands) === JSON.stringify(RL.layout(L, o2).bands), 'a resume from other settings is ignored');
+  }
+});
 warmTest.then(() => { console.log(bad ? 'netflow-sankey: ' + bad + ' FAILED' : 'netflow-sankey: all passed'); process.exit(bad ? 1 : 0); });
 
