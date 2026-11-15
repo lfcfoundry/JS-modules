@@ -70,7 +70,7 @@
    "x": 1.6,
    "module": "lfc-pack",
    "proof": [
-    "lfc-pack takes 21 to 37 ms against 44 to 93"
+    "lfc-pack takes 32 to 51 ms against 78 to 140"
    ]
   },
   {
