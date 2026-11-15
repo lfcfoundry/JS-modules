@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.11.1 · API 0 · 2026-11-15
+
+### Quick
+Firefox only: the dictionary codes of a low-variety text column go into one reused typed array instead of a new array per column.
+
+### Deep
+Firefox only: the dictionary codes of a low-variety text column go into one reused typed array instead of a new array per column. Same bytes. Workbench-style save 0.95 of before on Firefox 161.
+
 ## 0.11.0 · API 0 · 2026-11-15
 
 ### Quick
