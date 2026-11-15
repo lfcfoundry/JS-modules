@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.39 · API 0 · 2026-11-14
+
+### Quick
+Text columns given to packBlock as bytes and offsets are checked, counted and joined in WebAssembly (the same instance as the template builder, 3 new functions in flatscan.c).
+
+### Deep
+Text columns given to packBlock as bytes and offsets are checked, counted and joined in WebAssembly (the same instance as the template builder, 3 new functions in flatscan.c). Same files; ten low-variety text columns of a 21,800-row block pack in 0.66x (Firefox 158), 0.80x (Chromium 156) and 0.88x (WebKitGTK 2.52.6) of the time. Idea and kernel from the text-columns research.
+
 ## 0.10.38 · API 0 · 2026-11-14
 
 ### Quick

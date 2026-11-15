@@ -823,6 +823,22 @@
   // first value), a 0 byte inside a value, or templates: true go through the string path instead (same file, slower).
   function isByteCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start != null && x.end != null && typeof x.start.length === 'number' && x.start.length === x.end.length; }
   function byteColStrings(bc, a, n) { var out = new Array(n), B = bc.bytes, S = bc.start, E = bc.end, i; for (i = 0; i < n; i++) out[i] = td.decode(B.subarray(S[a + i], E[a + i])); return out; }
+  // byteCol kernel (from the text-columns research; source in wasm/flatscan.c: bcscan, bcdict, bcjoin): the checks, the distinct-value hash and the joins of a text column given as bytes, in WebAssembly (the template builder's instance)
+  var BK = (typeof globalThis !== 'undefined' && globalThis.__BK !== undefined) ? globalThis.__BK : 1;
+  function bkLoad() { if (!BK) return null; try { var K = sdw(); return K.x.bcscan ? K : null; } catch (e) { return null; } }
+  function bkPrep(K, B, S, E, a, n, HB) {
+    var X = K.x, blen = B.length, p = K.heap, L = {};
+    function take(z) { var r = p; p = (p + z + 15) & ~15; return r; }
+    L.B = take(blen + 16); L.S = take(n * 4); L.E = take(n * 4); L.codes = take(n * 4); L.lab = take(n * 4); L.lh = take(n * 4); L.tab = take(HB * 4); L.idx = take(n * 4); L.out = take(blen + n + 16);
+    if (p > 1610612736) return null;
+    if (p > X.memory.buffer.byteLength) X.memory.grow(Math.ceil((p - X.memory.buffer.byteLength) / 65536));
+    var buf = X.memory.buffer; new Uint8Array(buf, L.B, blen).set(B); new Int32Array(buf, L.S, n).set(S.subarray(a, a + n)); new Int32Array(buf, L.E, n).set(E.subarray(a, a + n));
+    return L;
+  }
+  function bkJoin(K, L, rows, cnt) {
+    var X = K.x, ip = 0; if (rows) { new Int32Array(X.memory.buffer, L.idx, cnt).set(rows); ip = L.idx; }
+    var len = X.bcjoin(L.B, L.S, L.E, ip, cnt, L.out); return new Uint8Array(X.memory.buffer, L.out, len).slice();
+  }
   var BC_UTF8 = null;
   // dictionary column input { kind: 'dict', labels: { bytes, start, end }, ids: Uint8Array|Uint16Array|Int32Array (one label number per row) }; the block's labels are renumbered in first-seen order so the bytes equal packing the same text. Idea and first version: the parse-research thread
   function isDictCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.kind === 'dict' && isByteCol(x.labels) && x.ids && ArrayBuffer.isView(x.ids) && typeof x.ids.length === 'number'; }
@@ -853,7 +869,9 @@
   }
   function byteCol(bc, a, n, zs, level, tmode, key) {
     var B = bc.bytes, S = bc.start, E = bc.end, BL = B.length, i, k, s, e, tot = 0, hi = 0, best = null;
-    for (i = 0; i < n; i++) { s = S[a + i]; e = E[a + i]; if (!(s >= 0 && e >= s && e <= BL)) throw new Error('LfcPack: text column "' + key + '": value ' + (a + i) + ' has offsets outside its bytes'); for (k = s; k < e; k++) { if (B[k] === 0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); hi |= B[k]; } tot += e - s; }
+    var bk = n >= 16 ? bkLoad() : null, KL = null, fl = 0, HB = 1 << Math.max(10, Math.min(20, 32 - Math.clz32(n * 2)));
+    if (bk) { KL = bkPrep(bk, B, S, E, a, n, HB); if (KL) { fl = bk.x.bcscan(KL.B, BL, KL.S, KL.E, n); if (fl & 3) KL = null; else { hi = fl & 4 ? 128 : 0; tot = bk.x.bctot(); } } }
+    if (!KL) { for (i = 0; i < n; i++) { s = S[a + i]; e = E[a + i]; if (!(s >= 0 && e >= s && e <= BL)) throw new Error('LfcPack: text column "' + key + '": value ' + (a + i) + ' has offsets outside its bytes'); for (k = s; k < e; k++) { if (B[k] === 0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); hi |= B[k]; } tot += e - s; } }
     if (!n || tmode === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);
     s = S[a]; e = E[a]; var L0 = e - s, ip = L0 >= 7 && L0 <= 15, dots = 0;
     for (k = s; k < e && ip; k++) { if (B[k] === 46) dots++; else if (B[k] < 48 || B[k] > 57) ip = false; }
@@ -861,8 +879,9 @@
     var cap = tmode && n >= 16 && !(tmode === 1 && tmplSlow) ? 2 : 4;
     if (cap === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);   // the template layout can be tried: the string path decides
     // distinct values, first-seen order, stopping where the string path's Map count stops (labels * 4 > n at a new value)
-    var HB = 1 << Math.max(10, Math.min(20, 32 - Math.clz32(n * 2))), head = new Int32Array(HB).fill(-1), nxt = [], lab = [], codes = new Int32Array(n), stop = false, h, c, q, ls, le, m;
-    for (i = 0; i < n; i++) {
+    var head = new Int32Array(KL ? 1 : HB).fill(-1), nxt = [], lab = [], codes = new Int32Array(n), stop = false, h, c, q, ls, le, m;
+    if (KL) { var X = bk.x; new Uint32Array(X.memory.buffer, KL.tab, HB).fill(0); var r0 = X.bcdict(KL.B, KL.S, KL.E, n, KL.codes, KL.lab, KL.lh, KL.tab, HB) >>> 0; if (r0 === 0xFFFFFFFF) stop = true; else { var bf = X.memory.buffer; lab = Array.from(new Int32Array(bf, KL.lab, r0)); codes = new Int32Array(bf, KL.codes, n).slice(); } }
+    else for (i = 0; i < n; i++) {
       s = S[a + i]; e = E[a + i]; h = 2166136261; for (k = s; k < e; k++) h = Math.imul(h ^ B[k], 16777619); h = (h ^ (e - s)) >>> 0;
       c = head[h & (HB - 1)];
       while (c >= 0) { ls = S[a + lab[c]]; le = E[a + lab[c]]; if (le - ls === e - s) { for (m = 0; m < e - s && B[ls + m] === B[s + m]; m++); if (m === e - s) break; } c = nxt[c]; }
@@ -870,12 +889,12 @@
       codes[i] = c;
     }
     function joinOf(idx, cnt) { var len = 0, j, p = 0, o; for (j = 0; j < cnt; j++) len += E[a + idx(j)] - S[a + idx(j)]; o = new Uint8Array(len + (cnt ? cnt - 1 : 0)); for (j = 0; j < cnt; j++) { if (j) o[p++] = 0; var x = S[a + idx(j)], y = E[a + idx(j)]; if (y - x > 16) { o.set(B.subarray(x, y), p); p += y - x; } else while (x < y) o[p++] = B[x++]; } return o; }
-    var all = joinOf(function (j) { return j; }, n);
+    var all = KL ? bkJoin(bk, KL, null, n) : joinOf(function (j) { return j; }, n);
     if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(all); } catch (er) { throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); } }
     function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
     var nl = lab.length;
     if (stop || nl * 4 > n || nl >= 65536) { cand('s', {}, dlOf([all], nl)); return settle(zs, level, best); }
-    var lb = joinOf(function (j) { return lab[j]; }, nl), wd = Math.max(1, 32 - Math.clz32(nl - 1)), cb, ca = new Array(n);
+    var lb = KL ? bkJoin(bk, KL, lab, nl) : joinOf(function (j) { return lab[j]; }, nl), wd = Math.max(1, 32 - Math.clz32(nl - 1)), cb, ca = new Array(n);
     for (i = 0; i < n; i++) ca[i] = codes[i];
     if (nl > 256) { var u16 = new Uint16Array(n); for (i = 0; i < n; i++) u16[i] = codes[i]; cb = new Uint8Array(u16.buffer); } else { cb = new Uint8Array(n); for (i = 0; i < n; i++) cb[i] = codes[i]; }
     cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
