@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.40 · API 0 · 2026-11-14
+
+### Quick
+Saving rows is faster in Firefox, with logs up to 7% faster (same files): text columns with 129 to 999 distinct values are counted in a small table and long-valued columns reach the wasm count through one join and encodeInto (Firefox only)…
+
+### Deep
+Saving rows is faster in Firefox, with logs up to 7% faster (same files): text columns with 129 to 999 distinct values are counted in a small table and long-valued columns reach the wasm count through one join and encodeInto (Firefox only); the row loop checks each row's shape as it reads it (all engines).
+
 ## 0.10.39 · API 0 · 2026-11-14
 
 ### Quick
