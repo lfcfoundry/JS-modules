@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.41 · API 0 · 2026-11-14
+
+### Quick
+A text column given as bytes whose first value is 16 or more chars (even) or 36 chars goes down the string path only when its first 8 values are all one length and pairwise different (unique hex ids, UUIDs), instead of whenever the first v…
+
+### Deep
+A text column given as bytes whose first value is 16 or more chars (even) or 36 chars goes down the string path only when its first 8 values are all one length and pairwise different (unique hex ids, UUIDs), instead of whenever the first value has that length. Same files. Full Chicago crimes import (265 MB, 949,982 rows): 4.02 s to 3.23 s in Chromium 156, 2.77 s to 2.60 s in Firefox 158, 3.72 s to 3.51 s in WebKitGTK 2.52.6, same stored bytes. Rule and measurement from the text-columns research.
+
 ## 0.10.40 · API 0 · 2026-11-14
 
 ### Quick

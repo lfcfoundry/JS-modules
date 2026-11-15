@@ -857,10 +857,12 @@
     var X = K.x, ip = 0; if (rows) { new Int32Array(X.memory.buffer, L.idx, cnt).set(rows); ip = L.idx; }
     var len = X.bcjoin(L.B, L.S, L.E, ip, cnt, L.out); return new Uint8Array(X.memory.buffer, L.out, len).slice();
   }
+  function bcUniqueFixed(B, S, E, a, n) { var m = n < 8 ? n : 8, i, j, k, l = E[a] - S[a], s0, s1; for (i = 1; i < m; i++) if (E[a + i] - S[a + i] !== l) return false; for (i = 1; i < m; i++) for (j = 0; j < i; j++) { s0 = S[a + i]; s1 = S[a + j]; for (k = 0; k < l && B[s0 + k] === B[s1 + k]; k++); if (k === l) return false; } return true; }   // the first 8 values are one length and pairwise different (unique hex ids, UUIDs): only then do the 16+ even and 36 length tests keep the string path; rule from the text-columns research
   var BC_UTF8 = null;
   // dictionary column input { kind: 'dict', labels: { bytes, start, end }, ids: Uint8Array|Uint16Array|Int32Array (one label number per row) }; the block's labels are renumbered in first-seen order so the bytes equal packing the same text. Idea and first version: the parse-research thread
   function isDictCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.kind === 'dict' && isByteCol(x.labels) && x.ids && ArrayBuffer.isView(x.ids) && typeof x.ids.length === 'number'; }
   function dictStrings(dc, a, n) { var D = dc.labels, B = D.bytes, out = new Array(n), cache = new Array(D.start.length), i, c; for (i = 0; i < n; i++) { c = dc.ids[a + i]; out[i] = cache[c] !== undefined ? cache[c] : (cache[c] = td.decode(B.subarray(D.start[c], D.end[c]))); } return out; }
+  function dcUniqueFixed(D, ids, a, n) { var m = n < 8 ? n : 8, i, j, k, l = D.end[ids[a]] - D.start[ids[a]], s0, s1, B = D.bytes; for (i = 1; i < m; i++) if (D.end[ids[a + i]] - D.start[ids[a + i]] !== l) return false; for (i = 1; i < m; i++) for (j = 0; j < i; j++) { s0 = D.start[ids[a + i]]; s1 = D.start[ids[a + j]]; for (k = 0; k < l && B[s0 + k] === B[s1 + k]; k++); if (k === l) return false; } return true; }   // bcUniqueFixed on a dictionary column's first values
   function byteColDict(dc, a, n, zs, level, tmode, key) {
     var D = dc.labels, B = D.bytes, S = D.start, E = D.end, NL = S.length, codes = dc.ids, i, k, s, e, hi = 0, best = null;
     var fb = function () { return encodeColumn(dictStrings(dc, a, n), zs, level, tmode, undefined, key); };
@@ -869,7 +871,7 @@
     var c0 = codes[a]; if (!(c0 >= 0 && c0 < NL)) throw new Error('LfcPack: text column "' + key + '": code out of range');
     s = S[c0]; e = E[c0]; var L0 = e - s, ip = L0 >= 7 && L0 <= 15, dots = 0;
     for (k = s; k < e && ip; k++) { if (B[k] === 46) dots++; else if (B[k] < 48 || B[k] > 57) ip = false; }
-    if ((L0 >= 16 && (L0 & 1) === 0) || L0 === 36 || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return fb(); }
+    if ((((L0 >= 16 && (L0 & 1) === 0) || L0 === 36) && dcUniqueFixed(D, codes, a, n)) || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return fb(); }
     var cap = tmode && n >= 16 && !(tmode === 1 && tmplSlow) ? 2 : 4;
     if (cap === 2) return fb();
     var map = new Int32Array(NL).fill(-1), lab = [], cc = new Int32Array(n), c;
@@ -893,7 +895,7 @@
     if (!n || tmode === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);
     s = S[a]; e = E[a]; var L0 = e - s, ip = L0 >= 7 && L0 <= 15, dots = 0;
     for (k = s; k < e && ip; k++) { if (B[k] === 46) dots++; else if (B[k] < 48 || B[k] > 57) ip = false; }
-    if ((L0 >= 16 && (L0 & 1) === 0) || L0 === 36 || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); }
+    if ((((L0 >= 16 && (L0 & 1) === 0) || L0 === 36) && bcUniqueFixed(B, S, E, a, n)) || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); }
     var cap = tmode && n >= 16 && !(tmode === 1 && tmplSlow) ? 2 : 4;
     if (cap === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);   // the template layout can be tried: the string path decides
     // distinct values, first-seen order, stopping where the string path's Map count stops (labels * 4 > n at a new value)
