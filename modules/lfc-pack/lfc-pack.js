@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.10.39 (API 0)
+ * Version 0.10.40 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1124,7 +1124,8 @@
       if (FAST_ON && FLT !== null) level = FLT;   // fast: text frames at a faster zstd level
       if (!sj && FAST_ON && FSK && n >= 4096 && manyDistinct(v)) sj = STR_ASCII ? strAscii(v, n) : null, sj = sj || (function () { var j = strJoinOk(v, n); return j === null ? null : te.encode(j); })(), sj = sj || undefined;   // fast: a column whose first 1,024 values are nearly all different skips the dictionary count (the plain layout, as the fast flat writer does)
       if (sj) nD = (n >> 1) + 1;   // where the loop below would stop
-      else if (B59 && n >= 4096 && (sd = someDistinct(v)) > 128 && (r59 = sdzCol(v, n, cap))) { nD = r59.D; codes = r59.codes; labB = r59.lab; jn = r59.all; }   // B59 (Firefox): the count, codes and bytes from wasm (a Map of strings costs about 5x Chromium's there)
+      else if (B59 && B62 && n >= 4096 && (sd = someDistinct(v)) > 128 && sd < B62 && (codes = new Array(n), (nD = hxBig(v, n, cap, labels, codes)) >= 0)) { }   // B62 (Firefox): many, but not nearly all, distinct values: a JS table hashed on every char of a short value
+      else if (B59 && n >= 4096 && (sd || (sd = someDistinct(v))) > 128 && (r59 = sdzCol(v, n, cap))) { nD = r59.D; codes = r59.codes; labB = r59.lab; jn = r59.all; }   // B59 (Firefox): the count, codes and bytes from wasm (a Map of strings costs about 5x Chromium's there)
       else if (B59 && sd > 0 && sd <= 128 && (codes = new Array(n), (nD = hxCount(v, n, cap, labels, codes)) >= 0)) { }   // B60
       else { labels.length = 0; map = new Map(); codes = new Array(n); for (i = 0; i < n; i++) { c = map.get(v[i]); if (c === undefined) { if (labels.length * cap > n) break; c = labels.length; map.set(v[i], c); labels.push(v[i]); } codes[i] = c; } nD = labels.length; }   // past n / 2 distinct values the column is neither a dictionary nor sharing templates cheaply, and the full count is not needed
       // B45: the check (no 0 char, well formed) runs once on one join: of every value when the plain layout is next, or of the distinct values only when the loop above saw them all (a dictionary), which is the same test
@@ -1244,13 +1245,29 @@
       for (;;) { k = HXK[h]; if (k === undefined) { if (labels.length * cap > n) return labels.length; if (labels.length >= 2048) return -1; c = labels.length; HXK[h] = x; HXV[h] = c; labels.push(x); break; } if (k === x) { c = HXV[h]; break; } h = (h + 1) & M; }
       codes[i] = c; }
     return labels.length; }
+  // B62 (Firefox, with B59): first-seen codes from an open-addressing table sized for every label up to the stop (labels * cap > n); values up to 16 chars hash every char (multiplicative mix); same labels and codes as the Map count
+  var B62 = (typeof globalThis !== 'undefined' && globalThis.__B62 !== undefined) ? globalThis.__B62 : 1000;
+  var HBK = null, HBV = null;
+  function hxBig(v, n, cap, labels, codes) {
+    var T = 4096, M, x, L, h, k, c, i, q, lim = Math.floor(n / cap) + 2;
+    while (T < 2 * lim) T *= 2; M = T - 1; var SH = 32 - (31 - Math.clz32(T));
+    if (!HBK || HBK.length < T) { HBK = new Array(T); HBV = new Int32Array(T); } HBK.fill(undefined, 0, T);
+    for (i = 0; i < n; i++) { x = v[i]; L = x.length; h = L;
+      if (L <= 16) { for (q = 0; q < L; q++) h = (h * 31 + x.charCodeAt(q)) | 0; }
+      else { h = (h * 31 + x.charCodeAt(0)) | 0; h = (h * 31 + x.charCodeAt(L - 1)) | 0; h = (h * 31 + x.charCodeAt(L >> 1)) | 0; h = (h * 31 + x.charCodeAt(L - 2)) | 0; h = (h * 31 + x.charCodeAt(L >> 2)) | 0; }
+      h = Math.imul(h, -1640531535) >>> SH;
+      for (;;) { k = HBK[h]; if (k === undefined) { if (labels.length * cap > n) return labels.length; c = labels.length; HBK[h] = x; HBV[h] = c; labels.push(x); break; } if (k === x) { c = HBV[h]; break; } h = (h + 1) & M; }
+      codes[i] = c; }
+    return labels.length; }
+  // B63 (Firefox, with B59): a column whose values average more than 8 chars reaches wasm as one join plus TextEncoder.encodeInto (native), not a charCodeAt loop; sdz checks the 0 bytes (chk) and isWellFormed the text: the same bytes
+  var B63 = (typeof globalThis !== 'undefined' && globalThis.__B63 !== undefined) ? globalThis.__B63 : 8;
   function sdzCol(v, n, cap) {   // -> { D, codes, lab, all } or null (a value holds a 0 char or is not well formed: the Map path decides, as before)
     var K = sdw(), x = K.x, mem = x.memory, i, k, q, c, L = n - 1, j = null, len = -1, chk = 0, T = 16, dm = Math.floor(n / cap) + 2, u, p = 0;
     for (i = 0; i < n; i++) L += v[i].length;
     while (T < 2 * dm) T *= 2;
     function lay(inCap) { var o = K.heap, P = { inP: o }; o = (o + inCap + 15) & ~15; P.ht = o; o += 16 * T; P.codes = o; o += 4 * (n + dm + 1); P.out = o; o = (o + inCap + 31) & ~15; P.res = o; o += 16; if (o > mem.buffer.byteLength) mem.grow(Math.ceil((o - mem.buffer.byteLength) / 65536)); return P; }
     var P = null;
-    if (STR_ASCII) { P = lay(L); u = new Uint8Array(mem.buffer, P.inP, L);
+    if (STR_ASCII && !(B59 && B63 && L > B63 * n)) { P = lay(L); u = new Uint8Array(mem.buffer, P.inP, L);
       outer: for (i = 0; i < n; i++) { q = v[i]; if (i) u[p++] = 0; for (k = 0; k < q.length; k++) { c = q.charCodeAt(k); if (c > 127 || c === 0) { p = -1; break outer; } u[p++] = c; } }
       if (p >= 0) len = L; }
     if (len < 0) { j = v.join('\0'); if (!(NATIVE_WF ? j.isWellFormed() : !RX_LONE.test(j))) return null; P = lay(3 * j.length); len = te.encodeInto(j, new Uint8Array(mem.buffer, P.inP, 3 * j.length)).written; chk = 1; }
@@ -1443,10 +1460,11 @@
   var B61I = !GECKO;   // indexed fill: Chromium 156 0.96, WebKitGTK 0.97; Firefox 158 keeps push (indexed fill made the later column passes slower there: Workbench-style 0.98, logs 1.02, against 0.92 / 0.985 with push)
   function b61Fold(full, pls, pb) { for (var j = 0; j < pls.length; j++) { var pl = pls[j]; for (var b = 0; b < pb; b++) pl[b] |= full[b]; } full.fill(0); }
   function b61Gen(c, n) { var a = new Array(n), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }
-  function b61Loop(rows, n, pb, keys, seen, cols, cs21, pls) {
+  function b61Loop(rows, n, pb, keys, seen, cols, cs21, pls, chk) {
     var full = new Uint8Array(pb), any = 0, pk = [], pc = [], px = [], i, r, k, q, jx, dev, x21, c21, t, nk;
     for (i = 0; i < n; i++) {
       r = rows[i]; q = 0; dev = false; nk = keys.length;
+      if (chk && (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null))) throw B26_BAIL;   // B65: b26Rows' check, in the same pass
       for (k in r) {
         if (pk[q] === k) c21 = pc[q];   // B64: the column state is cached per key position too
         else { dev = true; jx = seen.get(k); if (jx === undefined) { if (any) { b61Fold(full, pls, pb); any = 0; } jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; pc[q] = c21 = cs21[jx]; }
@@ -1552,9 +1570,9 @@
     }
     var n = colsIn ? colsIn.b - colsIn.a : rows.length, keys = [], seen = new Map(), cols = [], k, v, jx;
     var chk26 = !!(rowsIn && opts._b26), t26, pb = (n + 7) >> 3, ord = opts.exact ? { map: new Map(), list: [], ids: new Array(n) } : null, sq, pk = [], px = [], q, pls = [], cs21 = [], c21, x21, pre21 = [];
-    if (chk26 && !colsIn) b26Rows(rows, n);
+    if (chk26 && !colsIn && !(B61 && !ord)) b26Rows(rows, n);   // B65: b61Loop checks each row as it reads it
     if (colsIn) b34Fill(colsIn, n, pb, keys, seen, cols, cs21, pls);
-    else if (B61 && !ord) b61Loop(rows, n, pb, keys, seen, cols, cs21, pls);
+    else if (B61 && !ord) b61Loop(rows, n, pb, keys, seen, cols, cs21, pls, chk26);
     else for (i = 0; i < n; i++) {   // B21a: one pass; a key at the same position as in the previous row is matched by a string compare, not a Map lookup
       r = rows[i]; sq = ord ? [] : null; q = 0;
       for (k in r) { if (pk[q] === k) jx = px[q]; else { jx = seen.get(k); if (jx === undefined) { jx = keys.length; seen.set(k, jx); keys.push(k); cols.push(null); cs21.push({ a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }); pls.push(new Uint8Array(pb)); } pk[q] = k; px[q] = jx; }
@@ -3300,7 +3318,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.39', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.10.40', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })

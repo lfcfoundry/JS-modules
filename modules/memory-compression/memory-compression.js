@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.17.3 (API 2)
+ * Version 2.17.4 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1988,6 +1988,12 @@
   Out.prototype.zigzag = function (v) { this.varint(v >= 0 ? v * 2 : -v * 2 - 1); };
   Out.prototype.bytes = function (u8) { this.need(u8.length); this.b.set(u8, this.p); this.p += u8.length; };
   Out.prototype.f64 = function (v) { this.need(8); if (!this.dv) this.dv = new DataView(this.b.buffer, this.b.byteOffset, this.b.length); this.dv.setFloat64(this.p, v, true); this.p += 8; };
+  Out.prototype.shortAscii = function (s, tag) {        // tag, length and bytes of a string under 24 characters when all of it is ASCII; else writes nothing and says false
+    var n = s.length, b, p, i, ch;
+    this.need(n + 2); b = this.b; p = this.p + 2;
+    for (i = 0; i < n; i++) { ch = s.charCodeAt(i); if (ch > 127) return false; b[p + i] = ch; }
+    b[p - 2] = tag; b[p - 1] = n; this.p += n + 2; return true;
+  };
   Out.prototype.str = function (s) {          // length in bytes, then UTF-8; callers check wellFormed first
     var n = s.length, w, lenBytes, b, p, i, ch;
     if (n === 0) { this.u8(0); return; }
@@ -2112,7 +2118,10 @@
   Enc.prototype.value = function (v) {
     var c = this.ctl, t = typeof v;
     if (t === 'number') { this.number(v); return; }
-    if (t === 'string') { if (wellFormed(v)) { c.u8(T_STR); c.str(v); } else { c.u8(T_STR16); this.str16(v); } return; }
+    if (t === 'string') {
+      if (v.length < 24 && c.shortAscii(v, T_STR)) return;     // short plain ASCII (most labels): one loop, no well-formed check needed
+      if (wellFormed(v)) { c.u8(T_STR); c.str(v); } else { c.u8(T_STR16); this.str16(v); } return;
+    }
     if (t === 'boolean') { c.u8(v ? T_TRUE : T_FALSE); return; }
     if (t === 'undefined') { c.u8(T_UNDEF); return; }
     if (v === null) { c.u8(T_NULL); return; }
@@ -2121,7 +2130,12 @@
     jfail('cannot pack a ' + t + (this.path ? ' at ' + this.path : ''));
   };
   Enc.prototype.number = function (v) {
-    var c = this.ctl;
+    var c = this.ctl, b, q;
+    if ((v | 0) === v && (v !== 0 || 1 / v > 0)) {          // a 32-bit whole number: tag and zigzag bytes straight into the stream
+      c.need(7); b = c.b; q = c.p; b[q++] = T_INT; v = v >= 0 ? v * 2 : -v * 2 - 1;
+      while (v > 127) { b[q++] = (v & 127) | 128; v >>>= 7; }
+      b[q++] = v; c.p = q; return;
+    }
     if (v === Math.floor(v) && v > -4503599627370496 && v < 4503599627370496 && !(v === 0 && 1 / v < 0)) { c.u8(T_INT); c.zigzag(v); }
     else { c.u8(T_F64); c.f64(v); }
   };
@@ -2141,6 +2155,7 @@
     if (seen) { i = seen.get(v); if (i !== undefined) { c.u8(T_REF); c.varint(i); return; } seen.set(v, seen.size); }
     if (++this.depth > MAX_DEPTH) jfail('nested too deeply (or it refers to itself: pass refs: true)');
     if (Array.isArray(v)) this.array(v);
+    else if ((proto = Object.getPrototypeOf(v)) === OBJ_PROTO) this.plain(v, proto);    // a plain object is the common case: skip the Date/view/Map/Set/RegExp checks
     else if (v instanceof Date) { c.u8(T_DATE); c.f64(v.getTime()); }
     else if (ArrayBuffer.isView(v)) {
       var kind = -1, carrier;
@@ -2159,18 +2174,19 @@
       var xs = new Array(n); i = 0; v.forEach(function (val) { xs[i++] = val; });
       this.items(xs, n);
     } else if (v instanceof RegExp) { c.u8(T_REGEX); c.str(v.source); c.str(v.flags); }
-    else {
-      proto = Object.getPrototypeOf(v);
-      keys = Object.keys(v); n = keys.length;
-      c.u8(proto === null ? T_OBJ0 : T_OBJ); c.varint(n);
-      for (i = 0; i < n; i++) {
-        k = keys[i]; this.key(k);
-        if (this.report) this.path += '.' + k;
-        this.value(v[k]);
-        if (this.report) this.path = this.path.slice(0, this.path.length - k.length - 1);
-      }
-    }
+    else this.plain(v, proto);
     this.depth--;
+  };
+  var OBJ_PROTO = Object.prototype;
+  Enc.prototype.plain = function (v, proto) {
+    var c = this.ctl, keys = Object.keys(v), n = keys.length, i, k;
+    c.u8(proto === null ? T_OBJ0 : T_OBJ); c.varint(n);
+    for (i = 0; i < n; i++) {
+      k = keys[i]; this.key(k);
+      if (this.report) this.path += '.' + k;
+      this.value(v[k]);
+      if (this.report) this.path = this.path.slice(0, this.path.length - k.length - 1);
+    }
   };
   Enc.prototype.array = function (a) {
     var c = this.ctl, n = a.length, i;
