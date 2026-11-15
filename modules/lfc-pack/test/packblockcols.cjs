@@ -28,7 +28,7 @@ const JF = require('../lfc-pack.js');
   const ids = Int32Array.from({ length: N }, (_, i) => i), score = Float64Array.from({ length: N }, (_, i) => ((i * 37) % 10000) / 100);
   for (const [name, f] of Object.entries(textCols)) {
     const vals = Array.from({ length: N }, (_, i) => f(i));
-    for (const opts of [{ share: false, fast: false }, { share: false, fast: false, blockBytes: 65536 }, { share: false, fast: false, templates: true }, { share: false, fast: false, level: 3 }]) {
+    for (const opts of [{ share: false }, { share: false, blockBytes: 65536 }, { share: false, templates: true }, { share: false, level: 3 }]) {
       const a = await JF.packBlock({ id: ids, t: vals, s: score }, opts), b = await JF.packBlock({ id: ids, t: asBytes(vals), s: score }, opts);
       ok(same(a, b), name + ' ' + JSON.stringify(opts) + ': bytes columns give the same file as strings');
       const back = JF.unpackRows(b); ok(back.length === N && back[N - 1].t === vals[N - 1] && back[123].t === vals[123] && back[7].id === 7 && JSON.stringify(Object.keys(back[0])) === '["id","t","s"]', name + ': rows read back');
@@ -42,7 +42,7 @@ const JF = require('../lfc-pack.js');
     ok(rows.length === 20000 && rows.every((row, i) => row.k === all[i] && row.n === i), 'packStream pushPacked of column pieces'); }
   // packColumnsParallel takes text as bytes too (same file as strings)
   { const vals = Array.from({ length: 60000 }, (_, i) => 'Name ' + (i % 97)), big = Int32Array.from({ length: 60000 }, (_, i) => i * 3);
-    const a = await JF.packColumnsParallel({ id: big, t: vals }, { workers: 2, fast: false }), b = await JF.packColumnsParallel({ id: big, t: asBytes(vals) }, { workers: 2, fast: false });
+    const a = await JF.packColumnsParallel({ id: big, t: vals }, { workers: 2 }), b = await JF.packColumnsParallel({ id: big, t: asBytes(vals) }, { workers: 2 });
     ok(same(a, b), 'packColumnsParallel: bytes columns give the same file'); ok(JF.unpackRows(b)[59999].t === vals[59999], 'packColumnsParallel: rows'); }
   // inputs are left as they were (a Float64Array is read in place)
   { const f = Float64Array.from({ length: 20000 }, (_, i) => i * 0.25 - 7), f0 = f.slice(), t = asBytes(Array.from({ length: 20000 }, (_, i) => 'x' + (i % 50))), b0 = t.bytes.slice();

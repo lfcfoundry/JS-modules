@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.12.1 · API 0 · 2026-11-15
+
+### Quick
+B74p6 from compression part 6: a Float64Array column with NaN becomes the numbers-and-nulls state in one pass (same bytes as an array with nulls).
+
+### Deep
+B74p6 from compression part 6: a Float64Array column with NaN becomes the numbers-and-nulls state in one pass (same bytes as an array with nulls). Same page, new over 0.12.0, 50,000 rows x 6 number columns with empty cells: first pack Chromium 0.24, Firefox 0.19, WebKitGTK 0.28; steady 0.16, 0.16, 0.21; bytes identical. Plus (code part 5): fast on byte columns: byteCol and byteColDict use the fast zstd level and skip the dictionary count when the first 1,024 values are nearly all different, as the string path does; packBlock byte columns now give the same bytes as the same text as strings under fast. Text-heavy byte block (100,000 rows): file 0.54x, steady pack Chromium 0.82, Firefox 0.90, WebKitGTK 0.82; taxi-shaped block (mostly numbers, 2 date text columns): Chromium 1.09 first and 1.03 steady over 16 pages, Firefox 0.93 / 1.02, WebKitGTK 1.01 / 1.03, file +0.05%.
+
 ## 0.12.0 · API 0 · 2026-11-15
 
 ### Quick

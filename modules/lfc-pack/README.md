@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.12.0 · API 0**
+**Version 0.12.1 · API 0**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; same-page save A/B and fresh-page reads of default-saved files
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; same-page packBlock A/B
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -60,7 +60,7 @@ Options for `pack(input, options)`:
 | `access: 'random'` | the read-friendly preset: 256 KB blocks plus `share: true` (options given next to it win; per-path strings are on as everywhere). Reading 100 rows with `unpackRows` decodes one small block (20 to 60 times faster in tests); files 4 to 10% larger than at the default block size (GeoJSON and orders +10%, three flat test sets +4 to +5%). `'whole'` (default) changes nothing. |
 | `templates: false` | switch the automatic log templates off. |
 | `templates: true` | try the log-template layout on every long text column (it is not tried on every column by default). Since 0.10.32 the template layout is built in WebAssembly: a save with it takes 0.52 (Chromium 156), 0.57 (Firefox 158) and 0.60 (WebKitGTK 2.52.6) of the 0.10.31 time, with the same file bytes. |
-| `fast: false` (fast is the default since 0.12.0; `fast: true` still works, it was added in 0.10.34) | opt out of the quicker text-heavy save: without it, text columns are compressed at zstd level 3 and every text column gets the dictionary count, so files can be a little smaller on logs (+0.2% with fast) and larger on Workbench-style rows (0.60 with fast). With fast, text columns are compressed at zstd level 1, and a text column of 4,096 or more values that is nearly all different skips the dictionary count. Same page, new default against 0.11.2, Workbench-style 600k rows: 0.82 / 0.77 / 0.99 of the save time in Chromium 156 / WebKitGTK 2.52.6 / Firefox 158; logs 0.95 to 1.00 |
+| `fast: false` (fast is the default since 0.12.0, and applies to text and dictionary columns given as bytes since 0.12.1; `fast: true` still works, it was added in 0.10.34) | opt out of the quicker text-heavy save: without it, text columns are compressed at zstd level 3 and every text column gets the dictionary count, so files can be a little smaller on logs (+0.2% with fast) and larger on Workbench-style rows (0.60 with fast). With fast, text columns are compressed at zstd level 1, and a text column of 4,096 or more values that is nearly all different skips the dictionary count. Same page, new default against 0.11.2, Workbench-style 600k rows: 0.82 / 0.77 / 0.99 of the save time in Chromium 156 / WebKitGTK 2.52.6 / Firefox 158; logs 0.95 to 1.00 |
 
 Reading:
 

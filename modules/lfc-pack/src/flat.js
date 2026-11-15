@@ -594,6 +594,8 @@
   var FAST_DEFAULT = !(typeof globalThis !== 'undefined' && globalThis.__FAST_DEFAULT === 0);   // B72 (owner 11.15): fast is on unless opts.fast === false
   var FAST_ON = false, FLT = 1, FSK = 1;   // FLT: the zstd level of text columns under fast; FSK: skip the dictionary count of nearly-distinct columns
   function manyDistinct(v) { var s = new Set(), i; for (i = 0; i < 1024; i++) s.add(v[i]); return s.size > 900; }
+  function manyDistinctBC(B, S, E, a) { var s = new Set(), i; for (i = 0; i < 1024; i++) s.add(td.decode(B.subarray(S[a + i], E[a + i]))); return s.size > 900; }   // the same test on a byte column: fast skips the dictionary count of a column whose first 1,024 values are nearly all different
+  function manyDistinctDC(dc, a) { var s = new Set(), i, D = dc.labels; for (i = 0; i < 1024; i++) { var c = dc.ids[a + i]; s.add(c >= 0 && c < D.start.length ? td.decode(D.bytes.subarray(D.start[c], D.end[c])) : c); } return s.size > 900; }
   // B45: hex and IPv4 string columns checked and packed in one pass, no regex, no slices; the same acceptance as RX_HEX (lowercase) and RX_IP with parts under 256, the same bytes
   var HEXN = (function () { var t = new Int8Array(128), c; t.fill(-1); for (c = 48; c < 58; c++) t[c] = c - 48; for (c = 97; c < 103; c++) t[c] = c - 87; return t; })();
   function hexRaw(v, n, L) {
@@ -964,6 +966,8 @@
     if ((((L0 >= 16 && (L0 & 1) === 0) || L0 === 36) && dcUniqueFixed(D, codes, a, n)) || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return fb(); }
     var cap = tmode && n >= 16 && !(tmode === 1 && tmplSlow) ? 2 : 4;
     if (cap === 2) return fb();
+    if (FAST_ON && FLT !== null) level = FLT;   // fast: text frames at the faster zstd level, as the string path does
+    if (FAST_ON && FSK && n >= 4096 && manyDistinctDC(dc, a)) return fb();
     var map = new Int32Array(NL).fill(-1), lab = [], cc = new Int32Array(n), c;
     for (i = 0; i < n; i++) { c = codes[a + i]; if (!(c >= 0 && c < NL)) throw new Error('LfcPack: text column "' + key + '": code out of range'); if (map[c] < 0) { if (lab.length * 4 > n) return fb(); map[c] = lab.length; lab.push(c); } cc[i] = map[c]; }
     var nl = lab.length; if (nl * 4 > n || nl >= 65536) return fb();
@@ -989,9 +993,11 @@
     if ((((L0 >= 16 && (L0 & 1) === 0) || L0 === 36) && bcUniqueFixed(B, S, E, a, n)) || (ip && dots === 3)) { var asc0 = true; for (k = s; k < e; k++) if (B[k] > 127) asc0 = false; if (asc0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); }
     var cap = tmode && n >= 16 && !(tmode === 1 && tmplSlow) ? 2 : 4;
     if (cap === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);   // the template layout can be tried: the string path decides
+    if (FAST_ON && FLT !== null) level = FLT;   // fast: text frames at the faster zstd level, as the string path does
     // distinct values, first-seen order, stopping where the string path's Map count stops (labels * 4 > n at a new value)
-    var head = new Int32Array(KL ? 1 : HB).fill(-1), nxt = [], lab = [], codes = new Int32Array(n), stop = false, h, c, q, ls, le, m;
-    if (KL) { var X = bk.x; new Uint32Array(X.memory.buffer, KL.tab, HB).fill(0); var r0 = X.bcdict(KL.B, KL.S, KL.E, n, KL.codes, KL.lab, KL.lh, KL.tab, HB) >>> 0; if (r0 === 0xFFFFFFFF) stop = true; else { var bf = X.memory.buffer; lab = Array.from(new Int32Array(bf, KL.lab, r0)); codes = new Int32Array(bf, KL.codes, n).slice(); } }
+    var head = new Int32Array(KL ? 1 : HB).fill(-1), nxt = [], lab = [], codes = new Int32Array(n), stop = FAST_ON && FSK && n >= 4096 && manyDistinctBC(B, S, E, a), h, c, q, ls, le, m;   // fast: a column whose first 1,024 values are nearly all different skips the dictionary count (the string path decides the same way)
+    if (stop) { }
+    else if (KL) { var X = bk.x; new Uint32Array(X.memory.buffer, KL.tab, HB).fill(0); var r0 = X.bcdict(KL.B, KL.S, KL.E, n, KL.codes, KL.lab, KL.lh, KL.tab, HB) >>> 0; if (r0 === 0xFFFFFFFF) stop = true; else { var bf = X.memory.buffer; lab = Array.from(new Int32Array(bf, KL.lab, r0)); codes = new Int32Array(bf, KL.codes, n).slice(); } }
     else for (i = 0; i < n; i++) {
       s = S[a + i]; e = E[a + i]; h = 2166136261; for (k = s; k < e; k++) h = Math.imul(h ^ B[k], 16777619); h = (h ^ (e - s)) >>> 0;
       c = head[h & (HB - 1)];
@@ -1013,13 +1019,15 @@
     return settle(zs, level, best);
   }
   var B28_MIN = 8192;
+  // B74p6: a Float64Array column with NaN (an empty cell) becomes the numbers-and-nulls state the row loop builds ({ nb: the numbers, np: null plane, m, c }), in one pass: the same bytes as a plain array with nulls, without the generic path (7-9x slower in Chromium and Firefox)
+  function nanSplit(v, n, pb) { var i, m = 0, np = null, o; for (i = 0; i < n; i++) if (v[i] !== v[i]) break; if (i === n) return null; o = new Float64Array(n); np = new Uint8Array(pb); for (i = 0; i < n; i++) { if (v[i] !== v[i]) np[i >> 3] |= 1 << (i & 7); else o[m++] = v[i]; } return { a: null, nb: o, np: np, m: m, c: n }; }
   // B34 (research): a block given as columns ({ keys, A: one array per key, a, b }) fills the same column state the B21a row loop builds, with no row objects. Every row holds every key.
   function b34Fill(ci, n, pb, keys, seen, cols, cs21, pls) {
     var full = new Uint8Array(pb), j, i, x, c21, arr, a = ci.a; full.fill(255); if (n & 7) full[pb - 1] = (1 << (n & 7)) - 1;
     for (j = 0; j < ci.keys.length; j++) { keys.push(ci.keys[j]); seen.set(ci.keys[j], j); cols.push(null); pls.push(full); arr = ci.A[j];
       if (isDictCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a, dc: true }); continue; }
       if (isByteCol(arr)) { cs21.push({ a: null, nb: null, np: null, m: 0, c: n, bc: arr, a0: a }); continue; }   // a text column as UTF-8 bytes plus value offsets: encoded from the bytes (byteCol), no strings
-      if (!Array.isArray(arr)) { if (ci.view && arr instanceof Float64Array) { cs21.push({ a: null, nb: arr.subarray(a, a + n), np: null, m: n, c: n }); continue; } c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); cs21.push(c21); continue; }   // ci.view (packBlock(columns), no helpers): a Float64Array is read in place, not copied   // a typed number column: one copy, no per-value work
+      if (!Array.isArray(arr)) { if (ci.view && arr instanceof Float64Array) { c21 = nanSplit(arr.subarray(a, a + n), n, pb); cs21.push(c21 || { a: null, nb: arr.subarray(a, a + n), np: null, m: n, c: n }); continue; } c21 = { a: null, nb: new Float64Array(n), np: null, m: n, c: n }; c21.nb.set(arr.subarray(a, a + n)); c21 = nanSplit(c21.nb, n, pb) || c21; cs21.push(c21); continue; }   // ci.view (packBlock(columns), no helpers): a Float64Array is read in place, not copied   // a typed number column: one copy, no per-value work
       c21 = { a: null, nb: new Float64Array(n), np: null, m: 0, c: 0 }; cs21.push(c21);
       for (i = 0; i < n; i++) { x = arr[a + i];
         if (c21.a !== null) c21.a.push(x); else if (typeof x === 'number') { c21.nb[c21.m++] = x; c21.c++; } else if (x === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x); c21.nb = null; } } }
