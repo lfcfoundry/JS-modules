@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.10.42 · API 0 · 2026-11-14
+
+### Quick
+In Firefox, text columns of any size reach the wasm count through one join and encodeInto (the small-table count for 129 to 999 distinct values is off), and the row loop fills text columns by index as Chromium does.
+
+### Deep
+In Firefox, text columns of any size reach the wasm count through one join and encodeInto (the small-table count for 129 to 999 distinct values is off), and the row loop fills text columns by index as Chromium does. Same files; Workbench-style score column 62-72 ms to 51-55 ms in the Firefox profile (compression research).
+
 ## 0.10.41 · API 0 · 2026-11-14
 
 ### Quick

@@ -1392,6 +1392,7 @@
       if (cols) {
         this.ctl.u8(CT_TUPLE); this.ctl.varint(k);
         for (j = 0; j < k; j++) this.column(cols[j], q);
+        if (!this.defer) giveF64(cols);
         return true;
       }
     }
@@ -1757,18 +1758,19 @@
     if (f) return f;
     if (CAN_EVAL) {
       src = 'var r=[],i,m,a,t,v,q=0,len;';
-      for (j = 0; j < k; j++) src += 'var c' + j + '=new ' + (types[j] === 'n' ? 'Float64Array' : 'Array') + '(total);r.push(c' + j + ');';
+      for (j = 0; j < k; j++) src += 'var c' + j + '=' + (types[j] === 'n' ? 'T(total)' : 'new Array(total)') + ';r.push(c' + j + ');';     // number columns from the pool (handed back by fusedArrays)
       src += 'for(i=0;i<n;i++){a=rows[i];len=a.length;for(m=0;m<len;m++){t=a[m];if(!Array.isArray(t)||t.length!==' + k + ')return -1;';
       for (j = 0; j < k; j++) {
         if (types[j] === 'n') src += 'v=t[' + j + '];if(typeof v!=="number")return ' + (-(2 + j)) + ';c' + j + '[q]=v;';
         else src += 'c' + j + '[q]=t[' + j + '];';
       }
       src += 'q++;}}return r;';
-      f = new Function('rows', 'n', 'keys', 'total', src);
+      f = new Function('rows', 'n', 'keys', 'total', 'T', src);
+      f = (function (g) { return function (rows, n, ks, total) { return g(rows, n, ks, total, takeF64b); }; })(f);
     } else {
       f = function (rows, n, ks, total) {
         var r = [], i, m, jj, a, t, v, q = 0, len;
-        for (jj = 0; jj < k; jj++) r.push(types[jj] === 'n' ? new Float64Array(total) : new Array(total));
+        for (jj = 0; jj < k; jj++) r.push(types[jj] === 'n' ? takeF64b(total) : new Array(total));
         for (i = 0; i < n; i++) {
           a = rows[i]; len = a.length;
           for (m = 0; m < len; m++) {
