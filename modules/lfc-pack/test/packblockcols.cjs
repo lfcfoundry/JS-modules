@@ -29,8 +29,9 @@ const JF = require('../lfc-pack.js');
   for (const [name, f] of Object.entries(textCols)) {
     const vals = Array.from({ length: N }, (_, i) => f(i));
     for (const opts of [{ share: false }, { share: false, blockBytes: 65536 }, { share: false, templates: true }, { share: false, level: 3 }]) {
-      const a = await JF.packBlock({ id: ids, t: vals, s: score }, opts), b = await JF.packBlock({ id: ids, t: asBytes(vals), s: score }, opts);
+      const a = await JF.packBlock({ id: ids, t: vals, s: score }, Object.assign({ _nolabels: true }, opts)), b = await JF.packBlock({ id: ids, t: asBytes(vals), s: score }, opts);   // since 0.13.3 plain strings can take shared label tables; _nolabels gives the old bytes
       ok(same(a, b), name + ' ' + JSON.stringify(opts) + ': bytes columns give the same file as strings');
+      const d = await JF.packBlock({ id: ids, t: vals, s: score }, opts), rd = JF.unpackRows(d); ok(rd.length === N && rd[N - 1].t === vals[N - 1] && rd[123].t === vals[123] && rd[N >> 1].t === vals[N >> 1], name + ' ' + JSON.stringify(opts) + ': strings with shared label tables read back');
       const back = JF.unpackRows(b); ok(back.length === N && back[N - 1].t === vals[N - 1] && back[123].t === vals[123] && back[7].id === 7 && JSON.stringify(Object.keys(back[0])) === '["id","t","s"]', name + ': rows read back');
     }
   }
