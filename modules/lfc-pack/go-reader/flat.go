@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func unzstdB(b []byte) []byte { return unzstd(b) }
@@ -52,7 +53,43 @@ func readFlat(b []byte) []any {
 				fr = append(fr, sb)
 			}
 		}
+		if tv, _ := field(cm, "t").(string); tv == "Q" {
+			continue // a location column (format minor 2): rebuilt below from its two source columns
+		}
 		vals[ci] = decodeCol(cm, fr)
+	}
+	for ci, cmv := range colsA {
+		cm, _ := cmv.(*Obj)
+		if tv, _ := field(cm, "t").(string); tv != "Q" {
+			continue
+		}
+		qp, _ := field(cm, "p").(*Obj)
+		if qp == nil {
+			fail("damaged block: location column")
+		}
+		ai, bi := -1, -1
+		if v, ok := field(qp, "a").(float64); ok && v == float64(int(v)) {
+			ai = int(v)
+		}
+		if v, ok := field(qp, "b").(float64); ok && v == float64(int(v)) {
+			bi = int(v)
+		}
+		qx, ok1 := field(qp, "x").(string)
+		qm, ok2 := field(qp, "m").(string)
+		qy, ok3 := field(qp, "y").(string)
+		if ai < 0 || bi < 0 || ai >= K || bi >= K || ai == bi || ai == ci || bi == ci || !ok1 || !ok2 || !ok3 || vals[ai] == nil || vals[bi] == nil || len(vals[ai]) != n || len(vals[bi]) != n {
+			fail("damaged block: location column")
+		}
+		col := make([]any, n)
+		for i := 0; i < n; i++ {
+			sa, oka := vals[ai][i].(string)
+			sb, okb := vals[bi][i].(string)
+			if !oka || !okb {
+				fail("damaged block: location source is not text")
+			}
+			col[i] = qx + sa + qm + sb + qy
+		}
+		vals[ci] = col
 	}
 	ptr := make([]int, K)
 	out := make([]any, 0, n)
@@ -162,6 +199,28 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 		}
 		if q != m {
 			fail("damaged block: N count")
+		}
+	case "W": // date-time text (format minor 2): the inner column is the epoch milliseconds; f 0 is YYYY-MM-DDTHH:MM:SS.mmm, f 1 is YYYY-MM-DDTHH:MM:SS
+		f := int(pf("f"))
+		if f != 0 && f != 1 {
+			fail("unknown date format")
+		}
+		wc := &Obj{}
+		wt, _ := p.Get("t")
+		wp, _ := p.Get("p")
+		wc.Set("t", wt)
+		wc.Set("p", wp)
+		wc.Set("n", float64(n))
+		layout := "2006-01-02T15:04:05.000"
+		if f == 1 {
+			layout = "2006-01-02T15:04:05"
+		}
+		for _, x := range decodeCol(wc, fr) {
+			v, ok := x.(float64)
+			if !ok {
+				fail("damaged block: W value")
+			}
+			out = append(out, time.UnixMilli(int64(v)).UTC().Format(layout))
 		}
 	case "V":
 		u := varints(need(0), n)

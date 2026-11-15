@@ -122,7 +122,7 @@
   }
   function packManyNow(inputs, opts) {
     opts = opts || {}; need(true);
-    var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], eqf = [], eqAny = false, off = 0, rows = 0, tail = true, nm0 = NMARK;
+    var ti, b, bb = opts.blockBytes || BLOCK_BYTES, p, blocks = [], parts = [], zone = [], eqf = [], eqAny = false, off = 0, rows = 0, tail = true, nm0 = NMARK, wm0 = WMARK;
     var exact = !!opts.exact, st = opts.share && !exact ? (opts._st || sharedState()) : null, ctx = { zs: S.zfull, sh: S.sh, st: st, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick }, exc = {}, spl = {}, fatal = new TextDecoder('utf-8', { fatal: true });
     var retry = [], s0, e, chunk, kind, blk, ex, fb, r0, mid;
     // paths: 'auto' (opt-in): an input of PATHS_TRY blocks or more picks the string layout of its big nested blocks from a 128 KB sample (samplePick)
@@ -135,7 +135,7 @@
     if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
       var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl, cnt;
       var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0;   // P13i: the B22 head block for tables that took the text path before
-      for (ra = 0, cnt = hb0 || stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts); if (blk.rows <= B39_ROWS && ra === 0 && sl.length === RA.length && inputs.length === 1) { blk = b39Small(ctx, blk, sl, opts, st); if (blk.kind === 'r') NMARK = nm0; }
+      for (ra = 0, cnt = hb0 || stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts); if (blk.rows <= B39_ROWS && ra === 0 && sl.length === RA.length && inputs.length === 1) { blk = b39Small(ctx, blk, sl, opts, st); if (blk.kind === 'r') { NMARK = nm0; WMARK = wm0; } }
         blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone);   // B55: row saves record the prefix size too, so their files get per-column checks as text saves do (B44)
  var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
       tail = true; continue;
@@ -162,7 +162,7 @@
         if (mid < 0 || mid + 1 >= e) throw err;
         retry.push([mid + 1, e], [s0, mid + 1]); continue;
       }
-      if (!exact && s0 === 0 && e === b.length && inputs.length === 1 && !retry.length) { blk = b39Small(ctx, blk, chunk, opts, st); if (blk.kind === 'r') NMARK = nm0; }
+      if (!exact && s0 === 0 && e === b.length && inputs.length === 1 && !retry.length) { blk = b39Small(ctx, blk, chunk, opts, st); if (blk.kind === 'r') { NMARK = nm0; WMARK = wm0; } }
       if (exact) { ex = exceptionsOf(blk, chunk, blk.kind || 'n'); if (ex) { if (ex.raw.length) exc[blocks.length] = ex.raw; if (ex.spell.length) spl[blocks.length] = ex.spell; } }
       blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone); var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes);
       off += blk.bytes.length; rows += blk.rows;
@@ -182,7 +182,7 @@
     if (st && !opts._st && st.used) secs.push(sharedSection(st));
     if (exact && Object.keys(exc).length) secs.push(excSection(exc));
     if (exact && Object.keys(spl).length) secs.push(spellSection(spl));
-    parts.push(writeFooter(S.zfull, secs, true, NMARK > nm0 ? 1 : 0));
+    parts.push(writeFooter(S.zfull, secs, true, WMARK > wm0 ? 2 : NMARK > nm0 ? 1 : 0));
     if (opts._tryFirst) opts._picked = ctx.pick;
     return concat(parts);
   }
