@@ -42,6 +42,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('null plane (column type N)', 'node', ['nullplane.cjs'])
   step('date columns (column type W)', 'node', ['datecol.cjs']);
   step('date refusal sample and UTF-8 labels check (bytes columns)', 'node', ['bytecol-b72.cjs']);
+  step('typed NaN number columns (B74p6)', 'node', ['nancol.cjs']);
   step('non-ASCII text in the flat path (SIMD and not)', 'node', ['nonascii.cjs']);
   step('variable-length string round trip (Workbench probe)', 'node', ['varlen-roundtrip.cjs']);
   step('decoder-only build', 'node', ['readonly.cjs']);

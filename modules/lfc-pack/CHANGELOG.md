@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.12.1 · API 0 · 2026-11-15
+- fast now also applies to text and dictionary columns given as bytes (live import); typed number columns with empty cells (NaN) pack 4 to 6 times faster, same bytes as an array with nulls
+
 ## 0.12.0 · API 0 · 2026-11-15
 - saves are faster by default for text-heavy tables (fast is now on; pass fast: false for the old layout); Workbench-style files are 0.60x the size, logs 0.2% larger
 

@@ -3,7 +3,7 @@ const J = require('../lfc-pack.js'), assert = require('assert');
 (async () => {
   await J.init();
   let s = 11; const r = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
-  const enc = new TextEncoder(), opts = { level: 3, blockBytes: 2097152, share: false, fast: false };
+  const enc = new TextEncoder(), opts = { level: 3, blockBytes: 2097152, share: false };
   const byteCol = (vals) => { const parts = vals.map((v) => enc.encode(v)), st = new Int32Array(vals.length), en = new Int32Array(vals.length); let t = 0; parts.forEach((p, i) => { st[i] = t; t += p.length; en[i] = t; }); const bytes = new Uint8Array(t); parts.forEach((p, i) => bytes.set(p, st[i])); return { bytes, start: st, end: en }; };
   // labels in any order (a shared dictionary: extra labels the block never uses are fine); ids as Uint8, Uint16 or Int32
   const dictCol = (vals, extra, Ctor) => { const m = new Map(), lab = []; (extra || []).forEach((x) => { m.set(x, lab.length); lab.push(x); }); const ids = new (Ctor || Uint16Array)(vals.length); vals.forEach((v, i) => { let id = m.get(v); if (id === undefined) { id = lab.length; m.set(v, id); lab.push(v); } ids[i] = id; }); return { kind: 'dict', labels: byteCol(lab), ids }; };
