@@ -410,3 +410,38 @@ EXPORT("tplbuild") u32 tplbuild(const u8*in,u32 len,u32 n,u8*tl,u32*ids,u32*sg,u
     a=b; }
   res[0]=tlE; res[1]=G; res[2]=tO; res[3]=nO; res[4]=D; res[5]=ns; return 0;
 }
+
+// byteCol kernel (from the text-columns research, folded in here): the byte-by-byte passes of byteCol for a text column given as bytes and value offsets.
+static u32 bc_tot;
+EXPORT("bctot") u32 bctot(void){ return bc_tot; }
+// flags: 1 = an offset is outside the bytes, 2 = a NUL byte, 4 = a byte above 127. Stops at the first NUL or bad offset (same as the JavaScript loop).
+EXPORT("bcscan") u32 bcscan(const u8*B,u32 blen,const int*S,const int*E,u32 n){
+  u32 hi=0,t=0;
+  for(u32 i=0;i<n;i++){
+    int s=S[i],e=E[i];
+    if(!(s>=0&&e>=s&&(u32)e<=blen)){bc_tot=t;return 1;}
+    for(int k=s;k<e;k++){u8 c=B[k];if(!c){bc_tot=t;return 2|(hi?4:0);}hi|=c;}
+    t+=(u32)(e-s);
+  }
+  bc_tot=t;return hi&128?4:0;
+}
+static inline u32 bc_hash(const u8*p,u32 l){u32 h=2166136261u;for(u32 k=0;k<l;k++){h^=p[k];h*=16777619u;}return h^l;}
+static inline int bc_eq(const u8*a,const u8*b,u32 l){u32 k=0;for(;k+8<=l;k+=8){if(*(const u64*)(a+k)!=*(const u64*)(b+k))return 0;}for(;k<l;k++)if(a[k]!=b[k])return 0;return 1;}
+// Distinct values in first-seen order. tab: HB u32 slots (label + 1, 0 empty), HB a power of two; lab: the row of each label's first value; codes: the label of each row; lh: each label's hash.
+// Returns the label count, or 0xFFFFFFFF where the string path's rule stops (a new value arrives when labels * 4 > n).
+EXPORT("bcdict") u32 bcdict(const u8*B,const int*S,const int*E,u32 n,int*codes,int*lab,u32*lh,u32*tab,u32 HB){
+  u32 nl=0,mask=HB-1;
+  for(u32 i=0;i<n;i++){
+    const u8*p=B+S[i];u32 l=(u32)(E[i]-S[i]),h=bc_hash(p,l),q=h&mask,c;
+    for(;;){c=tab[q];if(!c)break;u32 j=c-1;if(lh[j]==h){int ls=S[lab[j]];if((u32)(E[lab[j]]-ls)==l&&bc_eq(B+ls,p,l))break;}q=(q+1)&mask;}
+    if(!c){if(nl*4>n)return 0xFFFFFFFFu;lab[nl]=(int)i;lh[nl]=h;tab[q]=nl+1;c=nl+1;nl++;}
+    codes[i]=(int)(c-1);
+  }
+  return nl;
+}
+// Join values with 0 bytes between them: idx = a row list (cnt entries), or 0 for rows 0..cnt-1. Returns the length written to out.
+EXPORT("bcjoin") u32 bcjoin(const u8*B,const int*S,const int*E,const int*idx,u32 cnt,u8*out){
+  u32 p=0;
+  for(u32 j=0;j<cnt;j++){u32 r=idx?(u32)idx[j]:j;if(j)out[p++]=0;u32 x=(u32)S[r],y=(u32)E[r];while(x<y)out[p++]=B[x++];}
+  return p;
+}
