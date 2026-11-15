@@ -44,6 +44,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('date forms with a space and six fraction digits (format minor 3)', 'node', ['datecol2.cjs']);
   step('whole-second date columns stored as seconds (date form bit 8)', 'node', ['datesec.cjs']);
   step('date refusal sample and UTF-8 labels check (bytes columns)', 'node', ['bytecol-b72.cjs']);
+  step('label tables for dictionary columns cut into several blocks (section 19, format minor 4)', 'node', ['labels19.cjs']);
   step('typed NaN number columns (B74p6)', 'node', ['nancol.cjs']);
   step('non-ASCII text in the flat path (SIMD and not)', 'node', ['nonascii.cjs']);
   step('variable-length string round trip (Workbench probe)', 'node', ['varlen-roundtrip.cjs']);

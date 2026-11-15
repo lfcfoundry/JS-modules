@@ -142,12 +142,13 @@ def read_footer(data):
     if zlib.crc32(f) != fcrc: raise ValueError('footer checksum mismatch')
     body = _decompress(f[1:]) if f[0] == 1 else f[1:]
     sec, p = {}, 0
-    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16}   # 15 = number spellings (byte-exact files written with spelling mode), 16 = shared tables of nested blocks
+    known = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 19}   # 19 = label tables of flat blocks (format minor 4); 15 = number spellings (byte-exact files written with spelling mode), 16 = shared tables of nested blocks
     while p < len(body):
         sid, fl, ln = struct.unpack('<HHI', body[p:p + 8])
         if sid in known: sec[sid] = body[p + 8:p + 8 + ln]
         elif fl & 1: raise ValueError('required section %d not supported by this reader' % sid)
         p += 8 + ln
+    if 19 in sec: _reg_labels(sec[19])
     return {'major': major, 'minor': minor, 'body_end': len(data) - 16 - flen, 'sec': sec}
 
 
@@ -448,6 +449,19 @@ def _date_text(t, f):
     return out + ('.%03d%03d' % (ms, us) if f & 4 else '.%03d' % ms)
 
 
+_LABTAB = {}   # label tables by name (footer section 19: u32 hl, JSON {name: [offset, length, count]}, then the joined labels)
+
+
+def _reg_labels(b):
+    hl = struct.unpack('<I', b[:4])[0]; t = json.loads(b[4:4 + hl].decode('utf-8')); base = 4 + hl
+    for name, e in t.items():
+        if not (isinstance(e, list) and len(e) == 3 and e[0] >= 0 and e[1] >= 0 and base + e[0] + e[1] <= len(b) and e[2] >= 1): raise ValueError('damaged file: label tables')
+        if name not in _LABTAB:
+            lab = bytes(b[base + e[0]:base + e[0] + e[1]]).decode('utf-8').split('\0')
+            if len(lab) != e[2]: raise ValueError('damaged file: label table count')
+            _LABTAB[name] = lab
+
+
 def _decode_col(c, fr):
     n, t, p = c['n'], c['t'], c['p']
     if t == 'N':   # null plane (format minor 1): frame 0 marks the null rows, the other frames hold the inner column of the non-null values
@@ -508,7 +522,10 @@ def _decode_col(c, fr):
         return out
     if t == 'L': return _untemplate(n, fr)
     if t == 'D':
-        lab = fr[0].decode('utf-8').split('\0')
+        if p.get('sh') is not None:
+            if p['sh'] not in _LABTAB: raise ValueError('damaged file: label table %s is missing' % p['sh'])
+            lab = _LABTAB[p['sh']]
+        else: lab = fr[0].decode('utf-8').split('\0')
         if p['w']: cd = _bitunpack(fr[1], n, p['w'])
         elif p['wide']: cd = list(_typed(fr[1], 1, n))
         else: cd = list(fr[1][:n])

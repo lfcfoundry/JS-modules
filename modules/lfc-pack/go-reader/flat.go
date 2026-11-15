@@ -319,7 +319,17 @@ func decodeCol(c *Obj, fr [][]byte) []any {
 			out = append(out, s)
 		}
 	case "D":
-		lab := splitNul(need(0))
+		var lab []string
+		if shv, ok := p.Get("sh"); ok {
+			name, _ := shv.(string)
+			tab, found := labelTables[name]
+			if !found {
+				fail("damaged file: label table %s is missing", name)
+			}
+			lab = tab
+		} else {
+			lab = splitNul(need(0))
+		}
 		var cd []uint64
 		if w := int(pf("w")); w != 0 {
 			cd = bitunpack(need(1), n, w)

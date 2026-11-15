@@ -255,7 +255,7 @@
     r = b.next;
     if (r && r.size <= b.size * 1.02 && (!b.z || !r.z)) { fullOf(zs, level, b); fullOf(zs, level, r); if (r.size < b.size || (r.size === b.size && r.ord < b.ord)) b = r; }
     else fullOf(zs, level, b);
-    if (b.t === 's' || b.t === 'D') { b.r0 = b.fr[0]; b.dl = b.fr.dl; }   // NX A: the uncompressed values (or labels), for the block filter
+    if ((b.t === 's' || b.t === 'D') && !(b.p && b.p.sh)) { b.r0 = b.fr[0]; b.dl = b.fr.dl; }   // NX A: the uncompressed values (or labels), for the block filter
     b.fr = null; b.next = null; return b;
   }
   // 'W' (since 0.11.0): a text column whose every cell is a date-time written "YYYY-MM-DDTHH:MM:SS.mmm" (f 0) or "YYYY-MM-DDTHH:MM:SS" (f 1), a real calendar date in years 1970 to 9999, no nulls. Stored as the epoch
@@ -661,7 +661,7 @@
   var B44_DEFAULT = true; function chkX(o) { return o && o.check ? o.check === 'xxh64' : B44_DEFAULT; }
   function colB(frames, n, p, tgt) { if (BD_DEC && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p, tgt ? 1 : 0); if (ow) { if (tgt) { tgt.set(ow); return tgt; } return p.scale === 1 ? narrow(ow) : ow; } } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
-  function colD(frames, n, p) { var i, u, o; var lab = tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
+  function colD(frames, n, p) { var i, u, o; var lab = p.sh ? labsOf(p.sh) : tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
 
   // B19b: values of column c at value positions vi[0..m) (ascending), or null when this kind is decoded whole
   var B19B = 'on', P14 = 'on', P14B = 'on', NX_B = 'on', NX_C = 'on';
@@ -735,7 +735,7 @@
     if (t === 's') { f = frames[0]; var big = tdr.decode(f), x; k = 0; q = 0; a = 0;
       if (big.length === f.length) { while (q < m) { x = big.indexOf('\0', a); if (x < 0) x = big.length; if (k === vi[q]) o[q++] = big.substring(a, x); else if (x === big.length) return null; k++; a = x + 1; } return o; }   // all ASCII: one character per byte
       var sp = big.split('\0'); if (sp.length < n) return null; for (q = 0; q < m; q++) o[q] = sp[vi[q]]; return o; }
-    if (t === 'D') { var lab = tdr.decode(frames[0]).split('\0'); cd = frames[1];
+    if (t === 'D') { var lab = p.sh ? labsOf(p.sh) : tdr.decode(frames[0]).split('\0'); cd = frames[1];
       for (i = 0; i < m; i++) o[i] = lab[p.w ? bitAt(cd, vi[i], p.w) : p.wide ? (cd[vi[i] * 2] | (cd[vi[i] * 2 + 1] << 8)) : cd[vi[i]]]; return o; }
     if (t === 'T') { f = frames[0]; for (i = 0; i < m; i++) o[i] = bitAt(f, vi[i], 1) === 1; return o; }
     if (P14B === 'on' && (t === 'U' || t === 'H' || t === 'I')) { var w = t === 'U' ? 16 : t === 'I' ? 4 : p.L / 2; f = frames[0]; if (f.length < n * w) return null; var g = new Uint8Array(m * w); for (q = 0; q < m; q++) g.set(f.subarray(vi[q] * w, vi[q] * w + w), q * w); return t === 'U' ? uuidCol(g, m) : t === 'H' ? hexCol(g, m, p.L) : V8 ? ipColV8(g, m) : ipCol(g, m); }   // P14: only the asked values
@@ -809,7 +809,7 @@
   }
   function b26Rows(rows, n) { for (var i = 0, r, t; i < n; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null)) throw B26_BAIL; } }
   function b26Vals(a) { for (var i = 0, x, t; i < a.length; i++) { x = a[i]; t = typeof x; if (t === 'number') { if (x - x !== 0 || (x === 0 && 1 / x < 0)) throw B26_BAIL; } else if (t !== 'string' && t !== 'boolean' && x !== null) throw B26_BAIL; } }
-  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; } }
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); var shw0 = SHW; SHW = ctx && ctx.shw || null; try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; SHW = shw0; } }
   function b21Generic(c) { var a = new Array(c.c), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }   // B21c: back to a generic array (values in order)
   function b21Flags(a, m) { if (m >= NK_MIN) return nkFlags(a, m); return b21FlagsJ(a, m); }
   function b21FlagsJ(a, m) { var nz = 0, ai = 1, nf = 0, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; if (x - x !== 0) nf = 1; } return { nz: nz, ai: ai, nf: nf }; }
@@ -967,6 +967,21 @@
   function isDictCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.kind === 'dict' && isByteCol(x.labels) && x.ids && ArrayBuffer.isView(x.ids) && typeof x.ids.length === 'number'; }
   function dictStrings(dc, a, n) { var D = dc.labels, B = D.bytes, out = new Array(n), cache = new Array(D.start.length), i, c; for (i = 0; i < n; i++) { c = dc.ids[a + i]; out[i] = cache[c] !== undefined ? cache[c] : (cache[c] = td.decode(B.subarray(D.start[c], D.end[c]))); } return out; }
   function dcUniqueFixed(D, ids, a, n) { var m = n < 8 ? n : 8, i, j, k, l = D.end[ids[a]] - D.start[ids[a]], s0, s1, B = D.bytes; for (i = 1; i < m; i++) if (D.end[ids[a + i]] - D.start[ids[a + i]] !== l) return false; for (i = 1; i < m; i++) for (j = 0; j < i; j++) { s0 = D.start[ids[a + i]]; s1 = D.start[ids[a + j]]; for (k = 0; k < l && B[s0 + k] === B[s1 + k]; k++); if (k === l) return false; } return true; }   // bcUniqueFixed on a dictionary column's first values
+  // Shared label tables (since 0.13.0): a dictionary column that a caller hands over whole (packBlock, { kind: 'dict', labels, ids }) and that is cut into several blocks writes its labels once, in a footer table (section 19)
+  // named by the XXH64 of the labels joined by 0; each block's 'D' layout then carries p.sh (the name) and only the piece-wide codes. SHW is the table list of the piece being written (set around the block calls).
+  var SHW = null;
+  function setSHW(x) { var o = SHW; SHW = x; return o; }
+  function DL(p, f) { return p.sh ? labsOf(p.sh) : tdr.decode(f).split('\0'); }
+  function shJoin(dc, hi) {   // the labels joined by 0 and their name, or null when this column cannot be shared
+    var D = dc.labels, B = D.bytes, S = D.start, E = D.end, NL = S.length, len = 0, i, p = 0, o, j, id;
+    if (!(S3_OK && NL > 1)) return null;
+    for (i = 0; i < NL; i++) len += E[i] - S[i];
+    o = new Uint8Array(len + NL - 1); for (i = 0; i < NL; i++) { if (i) o[p++] = 0; o.set(B.subarray(S[i], E[i]), p); p += E[i] - S[i]; }
+    if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(o); } catch (er) { return null; } }
+    try { id = hash(o, 'xxh64'); } catch (e2) { return null; }
+    return { j: o, id: id, n: NL };
+  }
+  var S3_OK = true;
   function byteColDict(dc, a, n, zs, level, tmode, key) {
     var D = dc.labels, B = D.bytes, S = D.start, E = D.end, NL = S.length, codes = dc.ids, i, k, s, e, hi = 0, best = null;
     var fb = function () { return encodeColumn(dictStrings(dc, a, n), zs, level, tmode, undefined, key); };
@@ -980,6 +995,18 @@
     if (cap === 2) return fb();
     if (FAST_ON && FLT !== null) level = FLT;   // fast: text frames at the faster zstd level, as the string path does
     if (FAST_ON && FSK && n >= 4096 && manyDistinctDC(dc, a)) return fb();
+    if (SHW && n < codes.length && NL * 4 <= codes.length && NL < 65536) {   // a block of a bigger piece: the labels go once into the piece's table, the codes stay the piece's own
+      var sj = dc.__shj; if (sj === undefined) { sj = dc.__shj = shJoin(dc, hi); }
+      if (sj) {
+        if (!SHW.tabs[sj.id]) { SHW.tabs[sj.id] = sj; SHW.n++; }
+        var cg = new Array(n), cx, wg = Math.max(1, 32 - Math.clz32(NL - 1)), cbg, bestg = null;
+        for (i = 0; i < n; i++) { cx = codes[a + i]; if (!(cx >= 0 && cx < NL)) throw new Error('LfcPack: text column "' + key + '": code out of range'); cg[i] = cx; }
+        if (NL > 256) { var u16g = new Uint16Array(n); for (i = 0; i < n; i++) u16g[i] = cg[i]; cbg = new Uint8Array(u16g.buffer); } else { cbg = new Uint8Array(n); for (i = 0; i < n; i++) cbg[i] = cg[i]; }
+        bestg = addCand(zs, level, bestg, 'D', { w: 0, wide: NL > 256, sh: sj.id }, [new Uint8Array(0), cbg], n, { distinct: NL });
+        bestg = addCand(zs, level, bestg, 'D', { w: wg, wide: false, sh: sj.id }, [new Uint8Array(0), bitpack(cg, wg)], n, { distinct: NL });
+        return settle(zs, level, bestg);
+      }
+    }
     var map = new Int32Array(NL).fill(-1), lab = [], cc = new Int32Array(n), c;
     for (i = 0; i < n; i++) { c = codes[a + i]; if (!(c >= 0 && c < NL)) throw new Error('LfcPack: text column "' + key + '": code out of range'); if (map[c] < 0) { if (lab.length * 4 > n) return fb(); map[c] = lab.length; lab.push(c); } cc[i] = map[c]; }
     var nl = lab.length; if (nl * 4 > n || nl >= 65536) return fb();
@@ -1509,8 +1536,8 @@
         else { for (i = 0, c = 0, s = jr * pb; i < n; i++) if ((pl[s + (i >> 3)] >> (i & 7)) & 1) { x = rv[c++]; if (typeof x === 'number' && x >= min && x <= max) sel[m++] = i; } }
       } else if (codes && (cm.t === 'D' || (isN && cm.p.t === 'D'))) {
         var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, c0 = -1, anyv = val instanceof AnyOf, amk = null, anull = anyv && val.set.has(null);
-        if (anyv) { var alb = tdr.decode(frOne(col, o)).split('\0'), az; amk = new Uint8Array(alb.length + 1); for (az = 0; az < alb.length; az++) if (val.set.has(alb[az])) { amk[az] = 1; c0 = 0; } if (c0 < 0 && !(isN && anull)) return new Int32Array(0); }
-        else if (typeof val === 'string') c0 = tdr.decode(frOne(col, o)).split('\0').indexOf(val);
+        if (anyv) { var alb = DL(dp, frOne(col, o)), az; amk = new Uint8Array(alb.length + 1); for (az = 0; az < alb.length; az++) if (val.set.has(alb[az])) { amk[az] = 1; c0 = 0; } if (c0 < 0 && !(isN && anull)) return new Int32Array(0); }
+        else if (typeof val === 'string') c0 = DL(dp, frOne(col, o)).indexOf(val);
         if (c0 < 0 && !(isN && val === null) && !anyv) return new Int32Array(0);
         var cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0;
         for (i = 0, s = jr * pb; i < n; i++) { if (!dense && !((pl[s + (i >> 3)] >> (i & 7)) & 1)) continue;
@@ -1560,14 +1587,14 @@
       if (codes && (cm.t === 'D' || (isN && cm.p.t === 'D'))) {
         var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, c0 = -1;
         var anyv = val instanceof AnyOf, amk = null, anull = anyv && val.set.has(null);
-        if (anyv) { var alb = tdr.decode(frOne(col, o)).split('\0'), az; amk = new Uint8Array(alb.length + 1); for (az = 0; az < alb.length; az++) if (val.set.has(alb[az])) { amk[az] = 1; c0 = 0; } if (c0 < 0 && !(isN && anull)) return []; }
-        else if (typeof val === 'string') c0 = tdr.decode(frOne(col, o)).split('\0').indexOf(val);
+        if (anyv) { var alb = DL(dp, frOne(col, o)), az; amk = new Uint8Array(alb.length + 1); for (az = 0; az < alb.length; az++) if (val.set.has(alb[az])) { amk[az] = 1; c0 = 0; } if (c0 < 0 && !(isN && anull)) return []; }
+        else if (typeof val === 'string') c0 = DL(dp, frOne(col, o)).indexOf(val);
         if (c0 < 0 && !(isN && val === null) && !anyv) return [];   // the value is not in this block's labels: no other frame is decompressed
         var cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0;
         for (i = 0, s = jr * pb; i < n; i++) { if (!dense && !((pl[s + (i >> 3)] >> (i & 7)) & 1)) continue;
           if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; if (val === null || anull) sel[m++] = i; continue; } at++;
           if (anyv ? amk[cd[k++]] : (cd[k++] === c0 && c0 >= 0)) sel[m++] = i; }
-        if (m * 2 > n) { var labs = typeof val === 'string' || anyv ? tdr.decode(frOne(col, o)).split('\0') : (cnt ? tdr.decode(frOne(col, o)).split('\0') : []), pre = new Array(cm.n), kk = 0; at = 0;
+        if (m * 2 > n) { var labs = typeof val === 'string' || anyv ? DL(dp, frOne(col, o)) : (cnt ? DL(dp, frOne(col, o)) : []), pre = new Array(cm.n), kk = 0; at = 0;
           if (np) { for (i = 0; i < cm.n; i++) pre[i] = (np[i >> 3] >> (i & 7)) & 1 ? null : labs[cd[kk++]]; } else for (i = 0; i < cnt; i++) pre[i] = labs[cd[i]];
           col.pre = pre; frBlock(F); var allr = assemble(F, want), pk = new Array(m); for (i = 0; i < m; i++) pk[i] = allr[sel[i]]; return pk; }
       } else {
@@ -1617,7 +1644,7 @@
       if (pk >= 0) {} else if (!rc) {   // per row: the label index (D) or the value itself; -1 / undefined for rows without the key, -2 for null
         var cm = meta.cols[jr], col = F.cols[jr], isN = cm.t === 'N', dense = cm.n === n;
         if (cm.t === 'D' || (isN && cm.p.t === 'D')) {
-          var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, lab = tdr.decode(frOne(col, o)).split('\0'), cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0, codeRow = new Int32Array(n).fill(-1);
+          var dp = isN ? cm.p.p : cm.p, cnt = isN ? cm.p.m : cm.n, o = isN ? 1 : 0, lab = DL(dp, frOne(col, o)), cf = frOne(col, o + 1), cd = dp.w ? bitunpack(cf, cnt, dp.w) : dp.wide ? new Uint16Array(cf.buffer.slice(cf.byteOffset, cf.byteOffset + cnt * 2)) : cf, np = isN ? frOne(col, 0) : null, k = 0, at = 0, codeRow = new Int32Array(n).fill(-1);
           for (i = 0; i < n; i++) { if (!dense && !((pl[jr * pb + (i >> 3)] >> (i & 7)) & 1)) continue; if (np && (np[at >> 3] >> (at & 7)) & 1) { at++; codeRow[i] = -2; continue; } at++; codeRow[i] = cd[k++]; }
           var lm = new Map(); for (i = 0; i < lab.length; i++) lm.set(lab[i], i);
           rc = bc['k' + jr] = { d: true, row: codeRow, lm: lm };
