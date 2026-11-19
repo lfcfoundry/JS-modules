@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.18.1 · API 2 · 2026-11-19
+- warm() also warms made-up UUID-text and sparse record lists in Chromium: the first pack of such lists is 10 to 25% faster; same bytes
+
 ## 2.18.0 · API 2 · 2026-11-15
 - records with many optional fields take far fewer bytes in every mode (fast and balanced up to 256 layouts as shaped rows, small up to 64); small mode keeps ids and hashes in hex text as 4-bit places
 

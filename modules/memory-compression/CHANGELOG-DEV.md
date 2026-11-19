@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.18.1 · API 2 · 2026-11-19
+
+### Quick
+Chromium only (warm made-up rows gated by the Chromium user agent): warm() packs and opens two more made-up 300-row lists (UUID-text records, sparse optional-field records), twice each, in tasks of their own.
+
+### Deep
+Chromium only (warm made-up rows gated by the Chromium user agent): warm() packs and opens two more made-up 300-row lists (UUID-text records, sparse optional-field records), twice each, in tasks of their own. Fresh page per sample, alternating pairs, Chromium 156, 40 pairs: first fast pack of 10,000 UUID rows 0.89 (same-build control 0.98), sparse-optional rows 0.78 (control 0.94); wide records 0.99 and flat 100-row sets unchanged within noise; steady pack unchanged; bytes identical (261,476 and 64,445). warm() takes 3 to 5 ms longer, off the critical path. Firefox 158 (40 pairs) 1.00 and 1.05 and WebKitGTK 2.52.6 1.00: the code path is not taken there. 97 module checks pass. Idea and first measurement: memory-compression part 5 (diff warm-uuid-sparse-made-up-lists-chromium-on-2.18.0.diff).
+
 ## 2.18.0 · API 2 · 2026-11-15
 
 ### Quick
