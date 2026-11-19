@@ -68,7 +68,22 @@ Sizes in bytes for the same data (4,194,304 bytes in): fast frame 955,395; level
   - Size: on these logs the fast frame is 1.7 to 1.9 times the size of gzip, and level 12 is still 18 to 26% bigger than gzip. LZ4 trades size for speed.
   - Download size: the file is 48.2 KB gzipped; the browser's gzip is free.
   - Compression at levels 9 to 12 takes 110 to 290 ms for 4 MB, slower than gzip here.
-- **Not measured yet:** other LZ4 libraries in the browser: [lz4js](https://github.com/Benzinga/lz4js) (pure JavaScript, "Lz4 for the browser"), [lz4-wasm](https://github.com/PSeitz/lz4-wasm) (Apache-2.0), [gorhill/lz4-wasm](https://github.com/gorhill/lz4-wasm) (LZ4 block format, BSD-2-Clause) and [cruise-automation/wasm-lz4](https://github.com/cruise-automation/wasm-lz4) (also the official LZ4 compiled to WebAssembly, Apache-2.0). A table against them will be added when it has been measured. Phone and owner-laptop runs were not done.
+- **Against other LZ4 libraries in the browser** (same 4 MB, fast mode, fresh page, median of 3 pages; page `bench/rivals.html`; latest npm releases lz4js 0.2.0 and lz4-wasm 0.9.2, both checked with `npm view` on 2026-11-19). Times in ms, steady (middle of the last 4 of 5 calls), then the first call in brackets:
+
+| | ungoogled Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---|---|---|
+| **lz4-kit compress** | 9.8 (19.5) | 9.5 (19.3) | 11 (17) |
+| lz4-wasm 0.9.2 compress | 8.7 (16.1) | 10.7 (14.9) | 9 (14) |
+| lz4js 0.2.0 compress | 17 (24.9) | 15.1 (24.6) | 13 (24) |
+| **lz4-kit decompress** | 4.7 (7.1) | 5.0 (7.1) | 3.5 (6.5) |
+| lz4-wasm 0.9.2 decompress | 4.3 (6.3) | 4.5 (5.8) | 5 (6) |
+| lz4js 0.2.0 decompress | 13.8 (14.7) | 13.1 (12.3) | 11 (15) |
+| output size, bytes | 955,395 | 955,395 | 955,395 |
+
+  Output sizes for the other two: lz4-wasm 984,527 and lz4js 965,955 (the same in all three browsers). The kit took 3 to 13 ms to compile across runs.
+  - **Against lz4js** (pure JavaScript, `.lz4` frames): lz4-kit compresses 1.2 to 1.7 times faster and decompresses 2.6 to 3.1 times faster, and adds levels 1 to 12.
+  - **Against lz4-wasm** (Rust, the `lz4_flex` library; its own block format with the size in front, not the `.lz4` frame, and no high-compression levels): a tie within the noise. lz4-wasm compresses a little faster in Chromium and WebKitGTK (8.7 against 9.8 ms, 9 against 11), lz4-kit in Firefox; lz4-wasm decompresses a little faster in Chromium and Firefox, lz4-kit in WebKitGTK. The cloud noise is about 10%, so do not read a winner into these gaps. What lz4-kit adds is the standard frame and blocks, levels up to 12, and the official library at the fixed release.
+  - Not measured: [gorhill/lz4-wasm](https://github.com/gorhill/lz4-wasm) and [cruise-automation/wasm-lz4](https://github.com/cruise-automation/wasm-lz4), the browser's other LZ4 options, phone, owner laptop.
 
 ## API
 
