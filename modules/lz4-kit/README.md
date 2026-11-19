@@ -83,7 +83,23 @@ Sizes in bytes for the same data (4,194,304 bytes in): fast frame 955,395; level
   Output sizes for the other two: lz4-wasm 984,527 and lz4js 965,955 (the same in all three browsers). The kit took 3 to 13 ms to compile across runs.
   - **Against lz4js** (pure JavaScript, `.lz4` frames): lz4-kit compresses 1.2 to 1.7 times faster and decompresses 2.6 to 3.1 times faster, and adds levels 1 to 12.
   - **Against lz4-wasm** (Rust, the `lz4_flex` library; its own block format with the size in front, not the `.lz4` frame, and no high-compression levels): a tie within the noise. lz4-wasm compresses a little faster in Chromium and WebKitGTK (8.7 against 9.8 ms, 9 against 11), lz4-kit in Firefox; lz4-wasm decompresses a little faster in Chromium and Firefox, lz4-kit in WebKitGTK. The cloud noise is about 10%, so do not read a winner into these gaps. What lz4-kit adds is the standard frame and blocks, levels up to 12, and the official library at the fixed release.
-  - Not measured: [gorhill/lz4-wasm](https://github.com/gorhill/lz4-wasm) and [cruise-automation/wasm-lz4](https://github.com/cruise-automation/wasm-lz4), the browser's other LZ4 options, phone, owner laptop.
+- **Two more libraries** (same page, fresh page each, median of 3 pages in Chromium and Firefox, 4 pages in WebKitGTK for the last two rows; ms steady, first call in brackets). Compared against the kit's block calls where the rival is block-only, and against the kit's frame decompress for the frame-only rival. [gorhill/lz4-wasm](https://github.com/gorhill/lz4-wasm) is not on npm: its files were fetched from the master branch on 2026-11-19 (no commit hash could be read from here), wasm flavor and pure JavaScript flavor, block format. [wasm-lz4](https://github.com/cruise-automation/wasm-lz4) 2.0.0 is decompress-only (frames), so there is no compress number for it.
+
+| 4 MB log data | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---|---|---|
+| lz4-kit block compress | 8.1 (15.1) | 8.5 (16.1) | 8 (15) |
+| gorhill wasm compress | 7.6 (18.1) | 9.3 (16.3) | 6 (16) |
+| gorhill JS compress | 12.7 (20.1) | 11.5 (14.2) | 9 (16) |
+| lz4-kit block decompress | 4.1 (7.8) | 4.9 (7.8) | 4 (6) |
+| gorhill wasm decompress | 3.7 (5.1) | 4.3 (4.6) | 3 (5) |
+| gorhill JS decompress | 8.5 (11.2) | 8.3 (9.6) | 6 (11.5) |
+| lz4-kit frame decompress | 4.7 (see above) | 5.0 | 3.5 |
+| wasm-lz4 2.0.0 frame decompress | 5.1 (11.8) | 4.8 (7.6) | 4.5 (10.5) |
+
+  Output sizes: lz4-kit block 954,438; gorhill 960,429 (both flavors). The rival wasm libraries hand back a view into their own memory, while lz4-kit returns a copy (not timed separately here), except that the wasm-lz4 row copies its output as well.
+  - **Against gorhill/lz4-wasm**: a tie to a small loss for lz4-kit on speed in the wasm flavor (gorhill compresses faster in Chromium and WebKitGTK, decompresses faster in all three, by 0.6 to 1 ms) (part of that gap is probably the copy, not measured). gorhill's output is 0.6% larger. The kit is 1.4 to 2 times faster than gorhill's JavaScript flavor. gorhill has no frame, no levels and no checksum.
+  - **Against wasm-lz4**: a tie within noise on frame decompress, the kit slightly ahead in Chromium and WebKitGTK; the kit also compresses and has levels.
+  - Not measured: the browser's other LZ4 options, phone, owner laptop.
 
 ## API
 
