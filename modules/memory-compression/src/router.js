@@ -68,7 +68,12 @@
       if (!sm && opts.sample !== false && CHROMIUM_UA) sm = madeUpRecords(300);                                                    // none given: made-up records of the usual mix (whole numbers, short and patterned text, flags, date-times, decimals, lists, a nested record with a coordinate pair) so the first real pack of records starts warm too
       if (!sm || sm.length < 16) return true;
       function rep(k) { return nextTask().then(function () { b2 = autoPack(sm, po); return nextTask(); }).then(function () { autoUnpack(b2, wo); return k < 1 ? rep(k + 1) : true; }); }
-      return rep(0);
+      var xs = [], ix, hx = '0123456789abcdef', uu = [], sp = [];                                      // Chromium only (see CHROMIUM_UA above): made-up UUID-text and sparse-optional lists, packed and opened twice each in tasks of their own, so those first real packs start warm too
+      function hh(n, i) { var t = ''; for (var q = 0; q < n; q++) t += hx[(i * 7 + q * 5 + (q * i % 11)) & 15]; return t; }
+      for (ix = 0; CHROMIUM_UA && opts.sample !== false && !Array.isArray(opts.sample) && ix < 300; ix++) { uu.push({ id: hh(8, ix) + '-' + hh(4, ix + 1) + '-4' + hh(3, ix + 2) + '-a' + hh(3, ix + 3) + '-' + hh(12, ix + 4), n: ix, ok: ix % 2 === 0 }); var o = { id: ix }; if (ix % 3 === 0) o.a = ix * 3; if (ix % 5 === 0) o.b = 'tag' + (ix % 30); if (ix % 7 === 0) o.c = true; if (ix % 11 === 0) o.d = null; if (ix % 2 === 0) o.e = Math.round(ix * 37.1) / 100; sp.push(o); }
+      if (CHROMIUM_UA && opts.sample !== false && !Array.isArray(opts.sample)) xs.push(uu, sp);
+      function ex(k) { if (k >= xs.length) return true; return nextTask().then(function () { b2 = autoPack(xs[k], po); return nextTask(); }).then(function () { autoUnpack(b2, wo); return nextTask(); }).then(function () { b2 = autoPack(xs[k], po); return nextTask(); }).then(function () { autoUnpack(b2, wo); return ex(k + 1); }); }
+      return rep(0).then(function () { return ex(0); });
     }).then(function () { return true; }, function () { return false; });   // a warm-up that fails is not worth an error: false
   };
   unified.pool = makePool;
