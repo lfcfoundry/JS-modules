@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>lz4-kit against lz4js and lz4-wasm</title><!-- Copyright (c) 2026 LFC Foundry. MIT License. The page behind the README rival table. Open it as ?lib=kit, ?lib=js or ?lib=wasm on a fresh page for each sample (median of 3). It expects, next to it or one folder up: ../lz4-kit.js; lz4.js, util.js, xxh32.js from npm lz4js 0.2.0; lz4_wasm_bg.js (its first line replaced by: let wasm; export function __wbg_set_wasm(w){wasm=w;}) and lz4_wasm_bg.wasm from npm lz4-wasm 0.9.2. Serve over http, not file://. Shows the result as JSON in window.R.bytes. --><script>var R={ms:1};
+function log(n){var s=7,r=function(){return (s=(Math.imul(s,1103515245)+12345)>>>0)/4294967296},out=[],tot=0,i=0,paths=['/api/v1/items','/api/v1/users','/static/app.js','/login','/api/v1/orders/'],st=[200,200,200,304,404,500];
+ while(tot<n){var l=JSON.stringify({ts:'2026-11-'+(10+(i%9))+'T'+('0'+(i%24)).slice(-2)+':'+('0'+((i*7)%60)).slice(-2)+':'+('0'+((i*13)%60)).slice(-2)+'Z',ip:'10.'+((r()*255)|0)+'.'+((r()*255)|0)+'.'+((r()*255)|0),method:r()<.8?'GET':'POST',path:paths[(r()*5)|0]+((r()*9999)|0),status:st[(r()*6)|0],bytes:(r()*50000)|0,ms:+(r()*300).toFixed(1),ua:r()<.7?'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/156.0':'curl/8.4.0'})+'\n';out.push(l);tot+=l.length;i++}
+ return new TextEncoder().encode(out.join('')).subarray(0,n);}
+async function gz(op,b){var cs=new (op==='c'?CompressionStream:DecompressionStream)('gzip');var w=cs.writable.getWriter();w.write(b);w.close();var ch=[],rd=cs.readable.getReader(),t=0;for(;;){var x=await rd.read();if(x.done)break;ch.push(x.value);t+=x.value.length}var o=new Uint8Array(t),p=0;ch.forEach(function(c){o.set(c,p);p+=c.length});return o;}
+function med(a){a=a.slice().sort(function(x,y){return x-y});return a[a.length>>1]}
+
+</script><script type="module">
+const q=new URLSearchParams(location.search),lib=q.get('lib');
+try{
+ const d=log(4*1024*1024);const res={lib:lib};
+ function run(name,f){var ts=[],o;for(var i=0;i<5;i++){var t=performance.now();o=f();ts.push(performance.now()-t)}res[name+'First']=+ts[0].toFixed(1);res[name]=+med(ts.slice(1)).toFixed(1);return o}
+ let comp,decomp;
+ if(lib==='kit'){await new Promise(r=>{const s=document.createElement('script');s.src='../lz4-kit.js';s.onload=r;document.head.appendChild(s)});const t0=performance.now();await Lz4Kit.init();res.initMs=+(performance.now()-t0).toFixed(1);comp=x=>Lz4Kit.compress(x,0);decomp=x=>Lz4Kit.decompress(x);}
+ else if(lib==='js'){const mods={};async function ld(n){const t=await (await fetch('./'+n+'.js')).text();const m={exports:{}};new Function('module','exports','require',t)(m,m.exports,(p)=>mods[p.replace('./','').replace('.js','')]);mods[n]=m.exports;}
+  await ld('util');await ld('xxh32');await ld('lz4');const L=mods.lz4;res.initMs=0;comp=x=>L.compress(x);decomp=x=>L.decompress(x);}
+ else if(lib==='wasm'){const bg=await import('./lz4_wasm_bg.js');const t0=performance.now();const buf=await (await fetch('./lz4_wasm_bg.wasm')).arrayBuffer();const inst=await WebAssembly.instantiate(buf,{'./lz4_wasm_bg.js':bg});bg.__wbg_set_wasm(inst.instance.exports);res.initMs=+(performance.now()-t0).toFixed(1);comp=x=>bg.compress(x);decomp=x=>bg.decompress(x);}
+ const c=run('comp',()=>comp(d));const dd=run('decomp',()=>decomp(c));
+ res.ok=dd.length===d.length&&dd[1000]===d[1000]&&dd[d.length-1]===d[d.length-1];res.size=c.length;
+ window.R={ms:1,bytes:res};
+}catch(e){window.R={ms:1,bytes:{err:String(e&&e.stack||e)}}}
+document.title='DONE';document.body.appendChild(document.createElement('pre')).textContent=JSON.stringify(window.R.bytes,null,1);
+</script>

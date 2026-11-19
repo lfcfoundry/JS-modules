@@ -34,6 +34,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.13.6 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
+| [lz4-kit](modules/lz4-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -63,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-19 · **memory-compression** 2.18.1 · API 2: warm() also warms made-up UUID-text and sparse record lists in Chromium: the first pack of such lists is 10 to 25% faster; same bytes
+- 2026-11-19 · **lz4-kit** 1.0.0 · API 1: LZ4 blocks and .lz4 frames in WebAssembly built from the fixed LZ4 1.11.1 release; fast mode and levels 1 to 12
 - 2026-11-15 · **netflow-scene** 1.14.0 · API 1: nested-view tiles can be typed arrays (S.rectsT)
 - 2026-11-15 · **netflow-sankey** 2.14.0 · API 2: Dragging a bar: layout() can resume from the last result (opts.resume), so a move at 10,000 items takes 0.32 (Chromium), 0.22 (Firefox) and 0.28 (WebKitGTK) of the time. Same picture.
 - 2026-11-15 · **netflow-hierarchy** 1.7.0 · API 1: typedRects: true keeps treemap and icicle tiles as typed arrays

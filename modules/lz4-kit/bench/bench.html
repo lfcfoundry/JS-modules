@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>lz4-kit bench</title><p>4 MB of made-up JSON log lines; the result appears below when done (a few seconds). Open the page fresh for each sample.</p><pre id="o"></pre><script src="../lz4-kit.js"></script><script>
+/* Copyright (c) 2026 LFC Foundry. MIT License. The page behind the README's numbers: 4 MB of generated log lines; compress and decompress timed 5 times (the first call and the middle of the last 4), against the browser's own gzip. */
+var R={ms:1};
+function log(n){var s=7,r=function(){return (s=(Math.imul(s,1103515245)+12345)>>>0)/4294967296},out=[],tot=0,i=0,paths=['/api/v1/items','/api/v1/users','/static/app.js','/login','/api/v1/orders/'],st=[200,200,200,304,404,500];
+ while(tot<n){var l=JSON.stringify({ts:'2026-11-'+(10+(i%9))+'T'+('0'+(i%24)).slice(-2)+':'+('0'+((i*7)%60)).slice(-2)+':'+('0'+((i*13)%60)).slice(-2)+'Z',ip:'10.'+((r()*255)|0)+'.'+((r()*255)|0)+'.'+((r()*255)|0),method:r()<.8?'GET':'POST',path:paths[(r()*5)|0]+((r()*9999)|0),status:st[(r()*6)|0],bytes:(r()*50000)|0,ms:+(r()*300).toFixed(1),ua:r()<.7?'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/156.0':'curl/8.4.0'})+'\n';out.push(l);tot+=l.length;i++}
+ return new TextEncoder().encode(out.join('')).subarray(0,n);}
+async function gz(op,b){var cs=new (op==='c'?CompressionStream:DecompressionStream)('gzip');var w=cs.writable.getWriter();w.write(b);w.close();var ch=[],rd=cs.readable.getReader(),t=0;for(;;){var x=await rd.read();if(x.done)break;ch.push(x.value);t+=x.value.length}var o=new Uint8Array(t),p=0;ch.forEach(function(c){o.set(c,p);p+=c.length});return o;}
+function med(a){a=a.slice().sort(function(x,y){return x-y});return a[a.length>>1]}
+(async function(){try{var d=log(4*1024*1024),K=Lz4Kit;var t0=performance.now();await K.init();var initMs=performance.now()-t0;
+ var res={initMs:+initMs.toFixed(1)};
+ function run(name,f){var ts=[],o;for(var i=0;i<5;i++){var t=performance.now();o=f();ts.push(performance.now()-t)}res[name+'First']=+ts[0].toFixed(1);res[name]=+med(ts.slice(1)).toFixed(1);return o}
+ var c0=run('comp0',function(){return K.compress(d,0)}),c9=run('comp9',function(){return K.compress(d,9)}),c12=run('comp12',function(){return K.compress(d,12)});
+ var b0=K.compressBlock(d,0);
+ var dd0=run('decomp0',function(){return K.decompress(c0)}),dd9=run('decomp9',function(){return K.decompress(c9)}),db0=run('decompBlock0',function(){return K.decompressBlock(b0,d.length)});
+ res.ok=dd0.length===d.length&&dd9.length===d.length&&db0.length===d.length;
+ res.size={orig:d.length,frame0:c0.length,frame9:c9.length,frame12:c12.length,block0:b0.length};
+ var ts=[],g;for(var i=0;i<3;i++){var t=performance.now();g=await gz('c',d);ts.push(performance.now()-t)}res.gzipComp=+med(ts).toFixed(1);res.size.gzip=g.length;
+ ts=[];for(var i=0;i<3;i++){var t=performance.now();await gz('d',g);ts.push(performance.now()-t)}res.gzipDecomp=+med(ts).toFixed(1);
+ R={ms:1,bytes:res};}catch(e){R={ms:1,bytes:{err:String(e&&e.stack||e)}}}document.getElementById('o').textContent=JSON.stringify(R.bytes,null,1);document.title='DONE'})();
+</script>

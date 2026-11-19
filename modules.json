@@ -401,6 +401,19 @@
       "category": "efficiency"
     },
     {
+      "id": "lz4-kit",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "Lz4Kit",
+      "summary": "LZ4 compression and decompression (raw blocks and the .lz4 frame) in the browser and Node, from one WebAssembly build of the official LZ4 1.11.1 release, the first one without the 1.11.0 overflow in LZ4_resetStreamHC at levels 10 and up. Fast mode and levels 1 to 12; checked against an independent decoder.",
+      "short": "LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1.",
+      "file": "modules/lz4-kit/lz4-kit.js",
+      "readme": "modules/lz4-kit/README.md",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "efficiency"
+    },
+    {
       "id": "text-columns",
       "version": "0.6.5",
       "api": 0,

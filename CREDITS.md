@@ -9,6 +9,7 @@ Every credit links to the original paper, repository or page; where no online co
 | Module | Code | Authors | License |
 |---|---|---|---|
 | [zstd-kit](modules/zstd-kit/README.md), embedded by [lfc-pack](modules/lfc-pack/README.md) | [Zstandard](https://facebook.github.io/zstd/) 1.5.7 with its XXH64, compiled unchanged to WebAssembly | Yann Collet and Meta Platforms | BSD-3-Clause ([NOTICE-zstd.txt](modules/zstd-kit/NOTICE-zstd.txt)) |
+| [lz4-kit](modules/lz4-kit/README.md) | [LZ4](https://lz4.org/) 1.11.1, compiled unchanged to WebAssembly | Yann Collet and contributors ([github.com/lz4/lz4](https://github.com/lz4/lz4)) | BSD-2-Clause ([NOTICE-lz4.txt](modules/lz4-kit/NOTICE-lz4.txt)) |
 | [pcodec-js](modules/pcodec-js/README.md) | Pcodec 1.0.4, compiled to WebAssembly, plus one small patch | Martin Loncaric and contributors ([github.com/pcodec/pcodec](https://github.com/pcodec/pcodec)) | Apache-2.0 ([NOTICE-pcodec.txt](modules/pcodec-js/NOTICE-pcodec.txt)) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | PPMd variant H, ported to JavaScript | Dmitry Shkarin; cleaned up by Igor Pavlov in the [LZMA SDK](https://www.7-zip.org/sdk.html) | Public domain |
 
