@@ -335,6 +335,23 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const keep = global.NetflowScene; delete global.NetflowScene; const off = P.warm(); global.NetflowScene = keep;
   ok(off === false, 'warm() returns false when NetflowScene is missing');
 }
+/* 2.18.0: a line over 5,000 points keeps each pixel column's first, lowest, highest and last point (in order); smaller lines are unchanged */
+{
+  const r = rnd(5), mk = (n) => { const rows = []; let y = 0; for (let i = 0; i < n; i++) { y += r() - 0.5; rows.push({ t: i, v: y }); } return rows; };
+  const big = mk(20000), S = P.make(big, { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene);
+  let c = S.curves[0]; S.curves.forEach((q) => { if (q.P.length > c.P.length) c = q; });
+  const pts = (c.P.length - 2) / 6 + 1, xs = [], ys = [];
+  for (let k = 0; k < pts; k++) { xs.push(k ? c.P[2 + (k - 1) * 6 + 4] : c.P[0]); ys.push(k ? c.P[2 + (k - 1) * 6 + 5] : c.P[1]); }
+  ok(pts < 20000 / 4 && pts > 400, 'a 20,000-point line draws one to four points per pixel column (' + pts + ')');
+  const full = P.make(big.slice(0, 5000), { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene); let f = full.curves[0]; full.curves.forEach((q) => { if (q.P.length > f.P.length) f = q; });
+  ok((f.P.length - 2) / 6 + 1 === 5000, 'a 5,000-point line keeps every point');
+  let sorted = true; for (let k = 1; k < pts; k++) if (Math.floor(xs[k]) < Math.floor(xs[k - 1])) sorted = false;
+  ok(sorted, 'the kept points still run left to right');
+  const spiky = big.map((q, i) => ({ t: q.t, v: i === 12345 ? 1000 : q.v })), SP = P.make(spiky, { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene); let h = SP.curves[0]; SP.curves.forEach((q) => { if (q.P.length > h.P.length) h = q; });
+  const hp = (h.P.length - 2) / 6 + 1; let kmin = 0, hx = [], hy = []; for (let k = 0; k < hp; k++) { hx.push(k ? h.P[2 + (k - 1) * 6 + 4] : h.P[0]); hy.push(k ? h.P[2 + (k - 1) * 6 + 5] : h.P[1]); if (hy[k] < hy[kmin]) kmin = k; }
+  const xSpike = hx[0] + (hx[hp - 1] - hx[0]) * 12345 / 19999;
+  ok(Math.abs(hx[kmin] - xSpike) < 1.5 && hy[kmin] < hy[0] - 50, 'a one-point spike in a 20,000-point line is kept (the lowest kept point is at the spike)');
+}
 /* 2.17.0: rest identity, row and value conservation, and wedge area after SVG rounding */
 require('./rest-and-wedges.js')(P, global.NetflowScene, ok);
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');

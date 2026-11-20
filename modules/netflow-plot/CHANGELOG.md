@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.18.0 · API 2 · 2026-11-20
+- A line over 5,000 points draws one to four points per pixel column (first, lowest, highest, last); it looks the same and 100,000 points build in about a third of the time
+
 ## 2.17.1 · API 2 · 2026-11-20
 - A line chart of many points builds its drawing 2.5 to 3.5 times faster (100,000 points: 42 to 17 ms in Chromium); the chart is the same
 
