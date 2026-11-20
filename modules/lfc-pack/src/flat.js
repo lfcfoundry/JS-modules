@@ -1100,7 +1100,7 @@
   function byteCol(bc, a, n, zs, level, tmode, key) {
     var B = bc.bytes, S = bc.start, E = bc.end, BL = B.length, i, k, s, e, tot = 0, hi = 0, best = null;
     var bk = n >= 16 ? bkLoad() : null, KL = null, wide = false, fl = 0, HB = 1 << Math.max(10, Math.min(20, 32 - Math.clz32(n * 2)));
-    if (bk) { for (i = 0, k = n < 64 ? n : 64, s = 0; i < k; i++) s += E[a + i] - S[a + i]; wide = s >= k * 24;   // values of 24 bytes or more on average (first 64 sampled): the 16-byte-at-a-time scan, 8-byte hash and memory.copy join; short values keep the byte loops, which are faster for them
+    if (bk) { for (i = 0, k = n < 64 ? n : 64, s = 0; i < k; i++) s += E[a + i] - S[a + i]; wide = s >= k * 16;   // values of 16 bytes or more on average (first 64 sampled): the 16-byte-at-a-time scan, 8-byte hash and memory.copy join; short values keep the byte loops, which are faster for them
       KL = bkPrep(bk, B, S, E, a, n, HB); if (KL) { KL.w = wide; fl = (wide ? bk.x.bcscanw : bk.x.bcscan)(KL.B, BL, KL.S, KL.E, n); if (fl & 3) KL = null; else { hi = fl & 4 ? 128 : 0; tot = bk.x.bctot(); } } }
     if (!KL) { for (i = 0; i < n; i++) { s = S[a + i]; e = E[a + i]; if (!(s >= 0 && e >= s && e <= BL)) throw new Error('LfcPack: text column "' + key + '": value ' + (a + i) + ' has offsets outside its bytes'); for (k = s; k < e; k++) { if (B[k] === 0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); hi |= B[k]; } tot += e - s; } }
     if (n >= 2 && DATE_MODE) { var dnC = dateNumsBC(B, S, E, a, n), wC = dnC && dateWrap(dnC, zs, level, key); if (wC) return wC; }

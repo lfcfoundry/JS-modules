@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.1 · API 0 · 2026-11-20
+
+### Quick
+The wide text kernels from 0.13.7 (16-byte scan, 8-byte hash, memory.copy join) now start at an average value length of 16 bytes (was 24). Same bytes, no API change.
+
+### Details
+60,000 rows, 3,000 distinct values of 12 to 21 bytes (average about 17), packBlock bytes input, alternating pages, median of 9: Chromium 156 6.8 to 6.3 ms (0.93x), Firefox 158 6.5 to 6.0 ms (0.94x), WebKitGTK 2.52.6 7.3 to 6.1 ms (0.84x). Values of 8 to 14 bytes (average 11) are unchanged (0.97x to 1.00x, noise), as is the Chicago piece (dictionary input, 0.99x and 1.02x).
+
+### Deep
+An earlier try at 12 bytes helped the 17-byte case the same but touched the average-11 case with no gain, so 16 is the lowest start with a measured win. test/bytecol-wide.cjs already covers lengths 10, 15, 16, 17, 23 and compares kernels on and off byte for byte.
+
 ## 0.14.0 · API 0 · 2026-11-20
 
 ### Quick

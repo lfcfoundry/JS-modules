@@ -1,5 +1,5 @@
 // Copyright (c) 2026 LFC Foundry. MIT License.
-// Wide text columns (average value 24 bytes or more) take the 16-byte scan, 8-byte hash and memory.copy join; the packed bytes must equal the byte-loop path (globalThis.__BK = 0 turns the kernels off) for every case.
+// Wide text columns (average value 16 bytes or more) take the 16-byte scan, 8-byte hash and memory.copy join; the packed bytes must equal the byte-loop path (globalThis.__BK = 0 turns the kernels off) for every case.
 const crypto = require('crypto'), { execFileSync } = require('child_process');
 const mode = process.argv[2];
 if (mode === 'bk0') globalThis.__BK = 0;
