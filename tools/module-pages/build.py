@@ -33,7 +33,7 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 :root{--cb:#9aa7bb}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--cb:#5d6c85}}:root[data-theme="dark"]{--cb:#5d6c85}
 .ctk{display:block;position:relative;height:24px;border-left:2px solid var(--lfc-fg)}.ctk i{display:block;height:100%;background:var(--cb)}.ctk i.hi{background:var(--lfc-accent)}.ctk b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--lfc-font);color:var(--lfc-fg);white-space:nowrap}
 .src{font-size:14px;color:var(--lfc-muted);border-top:1px solid var(--lfc-line);padding-top:8px;margin-top:12px}
-@media(max-width:700px){.chart{grid-template-columns:1fr}.cr{grid-template-columns:1fr;gap:3px}.ctk{height:28px}}
+@media(max-width:700px){.chart{grid-template-columns:1fr;gap:14px}.cr{grid-template-columns:1fr;gap:1px;margin:6px 0;font-size:13px;line-height:1.2}.ctk{height:16px}.ctk b{font-size:13px;margin-left:6px}.ct{font-size:16px}.cs{margin:0 0 4px}}
 .ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
 """
 def esc(s): return html.escape(s, quote=False)
