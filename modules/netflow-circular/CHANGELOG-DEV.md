@@ -1,5 +1,16 @@
 # netflow-circular developer changelog
 
+## 1.5.0 · API 1 · 2026-11-20
+
+### Quick
+New opt-in `typed: true` for chord layout: the bands come back as typed arrays in `chart.flowsT` (no object per band; `chart.flows` is then absent). `scene()` draws either form and the picture is the same. Default output unchanged (compared on 300 charts). Approved by the owner on a card (11.20, "Yes, add typed:true option"). The default path is also faster: the neighbour lists are made only for chordOrder 'fewest', and the crossing tables only up to 3,000 bands.
+
+### Details
+400 items, 79,795 links, chordBy 'items', chordOrder 'fast', alternating pages. Typed against d3-chord 3.0.2 (ready matrix; ours from the edge list): Chromium 156 18.7 vs 29.3 ms (0.65x, 7 pages), Firefox 158 15.4 vs 24.8 (0.64x, 7 pages), WebKitGTK 2.52.6 24 vs 54 (0.44x, 2 pages). Default (objects) against 1.4.1: Chromium 38.3 vs 46.9 (0.82x, 9 pages), Firefox 33.6 vs 58 (0.60x), WebKitGTK 40 vs 61 (0.65x). Node: objects about 40, typed about 15.
+
+### Deep
+flowsT: n; s, t (arc numbers), v, sa0, sa1, ta0, ta1 (the band's slice on its source and target arc); firstEdge[i] is the first link of band i in the edges list, nextEdge[e] the next link of the same band (-1 ends the chain), count[i] the number of links. Typed and object results are equal on 120 charts (items and groups, fast and fewest, repeated links) and their SVG pictures are equal. The two paths share everything after the pair table except the first and last steps (the object path keeps its objects from the first pass; making them from the arrays afterwards was 16% slower in Chromium). Not typed yet: the bundles view.
+
 ## 1.4.1 · API 1 · 2026-11-20
 
 ### Quick
