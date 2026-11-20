@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.17.0 (API 2)
+ * Version 2.17.1 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -162,7 +162,7 @@ var NetflowPlot = (function () {
     F.clean = o.clean !== undefined ? !!o.clean : (o.theme === 'editorial' || CLEAN_DEFAULT);
     F.palette0 = !!o.palette; F.navy = NS.hex(isDark(T) ? CALM.dark[0] : CALM.light[0]); F.calm = function () { if (F.clean && !o.palette) { T.groups = (isDark(T) ? CALM.dark : CALM.light).map(function (h) { return NS.hex(h); }); F.groups = T.groups; } };
     F.text = function (x, y, t, size, col, op) { var l = { x: x, y: y, t: String(t), size: size || 12, color: col || T.fg, align: 'c', bold: false, rot: 0, minK: 0, node: -1 }; if (op) for (var k in op) l[k] = op[k]; if (l.rot) l.rot *= 180 / Math.PI; S.labels.push(l); return l; };   /* angles in radians here, the renderer takes degrees */
-    F.line = function (pts, w, col, extra) { if (pts.length < 4) return; var P = [], n = pts.length / 2; P.push(pts[0], pts[1]); for (var i = 1; i < n; i++) { var ax = pts[i * 2 - 2], ay = pts[i * 2 - 1], bx = pts[i * 2], by = pts[i * 2 + 1]; P.push(ax + (bx - ax) / 3, ay + (by - ay) / 3, ax + 2 * (bx - ax) / 3, ay + 2 * (by - ay) / 3, bx, by); } var c = { P: P, w: w, color: col, arrow: false, line: n === 2, edge: -1 }; if (extra) for (var k in extra) c[k] = extra[k]; S.curves.push(c); return c; };
+    F.line = function (pts, w, col, extra) { if (pts.length < 4) return; var n = pts.length / 2, P = new Array(2 + (n - 1) * 6), o = 2; P[0] = pts[0]; P[1] = pts[1]; for (var i = 1; i < n; i++) { var ax = pts[i * 2 - 2], ay = pts[i * 2 - 1], bx = pts[i * 2], by = pts[i * 2 + 1], dx = bx - ax, dy = by - ay; P[o++] = ax + dx / 3; P[o++] = ay + dy / 3; P[o++] = ax + 2 * dx / 3; P[o++] = ay + 2 * dy / 3; P[o++] = bx; P[o++] = by; } var c = { P: P, w: w, color: col, arrow: false, line: n === 2, edge: -1 }; if (extra) for (var k in extra) c[k] = extra[k]; S.curves.push(c); return c; };
     F.rect = function (x, y, w, h, fill, mark) { if (w < 0) { x += w; w = -w; } if (h < 0) { y += h; h = -h; } S.rects.push({ x: x, y: y, w: w, h: h, r: 0, fill: fill, stroke: [0, 0, 0, 0], sw: 0, layer: 1, node: -1, a: 1 }); if (mark) { mark.x0 = x; mark.y0 = y; mark.x1 = x + w; mark.y1 = y + h; S.marks.push(mark); } };
     F.dot = function (x, y, r, fill, mark, stroke) { S.dots.push({ cx: x, cy: y, r: r, fill: fill, stroke: stroke || [0, 0, 0, 0], sw: stroke ? 1 : 0, kind: 1, node: -1, a: 1 }); if (mark) { mark.x0 = x - r; mark.y0 = y - r; mark.x1 = x + r; mark.y1 = y + r; mark.cx = x; mark.cy = y; S.marks.push(mark); } };
     F.poly = function (pts, fill, stroke, mark) {   /* the renderer fans a shape out from one point: a shape that is not seen whole from its middle goes in as triangles */
@@ -430,6 +430,16 @@ var NetflowPlot = (function () {
   function series(F, R, sp) {
     var x = R.num(sp.x), y = sp.y ? R.num(sp.y) : null, ck = sp.color ? R.cat(sp.color) : null, how = sp.agg || 'sum';
     var cc = ck ? F.cats3(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map(), distinct = 0;
+    /* one plain line (no colors, no smoothing or index, many points) whose x runs strictly up and has no empty x: no grouping is needed, the line is the column pair itself (since 2.17.1; the lists come out the same) */
+    if (!ck && y && !sp.smooth && !sp.index && x.length > 400) {
+      var up = true, xq = x.length, i0, xv, pv = -Infinity;
+      for (i0 = 0; i0 < xq; i0++) { xv = x[i0]; if (!(xv > pv)) { up = false; break; } pv = xv; }
+      if (up) {
+        var fx = new Array(xq), fy = new Array(xq), mm = how === 'min' || how === 'max' || how === 'median', cnt = how === 'count', yv0;
+        for (i0 = 0; i0 < xq; i0++) { fx[i0] = x[i0]; yv0 = y[i0]; fy[i0] = cnt ? 1 : yv0 !== yv0 ? NaN : mm ? yv0 : 0 + yv0; }
+        return { list: [{ name: '', ci: 0, xs: fx, ys: fy, rows: null }], time: !!x.time, cats: cc.list };
+      }
+    }
     /* each x of a line keeps its first row and value as plain numbers; a list is made only when a second row lands on the same x (most lines
        have one row per x, so 20,000 rows no longer make 40,000 small lists; since 2.14.5). The values and rows come out the same. */
     for (var i = 0; i < x.length; i++) {
@@ -469,8 +479,9 @@ var NetflowPlot = (function () {
     F.axes(ax, ay, sp.x, sp.index ? sp.y + ' (first value = 100)' : sp.y || 'Rows');
     var many = s.list.reduce(function (a, l) { return a + l.xs.length; }, 0), tags = [], starts = [];
     s.list.forEach(function (l) {
-      var pts = [], col = F.color(l.ci);
-      for (var j = 0; j < l.xs.length; j++) { if (l.ys[j] !== l.ys[j]) continue; pts.push(ax.map(l.xs[j]), ay.map(l.ys[j])); }
+      var pts = new Array(l.xs.length * 2), pn = 0, col = F.color(l.ci);
+      for (var j = 0; j < l.xs.length; j++) { if (l.ys[j] !== l.ys[j]) continue; pts[pn++] = ax.map(l.xs[j]); pts[pn++] = ay.map(l.ys[j]); }
+      pts.length = pn;
       F.line(pts, 2, col);
       if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
       if (F.clean && pts.length) {   /* values on the line: first point to the left of the plot, last point after the name (or alone for one line) */

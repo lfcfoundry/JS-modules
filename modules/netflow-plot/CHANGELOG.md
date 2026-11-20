@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.17.1 · API 2 · 2026-11-20
+- A line chart of many points builds its drawing 2.5 to 3.5 times faster (100,000 points: 42 to 17 ms in Chromium); the chart is the same
+
 ## 2.17.0 · API 2 · 2026-11-11
 - A real category named Other, Others or Others, average keeps its own bar, line or wedge and its own name; the folded rest gets a name no shown category has.
 - Very small donut shares are drawn at least 1 px wide at the rim and say so when pointed at; their text keeps the true value.
