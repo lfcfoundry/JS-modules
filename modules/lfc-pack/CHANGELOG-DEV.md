@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.2 · API 0 · 2026-11-20
+
+### Quick
+`text: 'bytes'` now covers date columns (type W): { bytes, start, end } with fixed-width values, the same text the string read gives. Opt-in, default read unchanged. A date column with empty cells (stored as N) still comes back as strings.
+
+### Details
+1,500,000 taxi pickup timestamps (a 19.4 MB staged file of 1.5M rows, alternating pages, 7 each, steady): strings 251 to bytes 126 ms in Chromium 156 (0.51), 153 to 77 ms in Firefox 158 (0.49), 181 to 120 ms in WebKitGTK 2.52.6 (0.66). Node: 245 to 103-113 ms; dates: 'numbers' is 67-79 ms. Default read against 0.14.1: 1.00 Chromium, 1.02 Firefox, 1.00 WebKitGTK.
+
+### Deep
+dateCol writes the digits in wasm (datefmt) and then decodes and splits them into strings; GC for 1.5M strings was 31% of the read. With the option the digit buffer is copied once and start and end are computed (value k starts at k times the width). test/textbytes.cjs checks 1,500,000 values byte for byte against the string read in the manual run and adds three date forms, a column with empty cells and a 100-row block (the JavaScript loop) to its cases.
+
 ## 0.14.1 · API 0 · 2026-11-20
 
 ### Quick

@@ -332,14 +332,14 @@
     return y + '-' + p2(mo) + '-' + p2(d) + 'T' + p2(h) + ':' + p2(min) + ':' + p2(sec) + (f ? '' : '.' + (ms < 10 ? '00' : ms < 100 ? '0' : '') + ms);
   }
   var P2 = new Uint8Array(200); for (var pi = 0; pi < 100; pi++) { P2[pi * 2] = 48 + ((pi / 10) | 0); P2[pi * 2 + 1] = 48 + (pi % 10); }
-  function dateCol(nums, n, f) {   // the text of n epoch-millisecond values: the digits go into one byte buffer (the calendar day is worked out once per day), decoded and cut once
+  function dateCol(nums, n, f, raw) {   // the text of n epoch-millisecond values: the digits go into one byte buffer (the calendar day is worked out once per day), decoded and cut once
     var sc = f & 8 ? (f & 4 ? 1e6 : 1000) : 1; f &= 7;   // form bit 8 (since 0.12.3): the stored numbers are whole seconds, the text needs them times 1,000 (times 1,000,000 for the six-digit forms)
     if (f !== 0 && f !== 1 && f !== 2 && f !== 3 && f !== 4 && f !== 6) throw new Error('damaged block: unknown date form');
     var X = BD_DEC && n >= 512 ? bdx() : null;
     if (X && X.datefmt) {   // the digits are written in WebAssembly (bdec.wasm, datefmt); a value outside the date range makes it stop and the JavaScript loop below refuses the block
       var ww = dateW(f) + 1, L = bdLay([n * 8, n * ww]), mem = bdMem(L.end), put = new Float64Array(mem, L.at[0], n), ii;
       for (ii = 0; ii < n; ii++) put[ii] = nums[ii] * sc;
-      if (X.datefmt(L.at[0], n, f, L.at[1]) === 0) return tdr.decode(new Uint8Array(X.memory.buffer, L.at[1], n * ww - 1)).split('\0');
+      if (X.datefmt(L.at[0], n, f, L.at[1]) === 0) return raw ? { b: new Uint8Array(X.memory.buffer, L.at[1], n * ww - 1).slice(), w: ww } : tdr.decode(new Uint8Array(X.memory.buffer, L.at[1], n * ww - 1)).split('\0');
     }
     var w = dateW(f), u = f & 4, us = 0, buf = new Uint8Array(n * (w + 1)), o = 0, i, t, day, lastDay = -1, rem, ms, sod, hh, mm, ss, x, y = 0, mo = 0, d = 0, ymd0 = 0, ymd1 = 0, ymd2 = 0, ymd3 = 0, ymd5 = 0, ymd6 = 0, ymd8 = 0, ymd9 = 0;
     for (i = 0; i < n; i++, o += w + 1) {
@@ -354,7 +354,7 @@
       if (!(f & 1)) { x = (ms / 100) | 0; ms -= x * 100; buf[o + 19] = 46; buf[o + 20] = 48 + x; buf[o + 21] = P2[ms * 2]; buf[o + 22] = P2[ms * 2 + 1]; if (u) { x = (us / 100) | 0; us -= x * 100; buf[o + 23] = 48 + x; buf[o + 24] = P2[us * 2]; buf[o + 25] = P2[us * 2 + 1]; } }
       buf[o + w] = 0;
     }
-    return n ? tdr.decode(buf.subarray(0, o - 1)).split('\0') : [];
+    return raw ? { b: buf.slice(0, o - 1), w: w + 1 } : n ? tdr.decode(buf.subarray(0, o - 1)).split('\0') : [];
   }
   var DATES_LOG = null;   // while a read asks for dates: 'numbers', the date columns it decoded as { a: Float64Array, f: form }
   function setDatesLog(l) { var o = DATES_LOG; DATES_LOG = l; return o; }
@@ -816,6 +816,11 @@
       if (DATES_LOG) {   // dates: 'numbers' (since 0.13.6): the epoch values, in milliseconds (microseconds for the six-digit forms), not their text
         var dv = decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), dsc = p.f & 8 ? (p.f & 4 ? 1e6 : 1000) : 1, dout = new Float64Array(n), dk; for (dk = 0; dk < n; dk++) dout[dk] = dv[dk] * dsc;
         DATES_LOG.push({ a: dout, f: p.f & 7 }); return dout;
+      }
+      if (TEXT_BYTES) {   // text: 'bytes': the formatted dates as { bytes, start, end } (fixed width), no strings
+        if (!n) return { bytes: new Uint8Array(0), start: new Int32Array(0), end: new Int32Array(0) };
+        var dr = dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f, true), dst = new Int32Array(n), den = new Int32Array(n), dq; for (dq = 0; dq < n; dq++) { dst[dq] = dq * dr.w; den[dq] = dq * dr.w + dr.w - 1; }
+        return { bytes: dr.b, start: dst, end: den };
       }
       return dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f);
     }
