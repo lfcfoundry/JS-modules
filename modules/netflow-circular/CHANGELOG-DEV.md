@@ -1,5 +1,16 @@
 # netflow-circular developer changelog
 
+## 1.4.1 · API 1 · 2026-11-20
+
+### Quick
+Chord layout of dense charts is 3 to 4 times faster. Same layout (compared on 300 random charts), no API change, no new setting.
+
+### Details
+400 items, 79,795 links, chordBy 'items', chordOrder 'fast', alternating pages, median: Chromium 156 185.5 to 47.5 ms (0.25x, 5 pages), Firefox 158 160.6 to 56 ms (0.34x), WebKitGTK 2.52.6 147 to 52 ms (0.35x). d3-chord 3.0.2 on a ready matrix in the same test: 24, 24 and 78 ms (measured 11.20 in the rivals test), so Chromium and Firefox are about 2x behind d3-chord on this task, WebKitGTK ahead. Node: about 207 to 60 ms.
+
+### Deep
+The profile was 31% garbage collection, 21% the pair table (a Map and four-field objects that grew to eight), 27% sorting each arc's bands with a comparator. Now: one object shape made whole, a table of places instead of a Map when edges are dense, and the bands of each arc placed into a K-place table by place distance (the arc middles grow with the place, so this is the same order as sorting by "where it lands, going round"). Output compared as JSON with sorted keys on 300 random charts (items, groups, fast, fewest): no difference. One difference: flows now have sa0, sa1, ta0, ta1 from the start, so the order of those keys can differ from before for bands whose target comes first.
+
 ## 1.4.0 · API 1 · 2026-11-08
 
 ### Quick
