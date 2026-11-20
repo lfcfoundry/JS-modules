@@ -1,5 +1,16 @@
 # lz4-kit developer changelog
 
+## 1.1.0 · API 1 · 2026-11-20
+
+### Quick
+Zero-copy view option and a laptop tester page.
+
+### Deep
+Owner asked to beat the wasm LZ4 rivals on speed (not size) and to test on a laptop. Profile (Node, Chromium 156): the compress call itself is about 7.3 ms of a 4 MiB block call; the copy in is 0.4 ms and the copy out of the result 0.5 to 2.5 ms (a fresh 4 MiB buffer costs page faults). Compiler flags did nothing: -O3 and -msimd128 against -O2 are inside the noise (7.1 to 7.5 ms compress), so the wasm build is unchanged. gorhill/lz4-wasm and lz4-wasm return views into their own memory, which is where the copy gap came from. New option `{ view: true }` (card "Add view option", 2026-11-20): the default copy path is untouched, so bytes and behavior stay the same; API number stays 1 because older callers are not affected. 8 new tests (942 in all): same bytes as the copy, the default stays a private copy and is not changed by later calls, empty or false options give the copy, damaged input still throws.
+Measured with the tester page (medians of 3 pages, batches of 60 ms or more, 4 MiB logs): see the README. View compress 5.8 to 6.9 ms against gorhill 6.7 to 8.9, lz4-wasm 8.6 to 9.9; view decompress 1.5 to 1.7 against 3.4 to 4.2 (gorhill), 3.0 to 4.4 (wasm-lz4). Default copy: compress 7.2 to 7.3, decompress 2.1 to 3.8. Small calls (1024 x 4 KiB) widen the compress gap: 5.4 to 5.9 ms (view) against gorhill 11.8 to 21.7. Size work was dropped by the owner: LZ4 is expected to be bigger than gzip. The numbers page is now two charts (compress, decompress) in place of five.
+Tester: loads the four other libraries from jsDelivr at pinned versions (gorhill/lz4-wasm has no release, so master, with a SHA-256 of each file in the results); swaps one bundler-only import line in lz4-wasm's published file; patches `fetch` for gorhill's same-origin request; passes in Chromium 156, Firefox 158 and WebKitGTK 2.52.6 with 64 checks each, and with the real CDN in Chromium. Rival code is not in this repository.
+Not measured: phone, owner laptop.
+
 ## 1.0.0 · API 1 · 2026-11-19
 
 ### Quick

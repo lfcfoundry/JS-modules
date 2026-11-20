@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lz4-kit tester</title>
+<!-- Copyright (c) 2026 LFC Foundry. MIT License. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
+     One-page speed and correctness test of lz4-kit against gzip (the browser's own) and four other LZ4 libraries.
+     The other libraries are NOT in this repository: the page loads them from jsDelivr at pinned versions (gorhill/lz4-wasm has no release, so it loads the master branch and the results print the SHA-256 of each file).
+       lz4js 0.2.0 (John Chadwick, ISC), lz4-wasm 0.9.2 (Pascal Seitz, MIT or Apache-2.0), gorhill/lz4-wasm (Raymond Hill, BSD-2-Clause), wasm-lz4 2.0.0 (Cruise, Apache-2.0).
+     Open it from the web (https), not as a downloaded file: copying results and loading the libraries both need a served page.
+     ?cdn=<base> reads the libraries from another server with the same paths (offline testing). -->
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1b1b1b;--mut:#5c5c5c;--line:#c9c9c9;--acc:#0b5cad;--ok:#1a6b2c;--bad:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--mut:#a8a8a8;--line:#444;--acc:#6db3ff;--ok:#6fd58a;--bad:#ff8a80}}
+html{background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+body{max-width:860px;margin:0 auto;padding:18px 16px 60px}
+h1{font-size:26px;margin:0 0 6px}p{margin:8px 0}.mut{color:var(--mut);font-size:14px}
+button{font:inherit;padding:10px 18px;margin:4px 8px 4px 0;border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:6px;cursor:pointer}
+button[disabled]{opacity:.45;cursor:default}button.alt{background:transparent;color:var(--acc)}
+progress{width:100%;height:14px;margin:8px 0}
+pre,textarea{width:100%;box-sizing:border-box;font:13px/1.4 ui-monospace,Consolas,monospace;border:1px solid var(--line);background:transparent;color:var(--fg);padding:10px;border-radius:6px;white-space:pre;overflow:auto}
+textarea{height:220px}.ok{color:var(--ok)}.bad{color:var(--bad)}
+</style></head><body>
+<h1>lz4-kit tester</h1>
+<p>Runs lz4-kit, the browser's gzip and four other LZ4 libraries on the same 4 MB of generated log lines, then checks that they read each other's output. Takes about 1 to 2 minutes. Leave the tab in front and close heavy tabs first.</p>
+<p><button id="go">Run the test</button><button id="copy" class="alt" disabled>Copy results</button><span id="msg" class="mut"></span></p>
+<progress id="pg" value="0" max="1"></progress>
+<pre id="out">Press "Run the test".</pre>
+<p class="mut">If Copy results does nothing, select the box below with a long press or Ctrl+A, copy it, and paste it into the chat.</p>
+<textarea id="ta" readonly placeholder="Results appear here"></textarea>
+<script>
+(function () {
+'use strict';
+var q = new URLSearchParams(location.search), CDN = q.get('cdn') || 'https://cdn.jsdelivr.net';
+var U = {
+  js: CDN + '/npm/lz4js@0.2.0/', wasm: CDN + '/npm/lz4-wasm@0.9.2/', gor: CDN + '/gh/gorhill/lz4-wasm@master/dist/', wl: CDN + '/npm/wasm-lz4@2.0.0/'
+};
+var $ = function (i) { return document.getElementById(i); };
+var lines = [], hashes = {}, libs = {}, res = { env: {}, loads: {}, speed: {}, checks: [] };
+function say(t) { $('msg').textContent = t; }
+function tick() { return new Promise(function (r) { setTimeout(r, 0); }); }
+function med(a) { a = a.slice().sort(function (x, y) { return x - y; }); return a[a.length >> 1]; }
+function f1(x) { return x < 10 ? Math.round(x * 100) / 100 : Math.round(x * 10) / 10; }
+
+// ---------- data: generated server-log lines, 4 MiB (same generator as bench/rivals.html)
+function logData(n) {
+  var s = 7, r = function () { return (s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296; }, out = [], tot = 0, i = 0,
+    paths = ['/api/v1/items', '/api/v1/users', '/static/app.js', '/login', '/api/v1/orders/'], st = [200, 200, 200, 304, 404, 500];
+  while (tot < n) {
+    var l = JSON.stringify({ ts: '2026-11-' + (10 + (i % 9)) + 'T' + ('0' + (i % 24)).slice(-2) + ':' + ('0' + ((i * 7) % 60)).slice(-2) + ':' + ('0' + ((i * 13) % 60)).slice(-2) + 'Z',
+      ip: '10.' + ((r() * 255) | 0) + '.' + ((r() * 255) | 0) + '.' + ((r() * 255) | 0), method: r() < .8 ? 'GET' : 'POST', path: paths[(r() * 5) | 0] + ((r() * 9999) | 0),
+      status: st[(r() * 6) | 0], bytes: (r() * 50000) | 0, ms: +(r() * 300).toFixed(1), ua: r() < .7 ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/156.0' : 'curl/8.4.0' }) + '\n';
+    out.push(l); tot += l.length; i++;
+  }
+  return new TextEncoder().encode(out.join('')).subarray(0, n);
+}
+function chunks(d, size) { var o = [], i; for (i = 0; i < d.length; i += size) o.push(d.subarray(i, Math.min(d.length, i + size))); return o; }
+function same(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false; return true; }
+
+// ---------- loading the other libraries
+function getText(u) { return fetch(u).then(function (r) { if (!r.ok) throw new Error(u + ' ' + r.status); return r.arrayBuffer(); }).then(function (b) { return b; }); }
+function sha(name, buf) {
+  if (!(crypto && crypto.subtle)) return Promise.resolve();
+  return crypto.subtle.digest('SHA-256', buf).then(function (h) { hashes[name] = Array.prototype.map.call(new Uint8Array(h), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('').slice(0, 16); });
+}
+function script(u) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = u; s.onload = ok; s.onerror = function () { no(new Error('load ' + u)); }; document.head.appendChild(s); }); }
+function loadKit() { return script('../lz4-kit.js').then(function () { return Lz4Kit.init(); }).then(function () { libs.kit = Lz4Kit; }); }
+function loadJs() {
+  var mods = {}, names = ['util', 'xxh32', 'lz4'];
+  return names.reduce(function (p, n) {
+    return p.then(function () { return getText(U.js + n + '.js'); }).then(function (b) { return sha('lz4js/' + n + '.js', b).then(function () {
+      var m = { exports: {} }; new Function('module', 'exports', 'require', new TextDecoder().decode(b))(m, m.exports, function (p2) { return mods[p2.replace('./', '').replace('.js', '')]; }); mods[n] = m.exports; }); });
+  }, Promise.resolve()).then(function () { libs.js = mods.lz4; });
+}
+function loadWasm() {
+  return Promise.all([getText(U.wasm + 'lz4_wasm_bg.js'), getText(U.wasm + 'lz4_wasm_bg.wasm')]).then(function (r) {
+    return Promise.all([sha('lz4-wasm/lz4_wasm_bg.js', r[0]), sha('lz4-wasm/lz4_wasm_bg.wasm', r[1])]).then(function () {
+      // the published file starts with a bundler-only line (import * as wasm from './lz4_wasm_bg.wasm'); it is swapped for a setter, nothing else is touched
+      var src = new TextDecoder().decode(r[0]).replace("import * as wasm from './lz4_wasm_bg.wasm';", 'let wasm; export function __wbg_set_wasm(w){wasm=w;}');
+      var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      return import(url).then(function (bg) { return WebAssembly.instantiate(r[1], { './lz4_wasm_bg.js': bg }).then(function (i) { bg.__wbg_set_wasm(i.instance.exports); libs.wasm = bg; }); });
+    });
+  });
+}
+function loadGor() {
+  var realFetch = window.fetch;
+  window.fetch = function (u, o) { return realFetch.call(window, u, o && o.mode === 'same-origin' ? {} : o); };   // the library asks for same-origin; the CDN allows cross-origin reads
+  return Promise.all(['lz4-block-codec-any.js', 'lz4-block-codec-wasm.js', 'lz4-block-codec.wasm'].map(function (n) { return getText(U.gor + n).then(function (b) { return sha('gorhill/' + n, b); }); }))
+    .then(function () { return script(U.gor + 'lz4-block-codec-any.js'); })
+    .then(function () { return lz4BlockCodec.createInstance('wasm'); })
+    .then(function (I) { if (!I) throw new Error('gorhill wasm flavor did not start'); libs.gor = I; });
+}
+function loadWl() {
+  return Promise.all([getText(U.wl + 'wasm-lz4.js'), getText(U.wl + 'wasm-lz4.wasm')]).then(function (r) {
+    return Promise.all([sha('wasm-lz4/wasm-lz4.js', r[0]), sha('wasm-lz4/wasm-lz4.wasm', r[1])]).then(function () {
+      window.require = function () { return URL.createObjectURL(new Blob([r[1]], { type: 'application/wasm' })); };
+      return script(URL.createObjectURL(new Blob([r[0]], { type: 'text/javascript' })));
+    });
+  }).then(function () { return Module(); }).then(function (M) { return M.ready ? M.ready.then(function () { return M; }) : M; }).then(function (M) { libs.wl = { M: M, ctx: M._createDecompressionContext() }; });
+}
+
+// ---------- the operations. Each lib gets compress(u8) and decompress(c, size); every output is a private copy except where noted.
+var hasView = false;
+function ops() {
+  var o = {}, K = libs.kit;
+  if (K) {
+    o.kit = { name: 'lz4-kit (copy)', c: function (x) { return K.compressBlock(x, 0); }, d: function (c, n) { return K.decompressBlock(c, n); } };
+    if (hasView) o.kitv = { name: 'lz4-kit (view)', c: function (x) { return K.compressBlock(x, 0, 1, { view: true }); }, d: function (c, n) { return K.decompressBlock(c, n, { view: true }); }, view: true };
+  }
+  if (libs.gor) o.gor = { name: 'gorhill lz4-wasm (view)', c: function (x) { return libs.gor.encodeBlock(x, 0); }, d: function (c, n) { return libs.gor.decodeBlock(c, 0, n); }, view: true };
+  if (libs.wasm) o.wasm = { name: 'lz4-wasm 0.9.2 (copy)', c: function (x) { return libs.wasm.compress(x); }, d: function (c) { return libs.wasm.decompress(c); } };
+  if (libs.js) o.js = { name: 'lz4js 0.2.0 (frame)', c: function (x) { return libs.js.compress(x); }, d: function (c) { return libs.js.decompress(c); } };
+  if (libs.wl) o.wl = { name: 'wasm-lz4 2.0.0 (decompress only, kit frames)', d: function (c, n) {
+    var M = libs.wl.M, sp = M._malloc(c.length), dp = M._malloc(n); new Uint8Array(M.HEAPU8.buffer, sp, c.length).set(c);
+    var r = M._decompressFrame(libs.wl.ctx, dp, n, sp, c.length), out = new Uint8Array(M.HEAPU8.buffer, dp, r).slice(); M._free(sp); M._free(dp); return out; }, frames: true };
+  return o;
+}
+// time fn() for about 60 ms (a clock of 1 to 2 ms stays honest), return ms per call; the first single call is reported separately
+function timeIt(fn) {
+  var t0 = performance.now(), first, n = 0, t;
+  fn(); first = performance.now() - t0;
+  var reps = 1;
+  do { t = performance.now(); for (var i = 0; i < reps; i++) fn(); t = performance.now() - t; if (t < 60) reps = Math.max(reps * 2, Math.ceil(reps * 70 / Math.max(t, 1))); } while (t < 60 && reps < 4096);
+  return { first: first, steady: t / reps };
+}
+
+// ---------- scenarios: one 4 MiB buffer, 64 chunks of 64 KiB, 1024 chunks of 4 KiB
+var SC = [['4 MiB in one call', 4 << 20], ['64 KiB x 64 calls', 64 << 10], ['4 KiB x 1024 calls', 4 << 10]];
+function perChunk(list, fn) { for (var i = 0; i < list.length; i++) fn(list[i], i); }
+
+async function speed(data) {
+  var o = ops(), keys = Object.keys(o), rounds = 3, total = SC.length * rounds * keys.length, done = 0;
+  SC.forEach(function (s) { res.speed[s[0]] = {}; keys.forEach(function (k) { res.speed[s[0]][k] = { name: o[k].name, c: [], d: [], cf: [], df: [], size: 0 }; }); });
+  var kitFrames = {};
+  for (var round = 0; round < rounds; round++) {
+    for (var si = 0; si < SC.length; si++) {
+      var list = chunks(data, SC[si][1]), nm = SC[si][0];
+      var order = keys.slice(round % keys.length).concat(keys.slice(0, round % keys.length));
+      for (var ki = 0; ki < order.length; ki++) {
+        var k = order[ki], L = o[k], R = res.speed[nm][k], comp = [];
+        say(nm + ': ' + L.name + ', round ' + (round + 1) + ' of ' + rounds); $('pg').value = ++done / total; await tick();
+        if (L.c) {
+          var t = timeIt(function () { comp = []; perChunk(list, function (x) { var c = L.c(x); comp.push(L.view ? c.slice() : c); }); });
+          if (L.view) { // measure the view calls without the private copy the page needs to keep them
+            t = timeIt(function () { perChunk(list, function (x) { L.c(x); }); });
+          }
+          R.c.push(t.steady); R.cf.push(t.first); R.size = comp.reduce(function (a, c) { return a + c.length; }, 0);
+          var t2 = timeIt(function () { perChunk(comp, function (c, i) { L.d(c, list[i].length); }); });
+          R.d.push(t2.steady); R.df.push(t2.first);
+          for (var j = 0; j < comp.length; j += Math.max(1, comp.length >> 3)) { if (!same(L.d(comp[j], list[j].length), list[j])) { res.checks.push('FAIL ' + nm + ' ' + L.name + ' round trip, chunk ' + j); } }
+        } else {  // wasm-lz4: decompress only, from lz4-kit frames
+          if (!kitFrames[nm]) kitFrames[nm] = list.map(function (x) { return libs.kit.compress(x, 0); });
+          var fr = kitFrames[nm], t3 = timeIt(function () { perChunk(fr, function (c, i) { L.d(c, list[i].length); }); });
+          R.d.push(t3.steady); R.df.push(t3.first); R.size = fr.reduce(function (a, c) { return a + c.length; }, 0);
+          if (!same(L.d(fr[0], list[0].length), list[0])) res.checks.push('FAIL ' + nm + ' wasm-lz4 decode');
+        }
+      }
+    }
+  }
+  // gzip: the browser's own, one buffer, 3 runs (it is asynchronous)
+  if (typeof CompressionStream === 'function') {
+    async function gz(kind, b) { var cs = new (kind === 'c' ? CompressionStream : DecompressionStream)('gzip'), w = cs.writable.getWriter(), ch = [], tt = 0, rd = cs.readable.getReader(); w.write(b); w.close(); for (;;) { var x = await rd.read(); if (x.done) break; ch.push(x.value); tt += x.value.length; } var out = new Uint8Array(tt), p = 0; ch.forEach(function (c) { out.set(c, p); p += c.length; }); return out; }
+    var tc = [], td = [], c0, nm0 = SC[0][0];
+    for (var g = 0; g < 4; g++) { say('browser gzip, run ' + (g + 1) + ' of 4'); await tick(); var a = performance.now(); c0 = await gz('c', data); tc.push(performance.now() - a); a = performance.now(); var back = await gz('d', c0); td.push(performance.now() - a); if (g === 0 && !same(back, data)) res.checks.push('FAIL gzip round trip'); }
+    res.speed[nm0].gzip = { name: 'browser gzip (4 MiB, one call)', c: tc.slice(1), d: td.slice(1), cf: [tc[0]], df: [td[0]], size: c0.length };
+  }
+}
+
+// ---------- correctness: round trips and the libraries reading each other
+async function checks(data) {
+  var K = libs.kit, list = res.checks, n = 0;
+  function ok(name, cond) { n++; if (!cond) list.push('FAIL ' + name); }
+  say('correctness: lz4-kit levels'); await tick();
+  var mb = data.subarray(0, 1 << 20), lv, i;
+  for (lv = 0; lv <= 12; lv++) {
+    var fr = K.compress(mb, lv); ok('frame level ' + lv, same(K.decompress(fr), mb));
+    var bl = K.compressBlock(mb, lv); ok('block level ' + lv, same(K.decompressBlock(bl, mb.length), mb));
+    if (lv >= 10) { await tick(); }
+  }
+  var rnd = new Uint8Array(1 << 20); for (i = 0; i < rnd.length; i++) rnd[i] = (Math.imul(i, 2654435761) >>> 13) & 255;
+  ok('random 1 MiB frame', same(K.decompress(K.compress(rnd, 0)), rnd)); ok('random 1 MiB level 9', same(K.decompress(K.compress(rnd, 9)), rnd));
+  [0, 1, 2, 11, 12, 13, 15, 16, 255, 256, 65535, 65536, 65537].forEach(function (s) { var t = data.subarray(0, s); ok('size ' + s + ' frame', same(K.decompress(K.compress(t, 0)), t)); ok('size ' + s + ' block', same(K.decompressBlock(K.compressBlock(t, 0), s), t)); });
+  var bad = K.compress(mb, 0).slice(0, 1000), thrown = false; try { K.decompress(bad); } catch (e) { thrown = true; } ok('truncated frame throws', thrown);
+  thrown = false; try { K.decompress(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])); } catch (e2) { thrown = true; } ok('not a frame throws', thrown);
+  say('correctness: reading each other'); await tick();
+  if (libs.js) { ok('kit frame -> lz4js', same(new Uint8Array(libs.js.decompress(K.compress(mb, 0))), mb)); ok('kit frame level 9 -> lz4js', same(new Uint8Array(libs.js.decompress(K.compress(mb, 9))), mb)); ok('lz4js frame -> kit', same(K.decompress(new Uint8Array(libs.js.compress(mb))), mb)); }
+  if (libs.gor) { ok('kit block -> gorhill', same(new Uint8Array(libs.gor.decodeBlock(K.compressBlock(mb, 0), 0, mb.length)), mb)); ok('kit block level 9 -> gorhill', same(new Uint8Array(libs.gor.decodeBlock(K.compressBlock(mb, 9), 0, mb.length)), mb));
+    ok('gorhill block -> kit', same(K.decompressBlock(new Uint8Array(libs.gor.encodeBlock(mb, 0)).slice(), mb.length), mb)); }
+  if (libs.wl) { var Mb = libs.wl; ok('kit frame -> wasm-lz4', same(ops().wl.d(K.compress(mb, 0), mb.length), mb)); ok('kit frame level 9 -> wasm-lz4', same(ops().wl.d(K.compress(mb, 9), mb.length), mb)); }
+  res.checkCount = n;
+}
+
+// ---------- report
+function report() {
+  var L = [], e = res.env;
+  L.push('lz4-kit tester ' + new Date().toISOString());
+  L.push('browser: ' + e.ua); L.push('cores: ' + e.cores + '  memory hint (GB): ' + e.mem + '  page: ' + location.origin + location.pathname);
+  L.push('lz4-kit ' + (libs.kit ? libs.kit.version + ' (LZ4 ' + libs.kit.lz4Version + ')' : 'NOT LOADED'));
+  Object.keys(res.loads).forEach(function (k) { L.push('load ' + k + ': ' + res.loads[k]); });
+  Object.keys(hashes).forEach(function (k) { L.push('  sha256 ' + k + ' ' + hashes[k]); });
+  L.push(''); L.push('Speed, ms per 4 MiB of data, steady (first call in brackets), median of 3 rounds. Lower is faster.');
+  SC.forEach(function (s) {
+    var r = res.speed[s[0]]; L.push(''); L.push(s[0]); L.push(pad('library', 46) + pad('compress', 17) + pad('decompress', 17) + 'bytes out');
+    Object.keys(r).forEach(function (k) { var x = r[k]; L.push(pad(x.name, 46) + pad(x.c.length ? f1(med(x.c)) + ' (' + f1(med(x.cf)) + ')' : '-', 17) + pad(x.d.length ? f1(med(x.d)) + ' (' + f1(med(x.df)) + ')' : '-', 17) + x.size); });
+  });
+  L.push(''); L.push('Checks: ' + res.checkCount + ' run, ' + res.checks.length + ' failed'); res.checks.forEach(function (c) { L.push('  ' + c); });
+  L.push(''); L.push('Notes: "view" rows return a window into the library\'s own memory without copying (valid until the next call); "copy" rows return a private copy. gzip is the browser\'s CompressionStream (level 6).');
+  return L.join('\n');
+}
+function pad(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }
+
+$('go').onclick = async function () {
+  $('go').disabled = true; $('copy').disabled = true; $('ta').value = ''; res = { env: {}, loads: {}, speed: {}, checks: [] }; hashes = {}; libs = {};
+  res.env = { ua: navigator.userAgent, cores: navigator.hardwareConcurrency, mem: navigator.deviceMemory || 'n/a' };
+  $('out').textContent = 'Loading the libraries...';
+  var jobs = [['lz4-kit', loadKit], ['lz4js 0.2.0', loadJs], ['lz4-wasm 0.9.2', loadWasm], ['gorhill/lz4-wasm master', loadGor], ['wasm-lz4 2.0.0', loadWl]];
+  for (var i = 0; i < jobs.length; i++) { try { await jobs[i][1](); res.loads[jobs[i][0]] = 'ok'; } catch (e) { res.loads[jobs[i][0]] = 'FAILED ' + (e && e.message || e); } }
+  hasView = false; try { var vt = libs.kit.compressBlock(new Uint8Array(64), 0, 1, { view: true }); hasView = vt.buffer.byteLength > vt.length; } catch (e0) { }
+  try {
+    if (!libs.kit) throw new Error('lz4-kit did not load');
+    var data = logData(4 << 20); say('data ready'); await tick();
+    await checks(data); await speed(data);
+  } catch (e) { res.checks.push('PAGE ERROR ' + (e && e.stack || e)); }
+  var t = report(); $('out').textContent = t; $('ta').value = t; $('pg').value = 1; say('Done. Press Copy results.');
+  $('go').disabled = false; $('copy').disabled = false;
+  if (q.get('auto')) { window.R = { ms: 1, bytes: { report: t } }; document.title = 'DONE'; }
+};
+if (q.get('auto')) window.addEventListener('load', function () { $('go').click(); });
+$('copy').onclick = function () {
+  var t = $('ta').value;
+  function fallback() { $('ta').focus(); $('ta').select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) { } say(ok ? 'Copied.' : 'Select the box and copy it by hand.'); }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { say('Copied.'); }, fallback); else fallback();
+};
+})();
+</script></body></html>

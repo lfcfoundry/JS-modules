@@ -74,7 +74,7 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
 }
 (async () => {
   let threw = false; try { K.compress(new Uint8Array(1)); } catch (e) { threw = /init\(\)/.test(e.message); } ok(threw, 'calls before init() say so');
-  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.0.0', 'version labels');
+  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.1.0', 'version labels');
   const sizes = [0, 1, 7, 13, 100, 4096, 65537, 300000, 2100000];
   for (const n of sizes) for (const kind of ['random', 'text', 'pattern']) {
     const b = sample(n, kind);
@@ -118,6 +118,18 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
   ok(t(() => K.compress(5), /Uint8Array/), 'wrong input type is refused');
   ok(eq(K.decompress(K.compress('héllo wörld')), new TextEncoder().encode('héllo wörld')), 'strings are encoded as UTF-8');
   ok(eq(K.decompress(K.compress(new Float64Array([1.5, 2.5]))), new Uint8Array(new Float64Array([1.5, 2.5]).buffer)), 'other typed arrays go in as their bytes');
+  // view mode (1.1.0): same bytes as the copy, a window into wasm memory, and the default stays a private copy
+  {
+    const vb = sample(300000, 'text'), cp = K.compressBlock(vb, 0), vw = K.compressBlock(vb, 0, 1, { view: true });
+    ok(eq(vw, cp) && vw.buffer.byteLength > vw.length, 'view block bytes equal the copy and sit in wasm memory');
+    ok(cp.buffer.byteLength === cp.length, 'the default is a private copy');
+    const vwc = vw.slice(); ok(eq(K.decompressBlock(vwc, vb.length, { view: true }), vb), 'decompressBlock view reads back');
+    const f1 = K.compress(vb, 0, { view: true }).slice(); ok(eq(f1, K.compress(vb, 0)), 'compress view equals the copy');
+    ok(eq(K.decompress(f1, undefined, { view: true }), vb) && eq(K.decompress(f1, vb.length, { view: true }), vb), 'decompress view reads back');
+    const keep = K.compressBlock(vb, 0), other = sample(300000, 'pattern'); K.compressBlock(other, 0, 1, { view: true }); ok(eq(keep, cp), 'a copy is not changed by later calls');
+    ok(eq(K.compressBlock(vb, 0, 1, {}), cp) && eq(K.compressBlock(vb, 0, 1, null), cp) && eq(K.compressBlock(vb, 0, 1, { view: false }), cp), 'empty or false options give the copy');
+    ok(t(() => K.decompressBlock(new Uint8Array([1, 2, 3]), 10, { view: true }), /damaged/), 'view calls throw on damaged input too');
+  }
   K.release(); ok(eq(K.decompress(K.compress(small)), small), 'works again after release()');
   console.log('lz4-kit checks: ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();
