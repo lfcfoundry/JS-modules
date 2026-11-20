@@ -33,7 +33,7 @@ details.fold,details.more{border:1px solid var(--lfc-line);border-radius:10px;ma
 :root{--cb:#9aa7bb}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--cb:#5d6c85}}:root[data-theme="dark"]{--cb:#5d6c85}
 .ctk{display:block;position:relative;height:24px;border-left:2px solid var(--lfc-fg)}.ctk i{display:block;height:100%;background:var(--cb)}.ctk i.hi{background:var(--lfc-accent)}.ctk b{position:absolute;top:50%;transform:translateY(-50%);margin-left:8px;font:700 15px var(--lfc-font);color:var(--lfc-fg);white-space:nowrap}
 .src{font-size:14px;color:var(--lfc-muted);border-top:1px solid var(--lfc-line);padding-top:8px;margin-top:12px}
-@media(max-width:700px){.chart{grid-template-columns:1fr;gap:14px}.cr{grid-template-columns:1fr;gap:1px;margin:6px 0;font-size:13px;line-height:1.2}.ctk{height:16px}.ctk b{font-size:13px;margin-left:6px}.ct{font-size:16px}.cs{margin:0 0 4px}}
+@media(max-width:700px){.chart{grid-template-columns:1fr;gap:14px}.cr{grid-template-columns:1fr;gap:1px;margin:6px 0;font-size:13px;line-height:1.2}.ctk{height:16px}.ctk b{font-size:13px;margin-left:6px}.ct{font-size:16px}.cs{margin:0 0 4px}.ctabs{display:flex;gap:6px;margin:12px 0 4px}.ctabs button{flex:1;font:700 13px/1.2 var(--lfc-font);padding:9px 4px;border:1px solid var(--lfc-line);border-radius:8px;background:var(--lfc-soft);color:var(--lfc-fg);cursor:pointer}.ctabs button[aria-pressed=true]{background:var(--lfc-accent);border-color:var(--lfc-accent);color:#fff}.chart.tabbed .cg.off{display:none}.chart.tabbed .cg>.ct{display:none}}.ctabs{display:none}@media(max-width:700px){.ctabs{display:flex}}
 .ph{border:2px dashed var(--lfc-line);border-radius:10px;padding:10px 14px;background:var(--lfc-soft)}.mod{border-top:2px solid var(--lfc-line);margin-top:40px}
 """
 def esc(s): return html.escape(s, quote=False)
@@ -118,7 +118,7 @@ def chart1(hs, rows, base, headline=''):
                 tag = ' \u00b7 ' + re.sub(r'[`*]', '', hs[k]).split(None, 1)[1] if len(ns) > 1 and len(hs[k].split()) > 1 else ''
                 w = max(v[n] / mx * sc * 100, 0.8)
                 hi = ' hi' if HI and (HI in re.sub(r'[\W_]+', '', re.sub(r'[`*]', '', r[0]).lower()) or HI in re.sub(r'[\W_]+', '', re.sub(r'[`*]', '', hs[k]).lower())) else ''
-                out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i class="%s" style="width:%.1f%%"></i><b style="left:%.1f%%">%s</b></span></div>' % (inline(r[0], base), esc(tag), hi.strip(), w, w, esc(r[k].replace('`', '')))
+                out += '<div class="cr"><span class="cl">%s%s</span><span class="ctk"><i class="%s" style="width:%.1f%%"></i><b style="left:%.1f%%">%s</b></span></div>' % (inline(r[0], base), esc(tag), hi.strip(), w, w, esc(r[k].replace('`', '').replace('**', '')))
         out += '</div>'
     out += '</div>'
     return ('<div class="et">%s</div>' % esc(headline) + out) if headline else out
@@ -241,8 +241,9 @@ def module_html(m, base_mods):
     if os.path.exists(os.path.join(root, folder, 'CHANGELOG.md')): btn += '<a class="alt" href="%s%s/CHANGELOG.md">Changelog</a>' % (GH, folder)
     jump = ''.join('<a href="#%s">%s</a>' % (re.search(r'id="([^"]+)"', b).group(1), re.search(r'>([^<]+)</h2>', b).group(1)) for b in body if b.startswith('<h2'))
     band = '<header class="lfc-band"><div class="lfc-in"><a class="lfc-brand" href="../../index.html">JS-modules</a><span class="lfc-here">%s</span><nav aria-label="JS-modules"><a href="../../demos.html">All demos</a><a href="../../index.html">Overview</a></nav></div></header>' % esc(mid)
-    return ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s · JS-modules</title><meta name="description" content="%s"><style>%s%s</style></head><body>%s<div class="hero"><div class="wrap"><span class="v">%s</span><h1>%s</h1><p>%s</p><div class="btns">%s</div></div></div><main class="wrap"><nav class="jump" aria-label="On this page">%s</nav>%s</main></body></html>\n'
-            % (esc(mid), html.escape(m.get('short', ''), quote=True), band_css, EXTRA, band, esc(ver), esc(mid), esc(m.get('summary', '')), btn, jump, '\n'.join(body)))
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s · JS-modules</title><meta name="description" content="%s"><style>%s%s</style></head><body>%s<div class="hero"><div class="wrap"><span class="v">%s</span><h1>%s</h1><p>%s</p><div class="btns">%s</div></div></div><main class="wrap"><nav class="jump" aria-label="On this page">%s</nav>%s</main>%s</body></html>\n'
+            % (esc(mid), html.escape(m.get('short', ''), quote=True), band_css, EXTRA, band, esc(ver), esc(mid), esc(m.get('summary', '')), btn, jump, '\n'.join(body), TABS_JS))
+TABS_JS = '<script>(function(){try{document.querySelectorAll(\'.chart\').forEach(function(ch){var gs=ch.querySelectorAll(\'.cg\');if(gs.length<2)return;var bar=document.createElement(\'div\');bar.className=\'ctabs\';bar.setAttribute(\'role\',\'group\');bar.setAttribute(\'aria-label\',\'Browser\');function pick(i){gs.forEach(function(g,j){g.classList.toggle(\'off\',j!==i)});[].forEach.call(bar.children,function(b,j){b.setAttribute(\'aria-pressed\',j===i?\'true\':\'false\')})}gs.forEach(function(g,i){var t=g.querySelector(\'.ct\');var b=document.createElement(\'button\');b.type=\'button\';b.textContent=t?t.textContent:String(i+1);b.onclick=function(){pick(i)};bar.appendChild(b)});ch.parentNode.insertBefore(bar,ch);ch.classList.add(\'tabbed\');pick(0)})}catch(e){}})();</script>'
 def main(argv):
     data = json.load(open(os.path.join(root, 'modules.json'), encoding='utf-8'))
     mods = {m['id']: m for m in data['modules'] + data['tools']}
