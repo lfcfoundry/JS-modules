@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.9 · API 0 · 2026-11-20
+
+### Quick
+Every packBlock call reads a 1,024-row preview of its columns to size blocks (packRowsBlocks, est) and a 256-row preview in colTable; a { kind: 'ts' } column formatted each preview value on its own (tsText, one dateCol per value). The previews now take 256 formatted values at a time, in order. Same strings, same bytes, no new setting.
+
+### Details
+Real taxi columns (200,293 rows, 6 whole-number columns, 10 decimals and 2 timestamps given typed, 16,384-row packBlock calls, steady median of 5 alternating pages): Chromium 156 295 to 247 ms, Firefox 158 253 to 220, WebKitGTK 2.52.6 290 to 226; Node 22 about 207 to 180 ms. test/tspreview.cjs: 20 length cases (1 to 5,000, with and without an empty cell) hash-equal to the same times given as text, and an out-of-range value at index 0, 255, 256, 700 or 1500 reports its own index; it passes on 0.13.8 and 0.13.9.
+
+### Deep
+tsText throws on the lowest bad index of its chunk, which is the index the single-value calls reached first when rows were read in order; every bad value is also refused when its block is packed (tsStore), with the same message.
+
 ## 0.13.8 · API 0 · 2026-11-20
 
 ### Quick

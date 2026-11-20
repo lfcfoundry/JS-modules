@@ -46,6 +46,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('date refusal sample and UTF-8 labels check (bytes columns)', 'node', ['bytecol-b72.cjs']);
   step('wide text columns: same bytes with the kernels on and off', 'node', ['bytecol-wide.cjs']);
   step('date count boundary (typed table)', 'node', ['datemany.cjs']);
+  step('timestamp row previews', 'node', ['tspreview.cjs']);
   step('label tables for dictionary columns cut into several blocks (section 19, format minor 4)', 'node', ['labels19.cjs']);
   step('typed timestamp columns for packBlock give the text path\'s bytes (0.13.4)', 'node', ['tscol.cjs']);
   step('dates: numbers read option (0.13.6)', 'node', ['datesnum.cjs']);
