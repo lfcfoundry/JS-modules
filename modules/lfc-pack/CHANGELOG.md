@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.14.0 · API 0 · 2026-11-20
-- new opt-in read option text: 'bytes' (unpackColumns, open().columns): text columns come back as byte views instead of strings, 15 to 18% less read time on a taxi Save file in Node; default unchanged
+- New opt-in read option text: 'bytes' (unpackColumns, open().columns): text columns come back as byte views instead of strings; default unchanged. Not yet timed in browsers.
 
 ## 0.13.9 · API 0 · 2026-11-20
 - packBlock with timestamp columns ({ kind: 'ts' }) has less fixed cost per call: 6 to 15% less time for 16,384-row batches of real taxi columns in Chromium, Firefox and WebKitGTK; same bytes
