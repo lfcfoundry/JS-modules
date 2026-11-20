@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.0 · API 0 · 2026-11-20
+
+### Quick
+New opt-in read option `text: 'bytes'` on unpackColumns and open().columns. Additive: the default still returns strings, nothing old changes. unpackColumnsParallel rejects it (blocks keep their own labels).
+
+### Details
+Plain text columns (type s) return `{ bytes, start, end }` (Int32Array offsets into one copied Uint8Array); dictionary columns (type D) return `{ labels, ids }` where labels is `{ bytes, start, end }` shared read-only across blocks that share a label table, ids an Int32Array. Real taxi Save file (200,293 rows, Node, alternating runs): strings 102 to 108 ms, bytes 87 to 90 ms; with dates: 'numbers' 66 to 73 against 52 to 53 ms. With nulls: 'NaN' number-like text columns already return typed arrays, so there the option changes nothing.
+
+### Deep
+Built on cutNul (indexOf(0) scan into offsets) and dictBytes in flat.js; the option is scoped by a flag set in try/finally in api.js and turned off while a type N column decodes its inner column. test/textbytes.cjs checks 288 column reads against the string read.
+
 ## 0.13.9 · API 0 · 2026-11-20
 
 ### Quick

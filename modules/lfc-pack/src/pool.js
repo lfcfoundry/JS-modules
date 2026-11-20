@@ -231,7 +231,7 @@
   }
   function unpackColumnsParallel(bytes, opts) {
     opts = opts || {};
-    try { nullsOpt(opts); datesOpt(opts); } catch (e) { return Promise.reject(e); }
+    try { nullsOpt(opts); datesOpt(opts); if (textOpt(opts)) throw new Error("LfcPack: text: 'bytes' is not supported by unpackColumnsParallel (blocks keep their own labels); use unpackColumns or open().columns"); } catch (e) { return Promise.reject(e); }
     if (opts.dates) return init({ readOnly: true }).then(function () {   // dates: 'numbers' (since 0.13.6): read on the calling thread; the result's non-enumerable `dates` says each date column's unit and fmt
       var blocks = unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' }), n = 0, i, res, info = {}, k;
       for (i = 0; i < blocks.length; i++) { n += blocks[i].n; for (k in blocks[i].dates) info[k] = blocks[i].dates[k]; }
