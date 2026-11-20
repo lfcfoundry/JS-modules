@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.1 · API 0 · 2026-11-20
+- packBlock text columns given as bytes with mid-size values (16 to 23 bytes on average) pack faster: 6 to 16% less time on a 60,000-row column of about 17-byte values in Chromium, Firefox and WebKitGTK; same bytes
+
 ## 0.14.0 · API 0 · 2026-11-20
 - New opt-in read option text: 'bytes' (unpackColumns, open().columns): text columns come back as byte views instead of strings; default unchanged. Not yet timed in browsers.
 
