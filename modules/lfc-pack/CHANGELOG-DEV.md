@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.8 · API 0 · 2026-11-20
+
+### Quick
+dateMany (does a date or timestamp column hold more than n / 2 different values, so it is written as W and not as a dictionary) counts with an open-addressing table over the doubles' 32-bit halves instead of a Set. Same answer (0 and -0 one value, NaN one value), same bytes, no new setting.
+
+### Details
+Node 22, 100,000 dates: mostly distinct 7.8 to 0.64 ms, half distinct 7.1 to 1.7 ms, few distinct 3.2 to 0.5 ms. packBlock of 100,000 rows with two ts columns and one number column (steady, median of pages): mostly distinct Chromium 156 25.8 to 19.0 ms, Firefox 158 17.9 to 13.1, WebKitGTK 2.52.6 19.3 to 16.2; with 20,000 distinct values (text path) Chromium 96 to 86, Firefox 98 to 83, WebKitGTK 77 to 67. test/datemany.cjs pins the n / 2 boundary and 0 / -0, and passes on 0.13.7 and 0.13.8 alike; 54 timestamp cases give identical bytes before and after.
+
+### Deep
+Columns that are not a Float64Array, or shorter than 64 values, keep the Set. The table has twice the entries n / 2 + 1 needs, so the scan ends as soon as the count passes n / 2.
+
 ## 0.13.7 · API 0 · 2026-11-20
 
 ### Quick

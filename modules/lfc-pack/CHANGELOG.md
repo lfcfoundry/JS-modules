@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.8 · API 0 · 2026-11-20
+- packBlock date and timestamp columns pack faster: the check for more than half different values uses a typed table, 10 to 27% less time for a 100,000-row block with two timestamp columns in Chromium, Firefox and WebKitGTK; same bytes
+
 ## 0.13.7 · API 0 · 2026-11-20
 - packBlock text columns given as bytes with long values (24 bytes or more on average) pack faster: about 0.7x on 100 to 180 byte descriptions, same bytes; short values are unchanged
 
