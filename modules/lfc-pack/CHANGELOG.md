@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.7 · API 0 · 2026-11-20
+- packBlock text columns given as bytes with long values (24 bytes or more on average) pack faster: about 0.7x on 100 to 180 byte descriptions, same bytes; short values are unchanged
+
 ## 0.13.6 · API 0 · 2026-11-15
 - unpackColumns can return date columns as numbers (dates: 'numbers'): 0.24 to 0.36 of the read time on a taxi-like file
 

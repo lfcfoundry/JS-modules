@@ -964,7 +964,7 @@
   function byteColStrings(bc, a, n) { var out = new Array(n), B = bc.bytes, S = bc.start, E = bc.end, i; for (i = 0; i < n; i++) out[i] = td.decode(B.subarray(S[a + i], E[a + i])); return out; }
   // byteCol kernel (from the text-columns research; source in wasm/flatscan.c: bcscan, bcdict, bcjoin): the checks, the distinct-value hash and the joins of a text column given as bytes, in WebAssembly (the template builder's instance)
   var BK = (typeof globalThis !== 'undefined' && globalThis.__BK !== undefined) ? globalThis.__BK : 1;
-  function bkLoad() { if (!BK) return null; try { var K = sdw(); return K.x.bcscan ? K : null; } catch (e) { return null; } }
+  function bkLoad() { if (!BK) return null; try { var K = sdw(); return K.x.bcscanw ? K : null; } catch (e) { return null; } }
   function bkPrep(K, B, S, E, a, n, HB) {
     var X = K.x, blen = B.length, p = K.heap, L = {};
     function take(z) { var r = p; p = (p + z + 15) & ~15; return r; }
@@ -976,7 +976,7 @@
   }
   function bkJoin(K, L, rows, cnt) {
     var X = K.x, ip = 0; if (rows) { new Int32Array(X.memory.buffer, L.idx, cnt).set(rows); ip = L.idx; }
-    var len = X.bcjoin(L.B, L.S, L.E, ip, cnt, L.out); return new Uint8Array(X.memory.buffer, L.out, len).slice();
+    var len = (L.w ? X.bcjoinw : X.bcjoin)(L.B, L.S, L.E, ip, cnt, L.out); return new Uint8Array(X.memory.buffer, L.out, len).slice();
   }
   function bcUniqueFixed(B, S, E, a, n) { var m = n < 8 ? n : 8, i, j, k, l = E[a] - S[a], s0, s1; for (i = 1; i < m; i++) if (E[a + i] - S[a + i] !== l) return false; for (i = 1; i < m; i++) for (j = 0; j < i; j++) { s0 = S[a + i]; s1 = S[a + j]; for (k = 0; k < l && B[s0 + k] === B[s1 + k]; k++); if (k === l) return false; } return true; }   // the first 8 values are one length and pairwise different (unique hex ids, UUIDs): only then do the 16+ even and 36 length tests keep the string path; rule from the text-columns research
   var BC_UTF8 = null;
@@ -1070,8 +1070,9 @@
   }
   function byteCol(bc, a, n, zs, level, tmode, key) {
     var B = bc.bytes, S = bc.start, E = bc.end, BL = B.length, i, k, s, e, tot = 0, hi = 0, best = null;
-    var bk = n >= 16 ? bkLoad() : null, KL = null, fl = 0, HB = 1 << Math.max(10, Math.min(20, 32 - Math.clz32(n * 2)));
-    if (bk) { KL = bkPrep(bk, B, S, E, a, n, HB); if (KL) { fl = bk.x.bcscan(KL.B, BL, KL.S, KL.E, n); if (fl & 3) KL = null; else { hi = fl & 4 ? 128 : 0; tot = bk.x.bctot(); } } }
+    var bk = n >= 16 ? bkLoad() : null, KL = null, wide = false, fl = 0, HB = 1 << Math.max(10, Math.min(20, 32 - Math.clz32(n * 2)));
+    if (bk) { for (i = 0, k = n < 64 ? n : 64, s = 0; i < k; i++) s += E[a + i] - S[a + i]; wide = s >= k * 24;   // values of 24 bytes or more on average (first 64 sampled): the 16-byte-at-a-time scan, 8-byte hash and memory.copy join; short values keep the byte loops, which are faster for them
+      KL = bkPrep(bk, B, S, E, a, n, HB); if (KL) { KL.w = wide; fl = (wide ? bk.x.bcscanw : bk.x.bcscan)(KL.B, BL, KL.S, KL.E, n); if (fl & 3) KL = null; else { hi = fl & 4 ? 128 : 0; tot = bk.x.bctot(); } } }
     if (!KL) { for (i = 0; i < n; i++) { s = S[a + i]; e = E[a + i]; if (!(s >= 0 && e >= s && e <= BL)) throw new Error('LfcPack: text column "' + key + '": value ' + (a + i) + ' has offsets outside its bytes'); for (k = s; k < e; k++) { if (B[k] === 0) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key); hi |= B[k]; } tot += e - s; } }
     if (n >= 2 && DATE_MODE) { var dnC = dateNumsBC(B, S, E, a, n), wC = dnC && dateWrap(dnC, zs, level, key); if (wC) return wC; }
     if (!n || tmode === 2) return encodeColumn(byteColStrings(bc, a, n), zs, level, tmode, undefined, key);
@@ -1084,7 +1085,7 @@
     // distinct values, first-seen order, stopping where the string path's Map count stops (labels * 4 > n at a new value)
     var head = new Int32Array(KL ? 1 : HB).fill(-1), nxt = [], lab = [], codes = new Int32Array(n), stop = FAST_ON && FSK && n >= 4096 && manyDistinctBC(B, S, E, a), h, c, q, ls, le, m;   // fast: a column whose first 1,024 values are nearly all different skips the dictionary count (the string path decides the same way)
     if (stop) { }
-    else if (KL) { var X = bk.x; new Uint32Array(X.memory.buffer, KL.tab, HB).fill(0); var r0 = X.bcdict(KL.B, KL.S, KL.E, n, KL.codes, KL.lab, KL.lh, KL.tab, HB) >>> 0; if (r0 === 0xFFFFFFFF) stop = true; else { var bf = X.memory.buffer; lab = Array.from(new Int32Array(bf, KL.lab, r0)); codes = new Int32Array(bf, KL.codes, n).slice(); } }
+    else if (KL) { var X = bk.x; new Uint32Array(X.memory.buffer, KL.tab, HB).fill(0); var r0 = (KL.w ? X.bcdictw : X.bcdict)(KL.B, KL.S, KL.E, n, KL.codes, KL.lab, KL.lh, KL.tab, HB) >>> 0; if (r0 === 0xFFFFFFFF) stop = true; else { var bf = X.memory.buffer; lab = Array.from(new Int32Array(bf, KL.lab, r0)); codes = new Int32Array(bf, KL.codes, n).slice(); } }
     else for (i = 0; i < n; i++) {
       s = S[a + i]; e = E[a + i]; h = 2166136261; for (k = s; k < e; k++) h = Math.imul(h ^ B[k], 16777619); h = (h ^ (e - s)) >>> 0;
       c = head[h & (HB - 1)];

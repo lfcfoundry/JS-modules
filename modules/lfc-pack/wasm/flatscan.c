@@ -445,3 +445,44 @@ EXPORT("bcjoin") u32 bcjoin(const u8*B,const int*S,const int*E,const int*idx,u32
   for(u32 j=0;j<cnt;j++){u32 r=idx?(u32)idx[j]:j;if(j)out[p++]=0;u32 x=(u32)S[r],y=(u32)E[r];while(x<y)out[p++]=B[x++];}
   return p;
 }
+
+// Wide text columns (average value 24 bytes or more; flat.js picks these by the column's average length, short columns keep the three byte-loop functions above, which are faster on short values).
+// The same results as bcscan, bcdict and bcjoin: bcscanw reads 16 bytes at a time (SIMD build), bcdictw hashes 8 bytes per step (the hash only picks table slots, labels are numbered in first-seen order, so codes and bytes cannot change), bcjoinw copies values of 16 bytes or more with memory.copy.
+// The 8-bytes-per-step hash follows DuckDB's HashBytes (MIT, https://github.com/duckdb/duckdb/blob/main/src/common/types/hash.cpp, multiplier from martinus/robin-hood-hashing, MIT).
+EXPORT("bcscanw") u32 bcscanw(const u8*B,u32 blen,const int*S,const int*E,u32 n){
+  u32 hi=0,t=0;
+  for(u32 i=0;i<n;i++){
+    int s=S[i],e=E[i];
+    if(!(s>=0&&e>=s&&(u32)e<=blen)){bc_tot=t;return 1;}
+    int k=s;
+#ifdef __wasm_simd128__
+    if(e-k>=16){v128_t hv=wasm_i8x16_splat(0);
+      for(;k+16<=e;k+=16){v128_t v=wasm_v128_load(B+k);if(wasm_v128_any_true(wasm_i8x16_eq(v,wasm_i8x16_splat(0))))break;hv=wasm_v128_or(hv,v);}
+      if(wasm_v128_any_true(hv))hi|=wasm_i8x16_bitmask(hv)?128u:1u;}
+#endif
+    for(;k<e;k++){u8 c=B[k];if(!c){bc_tot=t;return 2|(hi?4:0);}hi|=c;}
+    t+=(u32)(e-s);
+  }
+  bc_tot=t;return hi&128?4:0;
+}
+static inline u32 bc_hashw(const u8*p,u32 l){
+  if(l<16){u32 h=2166136261u;for(u32 k=0;k<l;k++){h^=p[k];h*=16777619u;}return h^l;}
+  const u64 M=0xd6e8feb86659fd93ull;u64 h=0xe17a1465ull^((u64)l*M);u32 k=0;
+  for(;k+8<=l;k+=8){h^=*(const u64*)(p+k);h*=M;h^=h>>32;}
+  h^=*(const u64*)(p+l-8);h*=M;h^=h>>32;return (u32)h^l;
+}
+EXPORT("bcdictw") u32 bcdictw(const u8*B,const int*S,const int*E,u32 n,int*codes,int*lab,u32*lh,u32*tab,u32 HB){
+  u32 nl=0,mask=HB-1;
+  for(u32 i=0;i<n;i++){
+    const u8*p=B+S[i];u32 l=(u32)(E[i]-S[i]),h=bc_hashw(p,l),q=h&mask,c;
+    for(;;){c=tab[q];if(!c)break;u32 j=c-1;if(lh[j]==h){int ls=S[lab[j]];if((u32)(E[lab[j]]-ls)==l&&bc_eq(B+ls,p,l))break;}q=(q+1)&mask;}
+    if(!c){if(nl*4>n)return 0xFFFFFFFFu;lab[nl]=(int)i;lh[nl]=h;tab[q]=nl+1;c=nl+1;nl++;}
+    codes[i]=(int)(c-1);
+  }
+  return nl;
+}
+EXPORT("bcjoinw") u32 bcjoinw(const u8*B,const int*S,const int*E,const int*idx,u32 cnt,u8*out){
+  u32 p=0;
+  for(u32 j=0;j<cnt;j++){u32 r=idx?(u32)idx[j]:j;if(j)out[p++]=0;u32 x=(u32)S[r],y=(u32)E[r];if(y-x>=16){__builtin_memcpy(out+p,B+x,y-x);p+=y-x;continue;}while(x<y)out[p++]=B[x++];}
+  return p;
+}
