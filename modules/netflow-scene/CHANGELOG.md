@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.1 · API 1 · 2026-11-20
+- SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
+
 ## 1.14.0 · API 1 · 2026-11-15
 - nested-view tiles can be typed arrays (S.rectsT)
 

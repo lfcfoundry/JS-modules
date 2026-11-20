@@ -1,6 +1,6 @@
 # netflow-scene
 
-**Version 1.14.0 · API 1**
+**Version 1.14.1 · API 1**
 
 **Tested in:** Node suite, 50k treemap in Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
