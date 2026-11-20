@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.14.0 (API 1)
+ * Version 1.14.1 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1544,6 +1544,15 @@ var NFMScene = (function () {
   }
   /* the same number as +n.toFixed(2), about 20 times faster in Chromium (toFixed was most of a 20,000-dot scatter's SVG time): a rounding that lands
      within 0.0001 of a half, or a number too big for exact hundredths, goes through toFixed itself (since 1.10.1) */
+  /* the same number as fix2, already as text: whole and hundredths written from the integer count of hundredths (no number-to-text conversion of a double; since 1.14.1) */
+  function fix2s(n) {
+    var m = n * 100, r = Math.round(m), d = m - r;
+    if (d > 0.4999 || d < -0.4999 || !(m < 1e15 && m > -1e15)) return '' + +n.toFixed(2);
+    if (r === 0) return '0';
+    var neg = r < 0; if (neg) r = -r;
+    var ip = Math.floor(r / 100), fp = r - ip * 100, t = neg ? '-' + ip : '' + ip;
+    return fp === 0 ? t : t + (fp < 10 ? '.0' + fp : fp % 10 === 0 ? '.' + fp / 10 : '.' + fp);
+  }
   function fix2(n) { var m = n * 100, r = Math.round(m), d = m - r; if (d > 0.4999 || d < -0.4999 || !(m < 1e15 && m > -1e15)) return +n.toFixed(2); r /= 100; return r === 0 ? 0 : r; }
   /* Plain round dots in one look, written for toSvg. Up to 999 in a row stay one <circle> each. From 1,000 on (since 1.11.0) they go in a few
      <path> layers, and no two dots in a layer touch, so every dot is drawn and blended just as its own circle would be. A browser reads and lays
@@ -1632,8 +1641,8 @@ var NFMScene = (function () {
          text (line charts draw every step this way; since 1.10.6) */
       var seg = function (i) {
         var ax = P[i - 2], ay = P[i - 1], bx = P[i + 4], by = P[i + 5];
-        if (P[i] === ax + (bx - ax) / 3 && P[i + 1] === ay + (by - ay) / 3 && P[i + 2] === ax + 2 * (bx - ax) / 3 && P[i + 3] === ay + 2 * (by - ay) / 3) return 'L' + f(bx) + ' ' + f(by);
-        return 'C' + f(P[i]) + ' ' + f(P[i + 1]) + ' ' + f(P[i + 2]) + ' ' + f(P[i + 3]) + ' ' + f(bx) + ' ' + f(by);
+        if (P[i] === ax + (bx - ax) / 3 && P[i + 1] === ay + (by - ay) / 3 && P[i + 2] === ax + 2 * (bx - ax) / 3 && P[i + 3] === ay + 2 * (by - ay) / 3) return 'L' + fix2s(bx) + ' ' + fix2s(by);
+        return 'C' + fix2s(P[i]) + ' ' + fix2s(P[i + 1]) + ' ' + fix2s(P[i + 2]) + ' ' + fix2s(P[i + 3]) + ' ' + fix2s(bx) + ' ' + fix2s(by);
       };
       var nSeg = (P.length - 2) / 6, oc = op(c), PL = 2048;   /* since 1.10.4: a solid line over 8,000 segments goes out in pieces of 2048 that overlap by one segment; WebKit paints one long path far slower than its length suggests, and each extra path costs it a little, so only long lines are split. The full path text is not built for them. */
       if (c.w1 === undefined && nSeg > 8000 && !c.dash && !c.arrow && !oc && !(c.color[3] < 1)) {

@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.1 · API 1 · 2026-11-20
+
+### Quick
+toSvg writes the numbers of line and curve segments straight from whole hundredths (fix2s) instead of converting a double to text. Same SVG text (150 random charts, 3.0 million characters, 0 differences), no API change.
+
+### Details
+toSvg() of the 100,000-point line only (min of 25, alternating pages): Chromium 156 16.4 to 13.5 ms (0.82x, 5 pages), Firefox 158 20.5 to 17.2 ms (0.82x, 5 pages), WebKitGTK 2.52.6 22 to 17 ms (0.77x, 4 pages). fix2s agrees with fix2 on 400,000 random values and the edge cases (0.005 steps, -0, 1e15, 1e17, 0.1+0.2).
+
+### Deep
+The profile showed number-to-text conversion of 200,000 doubles as the largest part of toSvg. For a number within 1e15 and not near a half hundredth, the shortest text of round(n*100)/100 is the integer part, then one or two digits, so it is built from the integer count. Other numbers still go through toFixed. Only the L and C pieces of a curve use it; other callers keep fix2. netflow-scene-index.js is unchanged (1.14.0).
+
 ## 1.14.0 · API 1 · 2026-11-15
 
 ### Quick
