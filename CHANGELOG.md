@@ -32,9 +32,9 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.13.6 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.14.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
-| [lz4-kit](modules/lz4-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
+| [lz4-kit](modules/lz4-kit/README.md) | 1.1.0 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -63,6 +63,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-20 · **lz4-kit** 1.1.0 · API 1: New last argument `{ view: true }` on the compress and decompress calls: no copy, valid until the next call. 4 MiB of logs: decompress 1.5 to 1.7 ms against 3.0 to 4.4 for other LZ4 libraries (Chromium 156, Firefox 158, WebKitGTK 2.52.6). New test page `bench/laptop-tester.html`: speed against gzip and four other LZ4 libraries, plus cross-reading checks, with a Copy results button.
+- 2026-11-20 · **lfc-pack** 0.14.0 · API 0: New opt-in read option text: 'bytes' (unpackColumns, open().columns): text columns come back as byte views instead of strings; default unchanged. Not yet timed in browsers.
+- 2026-11-20 · **lfc-pack** 0.13.9 · API 0: packBlock with timestamp columns ({ kind: 'ts' }) has less fixed cost per call: 6 to 15% less time for 16,384-row batches of real taxi columns in Chromium, Firefox and WebKitGTK; same bytes
+- 2026-11-20 · **lfc-pack** 0.13.8 · API 0: packBlock date and timestamp columns pack faster: the check for more than half different values uses a typed table, 10 to 27% less time for a 100,000-row block with two timestamp columns in Chromium, Firefox and WebKitGTK; same bytes
+- 2026-11-20 · **lfc-pack** 0.13.7 · API 0: packBlock text columns given as bytes with long values (24 bytes or more on average) pack faster: about 0.7x on 100 to 180 byte descriptions, same bytes; short values are unchanged
 - 2026-11-19 · **memory-compression** 2.18.1 · API 2: warm() also warms made-up UUID-text and sparse record lists in Chromium: the first pack of such lists is 10 to 25% faster; same bytes
 - 2026-11-19 · **lz4-kit** 1.0.0 · API 1: LZ4 blocks and .lz4 frames in WebAssembly, from the fixed LZ4 1.11.1; levels 1 to 12. 4 MB of logs: 3.6 to 3.9 times faster than browser gzip in Chromium 156, Firefox 158, WebKitGTK 2.52.6, but 1.7 to 1.9 times bigger.
 - 2026-11-15 · **netflow-scene** 1.14.0 · API 1: nested-view tiles can be typed arrays (S.rectsT)
