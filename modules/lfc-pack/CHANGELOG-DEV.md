@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.3 · API 0 · 2026-11-20
+
+### Quick
+Decimal number columns (Float64Array, 64 rows or more) now check "are these whole numbers times 10^d" in a new wasm kernel (scaleints) instead of a JavaScript loop that allocated a second array. Same bytes, no API change.
+
+### Details
+16 typed number columns of the 1.5M-row taxi file, Node, 3 alternating pairs, min of reps: 1229 to 1196, 1222 to 1171, 1211 to 1181 ms (about 3%). Nine Chicago number columns: 41 to 41-42 ms (no change). Bytes identical on both, and on 300 seeded random blocks (ties, -0, NaN, Infinity, 1e15 and 1e16) compared with 0.14.2.
+
+### Deep
+scaleints mirrors scaledInts exactly (round half up, 2^50 limit, divide-back check). The 512-value decimals search stays in JavaScript. A profile after the change still shows the number kernels (numcol, numflags) at about 38% and GC at 6%, so the remaining gain needs a fused flags plus load pass, not tried here.
+
 ## 0.14.2 · API 0 · 2026-11-20
 
 ### Quick

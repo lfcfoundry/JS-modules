@@ -229,6 +229,24 @@
     }
     return 0;
   }
+  // decimalScale for a typed column given to the encoder (n >= NK_MIN): the same answer, but the whole-number check is one pass in the number kernel's memory (scaleints) and the whole numbers stay there as a view (DS_INTS) for the kernel run, so no array of n doubles is built and copied. Valid only until the kernel's memory grows.
+  function decimalScaleW(v) {
+    var n = v.length, K;
+    if (!(v instanceof Float64Array) || n < NK_MIN || !(K = nkw()).x.scaleints) return decimalScale(v);
+    var st = Math.max(1, Math.floor(n / 512)), d, i, q, pass, sc, X, mem;
+    for (pass = 0; pass < 2; pass++) {
+      d = 0;
+      for (i = 0; i < n; i += pass ? 1 : st) { q = decimalsOf(v[i]); if (q < 0 || q > 9) return 0; if (q > d) d = q; }
+      sc = Math.pow(10, d);
+      if (d) {
+        K = nkLoad(v, n); mem = K.x.memory; X = (K.heap + n * 40 + 512 + 7) & ~7;
+        if (X + n * 8 > mem.buffer.byteLength) mem.grow(Math.ceil((X + n * 8 - mem.buffer.byteLength) / 65536));
+        if (K.x.scaleints(K.heap, n, sc, X)) { DS_INTS = new Float64Array(mem.buffer, X, n); return sc; }
+      }
+      if (pass === 0 && st === 1) return 0;
+    }
+    return 0;
+  }
   // Choosing a column's layout: each candidate's compressed size is estimated, and only the winner is compressed in full. A frame of 64 KB or less is compressed exactly (that result is
   // kept); a longer one is estimated from 4 evenly spaced 16 KB slices, scaled up and capped at its raw size. When the best two estimates are within 2% of each other both are compressed in
   // full and the smaller is kept (a tie goes to the candidate tried first), so a close call is always decided exactly. Same file format; a column's pick can differ from an exact pick only
@@ -455,7 +473,7 @@
     if (pre || allOf(v, function (x) { return typeof x === 'number'; })) {
       var noNegZero = pre ? !pre.nz : allOf(v, function (x) { return !(x === 0 && 1 / x < 0); });
       var allInt = noNegZero && (pre ? !!pre.ai : allOf(v, function (x) { return Number.isInteger(x) && Math.abs(x) < 9007199254740992 / 8; })), scale = 1, base = null;
-      if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScale(v); base = scale ? DS_INTS : null; DS_INTS = null; if (!base) { scale = 1; base = null; } }
+      if (!noNegZero) base = null; else if (allInt) base = v; else { scale = decimalScaleW(v); base = scale ? DS_INTS : null; DS_INTS = null; if (!base) { scale = 1; base = null; } }
       if (base && n > 0) {   // scaled whole numbers: the typed-array passes the fast writer uses (same candidates, same rules, same bytes)
         numGeneral(cand, function () { return best; }, base instanceof Float64Array ? base : new Float64Array(base), n, scale);
         if (n >= NK_MIN) { NKZ.v = v; NKZ.mn = NKR.mn / scale; NKZ.mx = NKR.mx / scale; }
