@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.4.0 (API 1)
+ * Version 1.4.1 (API 1)
  * netflow-circular.js: the circular views of Netflow Map (Chord, Bundles). layout(view, G, o) returns a plain layout; scene(L, o, NS) turns it
  * into drawing lists for netflow-scene. Built on netflow-hierarchy (its tree, values and drawing frame): load netflow-hierarchy.js first,
  * or keep it next to this folder in Node. No page, no DOM.
@@ -31,12 +31,12 @@ var NetflowCircular = (function () {
     var ent = [], entOf = new Int32Array(n), gk = new Map();
     if (byGroup) { for (i = 0; i < n; i++) { var g = G.nodes[i].group || ''; if (!gk.has(g)) { gk.set(g, ent.length); ent.push({ label: g || '(no group)', group: g, items: [] }); } entOf[i] = gk.get(g); ent[entOf[i]].items.push(i); } }
     else for (i = 0; i < n; i++) { entOf[i] = i; ent.push({ label: G.nodes[i].label, group: G.nodes[i].group || '', items: [i], item: i }); }
-    var K = ent.length, flows = new Map(), fl = [];
+    var K = ent.length, flows = new Map(), fl = [], eN = G.edges.length, tab = K * K <= 8 * eN + 4096 ? new Int32Array(K * K).fill(-1) : null;   /* a table of places for the pairs when edges are dense, else a Map */
     G.edges.forEach(function (e, ei) {
       var a = idx.get(e.from), b = idx.get(e.to); if (a === undefined || b === undefined) return;
       var s = entOf[a], t = entOf[b], v = linkValue(e); if (!(v > 0)) return;
-      var key = s * K + t, f = flows.get(key);
-      if (!f) { f = { s: s, t: t, v: 0, edges: [] }; flows.set(key, f); fl.push(f); }
+      var key = s * K + t, f = tab ? (tab[key] < 0 ? undefined : fl[tab[key]]) : flows.get(key);
+      if (!f) { f = { s: s, t: t, v: v, edges: [ei], sa0: 0, sa1: 0, ta0: 0, ta1: 0 }; if (tab) tab[key] = fl.length; else flows.set(key, f); fl.push(f); return; }
       f.v += v; f.edges.push(ei);
     });
     var out = new Float64Array(K), inn = new Float64Array(K), tot = 0;
@@ -123,17 +123,26 @@ var NetflowCircular = (function () {
       a0 += len + pad;
     });
     /* slots: what an arc sends, sorted by where it lands (going round from this arc), then what it gets, sorted by where it comes from */
-    var rel = function (k, t) { var d = arcs[t].mid - arcs[k].mid; while (d <= 0) d += TAU; return d; };
-    var sendList = new Array(K), getList = new Array(K);
+    var sendList = new Array(K), getList = new Array(K), posA = new Int32Array(K), slotF = new Array(K), lk, fo, kk;
+    for (i = 0; i < K; i++) posA[ord[i]] = i;
+    var scale = tot > 0 ? span / tot : 0;
+    /* around the circle the arcs' middles grow with the place, so "sorted by where it lands, going round from this arc" is the place distance (this arc itself first, then the arcs behind it, nearest first): one band per pair, so each list is placed straight into a table of K places, no sort */
     for (i = 0; i < K; i++) { sendList[i] = []; getList[i] = []; }
     fl.forEach(function (f) { sendList[f.s].push(f); getList[f.t].push(f); });
-    var scale = tot > 0 ? span / tot : 0;
     for (i = 0; i < K; i++) {
-      var A = arcs[i], at = A.a0;
-      sendList[i].sort(function (p, q) { return rel(i, q.t) - rel(i, p.t); });
-      sendList[i].forEach(function (f) { f.sa0 = at; at += f.v * scale; f.sa1 = at; });
-      getList[i].sort(function (p, q) { return rel(i, q.s) - rel(i, p.s); });
-      getList[i].forEach(function (f) { f.ta0 = at; at += f.v * scale; f.ta1 = at; });
+      var A = arcs[i], at = A.a0, pi1 = posA[i];
+      var lst = sendList[i], m1 = lst.length;
+      if (m1 > 1) {
+        for (lk = 0; lk < m1; lk++) { fo = lst[lk]; kk = pi1 - posA[fo.t]; slotF[kk < 0 ? kk + K : kk] = fo; }
+        for (lk = 0, kk = 0; lk < m1; kk++) if ((fo = slotF[kk]) !== undefined) { slotF[kk] = undefined; lst[lk++] = fo; }
+      }
+      for (lk = 0; lk < m1; lk++) { fo = lst[lk]; fo.sa0 = at; at += fo.v * scale; fo.sa1 = at; }
+      lst = getList[i]; m1 = lst.length;
+      if (m1 > 1) {
+        for (lk = 0; lk < m1; lk++) { fo = lst[lk]; kk = pi1 - posA[fo.s]; slotF[kk < 0 ? kk + K : kk] = fo; }
+        for (lk = 0, kk = 0; lk < m1; kk++) if ((fo = slotF[kk]) !== undefined) { slotF[kk] = undefined; lst[lk++] = fo; }
+      }
+      for (lk = 0; lk < m1; lk++) { fo = lst[lk]; fo.ta0 = at; at += fo.v * scale; fo.ta1 = at; }
     }
     var nodes = G.nodes.slice();
     nodes.forEach(function (nd, q) {

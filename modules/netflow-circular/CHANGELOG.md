@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.1 · API 1 · 2026-11-20
+- Chord layout is 3 to 4 times faster on dense charts (400 items, 80,000 links: 185 to 48 ms in Chromium); the drawing is the same
+
 ## 1.4.0 · API 1 · 2026-11-08
 - New optional NetflowCircular.warm() makes the first chord or bundles draw much sooner.
 
