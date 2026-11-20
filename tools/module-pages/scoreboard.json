@@ -90,6 +90,14 @@
    ]
   },
   {
+   "label": "lz4-kit compress vs browser gzip (low end)",
+   "x": 3.6,
+   "module": "lz4-kit",
+   "proof": [
+    "lz4-kit compresses 4 MB of logs in 11 to 13 ms against 39 to 51"
+   ]
+  },
+  {
    "label": "walker-sim vs a plain loop",
    "x": 2.9,
    "module": "walker-sim",
