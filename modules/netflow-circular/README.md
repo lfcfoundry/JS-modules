@@ -1,6 +1,6 @@
 # netflow-circular
 
-**Version 1.4.1 · API 1**
+**Version 1.5.0 · API 1**
 
 **Tested in:** node tests (953, shared with netflow-hierarchy); first-picture paired runs, fresh page per sample, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -52,7 +52,7 @@ var S = NetflowCircular.scene(L, { theme: 'dark' }, NetflowScene);
 ```
 
 - Views: `chord`, `bundles` (`NetflowCircular.VIEWS`).
-- Options: `chordBy` (`auto`, `items` or `groups`; auto gives one arc per group above 60 items), `chordOrder` (`fast` keeps the group order, about d3-chord's work; left out or anything else searches the order for fewer crossing bands, up to 3,000 bands), `nest` (Bundles: the tree it bends along), `beta` (Bundles: how tightly links follow the tree, default 0.85).
+- Options: `chordBy` (`auto`, `items` or `groups`; auto gives one arc per group above 60 items), `chordOrder` (`fast` keeps the group order, about d3-chord's work; left out or anything else searches the order for fewer crossing bands, up to 3,000 bands), `typed` (Chord, since 1.5.0: `true` leaves out the object for each band and returns them as typed arrays in `chart.flowsT` (`n`, `s`, `t`, `v`, `sa0`, `sa1`, `ta0`, `ta1`, `firstEdge`, `nextEdge`, `count`) instead of `chart.flows`; `scene()` draws either; 400 items with 80,000 links lay out in about 15 to 25 ms, against 40 to 55 ms with objects), `nest` (Bundles: the tree it bends along), `beta` (Bundles: how tightly links follow the tree, default 0.85).
 - Title block (optional, off unless given): `title` (bold, top left), `subtitle` (under it) and `source` (small, under the picture), set in the `scene()` options. The block sits outside the picture, so nothing in the picture moves, and the SVG export draws it.
 - `bsplineToBezier(points)` is exported for drawing smooth curves.
 

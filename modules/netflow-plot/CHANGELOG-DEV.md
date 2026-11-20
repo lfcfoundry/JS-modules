@@ -1,5 +1,16 @@
 # netflow-plot developer changelog
 
+## 2.18.0 · API 2 · 2026-11-20
+
+### Quick
+A line chart with over 5,000 points on a line keeps, for each whole-pixel column, its first, lowest, highest and last point (in their original order). Below 5,000 points nothing changes. Approved by the owner on a card (11.20, "Yes, above 5,000 points"). No API change, no new setting.
+
+### Details
+100,000-point line, finished SVG into the page plus layout, alternating pages, median of 5 (WebKitGTK 2): Chromium 156 42.5 to 16.4 ms (0.42x), Firefox 158 57.2 to 18.6 (0.33x), WebKitGTK 2.52.6 67 to 16 (0.28x). Chart.js 4.6.1 same data (rivals test): 26 to 34 ms to call plus 11 to 16 ms paint, uPlot about 1 ms. SVG text 1.38 MB to 39 KB. make() alone is about the same (within the 1 ms clock). Picture: the stroke edges differ by a few shades on part of the line at 2x zoom; checked on a picture in the thread.
+
+### Deep
+pixelColumns() walks the mapped points once: a run of points in one floor(x) column becomes at most four (first, lowest, highest, last, deduplicated and sorted by position), so every peak and dip within the column is still drawn. Colors, smoothing and index lines all go through the same step; dots and tooltips exist only up to 400 points and are not affected. Test: a one-point spike in a 20,000-point line stays; a 5,000-point line keeps all points; kept points stay in order.
+
 ## 2.17.1 · API 2 · 2026-11-20
 
 ### Quick
