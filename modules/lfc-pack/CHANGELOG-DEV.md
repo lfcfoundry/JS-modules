@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.7 · API 0 · 2026-11-20
+
+### Quick
+byteCol (text column given as bytes) uses three new wide-column WebAssembly functions when the first 64 values average 24 bytes or more: bcscanw (16 bytes per step with SIMD), bcdictw (8-byte hash step) and bcjoinw (memory.copy for values of 16 bytes or more). Same bytes, no new setting, short columns keep bcscan, bcdict and bcjoin.
+
+### Details
+Node 22 (V8), packBlock of one 60,000-row column, median of 7, 3 runs: 100 to 180 byte values, 4,000 distinct: 51 ms to 33-40 ms; 30 to 55 byte values, 3,000 distinct: 11 ms to 7.5-8 ms; all-unique 100-180 byte values and 8 to 15 byte values: no change beyond noise. The hash only picks table slots and labels are numbered in first-seen order, so codes and bytes cannot change; test/bytecol-wide.cjs packs 22 cases (lengths 10 to 140, repeats, shared heads and tails, non-ASCII, NUL bytes, empties, invalid UTF-8) with the kernels on and off and compares hashes of the output.
+
+### Deep
+The 8-byte hash step follows DuckDB's HashBytes (MIT, https://github.com/duckdb/duckdb/blob/main/src/common/types/hash.cpp); its multiplier comes from martinus/robin-hood-hashing (MIT, https://github.com/martinus/robin-hood-hashing). Values under 16 bytes inside a wide column still use the FNV-1a step. The scan folds 16-byte loads and leaves the same flags (NUL, bytes above 127) and total as bcscan. wasm built with clang 18.1.3, -O3 -nostdlib -fno-builtin -mbulk-memory, with and without -msimd128.
+
 ## 0.13.6 · API 0 · 2026-11-15
 
 ### Quick
