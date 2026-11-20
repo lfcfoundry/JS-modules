@@ -2,14 +2,15 @@
 
 Compared: netflow-plot against uPlot 1.6.32 and Chart.js 4.6.1 (build a 100,000-point line chart, ms).
 
-<!-- title: netflow-plot loses on a 100,000-point line chart: 75 to 106 ms against 27 to 39 for Chart.js and 1 for uPlot -->
+<!-- title: netflow-plot's drawing list for a 100,000-point line takes 13 to 23 ms, under Chart.js (27 to 39), but a finished SVG takes 46 to 63 ms, still behind -->
 | way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---:|---:|---:|
 | uPlot | 0.9 | 1.0 | 1.0 |
 | Chart.js (all points) | 34 | 39 | 27 |
-| netflow-plot (finished SVG in the page) | 75 | 98 | 106 |
+| netflow-plot, finished SVG in the page | 46 | 63 | 63 |
+| netflow-plot, drawing list only | 17 | 23 | 13 |
 
-netflow-plot is built for pictures you can export (SVG with axes, tick labels and a key), not for 100,000-point live canvases, and it does not win here. Chart.js and uPlot draw straight onto a canvas. Drawing list only, without the SVG text, netflow-plot takes 46, 63 and 54 ms. To a painted frame, uPlot adds nothing, Chart.js 17 to 21 ms, and netflow-plot about 50 (Chromium), 86 (Firefox) and 232 ms (WebKitGTK), because a 1.3 MB SVG must be laid out and painted. Chart.js with its decimation on draws only about 900 points (a different picture) and takes 6 to 9 ms. The Chromium run for netflow-plot spread widely (132, 75, 76 ms).
+The drawing list is the finished picture as data (lines, text and shapes), before it is turned into SVG text, so it is not the same job as a canvas draw: netflow-plot is faster than Chart.js at that step and slower once the SVG is in the page and laid out. uPlot, which draws one canvas path, is far ahead of both. netflow-plot is built for pictures you can export (SVG with axes, tick labels and a key), not for 100,000-point live canvases, so the honest total for a picture in the page is the SVG row, and it loses to Chart.js and uPlot. Chart.js with its decimation on draws only about 900 points (a different picture) and takes 6 to 9 ms.
 
 Compared: netflow-plot against uPlot and Chart.js (gzipped size in KB, smaller is better).
 
