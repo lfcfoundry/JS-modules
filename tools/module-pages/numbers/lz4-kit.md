@@ -25,7 +25,7 @@ Compared: every library, decompress 4 MiB (ms, lower is faster).
 | lz4-kit (copy) | 3.8 | 3.8 | 2.1 |
 | lz4-kit (view) | 1.6 | 1.7 | 1.5 |
 
-With lz4-kit's default private copy, compress ties gorhill/lz4-wasm in Chromium and WebKitGTK and is ahead in Firefox, and decompress is level with gorhill and wasm-lz4 in Chromium and Firefox and ahead in WebKitGTK. gzip makes files 1.7 to 1.9 times smaller on these logs; lz4-kit is the speed pick. gorhill/lz4-wasm has no frame, levels or checksum; wasm-lz4 only decompresses.
+In the default copy mode lz4-kit compresses 4 MiB of logs in 7.2 to 7.3 ms against 34 to 43 for the browser's gzip. With lz4-kit's default private copy, compress ties gorhill/lz4-wasm in Chromium and WebKitGTK and is ahead in Firefox, and decompress is level with gorhill and wasm-lz4 in Chromium and Firefox and ahead in WebKitGTK. gzip makes files 1.7 to 1.9 times smaller on these logs; lz4-kit is the speed pick. gorhill/lz4-wasm has no frame, levels or checksum; wasm-lz4 only decompresses.
 
 Compared: output size for the same 4 MB (bytes, smaller is better). This is where lz4-kit loses to gzip.
 
