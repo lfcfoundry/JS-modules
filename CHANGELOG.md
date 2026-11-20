@@ -64,7 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-19 · **memory-compression** 2.18.1 · API 2: warm() also warms made-up UUID-text and sparse record lists in Chromium: the first pack of such lists is 10 to 25% faster; same bytes
-- 2026-11-19 · **lz4-kit** 1.0.0 · API 1: LZ4 blocks and .lz4 frames in WebAssembly built from the fixed LZ4 1.11.1 release; fast mode and levels 1 to 12
+- 2026-11-19 · **lz4-kit** 1.0.0 · API 1: LZ4 blocks and .lz4 frames in WebAssembly, from the fixed LZ4 1.11.1; levels 1 to 12. 4 MB of logs: 3.6 to 3.9 times faster than browser gzip in Chromium 156, Firefox 158, WebKitGTK 2.52.6, but 1.7 to 1.9 times bigger.
 - 2026-11-15 · **netflow-scene** 1.14.0 · API 1: nested-view tiles can be typed arrays (S.rectsT)
 - 2026-11-15 · **netflow-sankey** 2.14.0 · API 2: Dragging a bar: layout() can resume from the last result (opts.resume), so a move at 10,000 items takes 0.32 (Chromium), 0.22 (Firefox) and 0.28 (WebKitGTK) of the time. Same picture.
 - 2026-11-15 · **netflow-hierarchy** 1.7.0 · API 1: typedRects: true keeps treemap and icicle tiles as typed arrays
