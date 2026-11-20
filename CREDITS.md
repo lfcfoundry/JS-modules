@@ -13,6 +13,17 @@ Every credit links to the original paper, repository or page; where no online co
 | [pcodec-js](modules/pcodec-js/README.md) | Pcodec 1.0.4, compiled to WebAssembly, plus one small patch | Martin Loncaric and contributors ([github.com/pcodec/pcodec](https://github.com/pcodec/pcodec)) | Apache-2.0 ([NOTICE-pcodec.txt](modules/pcodec-js/NOTICE-pcodec.txt)) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | PPMd variant H, ported to JavaScript | Dmitry Shkarin; cleaned up by Igor Pavlov in the [LZMA SDK](https://www.7-zip.org/sdk.html) | Public domain |
 
+## Libraries we measured against (nothing copied or shipped)
+
+| Library | Authors | License | Measured in |
+|---|---|---|---|
+| [lz4js](https://github.com/Benzinga/lz4js) 0.2.0 | John Chadwick and contributors (Benzinga) | ISC | lz4-kit |
+| [lz4-wasm](https://github.com/PSeitz/lz4-wasm) 0.9.2 | Pascal Seitz | MIT (per npm) | lz4-kit |
+| [gorhill/lz4-wasm](https://github.com/gorhill/lz4-wasm) | Raymond Hill | BSD-2-Clause | lz4-kit |
+| [wasm-lz4](https://github.com/cruise-automation/wasm-lz4) 2.0.0 | Cruise | Apache-2.0 | lz4-kit |
+
+Licenses and links checked on 2026-11-20 (npm registry, the repositories' license files, GitHub search).
+
 ## Published ideas, written from scratch here
 
 | Idea | Original authors and source | Used in |
