@@ -358,6 +358,22 @@
   }
   var DATES_LOG = null;   // while a read asks for dates: 'numbers', the date columns it decoded as { a: Float64Array, f: form }
   function setDatesLog(l) { var o = DATES_LOG; DATES_LOG = l; return o; }
+  // text: 'bytes' (since 0.14.0): plain text columns come back as { bytes, start, end } and dictionary columns as { kind: 'dict', labels: { bytes, start, end }, ids }, the shapes packBlock takes, with no JavaScript string built per value; other text layouts (templates, hex, dates as text, columns with empty cells stored as nulls) still come back as strings; dictionary columns that use a shared label table share one read-only labels object
+  var TEXT_BYTES = false;
+  function setTextBytes(v) { var o = TEXT_BYTES; TEXT_BYTES = v; return o; }
+  function cutNul(u, n) {   // u: n values joined by 0 bytes -> { bytes (a copy), start, end }
+    var b = u.slice(), start = new Int32Array(n), end = new Int32Array(n), pos = 0, i, k;
+    for (i = 0; i < n; i++) { k = i === n - 1 ? b.length : b.indexOf(0, pos); if (k < 0) throw new Error('damaged block: text column cut off'); start[i] = pos; end[i] = k; pos = k + 1; }
+    return { bytes: b, start: start, end: end };
+  }
+  function dictBytes(frames, n, p) {
+    var u = frames[0], nl = 1, k, ids, lb;
+    if (p.sh) { lb = labBytesOf(p.sh); nl = lb.start.length; } else { k = u.indexOf(0); while (k >= 0) { nl++; k = u.indexOf(0, k + 1); } lb = cutNul(u, nl); }
+    ids = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1].slice(0, n);
+    if (ids instanceof Uint32Array) ids = new Int32Array(ids.buffer);
+    for (k = 0; k < n; k++) if (ids[k] >= nl) throw new Error('damaged block: dictionary code out of range');
+    return { kind: 'dict', labels: lb, ids: ids };
+  }
   function dateFmt(f) { return 'YYYY-MM-DD' + (f & 2 ? ' ' : 'T') + 'HH:MM:SS' + (f & 1 ? '' : f & 4 ? '.ffffff' : '.fff'); }
   function dateNums(v, n) {   // -> { f, a } or null
     if (n < 2 || typeof v[0] !== 'string') return null;
@@ -779,7 +795,7 @@
   }
   function decodeColumn(c, zs, frames, nan, tgt) {   // -> array-like of n values (nan: B42, a null-plane number column comes back as a Float64Array with NaN for null)
     var n = c.n, i, u, o, t = c.t, p = c.p;
-    if (t === 'N') { var iv = CP2_1 && nan && p.t === 'B' && BD_DEC && p.m >= 256 && p.p.w <= 24 ? colBw(frames[1], p.m, p.p, 1) : null; if (!iv) iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)); var pn = frames[0], q = 0; if (nan && !Array.isArray(iv)) { if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); o = tgt || new Float64Array(n); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? NaN : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; } o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
+    if (t === 'N') { var iv = CP2_1 && nan && p.t === 'B' && BD_DEC && p.m >= 256 && p.p.w <= 24 ? colBw(frames[1], p.m, p.p, 1) : null; if (!iv) { var tbN = TEXT_BYTES; TEXT_BYTES = false; try { iv = decodeColumn({ t: p.t, p: p.p, n: p.m }, zs, frames.slice(1)); } finally { TEXT_BYTES = tbN; } } var pn = frames[0], q = 0; if (nan && !Array.isArray(iv)) { if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); o = tgt || new Float64Array(n); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? NaN : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; } o = new Array(n); if (pn.length < (n + 7) >> 3) throw new Error('damaged block: N plane cut off'); for (i = 0; i < n; i++) o[i] = (pn[i >> 3] >> (i & 7)) & 1 ? null : iv[q++]; if (q !== p.m) throw new Error('damaged block: N count'); return o; }
     if (t === 'V') return colV(frames, n, p);
     if (t === 'B') return colB(frames, n, p, tgt);
     if (t === 'F') { return new Float64Array(frames[0].buffer.slice(frames[0].byteOffset, frames[0].byteOffset + n * 8)); }
@@ -804,8 +820,8 @@
       return dateCol(decodeColumn({ t: p.t, p: p.p, n: n }, zs, frames), n, p.f);
     }
     if (t === 'L') return untemplate(n, frames);
-    if (t === 's') return n ? tdr.decode(frames[0]).split('\0') : [];
-    if (t === 'D') return colD(frames, n, p);
+    if (t === 's') return n ? (TEXT_BYTES ? cutNul(frames[0], n) : tdr.decode(frames[0]).split('\0')) : [];
+    if (t === 'D') return TEXT_BYTES ? dictBytes(frames, n, p) : colD(frames, n, p);
     if (n && jnulls(frames[0], n)) { o = new Array(n); for (i = 0; i < n; i++) o[i] = null; return o; } var js = n ? tdr.decode(frames[0]).split('\n') : []; o = new Array(n); if (V8 || GECKO) { for (i = 0; i < n; i++) o[i] = jcell(js[i]); return o; } for (i = 0; i < n; i++) o[i] = JSON.parse(js[i]); return o;
   }
   // 'j' cells: most are null, true, false or whole numbers; JSON.parse per cell costs about 80 ns, so read those by hand (whole numbers of up to 15 characters, digits only, no leading zero, are exact in a double); anything else goes to JSON.parse. Chromium and Firefox only: in WebKitGTK the per-cell reader was slower than JSON.parse (cloud WebKitGTK 2.52.6, 100,000 orders: unpackColumns 1.08 to 1.20 of the time), so it keeps JSON.parse there; the all-null check runs in every engine

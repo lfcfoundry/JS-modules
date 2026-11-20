@@ -35,6 +35,11 @@
     if (!r.labs) { r.labs = r.n === 1 && !r.j.length ? [''] : tdr.decode(r.j).split('\0'); if (r.labs.length !== r.n) { r.labs = null; throw new Error('damaged file: label table count'); } }
     return r.labs;
   }
+  function labBytesOf(id) {   // a shared table as { bytes, start, end }, made once and shared by every block that names it (read-only)
+    var r = SHREG[id]; if (!r) throw new Error('damaged file: label table ' + id + ' is missing');
+    if (!r.lb) { r.lb = cutNul(r.j, r.n); }
+    return r.lb;
+  }
   function parseLabels(b, into) {   // a section's tables merged into { name: { j, n } }
     var hl = rd32(b, 0), t = JSON.parse(tdr.decode(b.subarray(4, 4 + hl))), id, e, base = 4 + hl, c = 0;
     for (id in t) { e = t[id]; if (!into[id]) { into[id] = { j: b.slice(base + e[0], base + e[0] + e[1]), n: e[2] }; c++; } }

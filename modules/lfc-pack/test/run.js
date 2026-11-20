@@ -85,6 +85,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('wasm template builder gives the same files (B57)', 'node', ['b57.cjs']);
   step('positions (W1)', 'node', ['positions.cjs']);
   step('nested equality: P13g late fallback', 'node', ['p13g-late-fallback.cjs']);
+  step('text as bytes read option', 'node', ['textbytes.cjs']);
   step('sparse tables (rows with missing keys)', 'node', ['sparseread.cjs']);
   step('python reader', 'python3', ['-I', 'pycases.py', dir]);
   step('python writer', 'python3', ['-I', 'pywriter.py', dir]);
