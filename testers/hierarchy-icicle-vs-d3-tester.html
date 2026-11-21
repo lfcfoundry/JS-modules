@@ -136,12 +136,13 @@ async function run(budget,label,quick,nominal){
    if(line.length)report.push(N+' items, '+shape+' | '+line.join(' | '));show();}
   if(cells)report.push((stopped?'STOPPED EARLY, results so far. ':'')+'SUMMARY: netflow-hierarchy faster in '+ahead+' of '+cells+' cells | best '+best.toFixed(2)+' ('+bestAt+') | worst '+worst.toFixed(2)+' ('+worstAt+') | took '+Math.round((performance.now()-T0)/1000)+' s');show();
   pb.style.width=(stopped?cells/total*100:100)+'%';
- }catch(e){report.push('ERROR '+(e&&e.stack||e));show();$('rawd').open=true;}
- st.textContent=(stopped?'Stopped after '+cells+' races. ':'Done in '+clock((performance.now()-T0)/1000)+'. ')+'Tap Copy results.';sub.textContent='';$('copy').disabled=false;btns.forEach(function(b){b.disabled=false;});bs.disabled=true;}
+ }catch(e){report.push('ERROR '+(e&&e.message||e)+(e&&e.stack?' | '+e.stack:''));st.textContent='';show();$('rawd').open=true;}
+ st.textContent=(st.textContent===''?'Something went wrong (see Results as text). ':stopped?'Stopped after '+cells+' races. ':'Done in '+clock((performance.now()-T0)/1000)+'. ')+'Tap Copy results.';sub.textContent='';$('copy').disabled=false;btns.forEach(function(b){b.disabled=false;});bs.disabled=true;}
 $('quick').onclick=function(){run(4200,'quick run',true,110);};
 $('go').onclick=function(){run(2200,'full run',false,300);};
 $('long').onclick=function(){run(6500,'long run',false,720);};
 $('stop').onclick=function(){stopped=true;st.textContent='Stopping after this round...';};
 $('copy').onclick=function(){var t=document.createElement('textarea');t.value=report.join('\n');document.body.appendChild(t);t.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(report.join('\n'));document.body.removeChild(t);this.firstChild.nodeValue='Copied';};
 draw();
+if(/[?&]auto=quick/.test(location.search))$('quick').click();   /* lets a test harness start a run without a tap */
 </script></body></html>
