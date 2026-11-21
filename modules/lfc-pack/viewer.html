@@ -75,7 +75,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.14.10 (API 0)
+ * Version 0.14.11 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -3946,7 +3946,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
             : file.bytes.slice(b[0], b[0] + b[1]);
         };
         results[i] = submit({ kind: kd, buf: null, crc: b[2], want: kd === 'f' ? want : null }, b[1], makeCopy, lazy, call).then(function (F) {
-          if (o._columns) return [rf.columns(F, want, !!o._nan)];   // B35: columns of this block, no rows
+          if (o._columns) { var cb = rf.columns(F, want, !!o._nan); if (o._onBlock) o._onBlock(cb, i, n); return [cb]; }   // B35: columns of this block, no rows; _onBlock (since 0.14.11): called as each block is read
           if (o._frames) return F;   // B38 (research): the decoded block itself; the caller builds its rows
           var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
@@ -4078,24 +4078,38 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   }
   function unpackColumnsParallel(bytes, opts) {
     opts = opts || {};
+    var onBlock = opts.onBlock; if (onBlock !== undefined && typeof onBlock !== 'function') return Promise.reject(new Error('LfcPack: onBlock must be a function'));   // since 0.14.11: onBlock(block, index, count) as each block is read, then the joined result as before
+    function emit(blocks) { if (onBlock) for (var q = 0; q < blocks.length; q++) onBlock(blocks[q], q, blocks.length); return blocks; }
+    // on this thread with onBlock: block by block with a yield between, so each block reaches onBlock as soon as it is read (not after the last one)
+    function here(bytes, n) {
+      if (!onBlock) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+      return open(bytes).then(function (rd) {
+        var nb = rd.blocks.length, got = [], q;
+        for (q = 0; q < nb; q++) if (rd.blocks[q].kind === 'r') return b35Join(emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls })), n, opts.nulls === 'NaN');   // a raw block (a tiny table kept as text): one read, then the calls
+        return new Promise(function (res, rej) {
+          function step(i) { if (i >= nb) { try { res(b35Join(got, n, opts.nulls === 'NaN')); } catch (e) { rej(e); } return; }
+            rd.columns(i, { keys: opts.keys, nulls: opts.nulls }).then(function (b) { got.push(b); onBlock(b, i, nb); b31Yield(function () { step(i + 1); }); }).catch(rej); }
+          step(0); });
+      });
+    }
     try { nullsOpt(opts); datesOpt(opts); if (textOpt(opts)) throw new Error("LfcPack: text: 'bytes' is not supported by unpackColumnsParallel (blocks keep their own labels); use unpackColumns or open().columns"); } catch (e) { return Promise.reject(e); }
     if (opts.dates) return init({ readOnly: true }).then(function () {   // dates: 'numbers' (since 0.13.6): read on the calling thread; the result's non-enumerable `dates` says each date column's unit and fmt
-      var blocks = unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' }), n = 0, i, res, info = {}, k;
+      var blocks = emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' })), n = 0, i, res, info = {}, k;
       for (i = 0; i < blocks.length; i++) { n += blocks[i].n; for (k in blocks[i].dates) info[k] = blocks[i].dates[k]; }
       res = b35Join(blocks, n, opts.nulls === 'NaN'); Object.defineProperty(res, 'dates', { value: info }); return res;
     });
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] === 'n') nest = true; n += file.blocks[i][3]; }
-      if (nest) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');   // a nested block (helpers read flat blocks only): this thread
-      if (nb < 2 || w < 1) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+      if (nest) return here(bytes, n);   // a nested block (helpers read flat blocks only): this thread
+      if (nb < 2 || w < 1) return here(bytes, n);
       if (!B35_POOL && !(globalThis.__B35AUTO === 0)) {   // B35b auto start: the first read joins on this thread (no helper start-up to wait for), then helpers start for the next read
-        var out0 = b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+        var out0 = here(bytes, n);
         setTimeout(function () { if (!B35_POOL) { B35_W = w; B35_POOL = makePool({ workers: w }); clearTimeout(B35_TIMER); B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref(); } }, 0);
         return out0; }
       clearTimeout(B35_TIMER);
       var pp = B35_POOL && B35_W === w ? B35_POOL : (B35_POOL ? B35_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B35_W = w; return (B35_POOL = makePool({ workers: w })); });
-      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys }); }).then(function (blocks) {
+      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys, _onBlock: onBlock || null }); }).then(function (blocks) {
         B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
         return b35Join(blocks, n, opts.nulls === 'NaN'); });
     });

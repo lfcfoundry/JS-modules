@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.11 · API 0 · 2026-11-21
+
+### Quick
+`unpackColumnsParallel(bytes, { onBlock(block, index, count) })` (new, optional): called once per block as that block's columns are ready, in the order blocks finish, then the joined result resolves as before. On this thread the blocks are read one at a time with a yield between (through `open().columns(i)`), so the first call comes after one block, not after the last. With helpers it is called from the thread's continuation of each block as the helper answers. A throwing callback rejects the read; a non-function is refused. A file with a raw block (tiny table kept as text) is read in one go and the calls follow. Nothing changes without onBlock.
+
+### Details
+600,000 rows (37 blocks of about 1 MB), Chromium 156, whole read of five columns: first block reaches the callback after 3 to 20 ms, half of them after 19 to 87 ms, the read as a whole 79 to 135 ms against 95 ms without a callback (same page, noisy; no slower in the median). The helpers did not start in this headless page (no Worker made), so the on-this-thread path is the one measured.
+
+### Deep
+Why not unpackColumns itself: it returns all blocks at once and stays synchronous. A streaming callback needs a yield between blocks (b31Yield), which only the promise-returning reader can give. The joined result is built from the same block objects, so it is the same as before (b35.cjs compares it). Per-piece events in text-columns and zip-open are separate (not in this version).
+
 ## 0.14.10 · API 0 · 2026-11-21
 
 ### Quick
