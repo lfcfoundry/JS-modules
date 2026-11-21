@@ -45,9 +45,9 @@ const J = require('../lfc-pack.js'), assert = require('assert');
     const fs = await J.packColumnsParallel({ v }, {}), c = J.summary(fs).cols[0], srt = Float64Array.from(v).sort();
     const rank = (x) => { let lo = 0, hi = M; while (lo < hi) { const md = (lo + hi) >> 1; if (srt[md] < x) lo = md + 1; else hi = md; } return lo / (M - 1); };
     let worst = 0; c.q.forEach((x, k) => { worst = Math.max(worst, Math.abs(rank(x) - k / 256)); });
-    ok(c.qSample === 65536 && c.q.length === 257 && c.q[0] >= c.min && c.q[256] <= c.max && worst < 0.01, 'sampled grid worst rank error ' + worst.toFixed(4)); }
-  // whole numbers in a short range are counted exactly, even unordered and long
-  { const M = 300000, v = new Float64Array(M); for (let i = 0; i < M; i++) v[i] = (i * 7919) % 5000; const c = J.summary(await J.packColumnsParallel({ v }, {})).cols[0];
+    console.log('  sampled grid worst rank error', worst.toFixed(4)); ok(c.qSample === 65536 && c.q.length === 257 && c.q[0] >= c.min && c.q[256] <= c.max && worst < 0.01, 'sampled grid worst rank error ' + worst.toFixed(4)); }
+  // whole numbers within 4,096 of each other are counted exactly, even unordered and long
+  { const M = 300000, v = new Float64Array(M); for (let i = 0; i < M; i++) v[i] = (i * 7919) % 4000; const c = J.summary(await J.packColumnsParallel({ v }, {})).cols[0];
     ok(!c.qSample && !c.qExact && JSON.stringify(c.q) === JSON.stringify(exactQ(Float64Array.from(v).sort())), 'counted grid'); }
   // the file itself is the same with and without the section: every block byte equal, values equal
   const g = await J.packColumnsParallel(cols, { blockBytes: 100000, summary: false });

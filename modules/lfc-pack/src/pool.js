@@ -15,7 +15,6 @@
         return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.sec[SEC_EQF] ? JSON.parse(tdr.decode(f.footer.sec[SEC_EQF]))[0] : f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked, eqf: eqo }, transfer: [out.buffer] };
       }
       if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };
-      if (m.kind === 's') return { msg: { id: m.id, sum: sumColumn(m.key, m.col, m.n, undefined, m.q) }, transfer: [] };   // since 0.15.0: the summary entry of one number column
       if (m.kind === 'c') return b28Job(m);   // B28: one number column of a packRowsParallel block   // helper start-up only: the wasm is loaded by the time this answers
       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
       var F = m.kind === 'f' ? flatFrames(S.zdec, b, m.want, true) : nestedFrames(S.zdec, b);
@@ -350,9 +349,10 @@
     if (t instanceof Error) return Promise.reject(t);
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
     if (opts && opts.summary === false) return packRowsParallel(t.CT, opts);
-    // since 0.15.0: the column summary (footer section 20). Its columns run on this thread while every helper has a full queue and after the last block is handed out, so it fills time this thread would wait anyway
-    var side = sumJobs(obj, t.n, opts && opts.quantiles), pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
-    return pr.then(function (b) { return side.done().then(function (sm) { return sm ? addSection(b, SEC_SUMMARY, sm) : b; }, function () { return b; }); });
+    // since 0.15.0: the column summary (footer section 20) and the line-chart pyramids (21; pyramids: false leaves them out, summary: false both). Number and date columns are summed inside the writer's own
+    // pass over each block (blockStats); what is left runs on this thread while every helper has a full queue and after the last block is handed out, so it fills time this thread would wait anyway
+    var side = sumJobs(obj, t.n, opts), pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
+    return pr.then(function (b) { return side.done().then(function (x) { return addSections(b, [[SEC_SUMMARY, x.sum], [SEC_PYRAMID, x.pyr]]); }, function () { return b; }); });
   }
   function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
     if (!rows.__ct) return packRows(rows, opts);
@@ -372,19 +372,14 @@
         h.listen(function (m) { if (m.warm) return; var f = x.q.shift(); if (f) { if (m.error) f[1](new Error(m.error)); else f[0](m); } if (x.drain && !x.q.length) { x.drain = false; idleHelpers.push(h); armIdle(3000); } },
           function (er) { x.dead = true; while (x.q.length) x.q.shift()[1](er); });
         return x; }
-      function rcol(j, pre, col, key, level, tm, chk) {
+      function rcol(j, pre, col, key, level, tm, chk, sq) {
         var best = hs[0], i; for (i = 1; i < hs.length; i++) if (hs[i].q.length < best.q.length) best = hs[i];
         if (!best || best.q.length >= 2) { if (hs.length < w) { best = helperQ(takeHelper()); hs.push(best); } }
-        var nb = pre === 2 ? col.nb : col, msg = { id: nextId++, kind: 'c', pre: pre, nb: nb, np: pre === 2 ? col.np : null, m: pre === 2 ? col.m : 0, c: pre === 2 ? col.c : nb.length, key: key, level: level, tm: tm, chk: chk }, tr = [nb.buffer];
+        var nb = pre === 2 ? col.nb : col, msg = { id: nextId++, kind: 'c', pre: pre, nb: nb, np: pre === 2 ? col.np : null, m: pre === 2 ? col.m : 0, c: pre === 2 ? col.c : nb.length, key: key, level: level, tm: tm, chk: chk, sq: sq || null }, tr = [nb.buffer];
         if (pre === 2 && col.np) tr.push(col.np.buffer);
         return new Promise(function (res, rej) { best.q.push([res, rej]); best.h.post(msg, tr); });
       }
       function release(ok) { hs.forEach(function (x) { if (!ok || x.dead) { x.h.kill(); while (x.q.length) x.q.shift()[1](new Error('LfcPack: helper closed')); } else if (x.q.length) x.drain = true; else idleHelpers.push(x.h); }); hs = []; armIdle(3000); }
-      function sjob(msg, tr) {   // since 0.15.0: one column summary on a helper (a new one while there are fewer than w, else the least busy), posted before the first block so it runs while this thread writes that block
-        var best, i; if (hs.length < w) { best = helperQ(takeHelper()); hs.push(best); } else { best = hs[0]; for (i = 1; i < hs.length; i++) if (hs[i].q.length < best.q.length) best = hs[i]; }
-        msg.id = nextId++; return new Promise(function (res, rej) { best.q.push([res, rej]); try { best.h.post(msg, tr); } catch (e) { best.q.pop(); rej(e); } });   // a post that throws leaves no answer slot behind
-      }
-      if (opts && opts._side && opts._side.offload) opts._side.offload(sjob);
       var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol, _hb: pay === 2, _side: opts && opts._side, _busy: function () { if (hs.length < w) return false; for (var z = 0; z < hs.length; z++) if (hs[z].q.length < 2) return false; return true; } }), out;
       try { out = packRowsBlocks(rows, jo); } catch (e) { release(true); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; }
       if (out === null) { release(true); return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); }
@@ -420,10 +415,10 @@
     if (!y31) { for (ra = 0; ra < RA.length; ra += cnt, cnt = stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol, sumCap: opts._side ? opts._side.cap : null } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
     ra = 0;
     return new Promise(function (res, rej) {
-      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol, sumCap: opts._side ? opts._side.cap : null } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += cnt; cnt = stp; if (opts._side && opts._busy && opts._busy()) opts._side.next(ra < RA.length); if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
+      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol, sumCap: opts._side ? opts._side.cap : null } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += cnt; cnt = stp; if (opts._side && opts._busy && opts._busy()) opts._side.next(true); if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
       one();
     });
-    function b31Join(waits) { if (opts._side) while (opts._side.next(false));   // the summary columns left over run while the helpers finish the last blocks
+    function b31Join(waits) { if (opts._side) while (opts._side.next(true));   // the summary columns that need no block parts run while the helpers finish the last blocks (the rest merge once every block is in)
       return Promise.all(waits).then(function (bs) {
       var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b, eqf = [], eqAny = false, eqb;
       for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0, b.kind === 'f' ? b.prefix : undefined));   /* B55: per-column checks on parallel saves too */ zone.push(b.zone); eqb = b.kind === 'f' ? eqOf(b) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }

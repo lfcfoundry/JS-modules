@@ -429,22 +429,9 @@
     for (i = 0; i < n; i++) { if (typeof v[i] !== 'string') return null; t = dateMs(v[i], f); if (!(t >= 0)) return null; a[i] = t; }
     return dateMany(a, n) ? { f: f, a: a } : null;
   }
-  // since 0.15.0: while a column summary is being made, each date column the writer reads into numbers leaves its range and order here, per block (SUMCAP[key][first row]), so the summary needs no second pass over the strings
+  // since 0.15.0: while a column summary is being made, every number and date column the writer reads leaves its part here per block (SUMCAP.cols[key][first row], blockStats), so the summary needs no pass of its own
   var SUMCAP = null, SUMA = 0;
-  function sumCapDates(key, a, f) {
-    var n = a.length, c, mn, mx, asc = true, desc = true, i, x, p, u = f & 4, A = SUMA, e, P, j, lo, hi, sv, gv, G; if (!n) return;   // six-digit forms hold microseconds: the range is given in whole milliseconds (as Date.parse reads them), the order is judged on the microseconds
-    mn = mx = p = a[0];
-    for (i = 1; i < n; i++) { x = a[i]; if (x < p) asc = false; else if (x > p) desc = false; if (x < mn) mn = x; else if (x > mx) mx = x; p = x; }
-    e = { a: A, n: n, mn: u ? Math.floor(mn / 1000) : mn, mx: u ? Math.floor(mx / 1000) : mx, asc: asc, desc: desc, first: a[0], last: a[n - 1], u: u, sv: null, gv: null };
-    if (SUMCAP.q) {   // the values the quantile grid needs: the sample positions inside this block, and the exact grid ranks (used when the whole column turns out ordered)
-      P = SUMCAP.pos;
-      if (!P) sv = a.slice();
-      else { lo = 0; hi = P.length; while (lo < hi) { j = (lo + hi) >> 1; if (P[j] < A) lo = j + 1; else hi = j; } sv = []; for (j = lo; j < P.length && P[j] < A + n; j++) sv.push(a[P[j] - A]); sv = Float64Array.from(sv); }
-      G = SUMCAP.grid; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= A && G[j] < A + n) gv.push(G[j], a[G[j] - A]);
-      e.sv = sv; e.gv = gv;
-    }
-    c = SUMCAP.cols[key] || (SUMCAP.cols[key] = {}); c[A] = e;
-  }
+  function sumCapDates(key, a, f) { var e = blockStats(a, a.length, SUMA, SUMCAP.R); e.u = f & 4; capPut(SUMCAP, key, e); }   // six-digit forms hold microseconds (scaled when merged)
   var WMARK = 0, W3MARK = 0;   // count the date columns written (WMARK), and those in a space-separated or six-digit form (W3MARK), so a pack call can tell whether its file needs format minor 2 or 3
   function dateWrap(dn, zs, level, key) {   // the date numbers as the best number layout, as one 'W' column; null if the number layouts did not get a typed column
     var a = dn.a, nn = a.length, D = dn.f & 4 ? 1e6 : 1000, i, f = dn.f, b;
@@ -1033,12 +1020,12 @@
       else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
       else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
-    var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol;
+    var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol, capB = SUMCAP, sqB = capB ? { a0: SUMA, R: capB.R } : null;   // capB: where this block's summary parts go (the block may finish after SUMCAP is reset)
     for (j = 0; j < cols.length; j++) {
       if (rc && pre21[j] && pre21[j] !== 3 && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
-        (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; if (r.e.t === 'W') WMARK++; es[j2] = r; }; }(j)));
+        (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26, sqB && (pre21[j] === 1 ? cols[j].length : cols[j].c) === n ? sqB : null).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; if (r.e.t === 'W') WMARK++; if (r.sb && capB) capPut(capB, keys[j2], r.sb); es[j2] = r; }; }(j)));
         cols[j] = []; continue; }
-      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26, fl21[j]);
+      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26, fl21[j], sqB && (pre21[j] === 1 || pre21[j] === 2) && (pre21[j] === 1 ? cols[j].length : cols[j].c) === n ? sqB : null); if (es[j].sb && capB) capPut(capB, keys[j], es[j].sb);
     }
     function finish() {
       for (j = 0; j < cols.length; j++) {
@@ -1223,8 +1210,10 @@
         if (c21.a !== null) c21.a.push(x); else if (typeof x === 'number') { c21.nb[c21.m++] = x; c21.c++; } else if (x === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x); c21.nb = null; } } }
   }
   // one column of the general flat writer, as writeFlatBlock0 encodes it: pre 1 = a typed number column, 2 = numbers and nulls ({ nb, np, m, c }), else a generic array; -> { e, zn: zone entry [min, max, count] or null }
-  function b28Col(pre, a, key, zs, level, tm21, chk26, pf) {
-    var e, fl = null, zn = null, i, mn, mx, c21;
+  function b28Col(pre, a, key, zs, level, tm21, chk26, pf, sq) {   // sq (since 0.15.0): { a0, R } when the save wants this block's part of the column summary (blockStats), read before the column is encoded
+    var e, fl = null, zn = null, i, mn, mx, c21, sb = null, rr, k;
+    if (sq && pre === 1) sb = blockStats(a, a.length, sq.a0, sq.R);
+    else if (sq && pre === 2) { rr = new Float64Array(a.c); for (i = 0, k = 0; i < a.c; i++) rr[i] = a.np && (a.np[i >> 3] >> (i & 7) & 1) ? NaN : a.nb[k++]; sb = blockStats(rr, a.c, sq.a0, sq.R); }
     if (pre === 1) fl = pf || b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
     if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
     if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
@@ -1234,13 +1223,13 @@
     NK_BUF = null;
     if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === e.nn) { mn = NKZ.mn; mx = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mn) mn = e.nn[i]; if (e.nn[i] > mx) mx = e.nn[i]; } zn = [mn, mx, e.n]; }
     if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && a.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zn = [mn, mx, a.length]; }
-    return { e: e, zn: zn };
+    return { e: e, zn: zn, sb: sb };
   }
   function b28Job(m) {   // in a helper: one column -> { msg, transfer }
     try {
       var a = m.pre === 2 ? { nb: m.nb, np: m.np, m: m.m, c: m.c } : m.nb, r; B18_ALLV = true;
-      try { r = b28Col(m.pre, a, m.key, S.zfull, m.level, m.tm, m.chk); } finally { B18_ALLV = false; }
-      var e = r.e; return { msg: { id: m.id, e: { t: e.t, p: e.p, n: e.n, z: e.z, st: e.st }, zn: r.zn }, transfer: [] };
+      try { r = b28Col(m.pre, a, m.key, S.zfull, m.level, m.tm, m.chk, undefined, m.sq); } finally { B18_ALLV = false; }
+      var e = r.e; return { msg: { id: m.id, e: { t: e.t, p: e.p, n: e.n, z: e.z, st: e.st }, zn: r.zn, sb: r.sb }, transfer: [] };
     } catch (er) { if (er === B26_BAIL) return { msg: { id: m.id, bail: 1 }, transfer: [] }; return { msg: { id: m.id, error: String(er && er.message || er) }, transfer: [] }; }
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
