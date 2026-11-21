@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.20.0 · API 2**
+**Version 2.20.1 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (speed race in all three, one at a time); 747 module checks pass
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (speed race in all three, one at a time); 751 module checks pass
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
