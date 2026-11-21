@@ -1,6 +1,6 @@
 # netflow-circular
 
-**Version 1.5.0 · API 1**
+**Version 1.5.1 · API 1**
 
 **Tested in:** node tests (953, shared with netflow-hierarchy); first-picture paired runs, fresh page per sample, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 

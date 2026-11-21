@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.5.0 (API 1)
+ * Version 1.5.1 (API 1)
  * netflow-circular.js: the circular views of Netflow Map (Chord, Bundles). layout(view, G, o) returns a plain layout; scene(L, o, NS) turns it
  * into drawing lists for netflow-scene. Built on netflow-hierarchy (its tree, values and drawing frame): load netflow-hierarchy.js first,
  * or keep it next to this folder in Node. No page, no DOM.
@@ -8,6 +8,7 @@
 var NetflowCircular = (function () {
   'use strict';
   var TAU = Math.PI * 2;
+  var TYPED_OF = typeof WeakMap === "function" ? new WeakMap() : { set: function () {}, get: function () { return null; } };   /* chart -> its band arrays, for drawing while chart.flows has not been read yet */
   /* netflow-hierarchy: a page global, the file in its own folder next to this one, or (a copy kept with others in one folder) the file next to this one */
   var HY = typeof NetflowHierarchy !== 'undefined' ? NetflowHierarchy : typeof require === 'function' ? (function () { try { return require('../netflow-hierarchy/netflow-hierarchy.js'); } catch (e) { return require('./netflow-hierarchy.js'); } })() : null;
   if (!HY) throw new Error('netflow-circular: load netflow-hierarchy.js first');
@@ -33,7 +34,7 @@ var NetflowCircular = (function () {
     else for (i = 0; i < n; i++) { entOf[i] = i; ent.push({ label: G.nodes[i].label, group: G.nodes[i].group || '', items: [i], item: i }); }
     /* typed:true (since 1.5.0) keeps the bands as typed arrays (chart.flowsT) and makes no object for each band; the default makes the same bands as objects (chart.flows) */
     var K = ent.length, flows = new Map(), eN = G.edges.length, tab = K * K <= 8 * eN + 4096 ? new Int32Array(K * K).fill(-1) : null;   /* a table of places for the pairs when edges are dense, else a Map */
-    var typed = !!o.typed, fl = null, flowsT = null, nF = 0, fi, fq, sF, tF, vF, headE, tailE, nextE, cntE;
+    var typed = true, wantT = !!o.typed, fl = null, flowsT = null, nF = 0, fi, fq, sF, tF, vF, headE, tailE, nextE, cntE;
     var out = new Float64Array(K), inn = new Float64Array(K), tot = 0;
     if (typed) {
       sF = new Int32Array(eN); tF = new Int32Array(eN); vF = new Float64Array(eN); headE = new Int32Array(eN); tailE = new Int32Array(eN); nextE = new Int32Array(eN).fill(-1); cntE = new Int32Array(eN);
@@ -194,7 +195,19 @@ var NetflowCircular = (function () {
       nd.cx = cx + Math.cos(A.mid) * r; nd.cy = cy + Math.sin(A.mid) * r; nd.w = nd.h = w; nd.x = nd.cx - w / 2; nd.y = nd.cy - w / 2;
     });
     var res = { kind: 'chord', dir: 'none', nodes: nodes, edges: G.edges, chart: { type: 'chord', cx: cx, cy: cy, R: R, th: th, arcs: arcs, flows: fl, byGroup: byGroup, crossings: bestC, total: tot / 2 }, width: cx * 2, height: cy * 2 };
-    if (flowsT) { res.chart.flowsT = flowsT; delete res.chart.flows; }
+    if (wantT) { res.chart.flowsT = flowsT; delete res.chart.flows; }
+    else {   /* default: chart.flows is the same list of band objects as before, made when first read (most callers draw from the arrays and never read it) */
+      var chartObj = res.chart; TYPED_OF.set(chartObj, flowsT);
+      Object.defineProperty(chartObj, 'flows', { enumerable: true, configurable: true, get: function () {
+        var FT = flowsT, list = new Array(FT.n), q, e, ed, c;
+        for (q = 0; q < FT.n; q++) {
+          ed = new Array(FT.count[q]); for (c = 0, e = FT.firstEdge[q]; e >= 0; e = FT.nextEdge[e]) ed[c++] = e;
+          list[q] = { s: FT.s[q], t: FT.t[q], v: FT.v[q], edges: ed, sa0: FT.sa0[q], sa1: FT.sa1[q], ta0: FT.ta0[q], ta1: FT.ta1[q] };
+        }
+        Object.defineProperty(chartObj, 'flows', { value: list, enumerable: true, configurable: true, writable: true });
+        return list;
+      }, set: function (v) { Object.defineProperty(chartObj, 'flows', { value: v, enumerable: true, configurable: true, writable: true }); } });
+    }
     return res;
   }
   /**
@@ -310,7 +323,7 @@ var NetflowCircular = (function () {
         var mid = A.mid, lr = R + th + 8, right = Math.cos(mid) >= 0, rot = right ? mid : mid + Math.PI;
         if (itemShow && named[A.k]) lab(cx + Math.cos(mid) * lr, cy + Math.sin(mid) * lr, clip(A.label, 28), 12 * iscale, T.fg, { align: right ? 'l' : 'r', rot: rot, node: A.item !== undefined ? A.item : -1, minK: 0.15, group: ch.byGroup ? A.group : undefined });
       });
-      var FT = ch.flowsT, nFl = FT ? FT.n : ch.flows.length, directed = nFl <= 4000, fv = FT ? { s: 0, t: 0, sa0: 0, sa1: 0, ta0: 0, ta1: 0, edges: [0] } : null;
+      var FT = ch.flowsT || (Object.prototype.hasOwnProperty.call(ch, 'flows') && !Object.getOwnPropertyDescriptor(ch, 'flows').get ? null : TYPED_OF.get(ch)) || null, nFl = FT ? FT.n : ch.flows.length, directed = nFl <= 4000, fv = FT ? { s: 0, t: 0, sa0: 0, sa1: 0, ta0: 0, ta1: 0, edges: [0] } : null;
       for (var fk = 0; fk < nFl; fk++) {
         var f = ch.flows ? ch.flows[fk] : fv;
         if (FT) { f.s = FT.s[fk]; f.t = FT.t[fk]; f.sa0 = FT.sa0[fk]; f.sa1 = FT.sa1[fk]; f.ta0 = FT.ta0[fk]; f.ta1 = FT.ta1[fk]; f.edges[0] = FT.firstEdge[fk]; }
