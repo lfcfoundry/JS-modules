@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.14.4 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.14.5 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.0 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -63,6 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-21 · **lfc-pack** 0.14.5 · API 0: Saving column tables works out the bytes per row (which sets the block size) from the columns, without building 1,024 row objects first; same bytes. About 2 to 4% faster on a 19-column taxi Save (inside the timing noise).
 - 2026-11-21 · **lfc-pack** 0.14.4 · API 0: Date-time text columns (like 2024-01-31 10:15:07) pack about 10 to 30% faster: the calendar arithmetic runs once per day, not once per cell. Same bytes.
 - 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
 - 2026-11-20 · **netflow-plot** 2.18.0 · API 2: A line over 5,000 points draws one to four points per pixel column (first, lowest, highest, last); it looks the same. 100,000 points build in 16 ms (was 43) in Chromium 156, 19 (57) in Firefox 158, 16 (67) in WebKitGTK 2.52.6

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.5 · API 0 · 2026-11-21
+- Saving column tables works out the bytes per row (which sets the block size) from the columns, without building 1,024 row objects first; same bytes. About 2 to 4% faster on a 19-column taxi Save (inside the timing noise).
+
 ## 0.14.4 · API 0 · 2026-11-21
 - Date-time text columns (like 2024-01-31 10:15:07) pack about 10 to 30% faster: the calendar arithmetic runs once per day, not once per cell. Same bytes.
 

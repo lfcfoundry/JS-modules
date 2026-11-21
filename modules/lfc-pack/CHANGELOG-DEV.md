@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.5 · API 0 · 2026-11-21
+
+### Quick
+packRowsBlocks sized blocks from JSON.stringify of the first 1,024 rows; for a column table those rows were built one object at a time (rowsOf) just to be measured. previewLen now adds up the JSON length from the columns (plain arrays and number typed arrays of strings, numbers, booleans, null) and falls back to the stringify for anything else. Same length, so the same block cuts and the same bytes; no API change, no new setting.
+
+### Details
+Real taxi Save columns (200,293 rows, 19 columns), packBlock per 16,384-row batch, level 3, alternating pages, 5 each, median steady run: Chromium 156 290.9 to 291.6 ms (0.98x; pages 0.94 to 1.04), Firefox 158 298.2 to 294.7 (0.96x; pages 0.93 to 1.00). Both are inside the noise, so this is a small, not a proven, gain. Stored bytes identical (2,654,182). Node: 308 to 296 ms in three alternating pairs. test/previewlen.cjs: 121 column tables (8 sizes from 1 to 3,000 rows, 7 column mixes, 1 to 5 columns) with escapes, lone surrogates, NaN, Infinity, -0, nulls and booleans equal the stringify length.
+
+### Deep
+The profile of a Node Save (3 runs) had packRowsBlocks line (the stringify) at 63 ticks and rowsOf at 32 of about 1,950. The layout trials were measured at the same time and are not worth a cache (js-modules-research/layout-trials-2026.11.21). An undefined value is skipped by JSON.stringify, so a column holding undefined takes the stringify.
+
 ## 0.14.4 · API 0 · 2026-11-21
 
 ### Quick

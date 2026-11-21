@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.14.4 (API 0)
+ * Version 0.14.5 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -3630,7 +3630,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.14.4', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.14.5', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -4118,13 +4118,54 @@
       return out.then(function (b) { release(true); return b === null ? pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts) : b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; });
     });
   }
+  // The length of JSON.stringify(RA.slice(0, 1024)) (the bytes per row that decide the block size), worked out from the column table without building a row object for each of the 1,024 rows (since 0.14.5):
+  // plain arrays and number typed arrays whose values are strings, numbers, booleans or null; any other column, or any other value, takes the stringify as before. A string is its length plus 2, plus 1 for each
+  // character that is escaped (a quote, a backslash, below 0x20) and 5 more for the \u form of a control character or a lone surrogate, as JSON.stringify writes it.
+  var PL_ESC = /[\u0000-\u001f"\\\ud800-\udfff]/;
+  function jsonStrLen(s) {
+    var n = s.length, t = 2, i, c, d;
+    if (!PL_ESC.test(s)) return n + 2;
+    for (i = 0; i < n; i++) {
+      c = s.charCodeAt(i);
+      if (c < 32) t += c === 8 || c === 9 || c === 10 || c === 12 || c === 13 ? 2 : 6;
+      else if (c === 34 || c === 92) t += 2;
+      else if (c >= 0xD800 && c <= 0xDFFF) { d = i + 1 < n ? s.charCodeAt(i + 1) : 0; if (c <= 0xDBFF && d >= 0xDC00 && d <= 0xDFFF) { t += 2; i++; } else t += 6; }
+      else t += 1;
+    }
+    return t;
+  }
+  function previewLen(RA) {
+    var ct = RA.__ct, m = Math.min(1024, RA.length), keys, A, q, i, a, v, tot = 0, kl;
+    if (ct && m > 0) {
+      keys = ct.keys; A = ct.A;
+      for (q = 0; q < keys.length; q++) { a = A[q]; if (!(Array.isArray(a) || (ArrayBuffer.isView(a) && !(a instanceof DataView)))) { ct = null; break; } }
+      if (ct) {
+        for (q = 0; q < keys.length; q++) {
+          a = A[q]; kl = jsonStrLen(keys[q]) + 1;
+          for (i = 0; i < m; i++) {
+            v = a[i];
+            if (typeof v === 'number') tot += v - v === 0 ? String(v).length : 4;
+            else if (typeof v === 'string') tot += jsonStrLen(v);
+            else if (v === null) tot += 4;
+            else if (v === true) tot += 4;
+            else if (v === false) tot += 5;
+            else { ct = null; break; }
+          }
+          if (!ct) break;
+          tot += kl * m;
+        }
+        if (ct) return 2 + m - 1 + m * 2 + tot + (keys.length > 1 ? (keys.length - 1) * m : 0);
+      }
+    }
+    return JSON.stringify(RA.slice(0, 1024)).length;
+  }
   function packRowsBlocks(RA, opts) {   // packManyNow's row path, with blocks that may wait on helpers -> Promise of bytes, or null when a block cannot take the row path
     need(true);
     var bb = opts.blockBytes || BLOCK_BYTES, nm0 = NMARK, wm0 = WMARK, w30 = W3MARK, ctx = { zs: S.zfull, sh: S.sh, st: null, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick, shw: opts._piece && !opts._nolabels ? { tabs: {}, n: 0 } : null }, waits = [], ra, sl, blk;
     if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;
     if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
-    var est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
+    var est = previewLen(RA) / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
     var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0, cnt = hb0 || stp;   // P13i: the B22 head block, as packRows cuts it
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;
