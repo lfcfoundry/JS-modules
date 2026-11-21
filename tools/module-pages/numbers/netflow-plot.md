@@ -25,4 +25,4 @@ Compared: netflow-plot against uPlot and Chart.js (gzipped size in KB, smaller i
 | netflow-plot with netflow-scene | 61.6 |
 | Chart.js | 70.9 |
 
-Same minifier for ours and uPlot; the rivals' own minified files otherwise. Sizes were measured at netflow-plot 2.17.0 and not re-measured since; the module has grown by about 1.5% (shipped file). netflow-scene (33.3 KB of the total) is needed to draw.
+Same minifier for ours and uPlot; the rivals' own minified files otherwise. Sizes were measured at netflow-plot 2.17.0 and not re-measured since; the shipped file has grown by 7.9% since (127,056 to 137,098 bytes, 43.1 KB gzipped at 2.18.1), so the total is a little higher now; it is not re-measured. netflow-scene (33.3 KB of the total) is needed to draw.
