@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.15.0 · API 0 · 2026-11-21
+- Saved column tables now carry a summary of every column (range, order, a 257-point quantile grid, the most common labels) and chart bins for number and date columns, read without unpacking anything.
+- New: LfcPack.summary(bytes) and LfcPack.pyramids(bytes), also open().summary() and open().pyramids(key); options summary: false, pyramids: false or { bins }, quantiles: false.
+- Reads can fill arrays you keep in more places: unpackColumnsParallel into, and text as bytes into a holder.
+
 ## 0.14.12 · API 0 · 2026-11-21
 - The version the library reports about itself now matches the release (it still said 0.14.8). No other change.
 

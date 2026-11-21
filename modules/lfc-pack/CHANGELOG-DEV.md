@@ -2,6 +2,20 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.15.0 · API 0 · 2026-11-21
+
+### Quick
+Footer sections 20 (column summaries) and 21 (chart bins) are written by packColumnsParallel and read without decoding; old readers skip them. No breaking change.
+
+### Details
+summary(bytes) / open().summary(): per column type, nulls, min, max, sorted, q (257-point quantile grid; exact when ordered, counted or at most 65,536 values; else 65,536 sampled values, worst rank error 0.44% on 400,000 rows), qExact/qn for at most 257 values, text len/distinct/top.
+pyramids(bytes[, key]) / open().pyramids(key): { n, bin (rows per bin), min, max (Float64Array, NaN when empty), count (Uint32Array), first, last }, about 2,048 bins.
+Cost (1M rows, 13 interleaved pairs, 4-core machine): mixed table +4% Chromium 156, -1% Firefox 158, +2 to +9% WebKitGTK 2.52.6; numbers-only table +27 to +50%. Files +0.4 to +2.4%.
+unpackColumnsParallel takes into; unpackColumns text: 'bytes' takes into: { key: { bytes, start, end } }.
+
+### Deep
+Summaries ride the writer's own pass over each block (blockStats from b28Col on the helper that encodes the block, and from dateWrap for date columns); the calling thread only merges. First tries cost +19% (a separate pass on the calling thread, which is the bottleneck when text columns are written); helper copies of number columns cost 10 ms of copying; per-block sampling with 1,025 kept order statistics and a radix sort brought the q path from 15 to 8.5 ms per million values. Busy-slot jobs must not run columns that wait on block parts (that made every number column fall back to a whole-column pass). Pitfalls found: TypedArray.prototype.values is a function, so c.values || c broke postMessage in browsers only; a post that throws must remove its answer slot; Firefox is slow with sparse integer keys on a plain object (Map used). Section ids: 22 views and 23 graph reserved.
+
 ## 0.14.12 · API 0 · 2026-11-21
 
 ### Quick
