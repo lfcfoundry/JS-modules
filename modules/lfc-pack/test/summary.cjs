@@ -52,7 +52,7 @@ const J = require('../lfc-pack.js'), assert = require('assert');
   // line-chart pyramids (footer section 21): min, max and count of every run of `bin` rows, first and last value; empty bins NaN
   { const M = 100000, up2 = new Float64Array(M), rnd = new Float64Array(M), gap = new Array(M), tsv = new Array(M); let sd = 11;
     for (let i = 0; i < M; i++) { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; up2[i] = i * 2; rnd[i] = i >= 40000 && i < 40100 ? NaN : (sd / 4294967296) * 1000 - 500; gap[i] = i % 3 === 0 || (i >= 60000 && i < 61000) ? null : i * 0.5; tsv[i] = new Date(1.7e12 + i * 60000).toISOString().slice(0, 19); }
-    const fp = await J.packColumnsParallel({ up2, rnd, gap, tsv }, {}), P = J.pyramids(fp), bin = Math.ceil(M / 2048), bins = Math.ceil(M / bin);
+    const fp = await J.packColumnsParallel({ up2, rnd, gap, tsv }, {}), P = J.pyramids(fp), bin = Math.ceil(M / 4096), bins = Math.ceil(M / bin);
     ok(P && Object.keys(P).join() === 'up2,rnd,gap,tsv', 'pyramid keys ' + (P && Object.keys(P).join()));
     const vals = { up2: Array.from(up2), rnd: Array.from(rnd), gap: gap.map((x) => (x === null ? NaN : x)), tsv: tsv.map((s) => Date.parse(s + 'Z')) };
     for (const k of Object.keys(vals)) { const p = P[k], v = vals[k]; let good = p.n === M && p.bin === bin && p.min.length === bins && p.min instanceof Float64Array && p.count instanceof Uint32Array;
@@ -91,5 +91,15 @@ const J = require('../lfc-pack.js'), assert = require('assert');
   const one = J.summary(await J.packColumnsParallel({ a: [7], s: ['q'] })); ok(one.cols[0].min === 7 && one.cols[0].max === 7 && !one.cols[0].hist && one.cols[1].distinct === 1, 'one row');
   // byte-exact and a plain pack still read as before
   const ex = await J.packColumnsParallel({ a: [1, 2.5, 3], s: ['x', 'y', 'z'] }, { exact: true }); ok(J.summary(ex).cols.length === 2 && J.unpackRows(ex).length === 3, 'exact');
+  { // pyramids(bytes, key, { full: true }): full() reads that column on its first call (numbers, NaN for missing, dates in ms, six-digit dates scaled)
+    const M2 = 40000, v = new Float64Array(M2), w = new Int32Array(M2), du = [];
+    for (let i = 0; i < M2; i++) { v[i] = i % 11 ? Math.sin(i) * 100 : NaN; w[i] = i * 3; du.push(new Date(1.7e12 + i * 1000).toISOString().slice(0, 23) + '456'); }
+    const f2 = await J.packColumnsParallel({ v, w, du }, {}), P = J.pyramids(f2, { full: true }), one = J.pyramids(f2, 'v', { full: true });
+    const fv = P.v.full(), fw = P.w.full(), fd = P.du.full();
+    ok(fv instanceof Float64Array && fv.length === M2 && fv.every((x, i) => Object.is(x, v[i])), 'full(): number column with NaN');
+    ok(fw.every((x, i) => x === w[i]), 'full(): whole numbers as Float64Array');
+    ok(Math.abs(fd[5] - (1.7e12 + 5000.456)) < 1e-3 && fd[0] === P.du.min[0], 'full(): six-digit dates in ms like the bins');
+    ok(P.v.full() === fv && one.full().length === M2 && J.pyramids(f2).v.full === undefined, 'full(): cached, single key, absent unless asked');
+  }
   console.log(bad ? bad + ' of ' + n + ' FAILED' : 'column summaries: ' + n + ' checks passed'); process.exit(bad ? 1 : 0);
 })();
