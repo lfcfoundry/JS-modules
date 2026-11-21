@@ -102,21 +102,21 @@ for (const [n, extra, groups] of [[12, 0, 3], [12, 9, 3], [300, 0, 0], [300, 200
 /* opt-in title, subtitle and source on every view */
 for (const v of ['treemap', 'sunburst', 'chord']) {
   const g = { nodes: [], edges: [] }; for (let i = 0; i < 30; i++) { g.nodes.push({ id: 'n' + i, label: 'N' + i }); if (i) g.edges.push({ from: 'n' + Math.floor(i / 4), to: 'n' + i, value: 1 + i % 5 }); }
-  const NS = require('../../netflow-scene/netflow-scene.js'), M = v === 'chord' ? require('../../netflow-circular/netflow-circular.js') : require('../netflow-hierarchy.js');
+  const NS = require('../../netflow-scene/netflow-scene.js'), M = v === 'chord' ? require('../../netflow-circular/netflow-circular.js') : require(process.env.NH_FILE ? require('path').resolve(process.env.NH_FILE) : '../netflow-hierarchy.js');
   const a = M.scene(M.layout(v, JSON.parse(JSON.stringify(g)), {}), {}, NS), b = M.scene(M.layout(v, JSON.parse(JSON.stringify(g)), {}), { title: 'T', source: 'S' }, NS);
   ok(!a.titles && b.titles && b.labels[0].t === 'T' && b.labels[1].t === 'S' && b.h > a.h, v + ': title and source only when asked');
 }
 const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'Food', weight: 14 }, { from: 'Side <work>', to: 'Food', count: 4 }];
 /* one call: toSvg(links, options) for every view, through the global NetflowScene; boxes sized by what flows in */
 {
-  const HY = require('../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
+  const HY = require(process.env.NH_FILE ? require('path').resolve(process.env.NH_FILE) : '../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
   for (const v of ['treemap', 'sunburst', 'icicle', 'pack', 'tree']) { const s = HY.toSvg(LINKS, { type: v, title: 'T' }); ok(s.indexOf('<svg') === 0 && s.indexOf('>Rent<') > 0, 'one call ' + v); }
   for (const v of ['chord', 'bundles']) { const s = CI.toSvg(LINKS, { type: v }); ok(s.indexOf('<svg') === 0 && s.indexOf('Rent') > 0, 'one call ' + v); }
   const G = HY.asGraph(LINKS); ok(G.nodes.length === 4 && G.nodes.find((n) => n.id === 'Rent').sizeV === 30 && G.edges[1].weight === 14, 'graph from links');
   ok(HY.toSvg(LINKS) === HY.toSvg({ links: LINKS }), '{ links } works too');
 }
 { /* text contrast on the DRAWN colors (each shape blended over what is under it), every color of the list, light and dark, every boxed view: names read at 4.5:1 or better */
-  const HY = require('../netflow-hierarchy.js'), NS = global.NetflowScene;
+  const HY = require(process.env.NH_FILE ? require('path').resolve(process.env.NH_FILE) : '../netflow-hierarchy.js'), NS = global.NetflowScene;
   const lin = (v) => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4), lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
   const cr = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05), ov = (c, b) => { const a = c[3] === undefined ? 1 : c[3]; return [0, 1, 2].map((i) => c[i] * a + b[i] * (1 - a)); };
   const tops = ['Sales', 'Ops', 'Product', 'Legal', 'People', 'Data', 'Design', 'Support', 'Finance', 'Research', 'IT', 'Brand'], links = [], items = [];
@@ -147,7 +147,7 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   ok(low.length <= 4, 'circle names that cross two shades: at most 4 of them below 4.5:1 (' + low.length + ')');
 }
 { // width and height given: a treemap is laid out at that size (hierarchy 1.5.0); a chord ring fits inside it with its names (circular 1.3.0)
-  const HY = require('../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
+  const HY = require(process.env.NH_FILE ? require('path').resolve(process.env.NH_FILE) : '../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
   const tree = [{ from: 'all', to: 'a', value: 5 }, { from: 'all', to: 'b', value: 3 }, { from: 'a', to: 'a1', value: 2 }, { from: 'a', to: 'a2', value: 3 }, { from: 'b', to: 'b1', value: 3 }];
   const names = ['Detroit', 'Chicago', 'Toronto', 'Cleveland', 'Buffalo', 'Columbus'], flows = [];
   names.forEach((a, i) => names.forEach((b, j) => { if (i !== j) flows.push({ from: a, to: b, value: (i * 7 + j * 3) % 11 + 1 }); }));
@@ -161,7 +161,7 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   ok(dims(HY.toSvg(tree, {}))[0] === 960, 'treemap without width and height keeps its own size');
 }
 { // amounts written as text with thousands commas, a currency sign or a percent sign read as numbers (1.5.1); before, '1,200' was not a number
-  const HY = require('../netflow-hierarchy.js');
+  const HY = require(process.env.NH_FILE ? require('path').resolve(process.env.NH_FILE) : '../netflow-hierarchy.js');
   const w = HY.asGraph([{ from: 'a', to: 'b', value: '1,200' }, { from: 'b', to: 'c', value: '40' }, { from: 'c', to: 'd', value: '$2,500.5' }, { from: 'd', to: 'e', value: '45%' }]).edges.map((e) => e.weight);
   ok(JSON.stringify(w) === '[1200,40,2500.5,45]', 'text amounts with commas, $ and % read as numbers (' + JSON.stringify(w) + ')');
   const g = HY.asGraph([{ s: 'a', t: 'b', amt: '1,200' }, { s: 'b', t: 'c', amt: '40' }]).edges.map((e) => [e.from, e.to, e.weight]);
@@ -178,7 +178,7 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
 }
 /* warm() (since 1.6.0 / circular 1.4.0): draws small made-up pictures and changes nothing about later ones */
 {
-  const HY = require('../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
+  const HY = require(process.env.NH_FILE ? require('path').resolve(process.env.NH_FILE) : '../netflow-hierarchy.js'), CI = require('../../netflow-circular/netflow-circular.js');
   const rows = [{ from: 'a', to: 'b', value: 3 }, { from: 'a', to: 'c', value: 5 }, { from: 'b', to: 'd', value: 2 }, { from: 'c', to: 'e', value: 4 }];
   const h0 = HY.toSvg(rows), s0 = HY.toSvg(rows, { type: 'sunburst' }), c0 = CI.toSvg(rows), b0 = CI.toSvg(rows, { type: 'bundles' });
   ok(HY.warm() === true && CI.warm() === true, 'warm() runs and returns true in both modules');
@@ -209,6 +209,15 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   const L2 = C.layout('treemap', copy(G), { nest: 'auto', chordBy: 'auto', sized: true }); L2.view = 'treemap'; L2.groups = ['g0'];
   const S2 = C.scene(L2, { typedRects: true }, { ...global.NetflowScene, makeRectsT: undefined });
   ok(S2.rects.length > 100 && !S2.rectsT, 'a scene module without typed rects (older) gives the object form');
+}
+{   /* the minified file is this version and draws the same pictures (rebuild: test/make-min.js) */
+  const fs = require('fs'), path = require('path'), dir = path.join(__dirname, '..');
+  const src = fs.readFileSync(path.join(dir, 'netflow-hierarchy.js'), 'utf8'), min = fs.readFileSync(path.join(dir, 'netflow-hierarchy.min.js'), 'utf8');
+  const ver = /Version (\d+\.\d+\.\d+ \(API \d+\))/.exec(src)[1];
+  ok(min.indexOf('minified. Version ' + ver + '.') >= 0, 'netflow-hierarchy.min.js is version ' + ver + ' (rebuild it with test/make-min.js)');
+  const A = require('../netflow-hierarchy.js'), B = require('../netflow-hierarchy.min.js'), rows = [];
+  for (let i = 1; i < 160; i++) rows.push({ from: 'n' + ((i * 7) % i), to: 'n' + i, value: 1 + (i * 13) % 17 });
+  for (const type of ['treemap', 'sunburst', 'icicle', 'pack', 'tree']) ok(A.toSvg(rows, { type }) === B.toSvg(rows, { type }), 'the minified file draws the same ' + type);
 }
 console.log(fails ? fails + ' of ' + checks + ' checks FAILED' : checks + ' checks passed');
 process.exit(fails ? 1 : 0);

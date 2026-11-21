@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.0 · API 1 · 2026-11-20
+- New netflow-hierarchy.min.js: the same module minified, 14.1 KB gzipped instead of 22.6; same pictures.
+
 ## 1.7.2 · API 1 · 2026-11-20
 - Sorting each item's children is faster on small charts; same picture.
 

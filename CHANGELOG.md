@@ -39,7 +39,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.7.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.19.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -71,6 +71,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-20 · **netflow-plot** 2.18.1 · API 2: A line chart of many points builds about 3 times faster (100,000 points: 15 to 5 ms in Chromium 156, 20 to 5 in Firefox 158, 21 to 10 in WebKitGTK 2.52.6); the chart is exactly the same
 - 2026-11-20 · **netflow-plot** 2.18.0 · API 2: A line over 5,000 points draws one to four points per pixel column (first, lowest, highest, last); it looks the same. 100,000 points build in 16 ms (was 43) in Chromium 156, 19 (57) in Firefox 158, 16 (67) in WebKitGTK 2.52.6
 - 2026-11-20 · **netflow-plot** 2.17.1 · API 2: A line chart of many points builds its drawing 2.5 to 3.5 times faster (100,000 points: 42 to 17 ms in Chromium); the chart is the same
+- 2026-11-20 · **netflow-hierarchy** 1.8.0 · API 1: New netflow-hierarchy.min.js: the same module minified, 14.1 KB gzipped instead of 22.6; same pictures.
 - 2026-11-20 · **netflow-hierarchy** 1.7.2 · API 1: Sorting each item's children is faster on small charts; same picture.
 - 2026-11-20 · **netflow-hierarchy** 1.7.1 · API 1: Every nested view is laid out faster, icicle most: 100,000 items take 0.66 (Chromium 156), 0.35 (Firefox 158) and 0.43 (WebKitGTK 2.52.6) of d3-hierarchy 3.1.3's time. Same picture.
 - 2026-11-20 · **netflow-circular** 1.5.1 · API 1: The default chord layout is about twice as fast (400 items, 80,000 links: 32 to 18 ms in Chromium, 28 to 14 in Firefox, 34 to 23 in WebKitGTK); the band objects in chart.flows are now made the first time they are read. Same output.
