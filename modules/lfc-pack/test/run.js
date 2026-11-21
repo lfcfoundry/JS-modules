@@ -15,6 +15,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   fs.writeFileSync(path.join(dir, 'canonical.src'), canonicalText);
   step('round trips (auto, nested, flat)', 'node', ['roundtrip.cjs']);
   step('metadata section', 'node', ['meta.cjs']);
+  step('column summaries (section 20)', 'node', ['summary.cjs']);
   step('xxh64 block checks', 'node', ['xxh.cjs']);
   step('deflated wasm: zlib and JS inflater', 'node', ['inflate.cjs']);
   step('packParallel dispatch', 'node', ['dispatch.cjs']);

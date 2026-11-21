@@ -342,7 +342,9 @@
     var t = colTable(obj, 'packColumnsParallel');
     if (t instanceof Error) return Promise.reject(t);
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
-    return packRowsParallel(t.CT, opts);
+    var pr = packRowsParallel(t.CT, opts), sm = null;
+    if (!opts || opts.summary !== false) { try { sm = columnSummary(obj, t.n); } catch (e) { sm = null; } }   // since 0.15.0: the column summary (footer section 20), made while the helpers pack
+    return sm ? pr.then(function (b) { return addSection(b, SEC_SUMMARY, sm); }) : pr;
   }
   function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
     if (!rows.__ct) return packRows(rows, opts);
