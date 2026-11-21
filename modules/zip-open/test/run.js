@@ -685,4 +685,16 @@ t('A crafted number format (many unclosed [) is checked in linear time', async f
   assert.ok(Date.now() - t0 < 2000, 'took ' + (Date.now() - t0) + ' ms');
   assert.equal(got[0].csv, '2023-03-15', 'read as a date, as before');
 });
+t('onFile (since 1.21.0): each file is handed over as it is unpacked, the result is the same, nested zips and bad options behave', async function () {
+  var inner = Z.makeZip([{ name: 'in.csv', data: csv }]);
+  var z = u8(Z.makeZip([{ name: 'a.csv', data: csv }, { name: 'b.txt', data: 'hello' }, { name: 'sub.zip', data: inner, method: 0 }, { name: 'c.json', data: JSON.stringify({ nodes: [{ id: 'A' }], edges: [] }) }]));
+  var got = [], r = await U.expand(z, 'p.zip', { onFile: function (f, i) { got.push([i, f.path, f.text]); } }), plain = await U.expand(z, 'p.zip');
+  assert.deepEqual(r.files, plain.files, 'same files with and without onFile'); assert.deepEqual(r.notes, plain.notes);
+  assert.deepEqual(got.map(function (g) { return g[0]; }), got.map(function (g, i) { return i; }), 'indexes count up from 0');
+  assert.deepEqual(got.map(function (g) { return g[1]; }), r.files.map(function (f) { return f.path; }), 'one call per file, in the result order');
+  var seenBefore = -1; await U.expand(z, 'p.zip', { onFile: function (f, i) { if (i === 0) seenBefore = 1; } }); assert.equal(seenBefore, 1);
+  var blobGot = []; var blob = new Blob([z]); await U.expandBlob(blob, 'p.zip', { onFile: function (f) { blobGot.push(f.path); } }); assert.deepEqual(blobGot, got.map(function (g) { return g[1]; }), 'expandBlob too');
+  await assert.rejects(U.expand(z, 'p.zip', { onFile: function () { throw new Error('stop here'); } }), /stop here/);
+  await assert.rejects(U.expand(z, 'p.zip', { onFile: 5 }), /onFile must be a function/);
+});
 chain.then(function () { console.log(process.exitCode ? 'zip-open: FAILED' : 'zip-open: all ' + n + ' checks passed'); process.exit(process.exitCode || 0); });

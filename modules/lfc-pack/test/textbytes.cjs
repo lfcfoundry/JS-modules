@@ -41,6 +41,8 @@ const same = (name, plain, got, bad) => {
   for (let b = 0; b < plainR.length; b++) for (const k of Object.keys(plainR[b].cols)) { cases++; same(k + '#' + b, plainR[b].cols[k], byteR[b].cols[k], bad); const g = byteR[b].cols[k]; shapes[k] = Array.isArray(g) ? 'array' : ArrayBuffer.isView(g) ? 'typed' : g.kind === 'dict' ? 'dict' : 'bytes'; }
   const small = await JF.packBlock({ d: Array.from({ length: 100 }, (_, i) => '2024-03-0' + (1 + i % 9) + ' 0' + (i % 10) + ':15:30') }, o), sp = JF.unpackColumns(small, {}), sb = JF.unpackColumns(small, { text: 'bytes' });
   for (let b = 0; b < sp.length; b++) { cases++; same('small dates#' + b, sp[b].cols.d, sb[b].cols.d, bad); }
+  const bigT = Array.from({ length: 6000 }, (_, i) => i % 97 === 0 ? '' : word() + word() + '_' + (i * 7919 % 100003) + (i % 211 === 0 ? ' caf\u00e9' : '')), bigB = await JF.packBlock({ t: bigT }, o), bigP = JF.unpackColumns(bigB, {}), bigX = JF.unpackColumns(bigB, { text: 'bytes' });   // long enough for the wasm cut (0.14.9)
+  for (let b = 0; b < bigP.length; b++) { cases++; same('big titles#' + b, bigP[b].cols.t, bigX[b].cols.t, bad); }
   const R = JF.open(file); const rd = await R; const st = JF.stats(file);
   for (let i = 0; i < st.length; i++) { const a = await rd.columns(i, {}), c = await rd.columns(i, { text: 'bytes' }); for (const k of Object.keys(a.cols)) { cases++; same('open ' + k + '#' + i, a.cols[k], c.cols[k], bad); } }
   let msg = ''; try { JF.unpackColumns(file, { text: 'strings' }); } catch (e) { msg = e.message; } if (!/text must be/.test(msg)) bad.push('bad option accepted');

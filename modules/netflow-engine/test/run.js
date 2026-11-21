@@ -121,6 +121,16 @@ t('toSvg(links) draws a picture from data alone', () => {
   let threw = false; try { E.toSvg([{ from: 'a' }]); } catch (e) { threw = e instanceof RangeError; } ok(threw, 'link without to throws');
 });
 t('the column reader is exposed and reads numbers the way people write them', () => { ok(E.columns.num('1,234.5') === 1234.5 && E.columns.num('12%') === 12 && isNaN(E.columns.num('0x10')), 'num'); });
+t('quickNetwork: typed lists in item order, one spiral per piece, nothing written into the input', () => {
+  const G = { nodes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'z' }], edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }, { from: 'a', to: 'nope' }, { from: 'z', to: 'z' }] };
+  const q = E.quickNetwork(G);
+  ok(q.n === 4 && q.cx.length === 4 && q.cy instanceof Float64Array && q.size.length === 4 && q.rough === true, 'shape');
+  ok(G.nodes[0].x === undefined && G.edges[0].pts === undefined, 'input was written');
+  ok(q.cx[3] > Math.max(q.cx[0], q.cx[1], q.cx[2]), 'the lone item is placed beside the piece');
+  ok(q.width > Math.max.apply(null, q.cx) && q.height > Math.max.apply(null, q.cy), 'width and height cover the items');
+  const q2 = E.quickNetwork(G); ok(q2.cx.every((v, i) => v === q.cx[i] && v === v), 'repeatable');
+  ok(E.quickNetwork({ nodes: [], edges: [] }).n === 0, 'empty');
+});
 t('the file has no dependencies and builds no code from text (no eval, no new Function)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'netflow-engine.js'), 'utf8').replace(/'[A-Za-z0-9+/=]{200,}'/g, "''");
   ok(!/\beval\s*\(/.test(src) && !/new Function\s*\(/.test(src), 'eval or new Function found'); ok((src.match(/\brequire\(/g) || []).length <= 2, 'unexpected require');

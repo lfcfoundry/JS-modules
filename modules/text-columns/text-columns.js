@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.6.5 (API 0)
+ * Version 0.7.1 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -434,7 +434,7 @@
         for (j = 0; j < t.columns.length; j++) {
           if (only && only.indexOf(j) < 0) continue;
           c = t.columns[j]; types.push(c.type === 'number' ? 1 : c.off ? (c.offAscii ? 2 : 3) : 0); cols.push(c.off || c.values);
-          if (c.type === 'number') { if (m.join && !isText) { (kept = kept || [])[j] = c.values; cols[cols.length - 1] = null; } else tr.push(c.values.buffer); } else if (c.off) tr.push(c.off[0].buffer, c.off[1].buffer, c.off[2].buffer);
+          if (c.type === 'number') { if (m.join && !isText) { (kept = kept || [])[j] = c.values; if (m.peek) { cols[cols.length - 1] = c.values.slice(); tr.push(cols[cols.length - 1].buffer); } else cols[cols.length - 1] = null; } else tr.push(c.values.buffer); } else if (c.off) tr.push(c.off[0].buffer, c.off[1].buffer, c.off[2].buffer);
         }
         var out = { id: m.id, names: t.names, count: t.count, types: types, cols: cols };
         if (m.utf16 !== false) withText(out, held, isText);
@@ -572,24 +572,45 @@
     var floor = opts.minBytes === undefined ? (POOL.length >= n ? WARM_MIN : PAR_MIN) : opts.minBytes, u = null, sel, lazy = !!opts.lazy, dch = String.fromCharCode(delim), k, i, j, r, jobs = [], res;
     if (blob && (noHelpers || badDelim || len < floor || opts._file === false)) { input = new Uint8Array(await blob.arrayBuffer()); blob = null; }   // _file: false = read the whole file on the page, the 0.5.2 way (test switch)
     if (!blob) { u = stripBom(toBytes(input)); len = u.length; }
-    var serial = async function () { if (!u) u = stripBom(new Uint8Array(await blob.arrayBuffer())); var t = parse(u, opts); t.workers = 0; return t; };
+    var serial = async function () { if (emitted) { emitted = false; onPiece({ reset: true }); } if (!u) u = stripBom(new Uint8Array(await blob.arrayBuffer())); var t = parse(u, opts); t.workers = 0; return t; };
     if (noHelpers || len < floor || badDelim) return serial();
     if (opts.columns !== undefined && opts.columns !== null) {
       var head = u;
       if (blob) { head = stripBom(new Uint8Array(await blob.slice(0, Math.min(len, 1048576)).arrayBuffer())); if (len > 1048576) head = head.subarray(0, head.lastIndexOf(10) + 1); }   // the column names from the first megabyte, cut at its last line end
       sel = selectColumns(head, delim, header, opts.columns); if (!sel) return serial();
     }
+    var onPiece = opts.onPiece, emitted = false;
+    if (onPiece !== undefined && typeof onPiece !== 'function') throw new Error('TextColumns: onPiece must be a function');
     var cuts, hasQ, sendBytes = true, pb = null, join = opts._join !== false;   // _join: false = the page joins the number columns (0.6.0 way; test switch)
     function pieceEnd(c, k) { return k + 1 < c.length ? c[k + 1] : len; }
+    // onPiece (since 0.7.1): as each helper answers, its piece goes to onPiece({ index, count, names, columns: [{ type, values }] }) (names: only for piece 0). Number columns are Float64Arrays; text values are built when first read, so read them inside the call.
+    // A piece is a first guess: a column that is numbers here and text in another piece, or a file read again, is settled in the returned table ({ reset: true } says to drop what you were given).
+    function tap(k) { return function (m) { if (onPiece && m && !m.err && m.count > 0) { emitted = true; onPiece(pieceOf(m, k)); } return m; }; }
+    function pieceOf(m, k) {
+      var cols = [], j, bytes = m.bytes || (pb ? pb[k] : (u ? u.subarray(cuts[k], pieceEnd(cuts, k)) : null)), text = m.text;
+      function make(j) {
+        var t = m.types[j], d = m.cols[j], vals = null, col = { type: t === 1 ? 'number' : 'text', values: null };
+        if (t === 1) { col.values = d; return col; }
+        Object.defineProperty(col, 'values', { enumerable: true, configurable: true, get: function () {
+          if (vals) return vals; var z, sv, tx, base, os, oe, oq, n = m.count; vals = new Array(n);
+          if (t === 2) { tx = text !== undefined ? text : (text = td.decode(bytes)); os = d[0]; oe = d[1]; oq = d[2]; for (z = 0; z < n; z++) { sv = tx.substring(os[z], oe[z]); vals[z] = oq[z] ? sv.split('""').join('"') : sv; } }
+          else if (t === 3) { os = d[0]; oe = d[1]; oq = d[2]; for (z = 0; z < n; z++) { sv = td.decode(bytes.subarray(os[z], oe[z])); vals[z] = oq[z] ? sv.split('""').join('"') : sv; } }
+          else for (z = 0; z < n; z++) vals[z] = d[z];
+          return vals; } });
+        return col;
+      }
+      for (j = 0; j < m.types.length; j++) cols.push(make(j));
+      return { index: k, count: m.count, names: k === 0 ? m.names : null, columns: cols };
+    }
     var slice = opts._slice || 0;   // private: read in slices of this many bytes (tested 2026.10.31: it never lowered the longest page stop, the string build did)
     if (blob) {   // every helper reads its own piece and parses it; the quote check comes after, and a file whose cuts fall inside quotes is read again the 0.5.2 way
       warm(n, opts);
-      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, slice: slice, trim: TRIM.ms, keep: TRIM.keep, win: WIN }));
+      for (k = 0; k < n; k++) jobs.push(ask(POOL[k], { op: 'read', blob: blob, a: Math.floor(len / n * k), b: Math.floor(len / n * (k + 1)), last: k === n - 1, delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, peek: !!onPiece, slice: slice, trim: TRIM.ms, keep: TRIM.keep, win: WIN }).then(tap(k)));
       if (T) T.post = performance.now() - t0;
       res = await Promise.all(jobs); jobs = [];
       var qpar = 0, qgood = true, qany = false, qerr = false;
       for (k = 0; k < res.length; k++) { if (res[k].err) qerr = true; if (res[k].q) { qany = true; if (!(qpar ? res[k].q[2] : res[k].q[1])) qgood = false; qpar ^= res[k].q[0]; } if (k + 1 < res.length && qpar) qgood = false; }
-      if (qany && (!qgood || qpar)) { opts = Object.assign({}, opts, { _file: false }); return parseParallelCore(new Uint8Array(await blob.arrayBuffer()), opts); }
+      if (qany && (!qgood || qpar)) { if (emitted) { emitted = false; onPiece({ reset: true }); } opts = Object.assign({}, opts, { _file: false }); return parseParallelCore(new Uint8Array(await blob.arrayBuffer()), opts); }
       if (qerr) return serial();
       pb = res.map(function (x) { return x.bytes || null; });
       cuts = res.map(function () { return 0; });
@@ -610,9 +631,9 @@
       else { cuts = splitPoints(u, delim, n); if (!cuts || cuts.length < 2) return serial(); warm(cuts.length, opts); }
     }
     for (k = 0; k < cuts.length; k++) {
-      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, trim: TRIM.ms, keep: TRIM.keep, win: WIN }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
+      var msg = { op: 'parse', delim: dch, header: header && k === 0, sel: sel, lazy: lazy, utf16: opts._utf16, join: join, peek: !!onPiece, trim: TRIM.ms, keep: TRIM.keep, win: WIN }, tl = [];   // _utf16: false = the 0.5.1 way (test switch)
       if (sendBytes) { msg.bytes = u.slice(cuts[k], pieceEnd(cuts, k)); tl.push(msg.bytes.buffer); }
-      jobs.push(ask(POOL[k], msg, tl));
+      jobs.push(ask(POOL[k], msg, tl).then(tap(k)));
     }
     if (T) T.post = performance.now() - t0;
     res = await Promise.all(jobs);
@@ -707,5 +728,5 @@
     return col;
   }
 
-  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.6.5', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.7.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

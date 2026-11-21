@@ -99,7 +99,7 @@
             : file.bytes.slice(b[0], b[0] + b[1]);
         };
         results[i] = submit({ kind: kd, buf: null, crc: b[2], want: kd === 'f' ? want : null }, b[1], makeCopy, lazy, call).then(function (F) {
-          if (o._columns) return [rf.columns(F, want, !!o._nan)];   // B35: columns of this block, no rows
+          if (o._columns) { var cb = rf.columns(F, want, !!o._nan); if (o._onBlock) o._onBlock(cb, i, n); return [cb]; }   // B35: columns of this block, no rows; _onBlock (since 0.14.11): called as each block is read
           if (o._frames) return F;   // B38 (research): the decoded block itself; the caller builds its rows
           var ta = tmNow(), r = kd === 'f' ? rf.assemble(F, want) : rn.assemble(F);
           if (want && kd !== 'f') r = projectRows(r, want);
@@ -231,24 +231,38 @@
   }
   function unpackColumnsParallel(bytes, opts) {
     opts = opts || {};
+    var onBlock = opts.onBlock; if (onBlock !== undefined && typeof onBlock !== 'function') return Promise.reject(new Error('LfcPack: onBlock must be a function'));   // since 0.14.11: onBlock(block, index, count) as each block is read, then the joined result as before
+    function emit(blocks) { if (onBlock) for (var q = 0; q < blocks.length; q++) onBlock(blocks[q], q, blocks.length); return blocks; }
+    // on this thread with onBlock: block by block with a yield between, so each block reaches onBlock as soon as it is read (not after the last one)
+    function here(bytes, n) {
+      if (!onBlock) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+      return open(bytes).then(function (rd) {
+        var nb = rd.blocks.length, got = [], q;
+        for (q = 0; q < nb; q++) if (rd.blocks[q].kind === 'r') return b35Join(emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls })), n, opts.nulls === 'NaN');   // a raw block (a tiny table kept as text): one read, then the calls
+        return new Promise(function (res, rej) {
+          function step(i) { if (i >= nb) { try { res(b35Join(got, n, opts.nulls === 'NaN')); } catch (e) { rej(e); } return; }
+            rd.columns(i, { keys: opts.keys, nulls: opts.nulls }).then(function (b) { got.push(b); onBlock(b, i, nb); b31Yield(function () { step(i + 1); }); }).catch(rej); }
+          step(0); });
+      });
+    }
     try { nullsOpt(opts); datesOpt(opts); if (textOpt(opts)) throw new Error("LfcPack: text: 'bytes' is not supported by unpackColumnsParallel (blocks keep their own labels); use unpackColumns or open().columns"); } catch (e) { return Promise.reject(e); }
     if (opts.dates) return init({ readOnly: true }).then(function () {   // dates: 'numbers' (since 0.13.6): read on the calling thread; the result's non-enumerable `dates` says each date column's unit and fmt
-      var blocks = unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' }), n = 0, i, res, info = {}, k;
+      var blocks = emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' })), n = 0, i, res, info = {}, k;
       for (i = 0; i < blocks.length; i++) { n += blocks[i].n; for (k in blocks[i].dates) info[k] = blocks[i].dates[k]; }
       res = b35Join(blocks, n, opts.nulls === 'NaN'); Object.defineProperty(res, 'dates', { value: info }); return res;
     });
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] === 'n') nest = true; n += file.blocks[i][3]; }
-      if (nest) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');   // a nested block (helpers read flat blocks only): this thread
-      if (nb < 2 || w < 1) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+      if (nest) return here(bytes, n);   // a nested block (helpers read flat blocks only): this thread
+      if (nb < 2 || w < 1) return here(bytes, n);
       if (!B35_POOL && !(globalThis.__B35AUTO === 0)) {   // B35b auto start: the first read joins on this thread (no helper start-up to wait for), then helpers start for the next read
-        var out0 = b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+        var out0 = here(bytes, n);
         setTimeout(function () { if (!B35_POOL) { B35_W = w; B35_POOL = makePool({ workers: w }); clearTimeout(B35_TIMER); B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref(); } }, 0);
         return out0; }
       clearTimeout(B35_TIMER);
       var pp = B35_POOL && B35_W === w ? B35_POOL : (B35_POOL ? B35_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B35_W = w; return (B35_POOL = makePool({ workers: w })); });
-      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys }); }).then(function (blocks) {
+      return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys, _onBlock: onBlock || null }); }).then(function (blocks) {
         B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
         return b35Join(blocks, n, opts.nulls === 'NaN'); });
     });
@@ -296,7 +310,9 @@
     if (n < 0) n = 0;
     function rowsOf(i0, i1) { var out = new Array(Math.max(0, i1 - i0)), i, r, q; for (i = i0; i < i1; i++) { r = {}; for (q = 0; q < keys.length; q++) r[keys[q]] = G[q] ? G[q](i) : A[q][i]; out[i - i0] = r; } return out; }
     var CT = { __ct: { keys: keys, A: A }, length: n, slice: function (s0, s1) { if (s0 < 0) s0 = Math.max(0, n + s0); if (s1 == null || s1 > n) s1 = n; return rowsOf(s0, s1); } }, z;
-    try { for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0]; } catch (e8) { return e8 instanceof Error ? e8 : new Error(String(e8)); }   // a timestamp column value that does not fit its fmt is refused here
+    var anyTs = false; for (z = 0; z < A.length; z++) if (isTsCol(A[z])) anyTs = true;
+    if (anyTs) { try { for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0]; } catch (e8) { return e8 instanceof Error ? e8 : new Error(String(e8)); } }   // a timestamp column value that does not fit its fmt is refused here
+    else for (z = 0; z < Math.min(256, n); z++) (function (zz) { var memo; Object.defineProperty(CT, zz, { enumerable: true, configurable: true, get: function () { return memo || (memo = rowsOf(zz, zz + 1)[0]); } }); })(z);   // since 0.14.10: the 256 preview rows are made when read (a timestamp column keeps the eager check above)
     return { CT: CT, empty: !keys.length || n === 0, rowsOf: rowsOf, n: n };
   }
   // Save path (since 0.13.3): a piece of plain string arrays that is cut into several blocks gets its low-variety text columns turned into { kind: 'dict' } inputs first, so the blocks share one
@@ -364,14 +380,14 @@
   // (so blocks are cut where they were), without making a string and an object per cell. Only for text given as bytes, dictionary columns and Float64Array columns; 0 otherwise (the caller then takes the old way).
   function jsonStrLen(B, a, b) { var n = 2, i, c; for (i = a; i < b; i++) { c = B[i]; if (c < 128) { n += c === 34 || c === 92 || c === 8 || c === 9 || c === 10 || c === 12 || c === 13 ? 2 : c < 32 ? 6 : 1; } else if (c >= 192) n += c >= 240 ? 2 : 1; } return n; }
   function estCols(ct, rows) {
-    var A = ct.A, keys = ct.keys, fixed = 2 + rows - 1 + 1, per = 0, perRow = 0, q, a, i, j, c, tot, lc, nd;
+    var A = ct.A, keys = ct.keys, fixed = 2 + rows - 1 + 1, per = 0, perRow = 0, q, a, i, j, c, tot, lc, nd, v, av, dl, pw;
     if (!rows) return 0;
     for (q = 0; q < A.length; q++) { a = A[q]; if (!isByteCol(a) && !isDictCol(a) && !(a instanceof Float64Array)) return 0; if (a instanceof Float64Array && a.length < rows) return 0; }
     for (q = 0; q < A.length; q++) { a = A[q]; perRow += JSON.stringify(keys[q]).length + 1 + (q ? 1 : 0); }
     perRow += 2;   // the braces
     tot = perRow * rows;
     for (q = 0; q < A.length; q++) { a = A[q];
-      if (a instanceof Float64Array) { for (i = 0; i < rows; i++) tot += a[i] === a[i] && a[i] !== Infinity && a[i] !== -Infinity ? String(a[i]).length : 4; }
+      if (a instanceof Float64Array) { for (i = 0; i < rows; i++) { v = a[i]; if (v !== v || v === Infinity || v === -Infinity) tot += 4; else if (v === Math.floor(v) && v > -1e15 && v < 1e15) { av = v < 0 ? -v : v; dl = v < 0 ? 2 : 1; pw = 10; while (av >= pw) { dl++; pw *= 10; } tot += dl; } else tot += String(v).length; } }   // since 0.14.10: a whole number under 1e15 is counted by powers of ten, not by making its text (-0 prints as 0 and counts 1)
       else if (isDictCol(a)) { lc = []; for (i = 0; i < rows; i++) { c = a.ids[i]; if (lc[c] === undefined) lc[c] = jsonStrLen(a.labels.bytes, a.labels.start[c], a.labels.end[c]); tot += lc[c]; } }
       else for (i = 0; i < rows; i++) tot += jsonStrLen(a.bytes, a.start[i], a.end[i]); }
     return (2 + tot + rows - 1) / rows + 1;
@@ -382,7 +398,7 @@
     if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;
     if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
-    var est = (RA.__ct && estCols(RA.__ct, Math.min(1024, RA.length))) || JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
+    var est = (!opts._hb && RA.length <= 1024) ? 0 : (RA.__ct && estCols(RA.__ct, Math.min(1024, RA.length))) || JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = est ? Math.max(1024, Math.floor(bb / est)) : 1024;   // since 0.14.10: up to 1,024 rows and no head block make one block whatever the size estimate says, so it is not made
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
     var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0, cnt = hb0 || stp;   // P13i: the B22 head block, as packRows cuts it
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;

@@ -4,7 +4,7 @@
  * so a zip bomb stops at the limit. Text files come out as strings; every Excel sheet comes out as CSV text; problems are plain-words notes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.20.2 (API 1)
+ * Version 1.21.0 (API 1)
  *
  *   var r = await ZipOpen.expand(bytes, "data.zip");     // bytes: Uint8Array. r.files = [{ name, path, text }], r.notes = [plain words]
  *   var toc = ZipOpen.list(bytes);                         // every entry, without unpacking anything
@@ -1039,7 +1039,8 @@
   var WHOLE_MAX = 16777216;   // opts._wholeMax (tests only) changes it
   var idleTimer = 0, blobOpens = 0;
   async function expandFrom(src, fileName, opts) {
-    var lim = Object.assign({}, LIMITS, opts || {}), ctx = { lim: lim, files: [], notes: [], total: 0, other: {}, stopped: false };
+    var lim = Object.assign({}, LIMITS, opts || {}), ctx = { lim: lim, files: [], notes: [], total: 0, other: {}, stopped: false, onFile: null };
+    if (opts && opts.onFile !== undefined) { if (typeof opts.onFile !== 'function') throw new Error('ZipOpen: onFile must be a function'); ctx.onFile = opts.onFile; }   // since 1.21.0: onFile(file, index) as each file is unpacked
     var label = baseOf(fileName || 'archive');
     await openArchive(src, label, '', ctx, 0, /\.(xlsx|xlsm)$/i.test(label));
     var otherN = 0, otherExt = [];
@@ -1049,6 +1050,7 @@
     return { files: ctx.files, notes: ctx.notes };
   }
 
+  function addFile(ctx, f) { ctx.files.push(f); if (ctx.onFile) ctx.onFile(f, ctx.files.length - 1); }
   async function openArchive(src, label, prefix, ctx, depth, asBook) {
     var lim = ctx.lim, toc;
     try { toc = await src.list(lim); } catch (e) { if (depth === 0) throw e; ctx.notes.push('"' + label + '" is not a zip I can open; skipped.'); return; }
@@ -1084,7 +1086,7 @@
           if (pf.skip) { ctx.notes.push('"' + shown + '" ' + pf.skip + '; skipped.'); continue; }
           ctx.total += pf.size;
           if (pf.text === null) { ctx.notes.push('"' + shown + '" looks like a binary file, not text; skipped.'); continue; }
-          ctx.files.push({ name: baseOf(e.path), path: shown, text: pf.text }); continue;
+          addFile(ctx, { name: baseOf(e.path), path: shown, text: pf.text }); continue;
         }
       }
       var held = kind === 'text' && !scratchBusy, got, text;   // a text entry's bytes live in the shared buffer only until they are turned into a string just below; two opens at once never share it
@@ -1096,7 +1098,7 @@
       if (got.skip) { ctx.notes.push('"' + shown + '" ' + got.skip + '; skipped.'); continue; }
       if (kind === 'text') {
         if (text === null) { ctx.notes.push('"' + shown + '" looks like a binary file, not text; skipped.'); continue; }
-        ctx.files.push({ name: baseOf(e.path), path: shown, text: text });
+        addFile(ctx, { name: baseOf(e.path), path: shown, text: text });
       } else await openArchive(memSource(got.bytes), baseOf(e.path), shown + '!/', ctx, depth + 1, kind === 'book');
     }
   }
@@ -1161,7 +1163,7 @@
     sheets.forEach(function (sh) {
       if (ctx.files.length >= lim.maxFiles) return;
       var nm = (sheets.length > 1 ? stem + ' - ' + sh.sheet : stem).replace(/[\/\\:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) + '.csv';
-      ctx.files.push({ name: nm, path: prefix + nm, text: sh.csv });
+      addFile(ctx, { name: nm, path: prefix + nm, text: sh.csv });
       if (sh.truncated) ctx.notes.push('Sheet "' + sh.sheet + '" is very long; only its first rows were read.');
     });
     if (sheets.length > 1) ctx.notes.push('"' + label + '" has ' + sheets.length + ' sheets; each was read as its own table and they were merged by name.');

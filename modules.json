@@ -306,7 +306,7 @@
     },
     {
       "id": "zip-open",
-      "version": "1.20.2",
+      "version": "1.21.0",
       "api": 1,
       "global": "ZipOpen",
       "summary": "Opens .zip and Excel .xlsx files safely: limits counted on what really unpacks, so a zip bomb stops at the limit with a plain-words note.",
@@ -361,7 +361,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.14.7",
+      "version": "0.14.12",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",
@@ -401,7 +401,7 @@
     },
     {
       "id": "text-columns",
-      "version": "0.6.5",
+      "version": "0.7.1",
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",
@@ -443,7 +443,7 @@
     },
     {
       "id": "netflow-engine",
-      "version": "2.4.1",
+      "version": "2.5.0",
       "api": 2,
       "global": "NetflowEngine",
       "summary": "The engine of Netflow Map as a module you can copy and adapt: nine views of a map and eleven network layouts, no two items on top of each other, WebAssembly twins for Force and Distances, and a use() hand-over for the layers and Sankey add-ons; a 30,000-item network lays out in about 0.8 s in the Netflow Map app (Firefox).",
@@ -454,6 +454,19 @@
       "dependencies": "none to run; netflow-layers 1.2.0 or newer for the story views",
       "formats": "browser global, CommonJS (module.exports)",
       "category": "visualization"
+    },
+    {
+      "id": "guess-gate",
+      "version": "1.0.1",
+      "api": 1,
+      "global": "GuessGate",
+      "summary": "A time-boxed scheduler for first guesses while data is still arriving: a guess runs only when all guesses so far would use no more than a set share (5% by default) of the import time, so a progressive import costs about the same total time as one with no guesses.",
+      "short": "Lets a page draw first guesses during an import without slowing it.",
+      "file": "modules/guess-gate/guess-gate.js",
+      "readme": "modules/guess-gate/README.md",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "efficiency"
     },
     {
       "id": "netflow-chord",
@@ -524,7 +537,7 @@
     },
     {
       "id": "netflow-plot",
-      "version": "2.21.0",
+      "version": "2.22.0",
       "api": 2,
       "global": "NetflowPlot",
       "summary": "Plain charts from a table's columns, 22 types from bars and lines to box plots, hexbins, density, Q-Q, Voronoi cells and word clouds, drawn as netflow-scene drawing lists so the map's renderer, themes and SVG export draw them; the charts of Netflow Map's Charts tab; one call, toSvg(rows), draws a picture.",

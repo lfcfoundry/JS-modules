@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-11-21
+- New quickNetwork(graph): a rough first picture of a partly read map in 5 to 6 ms for 10,000 items (24 to 60 ms for 50,000), to draw while the rest arrives.
+
 ## 2.4.1 · API 2 · 2026-11-06
 - Smaller force layout program
 

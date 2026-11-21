@@ -161,6 +161,19 @@ let used = 0;
   for (let w = 2; w <= 8; w++) { await both(q, { workers: w }); await both(q, { workers: w, lazy: true, columns: ['b'] }); }
   { const dt = 'd,b\n' + Array.from({ length: 3000 }, (_, i) => '20' + String(10 + i % 80) + '-0' + (1 + i % 9) + '-1' + (i % 9) + ',' + (i % 2 ? 'true' : 'FALSE')).join('\n') + '\n'; await both(dt, { workers: 3, types: { d: 'date', b: 'boolean' } }); const pt = await F.parseParallel(dt, { spawn, minBytes: 0, workers: 3, types: { d: 'date' } }); assert.strictEqual(pt.columns[0].type, 'date'); }
   { const big = numeric(2000, 6), f = (nm) => nm >= 'c'; await both(big, { workers: 3, columns: f }); await both(big, { workers: 3, columns: f, lazy: true }); }
+  { // onPiece (0.7.0): each piece arrives as its helper answers; pieces joined give the table parseParallel returns, which is the same with and without onPiece
+    const tx = 'id,name,amt,note\n' + Array.from({ length: 6000 }, (_, i) => i + ',n' + (i % 13) + ',' + (i * 0.25) + ',' + (i % 7 === 0 ? '"caf\u00e9 ""x"", y"' : 'plain' + i)).join('\n') + '\n';
+    for (const o of [{ workers: 3 }, { workers: 4, lazy: true }]) {
+      const got = [], plain = asTable(await F.parseParallel(tx, Object.assign({ spawn, minBytes: 0 }, o))), withP = await F.parseParallel(tx, Object.assign({ spawn, minBytes: 0, onPiece: (p) => got.push(p) }, o));
+      assert.deepStrictEqual(asTable(withP), plain, 'same table with onPiece');
+      const live = got.filter(p => !p.reset); assert.ok(live.length >= 2 && new Set(live.map(p => p.index)).size === live.length, 'one call per piece');
+      assert.strictEqual(live.reduce((a, p) => a + p.count, 0), plain.count, 'piece rows add up');
+      const sorted = live.slice().sort((a, b) => a.index - b.index); assert.deepStrictEqual(sorted[0].names, plain.names, 'piece 0 has the names'); assert.strictEqual(sorted[1].names, null);
+      plain.cols.forEach((c, j) => { const joined = [].concat(...sorted.map(p => Array.from(p.columns[j].values))); assert.deepStrictEqual(joined, Array.from(c[2]), 'column ' + c[0] + ' joined from pieces'); });
+    }
+    await assert.rejects(F.parseParallel(tx, { spawn, minBytes: 0, onPiece: 5 }), /onPiece must be a function/);
+    await assert.rejects(F.parseParallel(tx, { spawn, minBytes: 0, workers: 3, onPiece: () => { throw new Error('stop here'); } }), /stop here/);
+  }
   assert.ok((await F.parseParallel('a\n1\n2\n', { spawn, workers: 4 })).count === 2, 'small input is read directly');
   { // sharing repeats after the parse (0.6.3): values stay the same, the queue empties, few-repeat and number columns are left alone
     const W = ['north', 'south', 'east', 'west'], rows = Array.from({ length: 9000 }, (_, i) => i + ',' + W[i % 4] + ',u' + i + ',"q""' + (i % 3) + '"');

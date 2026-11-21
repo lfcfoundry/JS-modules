@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-11-21
+
+### Quick
+New `NetflowEngine.quickNetwork(G)`: typed lists `{ n, cx, cy, size, width, height, rough }` for a rough Network picture of partial rows. Nothing else changes.
+
+### Details
+Input is the plain lists (`nodes: [{ id, traffic?, sizeK? }]`, `edges: [{ from, to }]`); links to unknown ids and self links are ignored; nothing is written into the lists and no build runs first. One piece per connected component, a golden-angle spiral in breadth-first order from the item with most links, pieces placed side by side, sizes by the same rule as the Network view. Median of 7 calls on a random hub-and-leaf graph with 1.4 links per item: 10,000 items 5.9 / 4.6 / 6 ms and 50,000 items 23.5 / 39.5 / 60 ms in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6. For comparison on the same graph in Chromium: build() with `previewOnly` took 291 ms (10,000) and 920 ms (50,000), `arrange: 'radial'` 152 and 1,165 ms, the full Distances layout 666 and 4,094 ms.
+
+### Deep
+Asked for by the Netflow Map thread on 2026-11-21 (hide part of the 0.55 s layout of a 50,000-item drop while the 0.3 s read runs). The existing early preview cannot be resumed from partial data, because its saved start is keyed on the exact piece, and `build()` itself spends about 60 ms per 10,000 items on preparing the map before any layout runs (a build with a quick layout took 66 ms for 10,000 items against 5 for the layout alone), so the quick layout stands alone and skips the build. The picture is a tangled disc (items on a spiral, no untangling), so it is a placeholder, not a layout. Tests: 1 new check (6 assertions).
+
 ## 2.4.1 · API 2 · 2026-11-06
 
 ### Quick

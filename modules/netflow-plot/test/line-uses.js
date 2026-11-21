@@ -13,6 +13,16 @@ function table(r, n, kind, groups) {
   }
   return rows;
 }
+/* (used by run.js, not by each(): the lines-only file leaves summaries out to stay small) the summaries a packed file keeps: the lowest and highest value of every `bin` rows of each number column, with the first and last value */
+function sums(rows, bin) {
+  var out = {}, n = rows.length, nb = Math.ceil(n / bin);
+  ['t', 'v', 'u'].forEach(function (k) {
+    var mn = new Float64Array(nb), mx = new Float64Array(nb), b, i, e, lo, hi, v, first = NaN, last = NaN;
+    for (b = 0; b < nb; b++) { lo = Infinity; hi = -Infinity; e = Math.min(n, (b + 1) * bin); for (i = b * bin; i < e; i++) { v = rows[i][k]; if (typeof v !== 'number' || v !== v) continue; if (first !== first) first = v; last = v; if (v < lo) lo = v; if (v > hi) hi = v; } mn[b] = lo === Infinity ? NaN : lo; mx[b] = hi === -Infinity ? NaN : hi; }
+    out[k] = { bin: bin, n: n, min: mn, max: mx, first: first, last: last };
+  });
+  return out;
+}
 function each(fn, seed, sizes) {
   var r = rnd(seed || 1), k = 0; sizes = sizes || [0, 1, 2, 3, 12, 40, 300, 401, 2100, 5001, 6000, 20000, 100000];
   sizes.forEach(function (n) {
@@ -55,4 +65,4 @@ function each(fn, seed, sizes) {
     }
   });
 }
-module.exports = { each: each, rnd: rnd };
+module.exports = { each: each, rnd: rnd, sums: sums };

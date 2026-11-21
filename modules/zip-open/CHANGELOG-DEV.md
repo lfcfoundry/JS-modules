@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.21.0 · API 1 · 2026-11-21
+
+### Quick
+`expand(bytes, name, { onFile(file, index) })` and `expandBlob` (new, optional): called once per file as it is added to the result (text files, each Excel sheet, files inside nested zips), in result order, before the whole answer resolves. A throwing callback rejects the call; a non-function is refused. Nothing changes without onFile; the result and notes are the same.
+
+### Details
+Six 3 MB CSV entries (5.8 MB zip), whole `expand` in one page, Chromium 156: first file reaches the callback after 12 to 21 ms, the last with the result at 75 to 124 ms, which equals the time without a callback (72 to 126 ms). Firefox 158 first file at 14 ms, WebKitGTK 2.52.6 at 12 ms.
+
+### Deep
+The three places that push a file (text entry, parallel-read text entry, Excel sheet) go through one addFile(ctx, file) that also calls onFile, so nothing is reordered. Per-piece events for expandBlob's helper reads follow the same file order.
+
 ## 1.20.2 · API 1 · 2026-11-07
 
 ### Quick
