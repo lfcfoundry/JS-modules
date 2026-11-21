@@ -2,6 +2,88 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.0 · API 2 · 2026-11-21
+
+### Quick
+`build()` with `view: 'network', arrange: 'stress'` is much faster on big maps and its picture changes (other arrangements and Distances 3D are unchanged). No API change and no new option. Saved layouts made by older versions no longer match (new layout fingerprint `nfm-layout-3`), so they are laid out again once.
+
+### Details
+What is compared: the flow a page uses today, an early picture of the whole map (`previewOnly`) and then the final build, with 2.5.0, against the flow this version makes possible, a guess from the first half of the rows while the file is still read (not counted, it is hidden in the read) and then one final build with 2.6.0. Median of 6 builds (2 page loads x 3, the two versions taking turns), fresh page, one browser at a time, on the four tester drops; "fastest" is 2.6.0 with `refitMax: 0` and is not what ships. Lower is better everywhere.
+
+| Browser | Drop | Build ms: today / new / fastest | new vs today | fastest vs today | Stress: today / new / fastest | Crossings per link: today / new / fastest | Touching |
+|---|---|---|---|---|---|---|---|
+| Chromium 156 | big50k | 3035 / 1164 / 965 | -62% | -68% | 0.203 / 0.191 / 0.204 | 248.9 / 144.1 / 152.8 | 0 |
+| Chromium 156 | shuffled50k | 2904 / 1105 / 887 | -62% | -69% | 0.201 / 0.195 / 0.207 | 248.0 / 133.6 / 139.6 | 0 |
+| Chromium 156 | communities10k | 624 / 424 / 259 | -32% | -59% | 0.136 / 0.133 / 0.136 | 566.7 / 525.5 / 539.7 | 0 |
+| Chromium 156 | communities50k | 3177 / 1105 / 1126 | -65% | -65% | 0.142 / 0.141 / 0.141 | 2709.8 / 2667.5 / 2667.5 | 0 |
+| Firefox 158 | big50k | 3502 / 1241 / 905 | -65% | -74% | 0.205 / 0.192 / 0.207 | 261.9 / 143.8 / 151.4 | 0 |
+| Firefox 158 | shuffled50k | 3221 / 1069 / 911 | -67% | -72% | 0.207 / 0.197 / 0.209 | 228.9 / 132.4 / 138.0 | 0 |
+| Firefox 158 | communities10k | 683 / 477 / 297 | -30% | -56% | 0.136 / 0.133 / 0.136 | 559.5 / 527.0 / 543.6 | 0 |
+| Firefox 158 | communities50k | 3738 / 1351 / 1255 | -64% | -66% | 0.141 / 0.140 / 0.140 | 2752.2 / 2634.3 / 2634.3 | 0 |
+| WebKitGTK 2.52.6 | big50k | 3107 / 1460 / 874 | -53% | -72% | 0.202 / 0.195 / 0.204 | 247.4 / 143.9 / 151.6 | 0 |
+| WebKitGTK 2.52.6 | shuffled50k | 3085 / 1148 / 880 | -63% | -71% | 0.201 / 0.202 / 0.203 | 250.6 / 139.4 / 137.8 | 0 |
+| WebKitGTK 2.52.6 | communities10k | 667 / 541 / 328 | -19% | -51% | 0.136 / 0.133 / 0.136 | 567.7 / 524.9 / 535.4 | 0 |
+| WebKitGTK 2.52.6 | communities50k | 3702 / 1026 / 1151 | -72% | -69% | 0.141 / 0.141 / 0.141 | 2798.0 / 2652.4 / 2652.4 | 0 |
+
+Twelve more maps that were not used while tuning (shuffled copies, a mesh, preferential-attachment maps, a tree, a small-world map, and four small ones), median of 2 builds each:
+
+| Browser | Drop | Build ms: today / new / fastest | new vs today | fastest vs today | Stress: today / new / fastest | Crossings per link: today / new / fastest | Touching |
+|---|---|---|---|---|---|---|---|
+| Chromium 156 | bigshufB | 3332 / 1300 / 1101 | -61% | -67% | 0.206 / 0.191 / 0.202 | 261.2 / 136.1 / 143.1 | 0 |
+| Chromium 156 | commshuf50k | 4005 / 1500 / 1424 | -63% | -64% | 0.142 / 0.141 / 0.141 | 2875.9 / 2656.8 / 2656.8 | 0 |
+| Chromium 156 | commshuf10k | 695 / 456 / 301 | -34% | -57% | 0.131 / 0.131 / 0.131 | 573.7 / 517.6 / 555.3 | 0 |
+| Chromium 156 | mesh22k | 1074 / 685 / 435 | -36% | -59% | 0.014 / 0.014 / 0.014 | 0.3 / 0.1 / 0.1 | 0 |
+| Chromium 156 | ba30k | 1596 / 475 / 553 | -70% | -65% | 0.205 / 0.202 / 0.202 | 3004.0 / 2847.3 / 2847.3 | 0 |
+| Chromium 156 | bashuf30k | 1698 / 534 / 567 | -69% | -67% | 0.205 / 0.198 / 0.198 | 3082.1 / 2736.3 / 2736.3 | 0 |
+| Chromium 156 | tree20k | 999 / 418 / 277 | -58% | -72% | 0.105 / 0.102 / 0.106 | 9.7 / 8.7 / 8.5 | 0 |
+| Chromium 156 | smallworld20k | 862 / 541 / 409 | -37% | -52% | 0.132 / 0.131 / 0.132 | 5.2 / 4.6 / 4.5 | 0 |
+| Chromium 156 | ba3k | 1433 / 412 / 360 | -71% | -75% | 0.142 / 0.141 / 0.141 | 321.6 / 321.5 / 321.5 | 0 |
+| Chromium 156 | tree1500 | 375 / 125 / 161 | -67% | -57% | 0.075 / 0.076 / 0.076 | 2.1 / 1.9 / 1.9 | 0 |
+| Chromium 156 | mesh1600 | 250 / 134 / 95 | -46% | -62% | 0.009 / 0.009 / 0.009 | 0.0 / 0.0 / 0.0 | 0 |
+| Chromium 156 | comm3500 | 1858 / 717 / 632 | -61% | -66% | 0.101 / 0.097 / 0.097 | 339.3 / 341.5 / 341.5 | 0 |
+| Firefox 158 | bigshufB | 3727 / 1266 / 1006 | -66% | -73% | 0.204 / 0.190 / 0.204 | 268.8 / 140.4 / 143.2 | 0 |
+| Firefox 158 | commshuf50k | 4348 / 1676 / 1295 | -61% | -70% | 0.142 / 0.141 / 0.141 | 2763.1 / 2650.4 / 2650.4 | 0 |
+| Firefox 158 | commshuf10k | 712 / 534 / 408 | -25% | -43% | 0.133 / 0.132 / 0.132 | 564.4 / 517.5 / 551.6 | 0 |
+| Firefox 158 | mesh22k | 951 / 765 / 496 | -20% | -48% | 0.014 / 0.014 / 0.014 | 0.3 / 0.1 / 0.1 | 0 |
+| Firefox 158 | ba30k | 1847 / 505 / 509 | -73% | -72% | 0.204 / 0.199 / 0.199 | 3067.4 / 2779.5 / 2779.5 | 0 |
+| Firefox 158 | bashuf30k | 1849 / 589 / 664 | -68% | -64% | 0.203 / 0.201 / 0.201 | 3047.3 / 2859.3 / 2859.3 | 0 |
+| Firefox 158 | tree20k | 969 / 357 / 362 | -63% | -63% | 0.105 / 0.102 / 0.105 | 10.1 / 8.8 / 8.2 | 0 |
+| Firefox 158 | smallworld20k | 914 / 575 / 434 | -37% | -53% | 0.131 / 0.131 / 0.132 | 4.9 / 4.5 / 4.4 | 0 |
+| Firefox 158 | ba3k | 1639 / 436 / 361 | -73% | -78% | 0.141 / 0.143 / 0.143 | 311.8 / 310.7 / 310.7 | 0 |
+| Firefox 158 | tree1500 | 346 / 100 / 143 | -71% | -59% | 0.076 / 0.076 / 0.076 | 2.0 / 2.1 / 2.1 | 0 |
+| Firefox 158 | mesh1600 | 260 / 113 / 118 | -57% | -55% | 0.009 / 0.009 / 0.009 | 0.0 / 0.0 / 0.0 | 0 |
+| Firefox 158 | comm3500 | 2182 / 639 / 559 | -71% | -74% | 0.101 / 0.098 / 0.098 | 339.3 / 334.3 / 334.3 | 0 |
+| WebKitGTK 2.52.6 | bigshufB | 3122 / 1325 / 1052 | -58% | -66% | 0.203 / 0.193 / 0.200 | 260.6 / 139.9 / 145.7 | 0 |
+| WebKitGTK 2.52.6 | commshuf50k | 4683 / 1297 / 1169 | -72% | -75% | 0.142 / 0.142 / 0.142 | 2837.4 / 2692.3 / 2692.3 | 0 |
+| WebKitGTK 2.52.6 | commshuf10k | 682 / 455 / 347 | -33% | -49% | 0.134 / 0.132 / 0.131 | 572.8 / 517.9 / 551.5 | 0 |
+| WebKitGTK 2.52.6 | mesh22k | 917 / 808 / 466 | -12% | -49% | 0.014 / 0.014 / 0.014 | 0.3 / 0.1 / 0.1 | 0 |
+| WebKitGTK 2.52.6 | ba30k | 1550 / 473 / 543 | -69% | -65% | 0.205 / 0.200 / 0.200 | 3028.9 / 2857.2 / 2857.2 | 0 |
+| WebKitGTK 2.52.6 | bashuf30k | 1708 / 538 / 513 | -69% | -70% | 0.208 / 0.199 / 0.199 | 3056.6 / 2819.1 / 2819.1 | 0 |
+| WebKitGTK 2.52.6 | tree20k | 882 / 390 / 268 | -56% | -70% | 0.105 / 0.101 / 0.106 | 10.0 / 8.6 / 8.5 | 0 |
+| WebKitGTK 2.52.6 | smallworld20k | 936 / 583 / 389 | -38% | -58% | 0.131 / 0.134 / 0.132 | 4.9 / 4.8 / 4.4 | 0 |
+| WebKitGTK 2.52.6 | ba3k | 1405 / 437 / 450 | -69% | -68% | 0.141 / 0.140 / 0.140 | 317.1 / 317.6 / 317.6 | 0 |
+| WebKitGTK 2.52.6 | tree1500 | 360 / 187 / 171 | -48% | -52% | 0.077 / 0.076 / 0.076 | 1.9 / 1.9 / 1.9 | 0 |
+| WebKitGTK 2.52.6 | mesh1600 | 268 / 134 / 144 | -50% | -46% | 0.009 / 0.009 / 0.009 | 0.0 / 0.0 / 0.0 | 0 |
+| WebKitGTK 2.52.6 | comm3500 | 1849 / 804 / 766 | -57% | -59% | 0.098 / 0.098 / 0.098 | 344.5 / 335.5 / 335.5 | 0 |
+
+In all 48 cases the new build is faster (12 to 73% less time), no items touch, and crossings per link are equal or lower except three ties inside 5% on maps with about 2 or 340 crossings per link. Stress is lower by up to 7% on sparse maps and inside 2% either way elsewhere; the same map with its rows in another order already moves stress by 1% in 2.5.0, so differences that small are noise. File size: 218 to 241 KB (68 to 78 KB gzipped); stress.wasm 9,199 to 17,913 bytes.
+
+### Deep
+Asked for by the owner on 2026-11-21 after the laptop tester showed the first warm-start try (start the final layout from the guess and skip the coarse stage) losing on three of four drops, with 8 to 15 times the crossings. Cause: a guess from part of the rows cannot know the overall shape, and the gentle final passes cannot repair a wrong shape. So this version keeps the whole shrink, lay out, grow back layout on the whole map, which does not care about row order, and makes it fast enough that one final build beats today's two builds. A profile showed where the time went: about 40% pushing touching items apart, 25% choosing which pairs to fit, 10% in the fitting itself, the rest in JavaScript bookkeeping.
+
+What changed:
+- Push-apart: one stretch of the whole picture first (found from a histogram of how much each touching pair overlaps, aiming at 0.7 touching pairs per item or fewer), then passes that compare squared distances and revisit only items that still touch. Before, 30 full passes ran on a crowded picture and then the picture grew by 10% per round.
+- Pair choice: the near-neighbor walk takes any item two or more hops away, starts at a rotating link and stops at a budget of 16 x near + links, so hubs no longer dominate; hop counts use a search that switches to bottom-up when the frontier has more links than the unvisited part.
+- Every-pair fit with no pair list (`stressDense`): for pieces of up to 4,000 items the hop counts live in one byte table laid out by offset, and each sweep walks the offsets in a fresh random order, two lanes at a time.
+- Refit: the largest shrunken copy of up to 4,000 items is first laid out from a 1,000-item base and then fitted again with every pair, using half of the offsets per sweep, when its cost (items x (items + links)) is 200 million or less. This is what lowers stress on sparse maps.
+- Bookkeeping: typed lists through the recursion, sizes read once, groups counted with a typed tally (same answers), less jitter when growing a level back (0.3 to 0.05).
+
+The WebAssembly and plain-JavaScript paths give the same positions to the last digit (2 new checks: a 6,000-item map, and the new push-apart on its own including when its grid outgrows the first table; 20 checks in all).
+
+Tried and left out, with the reason: starting from the guess and skipping the coarse stage (bad on every unordered drop); a far-apart-pivot base instead of every pair (stress 0.27 against 0.20); a smaller base with no refit (higher stress); stronger passes per level (no stress gain, more crossings); a refit from pivots, also with one-sided moves (worse); sampling far pairs, with and without weights (worse). Starting the base from the guess saves a further 5 to 10% with stress inside 1% either way; it is not in this version because it needs a safety check first.
+
+Known cost: the refit is slower in WebKitGTK (a 22,000-item mesh gains 12% there against 36% in Chromium). Not yet done: Netflow Map's own engine has not taken this change, so the app's "same layout as the module" check will differ for the Network Distances view until it does.
+
 ## 2.5.0 · API 2 · 2026-11-21
 
 ### Quick

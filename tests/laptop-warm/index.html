@@ -31,26 +31,27 @@ h2 { font-size: 17px; margin: 18px 0 4px; }
 <body>
 <main>
 <h1>Warm start tester</h1>
-<p>One button. It runs the Network layout of four test drops the usual way and with a warm start (5 runs each), measures how good each picture is, draws them side by side, then checks the cost of the onPiece option in the CSV reader. It takes about 3 to 5 minutes; the page is busy while it runs, so leave it alone. The drops are test files (big50k is the real drop; the other three are made-up).</p>
+<p>One button. It lays out four test drops with the Network layout three ways, 5 runs each: <b>today</b> (netflow-engine 2.5.0: an early picture of the whole drop, then the final picture), <b>new</b> (netflow-engine 2.6.0: a guess from the first half of the rows, made while the file is still being read, then one final build) and <b>new, fastest</b> (the same without the extra fitting pass). It then measures how good each picture is and draws them side by side. It takes about 2 to 4 minutes; the page is busy while it runs, so leave it alone. The drops are test files (big50k is the real drop; the other three are made-up).</p>
 <p><button class="go" id="start">Start</button> <button id="copy" disabled>Copy results</button> <span id="state"></span></p>
 <div id="bar"><i></i></div>
 <div id="log"></div>
+<div id="sum"></div>
 <div id="out"></div>
 </main>
-<script src="engine-warm.js"></script>
-<script src="../../modules/text-columns/text-columns.js"></script>
 <script>
 (function () {
   'use strict';
-  var $ = function (id) { return document.getElementById(id); }, logEl = $('log'), results = { ua: navigator.userAgent, cores: navigator.hardwareConcurrency, date: new Date().toISOString(), layout: [], onPiece: null }, text = '';
+  var $ = function (id) { return document.getElementById(id); }, logEl = $('log'), results = { ua: navigator.userAgent, cores: navigator.hardwareConcurrency, date: new Date().toISOString(), engines: {}, layout: [] }, text = '';
   var tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
   var log = function (s) { logEl.textContent += s + '\n'; logEl.scrollTop = logEl.scrollHeight; };
   var prog = function (f) { $('bar').firstChild.style.width = Math.round(f * 100) + '%'; };
   var med = function (a) { return a.slice().sort(function (x, y) { return x - y; })[a.length >> 1]; };
   var DROPS = [['big50k (real drop)', 'data/big50k.csv'], ['shuffled50k (rows unordered)', 'data/shuffled50k.csv'], ['communities10k (made up)', 'data/communities10k.csv'], ['communities50k (made up)', 'data/communities50k.csv']];
-  var VARIANTS = [['today', null], ['warm', { f: 0.5, mul: 1 }], ['warm, longer polish', { f: 0.5, mul: 2 }]];
+  // each engine file sets the same global, so they are loaded one after the other and kept under their own names
+  var ENGINES = [['today', 'engine-2.5.0.js'], ['new', '../../modules/netflow-engine/netflow-engine.js'], ['new, fastest', 'engine-fastest.js']], ENG = {};
   var OPTS = { view: 'network', arrange: 'stress', colorBy: 'found', widthBy: 'weight', agg: 'sum', lazyLinks: true, runs: 2000 };
-  var ST = NetflowEngine.STRESS, RUNS = 5;
+  var RUNS = 5;
+  function loadEngine(name, src) { return new Promise(function (ok, bad) { var s = document.createElement('script'); s.src = src; s.onload = function () { ENG[name] = window.NetflowEngine; results.engines[name] = ENG[name].version; ok(); }; s.onerror = function () { bad(new Error('could not load ' + src)); }; document.head.appendChild(s); }); }
 
   function parseCsv(t) {
     var lines = t.split('\n'), ids = new Map(), nodes = [], E = [], i, p, a, b;
@@ -63,16 +64,6 @@ h2 { font-size: 17px; margin: 18px 0 4px; }
     for (i = 0; i < ed.length; i++) { seen.add(ed[i].a); seen.add(ed[i].b); }
     var nn = Array.from(seen).sort(function (x, y) { return x - y; });
     return { nodes: nn.map(function (k) { return { id: D.nodes[k] }; }), edges: ed.map(function (e) { return { from: D.nodes[e.a], to: D.nodes[e.b], weight: e.w }; }) };
-  }
-  function warmPositions(D, f, rnd) {
-    var N = D.nodes.length, G = graphOf(D, Math.floor(D.E.length * f)), t0 = performance.now(), L = NetflowEngine.build(G, Object.assign({ previewOnly: true }, OPTS));
-    var pos = new Float64Array(2 * N), have = new Uint8Array(N), i, pass, e;
-    L.nodes.forEach(function (x) { var k = D.ids.get(x.id); pos[2 * k] = x.cx; pos[2 * k + 1] = x.cy; have[k] = 1; });
-    for (pass = 0; pass < 4; pass++) for (i = 0; i < D.E.length; i++) { e = D.E[i];
-      if (have[e.a] && !have[e.b]) { pos[2 * e.b] = pos[2 * e.a] + (rnd() - 0.5) * 40; pos[2 * e.b + 1] = pos[2 * e.a + 1] + (rnd() - 0.5) * 40; have[e.b] = 1; }
-      else if (have[e.b] && !have[e.a]) { pos[2 * e.a] = pos[2 * e.b] + (rnd() - 0.5) * 40; pos[2 * e.a + 1] = pos[2 * e.b + 1] + (rnd() - 0.5) * 40; have[e.a] = 1; } }
-    for (i = 0; i < N; i++) if (!have[i]) { pos[2 * i] = (rnd() - 0.5) * 2000; pos[2 * i + 1] = (rnd() - 0.5) * 2000; }
-    return { pos: pos, ms: performance.now() - t0 };
   }
   // quality of a finished picture: stress over 200 breadth-first sources (every fifth item), items touching another item (%), crossings per sampled edge (2,000 edges against all)
   function metrics(L) {
@@ -109,53 +100,43 @@ h2 { font-size: 17px; margin: 18px 0 4px; }
     L.edges.forEach(function (e) { var a = idx[e.from], b = idx[e.to]; if (!a || !b) return; g.moveTo(20 + (a.cx - x0) * f, 20 + (a.cy - y0) * f); g.lineTo(20 + (b.cx - x0) * f, 20 + (b.cy - y0) * f); }); g.stroke();
     L.nodes.forEach(function (n) { kk = n.group || 0; if (!gm.has(kk)) gm.set(kk, gm.size); g.fillStyle = pal[gm.get(kk) % pal.length]; g.fillRect(20 + (n.cx - x0) * f - 0.8, 20 + (n.cy - y0) * f - 0.8, 1.6, 1.6); });
   }
-  function fmt(v, d) { return v === null || v === undefined ? '' : Number(v).toFixed(d === undefined ? 0 : d); }
-
+  function pct(a, b) { var v = (a / b - 1) * 100; return (v > 0 ? '+' : '') + v.toFixed(Math.abs(v) < 10 ? 1 : 0) + '%'; }
+  // one timed run. today: an early picture of everything, then the final picture (both wait for the whole file). new: the guess uses the first half of the rows (timed apart: it runs while the file is read), then one final build.
+  function runOnce(E, D, twoStep) {
+    var full = D.E.length, t0, g0 = 0, L;
+    if (twoStep) { t0 = performance.now(); E.build(graphOf(D, full), Object.assign({ previewOnly: true }, OPTS)); L = E.build(graphOf(D, full), Object.assign({}, OPTS)); }
+    else { t0 = performance.now(); E.build(graphOf(D, Math.floor(full / 2)), Object.assign({ previewOnly: true }, OPTS)); g0 = performance.now() - t0; t0 = performance.now(); L = E.build(graphOf(D, full), Object.assign({}, OPTS)); }
+    return { ms: performance.now() - t0, guess: g0, L: L };
+  }
   async function runLayout(total, doneRef) {
-    var out = $('out'), di, vi, rep;
+    var out = $('out'), di, vi, rep, sum = [];
     for (di = 0; di < DROPS.length; di++) {
       var name = DROPS[di][0]; log('Loading ' + name + ' ...');
-      var D = parseCsv(await (await fetch(DROPS[di][1])).text()), full = D.E.length, rowsOut = [], pics = [];
-      log('  ' + D.nodes.length + ' items, ' + full + ' rows'); await tick();
-      for (vi = 0; vi < VARIANTS.length; vi++) {
-        var V = VARIANTS[vi], times = [], guess = [], layMs = [], M = null, L = null;
-        for (rep = 0; rep < RUNS; rep++) {
-          var s3 = 1000 + rep, rnd = function () { return (s3 = (Math.imul(s3, 1664525) + 1013904223) >>> 0) / 4294967296; }, t0, g0 = 0;
-          ST.warm = null;
-          if (!V[1]) { t0 = performance.now(); NetflowEngine.build(graphOf(D, full), Object.assign({ previewOnly: true }, OPTS)); L = NetflowEngine.build(graphOf(D, full), Object.assign({}, OPTS)); }
-          else { var w = warmPositions(D, V[1].f, rnd); g0 = w.ms; ST.warm = { pos: w.pos, mul: V[1].mul }; t0 = performance.now(); L = NetflowEngine.build(graphOf(D, full), Object.assign({}, OPTS)); ST.warm = null; }
-          times.push(performance.now() - t0); guess.push(g0); layMs.push(ST.layMs);
-          if (rep === 0) { M = metrics(L); var cv = document.createElement('canvas'); cv.width = 900; cv.height = 700; draw(L, cv); pics.push([V[0], cv]); }
-          doneRef.n++; prog(doneRef.n / total); await tick();
-        }
-        rowsOut.push({ drop: name, variant: V[0], items: D.nodes.length, rows: full, buildMs: Math.round(med(times)), guessMs: Math.round(med(guess)), runsMs: times.map(Math.round), stress: +M.stress.toFixed(4), touchPct: +M.touchPct.toFixed(2), crossPerEdge: +M.crossPerEdge.toFixed(2) });
-        log('  ' + V[0] + ': ' + Math.round(med(times)) + ' ms (runs ' + times.map(Math.round).join(', ') + '), stress ' + M.stress.toFixed(3));
+      var D = parseCsv(await (await fetch(DROPS[di][1])).text()), rows = ENGINES.map(function (e) { return { drop: name, variant: e[0], items: D.nodes.length, rows: D.E.length, runsMs: [], guess: [] }; }), pics = [];
+      log('  ' + D.nodes.length + ' items, ' + D.E.length + ' rows'); await tick();
+      for (rep = 0; rep < RUNS; rep++) for (vi = 0; vi < ENGINES.length; vi++) {   // the three take turns, and the order flips every run
+        var v = rep % 2 ? ENGINES.length - 1 - vi : vi, r = runOnce(ENG[ENGINES[v][0]], D, v === 0), row = rows[v];
+        row.runsMs.push(Math.round(r.ms)); row.guess.push(Math.round(r.guess));
+        if (rep === 0) { var M = metrics(r.L); row.stress = +M.stress.toFixed(4); row.touchPct = +M.touchPct.toFixed(2); row.crossPerEdge = +M.crossPerEdge.toFixed(2); var cv = document.createElement('canvas'); cv.width = 900; cv.height = 700; draw(r.L, cv); pics[v] = [ENGINES[v][0], cv]; }
+        doneRef.n++; prog(doneRef.n / total); await tick();
       }
-      results.layout = results.layout.concat(rowsOut);
-      var h = '<h2>' + name + ': ' + D.nodes.length + ' items</h2><table><tr><th>Layout</th><th>Build ms (median of ' + RUNS + ')</th><th>Guess ms (hidden in the read)</th><th>Stress (lower is better)</th><th>Touching items %</th><th>Crossings per edge</th></tr>';
-      rowsOut.forEach(function (r) { h += '<tr><td>' + r.variant + '</td><td>' + r.buildMs + '</td><td>' + (r.guessMs || '') + '</td><td>' + r.stress.toFixed(3) + '</td><td>' + r.touchPct.toFixed(2) + '</td><td>' + r.crossPerEdge.toFixed(1) + '</td></tr>'; });
+      rows.forEach(function (row) { row.buildMs = med(row.runsMs); row.guessMs = med(row.guess); delete row.guess; log('  ' + row.variant + ': ' + row.buildMs + ' ms (runs ' + row.runsMs.join(', ') + '), stress ' + row.stress.toFixed(3) + ', crossings ' + row.crossPerEdge.toFixed(1)); });
+      results.layout = results.layout.concat(rows);
+      var t = rows[0], h = '<h2>' + name + ': ' + D.nodes.length + ' items</h2><table><tr><th>Layout</th><th>Build ms (median of ' + RUNS + ')</th><th>Guess ms (hidden in the read)</th><th>Stress (lower is better)</th><th>Touching items %</th><th>Crossings per edge</th></tr>';
+      rows.forEach(function (r2, k) { h += '<tr><td>' + r2.variant + '</td><td>' + r2.buildMs + (k ? ' (' + pct(r2.buildMs, t.buildMs) + ')' : '') + '</td><td>' + (r2.guessMs || '') + '</td><td>' + r2.stress.toFixed(3) + (k ? ' (' + pct(r2.stress, t.stress) + ')' : '') + '</td><td>' + r2.touchPct.toFixed(2) + '</td><td>' + r2.crossPerEdge.toFixed(1) + (k ? ' (' + pct(r2.crossPerEdge, t.crossPerEdge) + ')' : '') + '</td></tr>'; });
       h += '</table><div class="pics" id="pics' + di + '"></div>'; out.insertAdjacentHTML('beforeend', h);
       pics.forEach(function (p) { var fg = document.createElement('figure'); fg.appendChild(p[1]); var fc = document.createElement('figcaption'); fc.textContent = p[0]; fg.appendChild(fc); $('pics' + di).appendChild(fg); });
+      sum.push(rows);
     }
-  }
-  async function runOnPiece() {
-    log('Checking the onPiece option of the CSV reader (15 pairs) ...'); await tick();
-    var N = 400000, rows = ['id,name,amt,city,note'], i; for (i = 0; i < N; i++) rows.push(i + ',n' + (i % 997) + ',' + (i * 0.25) + ',city' + (i % 50) + ',note ' + i);
-    var bytes = new TextEncoder().encode(rows.join('\n') + '\n'), A = [], B = [], F = [], rep, order, wi, t, fst;
-    TextColumns.warm(4); await new Promise(function (r) { setTimeout(r, 300); });
-    for (rep = 0; rep < 15; rep++) { order = rep % 2 ? ['b', 'a'] : ['a', 'b'];
-      for (wi = 0; wi < 2; wi++) { t = performance.now(); fst = -1;
-        if (order[wi] === 'a') await TextColumns.parseParallel(bytes, { workers: 4, minBytes: 0 });
-        else await TextColumns.parseParallel(bytes, { workers: 4, minBytes: 0, onPiece: function () { if (fst < 0) fst = performance.now() - t; } });
-        t = performance.now() - t; if (order[wi] === 'a') A.push(t); else { B.push(t); F.push(fst); } }
-      if (rep % 3 === 2) { await tick(); } }
-    results.onPiece = { plainMs: +med(A).toFixed(1), onPieceMs: +med(B).toFixed(1), ratio: +(med(B) / med(A)).toFixed(3), firstPieceMs: +med(F).toFixed(1), plainRuns: A.map(Math.round), onPieceRuns: B.map(Math.round) };
-    $('out').insertAdjacentHTML('beforeend', '<h2>CSV reader: onPiece cost (400,000 rows)</h2><table><tr><th>Plain read ms</th><th>With onPiece ms</th><th>Ratio</th><th>First piece after ms</th></tr><tr><td>' + results.onPiece.plainMs + '</td><td>' + results.onPiece.onPieceMs + '</td><td>' + results.onPiece.ratio + '</td><td>' + results.onPiece.firstPieceMs + '</td></tr></table>');
-    log('  plain ' + results.onPiece.plainMs + ' ms, onPiece ' + results.onPiece.onPieceMs + ' ms, ratio ' + results.onPiece.ratio);
+    var s = '<h2>Summary: change against today (minus is better)</h2><table><tr><th>Drop</th><th>new: build time</th><th>new: stress</th><th>new: crossings</th><th>fastest: build time</th><th>fastest: stress</th><th>fastest: crossings</th></tr>';
+    sum.forEach(function (rw) { var t0 = rw[0]; s += '<tr><td>' + t0.drop + '</td>' + [1, 2].map(function (k) { return '<td>' + pct(rw[k].buildMs, t0.buildMs) + '</td><td>' + pct(rw[k].stress, t0.stress) + '</td><td>' + pct(rw[k].crossPerEdge, t0.crossPerEdge) + '</td>'; }).join('') + '</tr>'; });
+    $('sum').innerHTML = s + '</table>';
   }
   $('start').onclick = async function () {
-    $('start').disabled = true; $('state').textContent = 'running ...'; var t0 = performance.now(), ref = { n: 0 }, total = DROPS.length * VARIANTS.length * RUNS + 1;
-    try { await runLayout(total, ref); await runOnPiece(); prog(1); $('state').textContent = 'done in ' + Math.round((performance.now() - t0) / 1000) + ' s'; results.seconds = Math.round((performance.now() - t0) / 1000);
+    $('start').disabled = true; $('state').textContent = 'running ...'; var t0 = performance.now(), ref = { n: 0 }, total = DROPS.length * ENGINES.length * RUNS, i;
+    try { for (i = 0; i < ENGINES.length; i++) await loadEngine(ENGINES[i][0], ENGINES[i][1]);
+      log('Engines: ' + ENGINES.map(function (e) { return e[0] + ' = ' + results.engines[e[0]]; }).join(', '));
+      await runLayout(total, ref); prog(1); $('state').textContent = 'done in ' + Math.round((performance.now() - t0) / 1000) + ' s'; results.seconds = Math.round((performance.now() - t0) / 1000);
       text = 'Warm start tester results\n' + JSON.stringify(results); $('copy').disabled = false; log('Done. Press Copy results and paste them to the chat.'); }
     catch (e) { $('state').textContent = 'stopped'; log('ERROR ' + (e && e.stack || e)); results.error = String(e && e.stack || e); text = 'Warm start tester results (error)\n' + JSON.stringify(results); $('copy').disabled = false; }
   };
