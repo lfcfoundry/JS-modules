@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 1.5.0 · API 1 · 2026-11-20
-- New option typed: true lays out a dense chord (400 items, 80,000 links) in about 15 to 25 ms, 1.5 to 2.5 times faster than d3-chord in the same test; the default is also 20 to 40% faster and gives the same layout
+- New option typed: true lays out a dense chord (400 items, 80,000 links) in 15 to 24 ms, 1.5 to 2.3 times faster than d3-chord 3.0.2 (Chromium 156, Firefox 158, WebKitGTK 2.52.6); the default is also 18 to 40% faster
 
 ## 1.4.1 · API 1 · 2026-11-20
 - Chord layout is 3 to 4 times faster on dense charts (400 items, 80,000 links: 185 to 48 ms in Chromium); the drawing is the same

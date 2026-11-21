@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 0.14.3 · API 0 · 2026-11-20
-- Number columns of decimals (like 12.35) find their whole-number form in wasm instead of a JavaScript loop: about 3% less pack time on 16 taxi number columns in Node, no change on Chicago columns; same bytes
+- Number columns of decimals (like 12.35) find their whole-number form in wasm instead of a JavaScript loop; same bytes. Not yet timed in browsers.
 
 ## 0.14.2 · API 0 · 2026-11-20
 - text: 'bytes' also returns date columns as byte views (fixed width): 1,500,000 taxi timestamps read in about half the time in Chromium, Firefox and WebKitGTK; the default read is unchanged
