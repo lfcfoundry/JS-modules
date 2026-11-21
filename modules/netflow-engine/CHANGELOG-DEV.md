@@ -2,6 +2,73 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.1 · API 2 · 2026-11-21
+
+### Quick
+Same positions as 2.6.0 to the last digit, less time. The hop-count table used by the every-pair fit is now found from 64 items at once. No API change, no new option, saved layouts stay valid.
+
+### Details
+Median build time of 2.6.0 against 2.6.1 (a guess on the first half of the rows, not counted, then one final build), 6 builds per case (2 page loads x 3), fresh page, one browser at a time, the two versions taking turns. Lower is better. "Same picture numbers" means stress and crossings are equal to the last printed digit; separately, a Node check found 0 different positions on ten of these maps.
+
+| Browser | Map | Build ms 2.6.0 | Build ms 2.6.1 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 1089 | 771 | -29% | yes |
+| Chromium 156 | shuffled50k | 994 | 824 | -17% | yes |
+| Chromium 156 | communities10k | 415 | 246 | -41% | yes |
+| Chromium 156 | communities50k | 1019 | 1011 | -1% | yes |
+| Firefox 158 | big50k | 1045 | 771 | -26% | yes |
+| Firefox 158 | shuffled50k | 1002 | 784 | -22% | yes |
+| Firefox 158 | communities10k | 419 | 270 | -36% | yes |
+| Firefox 158 | communities50k | 1092 | 1061 | -3% | yes |
+| WebKitGTK 2.52.6 | big50k | 1163 | 848 | -27% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 1024 | 832 | -19% | yes |
+| WebKitGTK 2.52.6 | communities10k | 450 | 280 | -38% | yes |
+| WebKitGTK 2.52.6 | communities50k | 921 | 884 | -4% | yes |
+
+| Browser | Map | Build ms 2.6.0 | Build ms 2.6.1 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | bigshufB | 1052 | 798 | -24% | yes |
+| Chromium 156 | commshuf10k | 483 | 256 | -47% | yes |
+| Chromium 156 | mesh22k | 731 | 587 | -20% | yes |
+| Chromium 156 | ba30k | 444 | 368 | -17% | yes |
+| Chromium 156 | tree20k | 330 | 297 | -10% | yes |
+| Chromium 156 | smallworld20k | 612 | 388 | -37% | yes |
+| Chromium 156 | ba3k | 375 | 274 | -27% | yes |
+| Chromium 156 | tree1500 | 123 | 106 | -14% | yes |
+| Chromium 156 | mesh1600 | 91 | 85 | -7% | yes |
+| Chromium 156 | comm3500 | 659 | 356 | -46% | yes |
+| Firefox 158 | bigshufB | 1082 | 889 | -18% | yes |
+| Firefox 158 | commshuf10k | 457 | 265 | -42% | yes |
+| Firefox 158 | mesh22k | 693 | 608 | -12% | yes |
+| Firefox 158 | ba30k | 433 | 416 | -4% | yes |
+| Firefox 158 | tree20k | 364 | 326 | -10% | yes |
+| Firefox 158 | smallworld20k | 602 | 414 | -31% | yes |
+| Firefox 158 | ba3k | 378 | 268 | -29% | yes |
+| Firefox 158 | tree1500 | 165 | 109 | -34% | yes |
+| Firefox 158 | mesh1600 | 139 | 147 | +6% | yes |
+| Firefox 158 | comm3500 | 631 | 454 | -28% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 1082 | 804 | -26% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 490 | 290 | -41% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 777 | 581 | -25% | yes |
+| WebKitGTK 2.52.6 | ba30k | 434 | 398 | -8% | yes |
+| WebKitGTK 2.52.6 | tree20k | 380 | 305 | -20% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 630 | 398 | -37% | yes |
+| WebKitGTK 2.52.6 | ba3k | 552 | 364 | -34% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 179 | 142 | -21% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 143 | 123 | -14% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 775 | 586 | -24% | yes |
+
+The three smallest maps were measured again with 14 builds each because a 3-build reading had Firefox 6% slower on the 1,600-item mesh: Firefox 158 mesh1600 99 to 95 ms, tree1500 141 to 115, ba3k 372 to 267; Chromium 156 97 to 87, 122 to 107, 378 to 279; WebKitGTK 2.52.6 114 to 116, 146 to 138, 447 to 364. With those, 41 of 42 cases are faster, the middle case takes 21% less time, the best 47% less, and the one slower case is 2% (WebKitGTK, 1,600-item mesh, inside noise). stress.wasm 17,913 to 18,043 bytes.
+
+### Deep
+A stage timing of a 2.6.0 build of the 50,000-item drop showed the hop-count table for the refit of a 3,400-item copy taking about a quarter of the build, more than the fitting sweeps themselves: one search per item, each walking every link. The table is now filled by a search that starts from 64 items at once: every item keeps one bit per start item, and a level is one pass over the links that ORs the newest level's bits into the neighbors (the idea is from Then and others, "The More the Merrier: Efficient Multi-Source Graph Traversal", 2014; named without a link because the paper's page could not be opened from the build machine). Hop counts are whole numbers, so the table, and with it every position, is the same as before; the plain-JavaScript path keeps its one-item search and still gives the same positions (the 20 checks pass unchanged).
+
+Tried and left out: visiting only the newest level's items through lists, alone and mixed with plain passes. Both were slower on mesh-like maps (a 22,500-item mesh went from 20% less time back to no gain), because start items are spread over the map and most levels are wide.
+
+Looked at and not changed: whether the refit should be skipped below 20,000 items, as Netflow Map does after porting 2.6.0. With 2.6.1 the refit costs 0 to 49% of a build on 10,000 to 22,500-item maps (three browsers) for stress 0 to 4% lower; it stays on at every size because that is the look the owner approved for 2.6.0.
+
+The laptop tester (`tests/laptop-warm/`) now follows the standard tester layout: Quick run, Full run, Stop, Copy and Download results, time left, score tiles and live charts, light and dark.
+
 ## 2.6.0 · API 2 · 2026-11-21
 
 ### Quick
