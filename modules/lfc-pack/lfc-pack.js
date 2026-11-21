@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.14.5 (API 0)
+ * Version 0.14.6 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1025,11 +1025,14 @@
   // kept); a longer one is estimated from 4 evenly spaced 16 KB slices, scaled up and capped at its raw size. When the best two estimates are within 2% of each other both are compressed in
   // full and the smaller is kept (a tie goes to the candidate tried first), so a close call is always decided exactly. Same file format; a column's pick can differ from an exact pick only
   // when the estimates were more than 2% apart yet wrong.
+  // since 0.14.6: a frame that two layout candidates share (the dictionary's label bytes) is compressed once; the same frame object, level and compressor give the same bytes
+  var Z_MEMO = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function zMemo(zs, f, level) { var m = Z_MEMO && Z_MEMO.get(f); if (m && m.zs === zs && m.lv === level) return m.c; var c = zs.compress(f, level); if (Z_MEMO) Z_MEMO.set(f, { zs: zs, lv: level, c: c }); return c; }
   function sizeOf(zs, level, fr) {
     var t = 0, z = [], exact = true, q, f, L, c, k, o, s, K = 4, sl = 16384;
     for (q = 0; q < fr.length; q++) {
       f = fr[q]; L = f.length;
-      if (L <= 65536) { c = zs.compress(f, level); if (c.length < L) { z.push([L, c, 1]); t += c.length; } else { z.push([L, f, 0]); t += L; } }
+      if (L <= 65536) { c = zMemo(zs, f, level); if (c.length < L) { z.push([L, c, 1]); t += c.length; } else { z.push([L, f, 0]); t += L; } }
       else { exact = false; s = new Uint8Array(K * sl); for (k = 0; k < K; k++) { o = Math.floor((L - sl) * k / (K - 1)) & ~7; s.set(f.subarray(o, o + sl), k * sl); } c = zs.compress(s, level); t += Math.min(L, Math.ceil(c.length * L / s.length)); }
     }
     return { size: t, z: exact ? z : null };
@@ -1905,7 +1908,7 @@
     if (nl > 256) { var u16 = new Uint16Array(n); for (i = 0; i < n; i++) u16[i] = cc[i]; cb = new Uint8Array(u16.buffer); } else { cb = new Uint8Array(n); for (i = 0; i < n; i++) cb[i] = cc[i]; }
     function cand(t, p2, frames, st) { best = addCand(zs, level, best, t, p2, frames, n, st); }
     cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
-    cand('D', { w: wd, wide: false }, [lb.slice(), bitpack(ca, wd)], { distinct: nl });
+    cand('D', { w: wd, wide: false }, [lb, bitpack(ca, wd)], { distinct: nl });
     return settle(zs, level, best);
   }
   function byteCol(bc, a, n, zs, level, tmode, key) {
@@ -1943,7 +1946,7 @@
     for (i = 0; i < n; i++) ca[i] = codes[i];
     if (nl > 256) { var u16 = new Uint16Array(n); for (i = 0; i < n; i++) u16[i] = codes[i]; cb = new Uint8Array(u16.buffer); } else { cb = new Uint8Array(n); for (i = 0; i < n; i++) cb[i] = codes[i]; }
     cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
-    cand('D', { w: wd, wide: false }, [lb.slice(), bitpack(ca, wd)], { distinct: nl });
+    cand('D', { w: wd, wide: false }, [lb, bitpack(ca, wd)], { distinct: nl });
     return settle(zs, level, best);
   }
   var B28_MIN = 8192;
@@ -3630,7 +3633,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.14.5', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.14.6', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.6 · API 0 · 2026-11-21
+- Text columns that get a dictionary compress their label bytes once instead of twice while the layouts are tried: 0.96x to 0.97x the pack time (44 text columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6). Same bytes.
+
 ## 0.14.5 · API 0 · 2026-11-21
 - Packing many text columns given as bytes (CSV imports) takes 0.79x to 0.88x the time (44 columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6): the block-size estimate no longer builds a string per cell. Same bytes.
 
