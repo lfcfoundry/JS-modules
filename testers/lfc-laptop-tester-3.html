@@ -90,7 +90,7 @@ async function runPool(file,ft,W,K,ZD,psrc){
  var idle=[],ws=[],queue=tasks,outstanding=0,resolveAll,rejectAll,allDone=new Promise(function(r,j){resolveAll=r;rejectAll=j;});
  var t0=performance.now();
  function pump(){while(idle.length&&queue.length){var w=idle.shift(),t=queue.shift();outstanding++;var tr=[];
-   if(t.t==='pack')for(var nm in t.named){var c=t.named[nm];if(c instanceof Float64Array)tr.push(c.buffer);else if(c.kind==='dict')tr.push(c.ids.buffer);else tr.push(c.bytes.buffer,c.start.buffer,c.end.buffer);}
+   if(t.t==='pack')for(var nm in t.named){var c=t.named[nm];if(c instanceof Float64Array)tr.push(c.buffer);else if(c.kind==='dict')tr.push(c.ids.buffer);else{if(t.p===K-1)tr.push(c.bytes.buffer);tr.push(c.start.buffer,c.end.buffer);}}
    w.postMessage(t,tr);}
   var done=true;for(var k in left)if(left[k]!==0)done=false;
   if(!outstanding&&!queue.length&&packsLeft===0&&done)resolveAll();}
