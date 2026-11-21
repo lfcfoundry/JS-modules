@@ -423,6 +423,21 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
     let msg = ''; try { c[1](); } catch (e) { msg = e.message; } ok(/summaries/.test(msg) && /line chart only/.test(msg), 'summaries with ' + c[0] + ' give a plain error');
   });
 }
+/* 2.23.0: summaries are the default while they are fine enough for the chart's width; precision "high", or runs wider than half a pixel, draw from all the values when the caller gave them as `full` */
+{
+  const U = require('./line-uses.js'), r = U.rnd(23), n = 600000, rows = [], xs = new Float64Array(n), ys = new Float64Array(n); let v = 0, calls = 0, m = '';
+  for (let i = 0; i < n; i++) { v += r() - 0.5; xs[i] = i; ys[i] = Math.round(v * 1000) / 1000 || 0; rows.push({ t: i, v: ys[i], u: 1 }); }
+  const S = U.sums(rows, 256), o = { type: 'line', x: 't', y: 'v' }, lazy = { t: { n: n, bin: 256 }, v: Object.assign({}, S.v, { full: () => { calls++; return ys; } }) };
+  const fromSums = P.toSvg({ t: { n: n, bin: 256 }, v: S.v }, o), fromCols = P.toSvg({ t: xs, v: ys }, o);
+  ok(P.toSvg(lazy, o) === fromSums && calls === 0, 'fine summaries stay the default and the full values are never asked for');
+  ok(P.toSvg(lazy, Object.assign({ precision: 'high' }, o)) === fromCols && calls === 1, 'precision "high" draws the very same chart as the full columns');
+  ok(P.toSvg(lazy, Object.assign({ width: 1400 }, o)) === P.toSvg({ t: xs, v: ys }, Object.assign({ width: 1400 }, o)) && calls === 2, 'runs wider than half a pixel fall back to the full values when they are given');
+  ok(P.toSvg({ t: { n: n, bin: 256 }, v: S.v }, Object.assign({ width: 1400 }, o)).length > 5000, 'coarse summaries with no full values still draw from the summaries');
+  ok(P.toSvg({ t: Object.assign({}, S.t, { full: xs }), v: Object.assign({}, S.v, { full: ys }) }, Object.assign({ precision: 'high' }, o)) === fromCols, 'full values for x and y as plain lists work too');
+  try { P.toSvg(S, Object.assign({ precision: 'high' }, o)); } catch (e) { m = e.message; } ok(/precision "high"/.test(m) && /full/.test(m), 'precision "high" with no full values gives a plain error');
+  m = ''; try { P.toSvg({ t: S.t, v: Object.assign({}, S.v, { full: ys }) }, Object.assign({ precision: 'high' }, o)); } catch (e) { m = e.message; } ok(/precision "high"/.test(m), 'an x summary with no full x gives the same plain error');
+  ok(P.toSvg(lazy, Object.assign({ precision: 'low' }, o)) === fromSums, 'any other precision value keeps the default');
+}
 /* 2.18.1: a long plain line reads its two number columns in one walk of the rows and builds its points straight from the columns; the drawing lists are the same whichever way the numbers arrive */
 {
   const r = rnd(9), n = 20000, rows = [], srows = [], arows = []; let y = 0;

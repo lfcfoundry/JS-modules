@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.22.0 (API 2)
+ * Version 2.23.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -334,6 +334,21 @@ var NetflowPlot = (function () {
     }
     if (hasL && nb) { X[o] = +xhi[nb - 1]; Y[o++] = sy.last; }
     var c = {}; c[xk] = X; c[yk] = Y; return { c: c, n: m };
+  }
+  /** All the values behind a table of summaries, when the caller also gave them (`full` on each summary: a list, or a function that returns one, called only when the values are needed). Null when y has none. */
+  function fullOf(c) { var f = c.full; if (typeof f === 'function') f = f(); return isList(f) ? f : null; }
+  var ROWNO = null;
+  function sumFull(t, xk, yk) {
+    var sx = t[xk], sy = t[yk]; if (!isSum(sx) || !isSum(sy) || sy.full == null) return null;
+    if (sx.full == null && (isList(sx.min) || !(sx.n >= 0))) return null;
+    var Y = fullOf(sy), X, i, n; if (!Y) return null;
+    if (sx.full != null) { X = fullOf(sx); if (!X) return null; }
+    else {   /* x is the row number: one list of 0, 1, 2... is kept and reused (up to 2,097,152 rows) */
+      n = Math.min(sx.n, Y.length);
+      if (ROWNO && ROWNO.length >= n) X = ROWNO.subarray(0, n); else { X = new Float64Array(n); for (i = 0; i < n; i++) X[i] = i; if (n <= 2097152) ROWNO = X; }
+      X.up = true;
+    }
+    var c = {}; c[xk] = X; c[yk] = Y; return { c: c, n: Math.min(X.length, Y.length) };
   }
   var SUM = false;   /* while make() draws a line from summaries: always the band, never a dot per point */
   function colsOf(t) {
@@ -1098,6 +1113,8 @@ var NetflowPlot = (function () {
     o = o || {}; spec = spec || {};
     var sums = sumsOf(rows);
     if (sums) { if (spec.type !== 'line' || !spec.x || !spec.y || spec.color) throw new Error(SUM_ERR); }
+    /* summaries are the default while every run of rows is at most half a pixel wide on the chart (nothing can sit more than half a pixel from its place); wider runs, or precision "high", draw from all the values when the caller gave them (since 2.23.0) */
+    if (sums) { var sy0 = rows[spec.y], runs = sy0 && isList(sy0.min) ? sy0.min.length : 0, high = o.precision === 'high', fc = high || runs < 2 * (o.width || 900) ? sumFull(rows, spec.x, spec.y) : null; if (high && !fc) throw new Error('netflow-plot: precision "high" draws from all the values: give them as `full` on the x and y summaries (a list, or a function that returns one), or pass the columns themselves'); if (fc) { rows = fc.c; sums = false; } }
     var cols = sums ? sumCols(rows, spec.x, spec.y) : colsOf(rows); if (cols) rows = { length: cols.n };   /* a table of columns: read through the same reader, with no rows made (since 2.19.0) */
     var F = frame(spec, o, NS), R = reader(rows, o, cols), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
     if (type === 'line' && spec.x && spec.y && !spec.color) R.pre(spec.x, spec.y);

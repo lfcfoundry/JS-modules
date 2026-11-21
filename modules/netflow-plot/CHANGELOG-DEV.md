@@ -1,5 +1,13 @@
 # netflow-plot developer changelog
 
+## 2.23.0 · API 2 · 2026-11-21
+
+### Quick
+Owner request 2026.11.21: summaries are the default layout method where they do not pass the visual threshold; apps opt in to high precision.
+
+### Deep
+Owner request 2026.11.21: summaries are the default layout method where they do not pass the visual threshold; apps opt in to high precision. make(): when the table is summaries, runs < 2 * width or o.precision === 'high' switch to sumFull() (full on each summary: list or lazy function; row-number x built from n). precision high with no full throws HIGH_ERR. Output with precision high is character for character the full-columns chart; default output unchanged from 2.22.0. Chromium picture match of summaries vs all values at 1,000,000 points, 900 px: 4.3 runs per px 99.26% (random walk), 98.9% (noise), 97.3% (rare spikes); 2.3 runs per px 99.0 / 98.7 / 95.2; 1.1 runs per px 98.3 / 98.1 / 86.8. 8 new tests.
+
 ## 2.22.0 · API 2 · 2026-11-21
 
 ### Quick
