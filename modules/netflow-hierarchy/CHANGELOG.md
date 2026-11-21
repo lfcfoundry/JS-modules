@@ -2,8 +2,11 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.2 · API 1 · 2026-11-20
+- Sorting each item's children is faster on small charts; same picture.
+
 ## 1.7.1 · API 1 · 2026-11-20
-- Every nested view is laid out faster, the icicle most: 100,000 items take about 0.55 of the time; same picture.
+- Every nested view is laid out faster, icicle most: 100,000 items take 0.66 (Chromium 156), 0.35 (Firefox 158) and 0.43 (WebKitGTK 2.52.6) of d3-hierarchy 3.1.3's time. Same picture.
 
 ## 1.7.0 · API 1 · 2026-11-15
 - typedRects: true keeps treemap and icicle tiles as typed arrays

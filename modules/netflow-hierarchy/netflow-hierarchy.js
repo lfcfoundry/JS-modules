@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.7.1 (API 1)
+ * Version 1.7.2 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -172,6 +172,24 @@ var NetflowHierarchy = (function () {
     return H;
   }
   /** Sums: value[i] = own value (leaves, or every item when sized) + what its children hold. Children are sorted biggest first (o.sort !== false). */
+  /* Sorts kl[lo..hi] biggest value first, ties by lower number: a quicksort written out here (no call back per comparison), short runs by insertion.
+     Every pair has one right order, so the result is the same whatever the method. */
+  function kidSort(kl, val, lo, hi) {
+    while (hi - lo > 12) {
+      var mid = (lo + hi) >> 1, pc = kl[mid], pv = val[pc], i = lo, j = hi, c, v, t;
+      while (i <= j) {
+        for (;;) { c = kl[i]; v = val[c]; if (v > pv || (v === pv && c < pc)) i++; else break; }
+        for (;;) { c = kl[j]; v = val[c]; if (v < pv || (v === pv && c > pc)) j--; else break; }
+        if (i <= j) { t = kl[i]; kl[i] = kl[j]; kl[j] = t; i++; j--; }
+      }
+      if (j - lo < hi - i) { kidSort(kl, val, lo, j); lo = i; } else { kidSort(kl, val, i, hi); hi = j; }
+    }
+    for (var a = lo + 1; a <= hi; a++) {
+      var x = kl[a], xv = val[x], b = a - 1, d;
+      while (b >= lo && (val[d = kl[b]] < xv || (val[d] === xv && d > x))) { kl[b + 1] = d; b--; }
+      kl[b + 1] = x;
+    }
+  }
   function sums(G, H, o) {
     var N = H.N, F = H.F, cap = H.cap, val = F.subarray(0, N), own = F.subarray(cap, cap + N), SZ = cap * 2, szOk = H.szOk, sized = !!o.sized, v, j, kidOff = H.kidOff, kidList = H.kidList, item = H.item, nodes = G.nodes, a, b, it, w, s;
     for (v = N - 1; v >= 0; v--) {
@@ -185,17 +203,11 @@ var NetflowHierarchy = (function () {
       own[v] = w; val[v] = s;
     }
     if (o.sort !== false) {   /* biggest first; two children (the most common case) are just swapped, short lists are sorted in place, longer lists share one comparison */
-      var cmp = function (p, q) { return val[q] - val[p] || p - q; }, moved = false;
+      var moved = false;
       for (v = 0; v < N; v++) {
         a = kidOff[v]; var L = kidOff[v + 1] - a; if (L < 2) continue;
         if (L === 2) { var k0 = kidList[a], k1 = kidList[a + 1]; if (val[k1] > val[k0] || (val[k1] === val[k0] && k1 < k0)) { kidList[a] = k1; kidList[a + 1] = k0; moved = true; } }
-        else if (L <= 24) {
-          for (j = a + 1, b = a + L; j < b; j++) {
-            var c = kidList[j], vc = val[c], i = j - 1, d;
-            while (i >= a && (val[d = kidList[i]] < vc || (val[d] === vc && d > c))) { kidList[i + 1] = d; i--; }
-            if (i + 1 !== j) { kidList[i + 1] = c; moved = true; }
-          }
-        } else { kidList.subarray(a, a + L).sort(cmp); moved = true; }
+        else { kidSort(kidList, val, a, a + L - 1); moved = true; }
       }
       if (moved && Object.getOwnPropertyDescriptor(H, 'kids').get === undefined) H.kids = kidArrays(N, kidOff, kidList);   /* plain lists that were already made follow the new order */
     }
