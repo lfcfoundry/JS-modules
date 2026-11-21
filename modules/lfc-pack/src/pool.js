@@ -360,13 +360,29 @@
       return out.then(function (b) { release(true); return b === null ? pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts) : b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; });
     });
   }
+  // The block-size estimate of packRowsBlocks for a column table, worked out from the bytes (since 0.14.5): the same number as JSON.stringify of the first rows divided by the row count plus 1
+  // (so blocks are cut where they were), without making a string and an object per cell. Only for text given as bytes, dictionary columns and Float64Array columns; 0 otherwise (the caller then takes the old way).
+  function jsonStrLen(B, a, b) { var n = 2, i, c; for (i = a; i < b; i++) { c = B[i]; if (c < 128) { n += c === 34 || c === 92 || c === 8 || c === 9 || c === 10 || c === 12 || c === 13 ? 2 : c < 32 ? 6 : 1; } else if (c >= 192) n += c >= 240 ? 2 : 1; } return n; }
+  function estCols(ct, rows) {
+    var A = ct.A, keys = ct.keys, fixed = 2 + rows - 1 + 1, per = 0, perRow = 0, q, a, i, j, c, tot, lc, nd;
+    if (!rows) return 0;
+    for (q = 0; q < A.length; q++) { a = A[q]; if (!isByteCol(a) && !isDictCol(a) && !(a instanceof Float64Array)) return 0; if (a instanceof Float64Array && a.length < rows) return 0; }
+    for (q = 0; q < A.length; q++) { a = A[q]; perRow += JSON.stringify(keys[q]).length + 1 + (q ? 1 : 0); }
+    perRow += 2;   // the braces
+    tot = perRow * rows;
+    for (q = 0; q < A.length; q++) { a = A[q];
+      if (a instanceof Float64Array) { for (i = 0; i < rows; i++) tot += a[i] === a[i] && a[i] !== Infinity && a[i] !== -Infinity ? String(a[i]).length : 4; }
+      else if (isDictCol(a)) { lc = []; for (i = 0; i < rows; i++) { c = a.ids[i]; if (lc[c] === undefined) lc[c] = jsonStrLen(a.labels.bytes, a.labels.start[c], a.labels.end[c]); tot += lc[c]; } }
+      else for (i = 0; i < rows; i++) tot += jsonStrLen(a.bytes, a.start[i], a.end[i]); }
+    return (2 + tot + rows - 1) / rows + 1;
+  }
   function packRowsBlocks(RA, opts) {   // packManyNow's row path, with blocks that may wait on helpers -> Promise of bytes, or null when a block cannot take the row path
     need(true);
     var bb = opts.blockBytes || BLOCK_BYTES, nm0 = NMARK, wm0 = WMARK, w30 = W3MARK, ctx = { zs: S.zfull, sh: S.sh, st: null, paths: opts.paths === 'only' ? 'only' : opts.paths !== false, pick: opts._pick, shw: opts._piece && !opts._nolabels ? { tabs: {}, n: 0 } : null }, waits = [], ra, sl, blk;
     if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;
     if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
-    var est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
+    var est = (RA.__ct && estCols(RA.__ct, Math.min(1024, RA.length))) || JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
     var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0, cnt = hb0 || stp;   // P13i: the B22 head block, as packRows cuts it
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;

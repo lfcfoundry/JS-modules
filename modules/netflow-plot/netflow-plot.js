@@ -1,11 +1,12 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.18.0 (API 2)
+ * Version 2.19.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
  *
  * rows: plain objects (an item or a link); a column is read with get(row, key) (o.get, default row.attrs[key] ?? row[key]).
+ *       Or a table of columns, { name: array, ... } with plain or typed arrays (since 2.19.0): the same chart, with no rows made for make().
  * spec: { type, x, y, color, size, agg ('sum' | 'mean' | 'count' | 'min' | 'max' | 'median'), stack ('stack' | 'group' | 'normalize' | 'stream' | 'none'),
  *         horizontal, top (bars: the N biggest plus one bar for the rest), bins, smooth (moving average window), index (lines from 100), cols (parallel / matrix), sort ('value' | 'name' | 'none') }.
  * Marks: S.marks = [{ x0, y0, x1, y1, row (index) or rows, t (tooltip text) }] for pointing at things.
@@ -98,12 +99,36 @@ var NetflowPlot = (function () {
     return Number(v.toPrecision(3)).toString();
   }
   /** One precision for a chart (visuals review, 2026.11.07): values in the same unit (B, M, k or none) get the same number of decimals, set by the biggest of them, so 9.7M never sits next to 10M. */
+  /** Facts about a long number column, gathered once and kept on it (since 2.18.1), so the axis, the number format, the percent test and the
+      line builder do not each walk 100,000 values again. n: values that are numbers; lo, hi: smallest and biggest (the first one met of equals), at
+      loK and hiK; z: a -0 is present; m0..m9, f0, f4: biggest size below 10,000 / 1 million / 1 billion / above, and whether one below 10,000 (f0)
+      or below 1 million (f4) has decimals; in01, frac: all within 0..1, and how many strictly inside. Short simple loops on purpose: each runs
+      several times faster than one loop that does everything. */
+  function colStat(a) {
+    if (a.st) return a.st;
+    var n = 0, lo = Infinity, hi = -Infinity, loK = -1, hiK = -1, z = false, m0 = 0, m4 = 0, m6 = 0, m9 = 0, f0 = false, f4 = false, in01 = true, frac = 0, i, v, u, q = a.length;
+    for (i = 0; i < q; i++) { v = a[i]; if (v !== v) continue; n++; if (v < lo) { lo = v; loK = i; } if (v > hi) { hi = v; hiK = i; } if (v === 0 && 1 / v < 0) z = true; }
+    u = Math.max(-lo, hi);
+    if (n && u < 1e4) { m0 = u; for (i = 0; i < q; i++) { v = a[i]; if (v !== Math.floor(v) && v === v) { f0 = true; break; } } }   /* every value is below 10,000 (the usual case): only the decimals question is left, and it stops at the first one */
+    else for (i = 0; i < q; i++) {
+      v = a[i]; u = v < 0 ? -v : v; if (!(u < Infinity)) continue;
+      if (u < 1e4) { if (u > m0) m0 = u; if (!f0 && v !== Math.floor(v)) f0 = true; } else if (u < 1e6) { if (u > m4) m4 = u; if (!f4 && v !== Math.floor(v)) f4 = true; } else if (u < 1e9) { if (u > m6) m6 = u; } else if (u > m9) m9 = u;
+    }
+    if (lo < 0 || hi > 1) in01 = false; else for (i = 0; i < q; i++) { v = a[i]; if (v > 0 && v < 1) frac++; }
+    return (a.st = { n: n, lo: lo, hi: hi, loK: loK, hiK: hiK, z: z, m0: m0, m4: m4, m6: m6, m9: m9, f0: f0, f4: f4, in01: in01, frac: frac });
+  }
+  /** True when a long number column rises strictly with no gap (kept on it). */
+  function colUp(a) { if (a.up !== undefined) return a.up; var pv = -Infinity, i, v, q = a.length, up = true; for (i = 0; i < q; i++) { v = a[i]; if (!(v > pv)) { up = false; break; } pv = v; } return (a.up = up); }
+  var STAT_MIN = 2000;   /* columns at least this long use colStat */
   function fmtFor(vals) {
     var U = { B: 1e9, M: 1e6, k: 1e3, '': 1 }, top = { B: 0, M: 0, k: 0, '': 0 }, frac = false, i, v, u;
-    var big = 0; for (i = 0; i < vals.length; i++) { v = Math.abs(vals[i]); if (v > big && isFinite(v)) big = v; }
+    var big = 0, fast = vals instanceof Float64Array && vals.length >= STAT_MIN, st;
+    /* a long column of numbers: the biggest value of each size class and whether a small one has decimals come from colStat; the same answers as the two walks below */
+    if (fast) { st = colStat(vals); big = Math.max(st.m0, st.m4, st.m6, st.m9); top.B = st.m9 / 1e9; top.M = st.m6 / 1e6; if (big < 1e5) { top[''] = Math.max(st.m0, st.m4); frac = st.f0 || st.f4; } else { top[''] = st.m0; top.k = st.m4 / 1e3; frac = st.f0; } }
+    else for (i = 0; i < vals.length; i++) { v = Math.abs(vals[i]); if (v > big && isFinite(v)) big = v; }
     var kAt = big < 1e5 ? Infinity : 1e4;   /* below 100,000 every value is written in full (10,000 next to 8,287, not 10.0k next to 8,287; since 2.13.0) */
     var unit = function (a) { return a >= 1e9 ? 'B' : a >= 1e6 ? 'M' : a >= kAt ? 'k' : ''; };
-    for (i = 0; i < vals.length; i++) { v = vals[i]; if (!isFinite(v)) continue; u = unit(Math.abs(v)); top[u] = Math.max(top[u], Math.abs(v) / U[u]); if (!u && v !== Math.round(v)) frac = true; }
+    if (!fast) for (i = 0; i < vals.length; i++) { v = vals[i]; if (!isFinite(v)) continue; u = unit(Math.abs(v)); top[u] = Math.max(top[u], Math.abs(v) / U[u]); if (!u && v !== Math.round(v)) frac = true; }
     return function (x) {
       if (!isFinite(x)) return '';
       if (PCT && Math.abs(x) <= 1) { var px = (x * 100).toFixed(top[''] * 100 >= 99.95 || frac ? 1 : 0); return (+px === 0 ? px.replace('-', '') : px) + '%'; }
@@ -260,10 +285,10 @@ var NetflowPlot = (function () {
   function inkOn(fill) { var L = relLum(fill), d = (L + 0.05) / (relLum([0.11, 0.13, 0.17]) + 0.05), w = 1.05 / (L + 0.05); return d >= w ? [0.11, 0.13, 0.17, 1] : [1, 1, 1, 1]; }
   var CW = 6.05;   /* about the width of one character at 11 px */
   function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; }
-  function linear(lo, hi, a, b) { var k = hi > lo ? (b - a) / (hi - lo) : 0; return function (v) { return a + (v - lo) * k; }; }
+  function linear(lo, hi, a, b) { var k = hi > lo ? (b - a) / (hi - lo) : 0, f = function (v) { return a + (v - lo) * k; }; f.lo = lo; f.k = k; f.a = a; return f; }   /* lo, k and a are kept on the function so a long line can map its points without a call per point */
   /** A number or date axis from the values (with room at the ends when zero is not wanted). */
   function axisFor(vals, isTime, a, b, zero, n) {
-    var lo = Infinity, hi = -Infinity; for (var i = 0; i < vals.length; i++) { var v = vals[i]; if (v === v) { if (v < lo) lo = v; if (v > hi) hi = v; } }
+    var lo = Infinity, hi = -Infinity; if (vals instanceof Float64Array && vals.length >= STAT_MIN && vals.up === true) { lo = vals[0]; hi = vals[vals.length - 1]; }   /* a rising column: its ends */ else if (vals instanceof Float64Array && vals.length >= STAT_MIN) { var st = colStat(vals); lo = st.lo; hi = st.hi; } else for (var i = 0; i < vals.length; i++) { var v = vals[i]; if (v === v) { if (v < lo) lo = v; if (v > hi) hi = v; } }
     if (!isFinite(lo)) { lo = 0; hi = 1; }
     if (zero) { lo = Math.min(0, lo); hi = Math.max(0, hi); }
     if (isTime) { var tt = timeTicks(lo, hi, n || 8); return { kind: 'time', lo: lo, hi: hi, list: tt.list, fmt: tt.fmt, map: linear(lo, hi === lo ? lo + 1 : hi, a, b) }; }
@@ -279,8 +304,24 @@ var NetflowPlot = (function () {
   function bandAxis(cats, a, b, pad) { var n = Math.max(1, cats.length), step = (b - a) / n, bw = step * (1 - (pad === undefined ? 0.2 : pad)), pos = new Map(); cats.forEach(function (c, i) { pos.set(c, a + i * step + (step - bw) / 2); }); return { kind: 'band', list: cats, bw: bw, step: step, map: function (c) { return pos.get(c); }, fmt: function (c) { return c === '' ? '(blank)' : String(c); } }; }
 
   /* ---------------------------------------------------------------- reading the table */
-  function reader(rows, o) {
-    var get = o.get || function (r, k) { var a = r.attrs; return a && Object.prototype.hasOwnProperty.call(a, k) ? a[k] : r[k]; };
+  /** A table given as columns, { name: array, ... } (plain arrays or typed arrays, the shape lfc-pack's unpackColumns returns; since 2.19.0), or null
+      when t is a list of rows. n is the longest column. */
+  function colsOf(t) {
+    if (!t || typeof t !== 'object' || Array.isArray(t) || typeof t.length === 'number') return null;
+    var n = 0, any = false, k, c;
+    for (k in t) { if (!Object.prototype.hasOwnProperty.call(t, k)) continue; c = t[k]; if (!(Array.isArray(c) || ArrayBuffer.isView(c)) || typeof c.length !== 'number') return null; any = true; if (c.length > n) n = c.length; }
+    return any ? { c: t, n: n } : null;
+  }
+  /** Rows made from a table of columns, for the paths that read rows one by one (the chart picked for you, flows, trees, the takeaway). */
+  function rowsOf(t) {
+    var co = colsOf(t); if (!co) return t;
+    var keys = Object.keys(co.c), rows = new Array(co.n), i, j, r;
+    for (i = 0; i < co.n; i++) { r = {}; for (j = 0; j < keys.length; j++) if (i < co.c[keys[j]].length) r[keys[j]] = co.c[keys[j]][i]; rows[i] = r; }
+    return rows;
+  }
+  function reader(rows, o, cols) {
+    if (cols) return colReader(cols);
+    var HAS = Object.prototype.hasOwnProperty, get = o.get || function (r, k) { var a = r.attrs; return a && HAS.call(a, k) ? a[k] : r[k]; };
     var cache = new Map();
     var R = {
       n: rows.length,
@@ -288,14 +329,64 @@ var NetflowPlot = (function () {
       /** numbers of a column (dates as ms when the column is mostly dates); .time says which */
       num: function (k) {
         var key = 'n' + k; if (cache.has(key)) return cache.get(key);
-        var raw = R.raw(k), out = new Float64Array(rows.length), good = 0, dates = 0, i;
+        var out, good = 0, dates = 0, i, nr = rows.length;
+        /* a long column of plain numbers is read straight from the rows, with no list of raw values in between (since 2.18.1; the same numbers) */
+        if (nr > 400 && !cache.has('r' + k)) {
+          var fo = new Float64Array(nr), fv, fr, fa;
+          if (o.get) for (i = 0; i < nr; i++) { fv = get(rows[i], k); if (typeof fv !== 'number') break; fo[i] = fv; if (fv === fv) good++; }
+          else for (i = 0; i < nr; i++) { fr = rows[i]; fa = fr.attrs; fv = fa && HAS.call(fa, k) ? fa[k] : fr[k]; if (typeof fv !== 'number') break; fo[i] = fv; if (fv === fv) good++; }
+          if (i === nr && good >= 0.8 * nr) { if (/year|^yr$/i.test(k)) fo.yearName = true; cache.set(key, fo); return fo; }
+          good = 0;
+        }
+        var raw = R.raw(k); out = new Float64Array(rows.length);
         for (i = 0; i < raw.length; i++) { var v = num(raw[i]); out[i] = v; if (v === v) good++; }
         if (good < 0.8 * countFilled(raw)) { var dt = new Float64Array(rows.length), seen = new Map(); for (i = 0; i < raw.length; i++) { var rv = raw[i], d = typeof rv === 'string' ? seen.get(rv) : undefined; if (d === undefined) { d = dateMs(rv); if (typeof rv === 'string') seen.set(rv, d); } dt[i] = d; if (d === d) dates++; }   /* each date text is read once */ if (dates > good) { dt.time = true; out = dt; } }
         if (!out.time && /year|^yr$/i.test(k)) out.yearName = true;   /* a column named year: 1565 is a year, not 1,565 (since 2.12.2) */
         cache.set(key, out); return out;
       },
+      /** Two number columns of a long table read in one walk of the rows (since 2.18.1): each row is visited once instead of twice. Only when both are plain numbers all the way; otherwise nothing is kept and num() reads them as before. */
+      pre: function (k1, k2) {
+        var nr = rows.length, i, r, a, v, w, g1 = 0, g2 = 0;
+        if (nr <= 400 || o.get || k1 === k2 || cache.has('n' + k1) || cache.has('n' + k2) || cache.has('r' + k1) || cache.has('r' + k2)) return;
+        var c1 = new Float64Array(nr), c2 = new Float64Array(nr);
+        for (i = 0; i < nr; i++) {
+          r = rows[i]; a = r.attrs;
+          if (a) { v = HAS.call(a, k1) ? a[k1] : r[k1]; w = HAS.call(a, k2) ? a[k2] : r[k2]; } else { v = r[k1]; w = r[k2]; }
+          if (typeof v !== 'number' || typeof w !== 'number') return;
+          c1[i] = v; c2[i] = w; if (v === v) g1++; if (w === w) g2++;
+        }
+        if (g1 >= 0.8 * nr) { if (/year|^yr$/i.test(k1)) c1.yearName = true; cache.set('n' + k1, c1); }
+        if (g2 >= 0.8 * nr) { if (/year|^yr$/i.test(k2)) c2.yearName = true; cache.set('n' + k2, c2); }
+      },
       cat: function (k) { var key = 'c' + k; if (cache.has(key)) return cache.get(key); var raw = R.raw(k), out = new Array(raw.length); for (var i = 0; i < raw.length; i++) out[i] = raw[i] === undefined || raw[i] === null ? '' : String(raw[i]); cache.set(key, out); return out; },
       label: function (i) { var r = rows[i]; return r.label !== undefined ? r.label : r.id !== undefined ? r.id : r.from !== undefined ? r.from + ' \u2192 ' + r.to : 'row ' + (i + 1); }
+    };
+    return R;
+  }
+  /** The same reader over a table of columns (since 2.19.0). A Float64Array column is used as it is, through a view of its own so nothing is
+      written on the caller's array; other columns are read value by value as a row's values would be. */
+  function colReader(cols) {
+    var C = cols.c, n = cols.n, cache = new Map(), has = function (k) { return Object.prototype.hasOwnProperty.call(C, k); };
+    var at = function (k, i) { var c = has(k) ? C[k] : null; return c && i < c.length ? c[i] : undefined; };
+    var R = {
+      n: n,
+      raw: function (k) { var key = 'r' + k; if (cache.has(key)) return cache.get(key); var c = has(k) ? C[k] : null, out; if (c && c.length === n && Array.isArray(c)) out = c; else { out = new Array(n); if (c) for (var i = 0; i < c.length; i++) out[i] = c[i]; } cache.set(key, out); return out; },
+      num: function (k) {
+        var key = 'n' + k; if (cache.has(key)) return cache.get(key);
+        var c = has(k) ? C[k] : null, out, good = 0, dates = 0, i, v;
+        if (c && c.length === n && ArrayBuffer.isView(c) && !(typeof BigInt64Array !== 'undefined' && (c instanceof BigInt64Array || c instanceof BigUint64Array)) && !(c instanceof DataView)) {
+          out = c instanceof Float64Array ? c.subarray(0) : Float64Array.from(c);
+          if (/year|^yr$/i.test(k)) out.yearName = true; cache.set(key, out); return out;
+        }
+        var raw = R.raw(k); out = new Float64Array(n);
+        for (i = 0; i < n; i++) { v = num(raw[i]); out[i] = v; if (v === v) good++; }
+        if (good < 0.8 * countFilled(raw)) { var dt = new Float64Array(n), seen = new Map(); for (i = 0; i < n; i++) { var rv = raw[i], d = typeof rv === 'string' ? seen.get(rv) : undefined; if (d === undefined) { d = dateMs(rv); if (typeof rv === 'string') seen.set(rv, d); } dt[i] = d; if (d === d) dates++; } if (dates > good) { dt.time = true; out = dt; } }
+        if (!out.time && /year|^yr$/i.test(k)) out.yearName = true;
+        cache.set(key, out); return out;
+      },
+      pre: function () { },
+      cat: function (k) { var key = 'c' + k; if (cache.has(key)) return cache.get(key); var raw = R.raw(k), out = new Array(n); for (var i = 0; i < n; i++) out[i] = raw[i] === undefined || raw[i] === null ? '' : String(raw[i]); cache.set(key, out); return out; },
+      label: function (i) { var l = at('label', i), d, f; if (l !== undefined) return l; d = at('id', i); if (d !== undefined) return d; f = at('from', i); return f !== undefined ? f + ' \u2192 ' + at('to', i) : 'row ' + (i + 1); }
     };
     return R;
   }
@@ -305,7 +396,8 @@ var NetflowPlot = (function () {
   function fractionCol(R, sp, type) {
     if (!(type === 'bar' || type === 'dotplot' || type === 'line') || !sp.y || sp.color || sp.stack || NOT_PCT.test(sp.y)) return false;
     var v = R.num(sp.y), i, frac = 0, n = 0; if (v.time) return false;
-    for (i = 0; i < v.length; i++) { if (v[i] !== v[i]) continue; if (v[i] < 0 || v[i] > 1) return false; n++; if (v[i] > 0 && v[i] < 1) frac++; }
+    if (v instanceof Float64Array && v.length >= STAT_MIN) { var st = colStat(v); if (!st.in01) return false; n = st.n; frac = st.frac; }
+    else for (i = 0; i < v.length; i++) { if (v[i] !== v[i]) continue; if (v[i] < 0 || v[i] > 1) return false; n++; if (v[i] > 0 && v[i] < 1) frac++; }
     if (!n || frac < n / 2) return false;
     if (sp.agg === 'mean' || sp.agg === 'median') return true;
     if (sp.agg && sp.agg !== 'sum') return false;
@@ -427,15 +519,18 @@ var NetflowPlot = (function () {
     if (ck) F.legend(sp.color, cc.list);
   };
   /** Rows sorted along x, one line per color category; smooth = moving average, index = each line from 100 at its first value. */
-  function series(F, R, sp) {
+  function series(F, R, sp, typed) {
     var x = R.num(sp.x), y = sp.y ? R.num(sp.y) : null, ck = sp.color ? R.cat(sp.color) : null, how = sp.agg || 'sum';
     var cc = ck ? F.cats3(ck, y, 'value', 12) : { list: [''], other: null }, by = new Map(), distinct = 0;
     /* one plain line (no colors, no smoothing or index, many points) whose x runs strictly up and has no empty x: no grouping is needed, the line is the column pair itself (since 2.17.1; the lists come out the same) */
     if (!ck && y && !sp.smooth && !sp.index && x.length > 400) {
-      var up = true, xq = x.length, i0, xv, pv = -Infinity;
-      for (i0 = 0; i0 < xq; i0++) { xv = x[i0]; if (!(xv > pv)) { up = false; break; } pv = xv; }
+      var up = true, xq = x.length, i0, xv, pv = -Infinity, big = typed && xq >= STAT_MIN && x instanceof Float64Array && y instanceof Float64Array;
+      if (big) up = colUp(x); else for (i0 = 0; i0 < xq; i0++) { xv = x[i0]; if (!(xv > pv)) { up = false; break; } pv = xv; }
       if (up) {
-        var fx = new Array(xq), fy = new Array(xq), mm = how === 'min' || how === 'max' || how === 'median', cnt = how === 'count', yv0;
+        var mm = how === 'min' || how === 'max' || how === 'median', cnt = how === 'count', yv0;
+        /* the caller can take the number columns as they are (since 2.18.1): no copy is made, unless the values would change (a count, or a -0 that a sum turns into 0) */
+        if (big && !cnt) { var ty = y; if (!mm && colStat(y).z) { ty = new Float64Array(xq); for (i0 = 0; i0 < xq; i0++) ty[i0] = 0 + y[i0]; ty.st = y.st; } return { list: [{ name: '', ci: 0, xs: x, ys: ty, rows: null }], time: !!x.time, cats: cc.list }; }
+        var fx = new Array(xq), fy = new Array(xq);
         for (i0 = 0; i0 < xq; i0++) { fx[i0] = x[i0]; yv0 = y[i0]; fy[i0] = cnt ? 1 : yv0 !== yv0 ? NaN : mm ? yv0 : 0 + yv0; }
         return { list: [{ name: '', ci: 0, xs: fx, ys: fy, rows: null }], time: !!x.time, cats: cc.list };
       }
@@ -478,9 +573,28 @@ var NetflowPlot = (function () {
     }
     return out;
   }
+  /** The same points as mapping every x,y pair and (over 5,000 points) passing them through pixelColumns, made in one walk of two number columns (since 2.18.1). mx, my: axis maps from linear(). */
+  function linePts(xs, ys, mx, my) {
+    var n = xs.length, xa = mx.a, xl = mx.lo, xk = mx.k, ya = my.a, yl = my.lo, yk = my.k, i, j, c = 0, out, o = 0, yv, py, col, mn, mxv, imn, imx, a, b, d, e, t;
+    c = colStat(ys).n;
+    if (c * 2 <= 10000) { out = new Array(c * 2); for (i = 0; i < n; i++) { yv = ys[i]; if (yv !== yv) continue; out[o++] = xa + (xs[i] - xl) * xk; out[o++] = ya + (yv - yl) * yk; } return out; }
+    out = []; i = 0; while (i < n && ys[i] !== ys[i]) i++;
+    while (i < n) {
+      col = Math.floor(xa + (xs[i] - xl) * xk); mn = mxv = ya + (ys[i] - yl) * yk; imn = imx = e = i;
+      for (j = i + 1; j < n; j++) { yv = ys[j]; if (yv !== yv) continue; t = xa + (xs[j] - xl) * xk; if (!(t >= col && t < col + 1)) break; py = ya + (yv - yl) * yk; if (py < mn) { mn = py; imn = j; } if (py > mxv) { mxv = py; imx = j; } e = j; }
+      a = i; b = imn; d = imx;
+      if (b > d) { t = b; b = d; d = t; }
+      out.push(xa + (xs[a] - xl) * xk, ya + (ys[a] - yl) * yk);
+      if (b !== a) out.push(xa + (xs[b] - xl) * xk, ya + (ys[b] - yl) * yk);
+      if (d !== b && d !== a) out.push(xa + (xs[d] - xl) * xk, ya + (ys[d] - yl) * yk);
+      if (e !== d && e !== b && e !== a) out.push(xa + (xs[e] - xl) * xk, ya + (ys[e] - yl) * yk);
+      i = j;
+    }
+    return out;
+  }
   CH.line = function (F, R, sp) {
-    var s = series(F, R, sp), allX = [], allY = [];
-    s.list.forEach(function (l) { allX = allX.concat(l.xs); allY = allY.concat(l.ys); }); if (sp.x && R.num(sp.x).yearName) allX.yearName = true;
+    var s = series(F, R, sp, true), allX = [], allY = [], whole = s.list.length === 1 && s.list[0].xs instanceof Float64Array && s.list[0].ys instanceof Float64Array;   /* one plain line: the columns themselves, not copies */
+    if (whole) { allX = s.list[0].xs; allY = s.list[0].ys; } else s.list.forEach(function (l) { allX = allX.concat(l.xs); allY = allY.concat(l.ys); }); if (sp.x && R.num(sp.x).yearName) allX.yearName = true;
     /* clean look: each line is named at its right end (no key row over the chart), up to 10 lines; room for the names is kept on the right */
     var ends = F.clean && !!sp.color && !F.keyRow && s.list.length > 1, ew = 0;
     if (ends && s.list.length > Math.min(16, Math.max(10, Math.floor((F.B - F.Tp) / 14)))) { ends = false; F.keyRow = true; F.Tp = 44; }   /* names at the line ends while each can have 14 px (up to 16 lines), else the key row */
@@ -495,17 +609,21 @@ var NetflowPlot = (function () {
     F.axes(ax, ay, sp.x, sp.index ? sp.y + ' (first value = 100)' : sp.y || 'Rows');
     var many = s.list.reduce(function (a, l) { return a + l.xs.length; }, 0), tags = [], starts = [];
     s.list.forEach(function (l) {
-      var pts = new Array(l.xs.length * 2), pn = 0, col = F.color(l.ci);
-      for (var j = 0; j < l.xs.length; j++) { if (l.ys[j] !== l.ys[j]) continue; pts[pn++] = ax.map(l.xs[j]); pts[pn++] = ay.map(l.ys[j]); }
-      pts.length = pn;
-      if (pn > 10000) pts = pixelColumns(pts);   /* since 2.18.0: over 5,000 points, each pixel column keeps its first, lowest, highest and last point, in order (the drawn line looks the same; 100,000 points build in a fifth of the time) */
+      var pts, pn = 0, col = F.color(l.ci);
+      if (whole && ax.map.k !== undefined && ay.map.k !== undefined) pts = linePts(l.xs, l.ys, ax.map, ay.map);
+      else {
+        pts = new Array(l.xs.length * 2);
+        for (var j = 0; j < l.xs.length; j++) { if (l.ys[j] !== l.ys[j]) continue; pts[pn++] = ax.map(l.xs[j]); pts[pn++] = ay.map(l.ys[j]); }
+        pts.length = pn;
+        if (pn > 10000) pts = pixelColumns(pts);
+      }   /* since 2.18.0: over 5,000 points, each pixel column keeps its first, lowest, highest and last point, in order (the drawn line looks the same; 100,000 points build in a fifth of the time) */
       F.line(pts, 2, col);
       if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
       if (F.clean && pts.length) {   /* values on the line: first point to the left of the plot, last point after the name (or alone for one line) */
         var fi = 0; while (l.ys[fi] !== l.ys[fi]) fi++;
         if ((pts[0] <= F.L + 2 && (ends || s.list.length === 1 || !sp.color)) || s.list.length === 1) starts.push({ x: pts[0] - 6, y: pts[1] + 4, t: vt(l.ys[fi]), c: readable(col, F.T) });   /* in series order: the biggest series first */
         if (s.list.length === 1) {
-          var hiK = -1, loK = -1, k2, nk = 0; for (k2 = 0; k2 < l.ys.length; k2++) if (l.ys[k2] === l.ys[k2]) { nk++; if (hiK < 0 || l.ys[k2] > l.ys[hiK]) hiK = k2; if (loK < 0 || l.ys[k2] < l.ys[loK]) loK = k2; }
+          var hiK = -1, loK = -1, k2, nk = 0; if (whole) { var ls = colStat(l.ys); hiK = ls.hiK; loK = ls.loK; nk = ls.n; } else for (k2 = 0; k2 < l.ys.length; k2++) if (l.ys[k2] === l.ys[k2]) { nk++; if (hiK < 0 || l.ys[k2] > l.ys[hiK]) hiK = k2; if (loK < 0 || l.ys[k2] < l.ys[loK]) loK = k2; }
           var lk = l.ys.length - 1; while (l.ys[lk] !== l.ys[lk]) lk--;
           F.text(pts[pts.length - 2] + 6, pts[pts.length - 1] + 4, vt(l.ys[lk]), 11, readable(col, F.T), { align: 'l', bold: true });
           [hiK, loK].forEach(function (k3, w) { if (nk < 3 || k3 === fi || k3 === lk || (w && l.ys[loK] === l.ys[hiK])) return; var hx = ax.map(l.xs[k3]), hy = ay.map(l.ys[k3]), side = w ? hy + 16 > F.B - 2 : hy - 8 < F.Tp + 2; F.text(side ? hx + 6 : hx, side ? Math.min(hy + 4, F.B - 1) : hy + (w ? 16 : -8), vt(l.ys[k3]), 11, readable(col, F.T), side ? { bold: true, align: 'l' } : { bold: true }); });   /* (since 2.14.1 a value beside the point stays above the bottom edge, clear of the dates under it) beside the point when above or below would leave the plot */
@@ -849,8 +967,10 @@ var NetflowPlot = (function () {
   /** Voronoi cells of points clipped to a box: each cell is the box cut by the half-planes of its nearer neighbors (found on a grid). */
   function voronoiCells(pts, x0, y0, x1, y1) {
     var n = pts.length / 2, cells = new Array(n), cs = Math.max(8, Math.sqrt((x1 - x0) * (y1 - y0) / Math.max(1, n)) * 1.5), cols = Math.ceil((x1 - x0) / cs) + 1, rows = Math.ceil((y1 - y0) / cs) + 1, grid = new Array(cols * rows), i;
-    for (i = 0; i < n; i++) { var c = Math.min(cols - 1, Math.max(0, Math.floor((pts[i * 2] - x0) / cs))), r = Math.min(rows - 1, Math.max(0, Math.floor((pts[i * 2 + 1] - y0) / cs))), k = r * cols + c; (grid[k] || (grid[k] = [])).push(i); }
+    var fin = function (q) { return isFinite(pts[q * 2]) && isFinite(pts[q * 2 + 1]); };   /* a point at infinity has no place on the grid and no cell (since 2.19.0; before, the walk around it never ended) */
+    for (i = 0; i < n; i++) { if (!fin(i)) continue; var c = Math.min(cols - 1, Math.max(0, Math.floor((pts[i * 2] - x0) / cs))), r = Math.min(rows - 1, Math.max(0, Math.floor((pts[i * 2 + 1] - y0) / cs))), k = r * cols + c; (grid[k] || (grid[k] = [])).push(i); }
     for (i = 0; i < n; i++) {
+      if (!fin(i)) { cells[i] = []; continue; }
       var px = pts[i * 2], py = pts[i * 2 + 1], poly = [x0, y0, x1, y0, x1, y1, x0, y1], ci = Math.floor((px - x0) / cs), ri = Math.floor((py - y0) / cs);
       for (var ring = 0; ring < Math.max(cols, rows); ring++) {
         var far2 = 0; for (var q = 0; q < poly.length; q += 2) { var dx = poly[q] - px, dy = poly[q + 1] - py; far2 = Math.max(far2, dx * dx + dy * dy); }
@@ -888,7 +1008,9 @@ var NetflowPlot = (function () {
   var NOKEYROW = { donut: 1, heat: 1, slope: 1, ridgeline: 1, splom: 1 };   /* these name their parts on the picture */
   function make(rows, spec, o, NS) {
     o = o || {}; spec = spec || {};
-    var F = frame(spec, o, NS), R = reader(rows, o), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
+    var cols = colsOf(rows); if (cols) rows = { length: cols.n };   /* a table of columns: read through the same reader, with no rows made (since 2.19.0) */
+    var F = frame(spec, o, NS), R = reader(rows, o, cols), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
+    if (type === 'line' && spec.x && spec.y && !spec.color) R.pre(spec.x, spec.y);
     if ((type === 'bar' || type === 'dotplot') && spec.x && spec.y && rows.length && !mostlyNum(R, spec.y) && mostlyNum(R, spec.x)) {   /* x is the number and y the names: swap them and lay the bars sideways instead of drawing an empty chart */
       spec = Object.assign({}, spec, { x: spec.y, y: spec.x }); if (type === 'bar') spec.horizontal = true;
       if (type === 'bar' && spec.top === undefined && o.top !== false) { var sx = new Set(R.cat(spec.x)); if (sx.size > 25 && !Array.prototype.some.call(R.num(spec.y), function (y) { return y < 0; })) spec.top = 10; }   /* our own swap, so the same rule as auto: more than 25 names gives the 10 biggest plus the rest */
@@ -959,6 +1081,7 @@ var NetflowPlot = (function () {
   }
   function gQ(c) { return '"' + c.k + '"'; }
   function guess(rows) {
+    rows = rowsOf(rows);
     rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; });
     if (!rows.length) return null;
     var n = Math.min(rows.length, 500), cs = gCols(rows, n), out = [], i;
@@ -1043,7 +1166,7 @@ var NetflowPlot = (function () {
     if (b > 0 && a > 0) { var q = a / b; if (q >= 2) return q >= 100 ? 'far ahead of' : (Math.round(q * 10) / 10) + ' times as much as'; if (PCT) return tPts(a - b) + ' more than'; if (b >= a / 10) return Math.round((a - b) / b * 100) + '% more than'; }
     return 'ahead of';
   }
-  function takeaway(rows, spec, o) {   /* o: the chart's options; values written as percents when the chart writes them so (since 2.12.1), percent: false turns it off */
+  function takeaway(rows, spec, o) { rows = rowsOf(rows);   /* o: the chart's options; values written as percents when the chart writes them so (since 2.12.1), percent: false turns it off */
     var was = PCT;
     try { rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; }); spec = spec || {};
       PCT = !(o && o.percent === false) && rows.length > 0 && !!spec.type && fractionCol(reader(rows, {}), spec, spec.type);
@@ -1143,7 +1266,7 @@ var NetflowPlot = (function () {
    * A Sankey or treemap pick needs netflow-sankey or netflow-hierarchy on the page; without it the next pick is drawn.
    */
   function auto(rows, o) {
-    o = o || {}; rows = rows || [];
+    o = o || {}; rows = rowsOf(rows || []);
     var g = guess(rows);
     if (!g) return { svg: toSvg(rows, { type: 'bar', title: o.title }), type: 'bar', spec: { type: 'bar' }, why: rows.length ? 'no column could be read as a number or a category' : 'there are no rows', others: [] };
     var list = [{ type: g.type, spec: g.spec, why: g.why }].concat(g.others), i, svg = null;
@@ -1175,6 +1298,12 @@ var NetflowPlot = (function () {
    */
   function toSvg(rows, o) {
     o = o || {}; rows = rows || [];
+    var tc = colsOf(rows);
+    if (tc) {   /* a table of columns: a chart with its type and columns named is drawn straight from the columns; the paths that read row by row get rows */
+      if (o.type === 'sankey' || o.type === 'treemap' || o.type === 'chord' || o.title === 'auto' || (o.type === undefined && o.x === undefined && o.y === undefined) || !o.x || (!o.y && !o.type)) return toSvg(rowsOf(rows), o);
+      var cs = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) cs[k] = o[k]; }); if (!cs.type) cs.type = 'bar';
+      var NC = sceneLib('netflow-plot'); return NC.toSvg(make(rows, cs, o, NC), o.title);
+    }
     if (o.type === 'sankey' || o.type === 'treemap' || o.type === 'chord') { var sp = { from: o.from, to: o.to, value: o.value, id: o.id, parent: o.parent, size: o.size }, pk = { type: o.type, spec: sp }, out = drawPick(rows, pk, o); if (out === null) throw new Error('netflow-plot: type ' + o.type + ' needs ' + (o.type === 'sankey' ? 'netflow-sankey' : o.type === 'chord' ? 'netflow-hierarchy and netflow-circular' : 'netflow-hierarchy') + '.js on the page.'); return out; }
     if (o.type === undefined && o.x === undefined && o.y === undefined && rows.length) return auto(rows, o).svg;
     if (o.title === 'auto') { var sp2 = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) sp2[k] = o[k]; }); o = autoTitle(rows, sp2, o); }

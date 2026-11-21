@@ -2,6 +2,13 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.19.0 · API 2 · 2026-11-20
+- A table can be given as columns, { name: array } with plain or typed arrays (what lfc-pack's unpackColumns returns); the chart is the same as from rows, and a 100,000-point line builds in about 4 ms instead of 5 (Chromium 156)
+- A Voronoi chart with an infinite value no longer hangs
+
+## 2.18.1 · API 2 · 2026-11-20
+- A line chart of many points builds about 3 times faster (100,000 points: 15 to 5 ms in Chromium 156, 20 to 5 in Firefox 158, 21 to 10 in WebKitGTK 2.52.6); the chart is exactly the same
+
 ## 2.18.0 · API 2 · 2026-11-20
 - A line over 5,000 points draws one to four points per pixel column (first, lowest, highest, last); it looks the same. 100,000 points build in 16 ms (was 43) in Chromium 156, 19 (57) in Firefox 158, 16 (67) in WebKitGTK 2.52.6
 
