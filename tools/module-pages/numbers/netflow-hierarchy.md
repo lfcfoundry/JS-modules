@@ -1,31 +1,21 @@
-**Against d3-hierarchy, cloud-browser runs.** Layout of 100,000 nodes from a flat parent list (id, parent, size) into 900 x 600 positioned boxes, a fresh page for every library, median of 3 passes, shared 4-core cloud machine. Both return all 100,000 nodes, and the input conversion is inside both timings. Pass-to-pass spread is 5 to 47%, so only gaps clearly bigger than that count. The icicle chart is a later run on the same machine. Lower is faster.
+**Against d3-hierarchy 3.1.3, cloud-browser runs.** The same job from the same rows: build the tree, sum, sort the children and lay out 100,000 items into positioned boxes, all five views. A fresh page for every library, one browser at a time, shared 4-core cloud machine. Time is shown as a percent of d3-hierarchy's time, so d3-hierarchy is always 100 and lower is faster.
 
-Compared: netflow-hierarchy against d3-hierarchy 3.1.3 (circle pack layout, ms).
+Compared: netflow-hierarchy against d3-hierarchy 3.1.3 (layout of 100,000 items, percent of d3-hierarchy's time, lower is faster).
 
-<!-- title: netflow-hierarchy packs 100,000 circles in 151 to 177 ms in Firefox and WebKitGTK against 215 to 327 for d3-hierarchy -->
-| way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
-|---|---:|---:|---:|
-| d3-hierarchy | 197 | 327 | 215 |
-| netflow-hierarchy | 176 | 177 | 151 |
+<!-- title: netflow-hierarchy lays out 100,000 items in 31 to 72% of d3-hierarchy's time in all five views and all three browsers -->
+| view | way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---|---:|---:|---:|
+| Icicle | d3-hierarchy | 100 | 100 | 100 |
+|  | netflow-hierarchy | 57 | 31 | 38 |
+| Treemap | d3-hierarchy | 100 | 100 | 100 |
+|  | netflow-hierarchy | 41 | 34 | 42 |
+| Sunburst | d3-hierarchy | 100 | 100 | 100 |
+|  | netflow-hierarchy | 72 | 37 | 49 |
+| Circle pack | d3-hierarchy | 100 | 100 | 100 |
+|  | netflow-hierarchy | 41 | 44 | 40 |
+| Tree | d3-hierarchy | 100 | 100 | 100 |
+|  | netflow-hierarchy | 44 | 35 | 48 |
 
-That is 46% less time in Firefox and 30% less in WebKitGTK, and about even in Chromium (inside the spread).
+The lead is smaller on smaller charts. At 10,000 items netflow-hierarchy takes 43 to 94% of d3-hierarchy's time, and at 1,000 items 53 to 86%; in no view and no browser is it behind. Cloud test browsers only; laptop numbers are still to come.
 
-Compared: netflow-hierarchy against d3-hierarchy (treemap layout, ms).
-
-<!-- title: netflow-hierarchy lays out a 100,000-node treemap about 20% faster than d3-hierarchy in Chromium and Firefox, and ties in WebKitGTK -->
-| way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
-|---|---:|---:|---:|
-| d3-hierarchy | 112 | 144 | 109 |
-| netflow-hierarchy | 90 | 115 | 108 |
-
-Compared: netflow-hierarchy against d3-hierarchy 3.1.3 (icicle layout from rows, both sorting children, 100,000 items, time as a percent of d3-hierarchy's, lower is faster).
-
-<!-- title: netflow-hierarchy lays out a 100,000-item icicle in 35 to 66% of d3-hierarchy's time, and is ahead at 1,000 and 10,000 items too -->
-| way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
-|---|---:|---:|---:|
-| d3-hierarchy | 100 | 100 | 100 |
-| netflow-hierarchy | 66 | 35 | 43 |
-
-At 10,000 items netflow-hierarchy takes 80%, 50% and 64% of d3-hierarchy's time (Chromium, Firefox, WebKitGTK), and at 1,000 items 87%, 67% and 73%, so the lead grows with size. Cloud test browsers only; a laptop run is still to come. The pack and treemap rows above were measured at an earlier netflow-hierarchy version and have not been re-run against d3-hierarchy; the current version is not slower on them.
-
-Size is also a loss (measured at an earlier version, not re-measured): d3-hierarchy is 5.8 KB gzipped (layout only), netflow-hierarchy 12.9 KB for layout only and 46.2 KB with netflow-scene when drawing. netflow-hierarchy also does five views, groups, links and drawing lists; d3-hierarchy is layout only.
+Size is the one place d3-hierarchy is smaller, and the two are not the same job. d3-hierarchy 3.1.3 minified is 14.8 KB (5.8 KB gzipped) and does layout only. netflow-hierarchy as shipped is 66 KB (22.6 KB gzipped, not minified) and also draws the picture; minified it would be about 31.5 KB (13.8 KB gzipped), and its layout part alone 16.3 KB (7.4 KB gzipped). No minified build ships today.
