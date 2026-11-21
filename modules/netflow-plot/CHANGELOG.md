@@ -2,6 +2,10 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.21.0 · API 2 · 2026-11-21
+- New: netflow-plot-line.min.js, one small file that draws line charts only and needs nothing else: 21.6 KB gzipped, against 22.0 KB for uPlot's script
+- Same line charts, character for character, as the full files; anything else gives a plain error
+
 ## 2.20.1 · API 2 · 2026-11-21
 - A long line builds faster with exactly the same picture: a finished 100,000-point chart costs 3.2 ms in Chromium 156 (was 3.7 to 4.0); in Firefox 158 one chart alone reaches the screen in 14 to 20 ms (was 23 to 24)
 

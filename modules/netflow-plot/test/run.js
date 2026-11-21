@@ -380,6 +380,21 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const SE = P.make(even, { type: 'line', x: 't', y: 'v' }, { width: 1080 }, global.NetflowScene), QE = quads(SE); let mono = QE.length > 100; for (let k = 1; k < QE.length; k++) if (QE[k].pts[0] !== QE[k - 1].pts[2]) mono = false;
   ok(mono, 'band pieces stay joined when points land exactly on pixel edges');
 }
+/* 2.21.0: netflow-plot-line.min.js, the lines-only small file (rebuild: test/make-line.js) */
+{
+  const fs = require('fs'), path = require('path'), crypto = require('crypto'), dir = path.join(__dirname, '..');
+  const src = fs.readFileSync(path.join(dir, 'netflow-plot.js'), 'utf8'), min = fs.readFileSync(path.join(dir, 'netflow-plot-line.min.js'), 'utf8');
+  const stamp = crypto.createHash('sha1').update(src).update(fs.readFileSync(path.join(__dirname, 'line-uses.js'), 'utf8')).update(fs.readFileSync(path.join(__dirname, 'make-line.js'), 'utf8')).digest('hex').slice(0, 12);
+  ok(min.indexOf('build ' + stamp + '.') >= 0, 'netflow-plot-line.min.js was built from this netflow-plot.js (rebuild it with test/make-line.js)');
+  const L = require('../netflow-plot-line.min.js'), U = require('./line-uses.js'); let n = 0, bad = 0, first = '';
+  U.each((d, o) => { n++; let b; try { b = L.toSvg(d, o); } catch (e) { b = 'error: ' + e.message; } if (b !== P.toSvg(d, o)) { bad++; if (!first) first = JSON.stringify(o).slice(0, 120) + ' ' + b.slice(0, 80); } }, 77, [0, 1, 3, 40, 401, 5001, 20000]);
+  ok(bad === 0 && n > 1000, 'the small file draws ' + n + ' line charts exactly as netflow-plot.js with netflow-scene.js does (' + bad + ' differ' + (first ? ': ' + first : '') + ')');
+  ok(L.version === /Version (\d+\.\d+\.\d+)/.exec(src)[1], 'the small file says the same version');
+  ok(L.toSvg([{ a: 1, b: 2 }, { a: 2, b: 3 }], { type: 'bar', x: 'a', y: 'b' }) === P.toSvg([{ a: 1, b: 2 }, { a: 2, b: 3 }], { type: 'line', x: 'a', y: 'b' }), 'the small file always draws a line, whatever type is asked for');
+  let msg = ''; try { L.toSvg([{ a: 1, b: 2 }, { a: 2, b: 3 }], { x: 'a', y: 'b', title: 'auto' }); } catch (e) { msg = e.message; }
+  ok(/line charts only/.test(msg) && /netflow-plot\.js/.test(msg), 'a feature left out of the small file gives a plain error that names the full files');
+  ok(require('zlib').gzipSync(min, { level: 9 }).length < 22009, 'the small file is under 22,009 bytes gzipped (uPlot 1.6.32 minified is 22,009)');
+}
 /* 2.18.1: a long plain line reads its two number columns in one walk of the rows and builds its points straight from the columns; the drawing lists are the same whichever way the numbers arrive */
 {
   const r = rnd(9), n = 20000, rows = [], srows = [], arows = []; let y = 0;
