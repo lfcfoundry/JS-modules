@@ -1,6 +1,6 @@
 # idle-core
 
-**Version 1.2.0 · API 1**
+**Version 1.3.0 · API 1**
 
 **Tested in:** Firefox 158.0, ungoogled Chromium 155.0.8059.39-1, WebKitGTK 2.52.6, one at a time, in a same-answers run of one fixed set of calls (tests/idle-core-browser.js, readable and minified file); 37 Node checks (8 new).
 
@@ -52,7 +52,7 @@ document.addEventListener('visibilitychange', () => {
 const awayOnLoad = clock.since(save.stamp);   // phones may close a hidden page with no event at all
 ```
 
-Try `demo.html`. Checks: `node modules/idle-core/test/run.js` (Node only, 37 checks; pass a file path to check another copy, for example `modules/idle-core/idle-core.min.js`). `node tests/idle-core-browser.js` runs one fixed set of calls in Node and a real browser and compares the answers for the readable and minified file (`CHROMIUM=...`, `FIREFOX=...` or `WEBKIT=1`, one browser at a time). Counts, text and formatting were identical in every browser. Prices of about 1e9 and up differ in the last coin between engines because `Math.pow` is not the same everywhere: Node 22, Chromium 155 and Firefox 158 are within 3e-16 of exact, WebKitGTK 2.52.6 within 3e-14 (measured on 4,200 powers).
+Try `demo.html`. Checks: `node modules/idle-core/test/run.js` (Node only, 38 checks; pass a file path to check another copy, for example `modules/idle-core/idle-core.min.js`). `node tests/idle-core-browser.js` runs one fixed set of calls in Node and a real browser and compares the answers for the readable and minified file (`CHROMIUM=...`, `FIREFOX=...` or `WEBKIT=1`, one browser at a time). Counts, text and formatting were identical in every browser. Prices of about 1e9 and up differ in the last coin between engines because `Math.pow` is not the same everywhere: Node 22, Chromium 155 and Firefox 158 are within 3e-16 of exact, WebKitGTK 2.52.6 within 3e-14 (measured on 4,200 powers).
 
 ## Functions
 
@@ -104,7 +104,7 @@ Where it loses: not a big-number library or a locale library; away income is one
 
 - Pure maths: no storage, no rendering, no timers. You call `tick` and save the state yourself.
 - Numbers beyond 1e21 are shown in exponent form; anything past 1e300 is held at 1e300.
-- Floating-point prices: from about 1e12 a price can be a coin or two under the exact one (10 of 435 sampled cases at 1e12 and up), because noise below 1e-13 of the price is forgiven; from about 1e9 two browsers can disagree by a coin. `buyPlan` totals can differ from buying one at a time by up to about 2e-12 of the total above 1e12 (in 600,000 cases the number of copies and `can` always matched).
+- Floating-point prices: prices of 1e10 and up are worked out to the exact coin (since 1.3.0): the plain result is kept when it is clearly away from a whole number, and a result close to one is redone in double-double arithmetic, which gives the same answer in every browser (before, from about 1e12 a price could be a coin or two under the exact one, and browsers could disagree). Checked against an exact-fraction calculation on 4,000 cases from 1e8 to 1e14: 3 are still one coin off in every browser, discounts like 0.95 that a double cannot hold exactly. A price with an exact whole-number result (like 1e10 times 1.1 to a whole power) takes the exact path every call, about 0.1 to 0.3 microseconds instead of 0.02. `buyPlan` totals match buying one at a time.
 - `awayClock` trusts `Date.now()`, which the player can change. The cap limits the gain (one cap's worth each time the clock is moved forward); it does not stop it.
 - `formatBig` floors the number and shows `0` for NaN; `formatTime` shows `0 sec` for NaN or negative input; `formatRate` rounds to two decimals below 1, so `0.004` shows `0`.
 - `BoostQueue.tick` returns `ended` (the first boost that ran out), `endedAll` (all of them) and `started` (the boost that began in this step and still runs). Its state carries an `order` list; older states, or `{}`, are repaired on load.
