@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.7 · API 0 · 2026-11-21
+- Packing text columns scans and hashes short values faster in wasm: 0.96x (Chromium 156) and 0.91x (Firefox 158) the pack time, WebKitGTK 2.52.6 unchanged (44 columns, 20,000 rows). Same bytes.
+
 ## 0.14.6 · API 0 · 2026-11-21
 - Text columns that get a dictionary compress their label bytes once instead of twice while the layouts are tried: 0.96x to 0.97x the pack time (44 text columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6). Same bytes.
 

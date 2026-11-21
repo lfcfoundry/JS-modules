@@ -420,7 +420,7 @@ EXPORT("tplbuild") u32 tplbuild(const u8*in,u32 len,u32 n,u8*tl,u32*ids,u32*sg,u
 static u32 bc_tot;
 EXPORT("bctot") u32 bctot(void){ return bc_tot; }
 // flags: 1 = an offset is outside the bytes, 2 = a NUL byte, 4 = a byte above 127. Stops at the first NUL or bad offset (same as the JavaScript loop).
-EXPORT("bcscan") u32 bcscan(const u8*B,u32 blen,const int*S,const int*E,u32 n){
+static u32 bcscan_slow(const u8*B,u32 blen,const int*S,const int*E,u32 n){
   u32 hi=0,t=0;
   for(u32 i=0;i<n;i++){
     int s=S[i],e=E[i];
@@ -430,8 +430,36 @@ EXPORT("bcscan") u32 bcscan(const u8*B,u32 blen,const int*S,const int*E,u32 n){
   }
   bc_tot=t;return hi&128?4:0;
 }
-static inline u32 bc_hash(const u8*p,u32 l){u32 h=2166136261u;for(u32 k=0;k<l;k++){h^=p[k];h*=16777619u;}return h^l;}
-static inline int bc_eq(const u8*a,const u8*b,u32 l){u32 k=0;for(;k+8<=l;k+=8){if(*(const u64*)(a+k)!=*(const u64*)(b+k))return 0;}for(;k<l;k++)if(a[k]!=b[k])return 0;return 1;}
+// Since 0.14.7: when the values sit one after the other (each starts where the last ended, the usual CSV column) and every offset is inside the bytes, the whole range is checked 16 bytes at a time (SIMD build) for a NUL and a byte above 127; anything else, or a NUL, takes the value-by-value loop above, so the result is the same.
+EXPORT("bcscan") u32 bcscan(const u8*B,u32 blen,const int*S,const int*E,u32 n){
+#ifdef __wasm_simd128__
+  if(n){
+    int a=S[0],b=E[n-1];
+    if(a>=0&&b>=a&&(u32)b<=blen){
+      u32 i=0;int pe=a;
+      for(;i<n;i++){int s=S[i],e=E[i];if(s!=pe||e<s)break;pe=e;}
+      if(i==n&&pe==b){
+        int k=a;v128_t hv=wasm_i8x16_splat(0),z=wasm_i8x16_splat(0);int nul=0;
+        for(;k+16<=b;k+=16){v128_t v=wasm_v128_load(B+k);if(wasm_v128_any_true(wasm_i8x16_eq(v,z))){nul=1;break;}hv=wasm_v128_or(hv,v);}
+        u32 hi=wasm_i8x16_bitmask(hv)?128u:0u;
+        if(!nul)for(;k<b;k++){u8 c=B[k];if(!c){nul=1;break;}hi|=c;}
+        if(!nul){bc_tot=(u32)(b-a);return hi&128?4:0;}
+      }
+    }
+  }
+#endif
+  return bcscan_slow(B,blen,S,E,n);
+}
+// Since 0.14.7: values of 16 bytes or less are hashed from at most two 8-byte loads (the first 8 and the last 8; a shorter value is cut with a mask), not byte by byte. The bytes are read from the padded copy (16 spare bytes after it). The hash only picks table slots: labels are numbered in first-seen order, so codes and files are the same.
+static inline u32 bc_hs(const u8*p,u32 l){
+  const u64 M=0xd6e8feb86659fd93ull;u64 a,b;
+  if(l>=8){a=*(const u64*)p;b=*(const u64*)(p+l-8);}else{a=*(const u64*)p&((1ull<<(8*l))-1);b=0;}
+  u64 h=(a^((u64)l*0x9e3779b97f4a7c15ull))*M;h^=h>>32;h=(h^b)*M;h^=h>>32;return (u32)h;
+}
+static inline u32 bc_hash(const u8*p,u32 l){if(l<=16)return bc_hs(p,l);u32 h=2166136261u;for(u32 k=0;k<l;k++){h^=p[k];h*=16777619u;}return h^l;}
+static inline int bc_eq(const u8*a,const u8*b,u32 l){
+  if(l<=16){if(l>=8)return *(const u64*)a==*(const u64*)b&&*(const u64*)(a+l-8)==*(const u64*)(b+l-8);return ((*(const u64*)a^*(const u64*)b)&((1ull<<(8*l))-1))==0;}
+  u32 k=0;for(;k+8<=l;k+=8){if(*(const u64*)(a+k)!=*(const u64*)(b+k))return 0;}for(;k<l;k++)if(a[k]!=b[k])return 0;return 1;}
 // Distinct values in first-seen order. tab: HB u32 slots (label + 1, 0 empty), HB a power of two; lab: the row of each label's first value; codes: the label of each row; lh: each label's hash.
 // Returns the label count, or 0xFFFFFFFF where the string path's rule stops (a new value arrives when labels * 4 > n).
 EXPORT("bcdict") u32 bcdict(const u8*B,const int*S,const int*E,u32 n,int*codes,int*lab,u32*lh,u32*tab,u32 HB){
@@ -471,7 +499,7 @@ EXPORT("bcscanw") u32 bcscanw(const u8*B,u32 blen,const int*S,const int*E,u32 n)
   bc_tot=t;return hi&128?4:0;
 }
 static inline u32 bc_hashw(const u8*p,u32 l){
-  if(l<16){u32 h=2166136261u;for(u32 k=0;k<l;k++){h^=p[k];h*=16777619u;}return h^l;}
+  if(l<=16)return bc_hs(p,l);
   const u64 M=0xd6e8feb86659fd93ull;u64 h=0xe17a1465ull^((u64)l*M);u32 k=0;
   for(;k+8<=l;k+=8){h^=*(const u64*)(p+k);h*=M;h^=h>>32;}
   h^=*(const u64*)(p+l-8);h*=M;h^=h>>32;return (u32)h^l;
