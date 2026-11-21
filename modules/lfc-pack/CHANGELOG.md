@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.9 · API 0 · 2026-11-21
+- Reading text columns as bytes (text: 'bytes') cuts the values apart in one wasm pass: a 320,000-row title column reads 1.6 times faster in Chromium 156 and WebKitGTK 2.52.6, Firefox 158 the same. Same values.
+
 ## 0.14.8 · API 0 · 2026-11-21
 - Text columns with long, nearly all different values (page titles, URLs) pack 6 to 9% faster: the checking and joining of the values runs 16 bytes at a time in wasm. 320,000 titles, Chromium 156, Firefox 158, WebKitGTK 2.52.6. Same bytes.
 
