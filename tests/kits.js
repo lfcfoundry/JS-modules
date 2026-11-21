@@ -32,8 +32,6 @@ var steps = [
   ['canvas-probe', 'node', ['tools/canvas-probe/test/run.js']],
   ['webkit-driver', 'node', ['tools/webkit-driver/test/run.js']],
   ['lfc-pack', 'node', ['modules/lfc-pack/test/run.js']],
-  ['wake-keeper', 'node', ['modules/wake-keeper/test/run.js']],
-  ['wake-keeper lean', 'node', ['modules/wake-keeper/test/lean.js']],
   ['stage-curtains', 'node', ['modules/stage-curtains/test/run.js']],
   ['fly-to-mini', 'node', ['modules/fly-to-mini/test/run.js']],
   ['sticker-text', 'node', ['modules/sticker-text/test/run.js']],
@@ -126,7 +124,7 @@ var steps = [
   ['image-decode ahead browser', 'node', ['tests/image-decode-ahead-browser.js'], true, true],   // optional: ahead() against load-when-asked at a stage change in each browser (needs IMG_DIR as above)
   ['pcodec-js browser', 'node', ['tests/pcodec-js-browser.js'], true, true],   // optional: the test page and the demo page in a real browser
   ['pcodec-js split browser', 'node', ['tests/pcodec-js-split-browser.js'], true, true],   // optional: {into}, pool warm and split files open equal on the pool, with open times for 0.5, 2 and 8 million numbers
-  ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, wake-keeper, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
+  ['small lean browser', 'node', ['tests/small-lean-browser.js'], true, true],   // optional: back-close, even-dt and quality-governor lean builds in each browser (about 3 s per browser)
   ['field-report browser', 'node', ['tests/field-report-browser.js'], true, true],
   ['frame-kit browser', 'node', ['tests/frame-kit-browser.js'], true, true],   // optional like the one above (the 67 checks of modules/frame-kit/test/run.js run inside each browser, plus about 1.5 s of real animation frames)
   ['firefox', 'node', ['tests/firefox.js'], true, true]      // fourth item: a browser step (left out by --quick, run one at a time); fifth: counts as skipped, not failed, when it exits with code 2

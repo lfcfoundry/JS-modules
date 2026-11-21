@@ -6,7 +6,7 @@
 
 [**Pick a module**](#pick-a-piece) · [**Live demos**](https://lfcfoundry.github.io/JS-modules/demos.html) · [**Changelog**](CHANGELOG.md) · [**Credits**](CREDITS.md)
 
-![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 49](https://img.shields.io/badge/modules%20and%20tools-49-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
+![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 53](https://img.shields.io/badge/modules%20and%20tools-53-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
 
 </div>
 
@@ -66,12 +66,12 @@ MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built
 
 Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
-**Modules & Tools (54)**
+**Modules & Tools (53)**
 
 - Device and browser adaptation: [env-probes](modules/env-probes/README.md), [field-report](modules/field-report/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [image-decode](modules/image-decode/README.md), [slow-note](modules/slow-note/README.md)
 - Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
 - Games - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [gpu-blur](modules/gpu-blur/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
-- Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md), [wake-keeper](modules/wake-keeper/README.md)
+- Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md)
 - Games - Assist: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
 - Games - Math: [idle-core](modules/idle-core/README.md)
 - Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-guard](tools/speed-guard/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [test-runner](tools/test-runner/README.md), [webkit-driver](tools/webkit-driver/README.md)
@@ -103,7 +103,7 @@ Grouped by what a piece does. The live page, with demos and a quick finder, is *
 **How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. Story Editor packages are measured on their built `global` file. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`.
 Every piece has a size.
 
-### Modules & Tools (54)
+### Modules & Tools (53)
 
 #### Device and browser adaptation
 
@@ -148,8 +148,7 @@ Let players hold a button, or play with a gamepad.
 |---|---|---:|---:|---|---|
 | [back-close](modules/back-close/README.md) | 1.2.0 | 9.1 | 3.1 | Makes the phone's back swipe close the top panel instead of leaving the page. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/back-close/demo.html) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 | 13.0 | 4.1 | Hold-to-repeat buttons that survive Android Chrome's pointercancel. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/hold-press/demo.html) |
-| [pad-nav](modules/pad-nav/README.md) | 1.1.1 | 30.9 | 10.0 | Gamepad to focus: move through buttons, menus and sliders with a controller. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pad-nav/demo.html) |
-| [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 | 8.2 | 2.7 | Keeps the screen awake only while a game wants it. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/wake-keeper/demo.html) |
+| [pad-nav](modules/pad-nav/README.md) | 1.1.1 | 30.8 | 10.0 | Gamepad to focus: move through buttons, menus and sliders with a controller. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/pad-nav/demo.html) |
 
 #### Games - Assist
 
@@ -191,7 +190,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 | 115.0 | 39.0 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.14.4 | 675.9 | 294.3 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.14.6 | 678.1 | 295.0 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.0 | 133.6 | 48.3 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 | 464.7 | 134.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
@@ -219,7 +218,7 @@ Draw maps, flow charts and animated pictures from data.
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 | 209.9 | 65.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.7.1 | 64.6 | 22.1 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 | 76.6 | 26.6 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.18.0 | 126.2 | 40.6 | 22 plain chart types from a table, drawn with netflow-scene. | — |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.19.0 | 138.7 | 44.3 | 22 plain chart types from a table, drawn with netflow-scene. | — |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 | 79.7 | 28.4 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.1 | 143.9 | 47.1 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 

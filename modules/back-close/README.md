@@ -2,7 +2,7 @@
 
 **Version 1.2.0 · API 1**
 
-**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time (tests/small-lean-browser.js: 0 failures in each of the three; Chromium and Firefox used the real CloseWatcher with the real Escape key and the browser's own wake lock; WebKitGTK have no CloseWatcher, so 3 back-close situations say 'not available', and they refuse the wake lock request (NotAllowedError), so their 6 wake-keeper situations ran with a stand-in lock). Not run: a phone, Safari itself; node modules/back-close/test/lean.js 12 of 12, 30 older Node checks
+**Tested in:** ungoogled-chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6, one at a time (tests/small-lean-browser.js: 0 failures in each of the three; Chromium and Firefox used the real CloseWatcher with the real Escape key; WebKitGTK have no CloseWatcher, so 3 back-close situations say 'not available'). Not run: a phone, Safari itself; node modules/back-close/test/lean.js 12 of 12, 30 older Node checks
 
 ## What it is and how it works
 
@@ -100,7 +100,7 @@ Where it loses:
 - A close function that always refuses makes the back swipe do nothing on that panel. The browser limits how badly a page can do this, but do not do it.
 - Several panels open at once: the newest closes first. Panels shown without a tap or key in between (for example by a timer) can be grouped by the browser and close together on one back swipe; show panels from a user action where you can.
 - The Escape-key browser tests go through the same channel as the Android back swipe, which has not been tried on a device. Whether a Bluetooth controller's B button also acts as the browser's Back key on some Android browsers is unverified (old evidence); if it does, B may close a panel through both pad-nav and back-close at once, so test on a device.
-- Not run: a phone, Safari itself. WebKitGTK have no CloseWatcher, so 3 back-close situations say "not available" there, and they refuse the wake lock request, so their 6 wake-keeper situations ran with a stand-in lock.
+- Not run: a phone, Safari itself. WebKitGTK have no CloseWatcher, so 3 back-close situations say "not available" there.
 
 ## See it in action
 

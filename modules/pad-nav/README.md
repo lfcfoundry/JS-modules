@@ -71,7 +71,7 @@ Tests (offline): `node modules/pad-nav/test/run.js` (fake pads and a tiny fake D
 | `onBack(scope)`, `onStart(scope)` | none | B / Start pressed (edge only); called even with no scope. |
 | `onA(el)` | none | A pressed, before the click or slider and drop-down handling; return `false` to cancel that. |
 | `onUse(pad)`, `onDisconnect()` | none | First pad input (and first after an unplug) / last usable pad gone (once per unplug). |
-| `onInput(pad)`, `inputMs` | none, `250` | Any pad input, at most every `inputMs` ms. Keeps the screen awake: `onInput: function () { wk.poke(); }` with [wake-keeper](../wake-keeper/README.md). |
+| `onInput(pad)`, `inputMs` | none, `250` | Any pad input, at most every `inputMs` ms, for example to reset an idle timer. |
 | `onError(err, where)` | none | A swallowed error; `where` names the callback or step that threw. A repeating error is reported once; the latest is on `pn.lastError` and `pn.lastErrorWhere`. |
 | `getPads()` | `navigator.getGamepads` | Inject a fake in tests. |
 | `deadzone`, `release` | `0.45`, `0.35` | Stick push (0 to 1) at which a direction starts / lets go; the gap keeps a worn stick from flipping every frame (equal values turn it off). Starting points, not tuned on real sticks. |
