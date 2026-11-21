@@ -41,7 +41,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.14.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.14.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.19.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
@@ -62,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-21 · **netflow-scene** 1.14.2 · API 1: Charts that draw their own shapes (treemap, icicle, sunburst) are set up faster; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
 - 2026-11-21 · **lfc-pack** 0.14.7 · API 0: Packing text columns scans and hashes short values faster in wasm: 0.96x (Chromium 156) and 0.91x (Firefox 158) the pack time, WebKitGTK 2.52.6 unchanged (44 columns, 20,000 rows). Same bytes.

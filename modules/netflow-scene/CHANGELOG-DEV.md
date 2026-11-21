@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.14.2 · API 1 · 2026-11-21
+
+### Quick
+make(): for a layout with dotFills and no links, an item that gets no dot, name or icon swap no longer builds a look record or is looked up by name. Same scene, same SVG. Old code keeps working.
+
+### Details
+networkScene: the name-to-record table is filled only when something asks for it when L.dotFills is true, the map is flat and has no links; an item whose dot is not built takes a short path that stores only its color in S.dotFills (the start item's accent mix and the 0.92 opacity floor as before), its choke dot and its icon. Items with a shown name, an icon in place of the dot, or a map big enough for move-by-hand lists take the old path.
+
+### Deep
+netflow-hierarchy 1.8.1 scene step, 1.14.2 as a share of 1.14.1, median of 31 paired rounds at 50,000 items: treemap Chromium 156 0.87, Firefox 158 0.84, WebKitGTK 2.52.6 0.80; icicle 0.72, 0.68, 0.62; sunburst 0.72, 0.66, 0.59. At 1,000 items: no change (Chromium treemap 1.00, 1.20, 1.02, 0.97, 1.02 over five runs of 61 rounds; icicle 0.98 to 1.00; Firefox 1.00; WebKitGTK 0.80 to 1.00). Same S.nodes count, dots, labels, icons, dotFills, bounds and SVG text on 912 charts (7 views, plain and decorated items: start, choke, end, shown names, icons, hidden, styled; duplicate names; typedRects).
+
 ## 1.14.1 · API 1 · 2026-11-20
 
 ### Quick
