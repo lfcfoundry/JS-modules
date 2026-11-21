@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.16.0 · API 0 · 2026-11-21
+
+### Quick
+sortBy: 'key' | ['key','asc'|'desc'] on packColumnsParallel, packRows, packRowsParallel: stable sort before blocks are cut (radix for numbers, dates, timestamps; labels ranked once for dictionary columns; 32-bit prefix radix plus tie runs…
+
+### Deep
+sortBy: 'key' | ['key','asc'|'desc'] on packColumnsParallel, packRows, packRowsParallel: stable sort before blocks are cut (radix for numbers, dates, timestamps; labels ranked once for dictionary columns; 32-bit prefix radix plus tie runs for text), empty values last, section 20 sortedBy (written also with summary:false, with keys). keepOrder adds $row (Int32Array of pre-sort positions), section 20 rowIndex; unpack/unpackRows/unpackColumns/unpackColumnsParallel/unpackRowsParallel leave it out unless named; unpack/unpackRows { original: true } restore saved order. Measured 1,000,000 rows, 6 columns, 4-core cloud, median of 7: range read 0.5% of rows 37->4.5 ms Chromium 156, 22->3.5 Firefox 158, 51->7 WebKitGTK 2.52.6; sortBy save 1.94x/1.62x/2.49x of an unsorted save (pack of pre-sorted rows alone ~1.45x in Chromium; columns lose order, +25% size), keepOrder +15% size; ordinary unpack/unpackColumnsParallel unchanged (0.96-1.03 vs 0.15.0, 3 pages). Tried and dropped: gathering string columns as text bytes in sortTable (tied Chromium, 1.2x slower Firefox). Chart bins: PYR_BINS 2048->4096 (netflow-plot draws from bins at >=2 per pixel; file +0.26% vs +0.52% on the test table); pyramids(bytes[, key], { full: true }) attaches a cached full() reading that column (NaN empty, dates ms, us scaled). Summary: text-as-bytes date columns the writer kept as text are now summed as dates (with pyramids). Fix: column tables with NaN in a Float64Array failed the row check and went down the row-object text path (no helpers, no summary parts); now the column path: 1,000,000 rows, 10% NaN: 2104->530 ms Chromium, 1979->502 Firefox, 1972->612 WebKitGTK (3 pages each), same rows read back (file bytes differ slightly: block cuts).
+
 ## 0.15.0 · API 0 · 2026-11-21
 
 ### Quick
