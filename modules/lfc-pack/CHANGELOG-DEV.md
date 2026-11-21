@@ -2,6 +2,11 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.12 · API 0 · 2026-11-21
+
+### Quick
+src/api.js: the `version` the library reports was left at '0.14.8' through 0.14.9 to 0.14.11; it is 0.14.12 now. Found by `versions.py check`. No other change.
+
 ## 0.14.11 · API 0 · 2026-11-21
 
 ### Quick

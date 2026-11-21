@@ -1,6 +1,6 @@
 # lfc-pack
 
-**Version 0.14.11 · API 0**
+**Version 0.14.12 · API 0**
 
 **Tested in:** Node suite; Chromium 156, Firefox 158, WebKitGTK 2.52.6 timing
 
@@ -131,7 +131,7 @@ Sums and averages without building columns: `LfcPack.aggregate(bytes, { key: 'ti
 
 Since 0.10.29 the kernels skip empty values without a branch (B48), presence bits are counted in WebAssembly (B49), and `warm()` runs a few hundred tiny kernel calls in an idle task of its own (B50), so the first `aggregate` after `warm()` runs at full speed. First sum of fare on 1M taxi rows after `warm()`: 4.4 / 4 / 5 ms in Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, against 6.3 / 5 / 7 ms for 0.10.28 and 5.7 / 5 / 11 ms for Apache Arrow 21.2.0 IPC (first sum, cloud runs, medians of 5 fresh pages). `init()` is unchanged; the extra warm-up costs about 1-4 ms inside `warm()`.
 
-Block by block (since 0.14.11): `unpackColumnsParallel(bytes, { onBlock })` calls `onBlock(block, index, count)` for each block as soon as it is read (`block` is `{ n, keys, cols, present }` as `unpackColumns` gives; `index` is the block's place, calls come in the order blocks finish), then resolves with the whole table as before: draw a first picture from the first blocks while the rest reads. A callback that throws rejects the read.
+Block by block (since 0.14.12): `unpackColumnsParallel(bytes, { onBlock })` calls `onBlock(block, index, count)` for each block as soon as it is read (`block` is `{ n, keys, cols, present }` as `unpackColumns` gives; `index` is the block's place, calls come in the order blocks finish), then resolves with the whole table as before: draw a first picture from the first blocks while the rest reads. A callback that throws rejects the read.
 
 Number columns with empty values as typed arrays: `unpackColumns(bytes, { keys, nulls: 'NaN' })` (also `unpackColumnsParallel` and `R.columns(i, ...)`) gives every number column one value per row in a typed array, with NaN where the value is null or the row lacks the key; text and other columns are unchanged. Without it, a number column with any null comes back as a plain list, which V8 reads about 10 times slower.
 

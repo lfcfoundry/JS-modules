@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.12 · API 0 · 2026-11-21
+- The version the library reports about itself now matches the release (it still said 0.14.8). No other change.
+
 ## 0.14.11 · API 0 · 2026-11-21
 - New opts.onBlock on unpackColumnsParallel: each block's columns reach your function as soon as that block is read, so a first picture can draw while the rest reads. Same final result.
 
