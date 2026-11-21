@@ -47,16 +47,37 @@ static inline u32 getOne(const u8 *b, u32 i) {
   u32 h = select1(H, s1, s, i) - i;
   return (u32)(((u64)h << l) | lowAt(low, l, i));
 }
+// Long runs of equal values (since 2.1.3): a bucket can hold a long run of ones, so the zero search and the scan inside the bucket could walk it bit by bit. Both now stop after a few
+// steps and find the place by galloping over values (getOne), which costs a few dozen reads however long the run is. Ordinary lists never reach the limits, so they take the same steps as before.
+#define SEL_WORDS 4
+#define SCAN_STEPS 8
+static inline u32 gallop(const u8 *b, u32 lo, u32 n, u32 x) {   // the first position t >= lo whose value is >= x (values never go down), or n
+  u32 hi = lo, step = 1;
+  while (hi < n && getOne(b, hi) < x) { lo = hi + 1; hi = lo + step; step <<= 1; }
+  if (hi > n) hi = n;
+  while (lo < hi) { u32 mid = lo + ((hi - lo) >> 1); if (getOne(b, mid) < x) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+// where the values of bucket h start: *i = how many values lie in lower buckets, *sp = their bit position; the zero search gives up after SEL_WORDS words (a long run of ones)
+static inline void bucketStart(const u8 *b, u32 h, u32 *iout, u32 *spout) {
+  OPEN(b)
+  if (h == 0) { *iout = 0; *spout = 0; return; }
+  u32 j = h - 1, k = j >> s, pos = s0[k], rem = j - (k << s), w = pos >> 6, c, steps = 0;
+  u64 cur = ~H[w] & (~0ULL << (pos & 63));
+  while (rem >= (c = POP(cur))) { rem -= c; cur = ~H[++w]; if (++steps > SEL_WORDS) { u32 i = gallop(b, pos - (k << s), n, (u32)((u64)h << l)); *iout = i; *spout = i + h; return; } }
+  u32 pz = w * 64 + sel64(cur, rem); *iout = pz - j; *spout = pz + 1;
+}
 // index of the first value >= x, or n when there is none
 static inline u32 nextOne(const u8 *b, u32 x) {
   OPEN(b)
   if (n == 0 || x > maxv) return n;
-  u32 h = (u32)((u64)x >> l), i, sp;
+  u32 h = (u32)((u64)x >> l), i, sp, steps = 0;
   u64 xl = (u64)x & mask(l);
-  if (h == 0) { i = 0; sp = 0; } else { u32 pz = select0(H, s0, s, h - 1); i = pz - (h - 1); sp = pz + 1; }
+  bucketStart(b, h, &i, &sp);
   while (i < n) {
     if (!((H[sp >> 6] >> (sp & 63)) & 1)) return i;   // the bucket of h ended: this value is bigger than x
     if (lowAt(low, l, i) >= xl) return i;
+    if (++steps >= SCAN_STEPS) return gallop(b, i + 1, n, x);
     i++; sp++;
   }
   return n;
@@ -65,13 +86,14 @@ static inline u32 nextOne(const u8 *b, u32 x) {
 static inline u32 nextOneV(const u8 *b, u32 x, u32 *val) {
   OPEN(b)
   if (n == 0 || x > maxv) return n;
-  u32 h = (u32)((u64)x >> l), i, sp;
+  u32 h = (u32)((u64)x >> l), i, sp, steps = 0;
   u64 xl = (u64)x & mask(l);
-  if (h == 0) { i = 0; sp = 0; } else { u32 pz = select0(H, s0, s, h - 1); i = pz - (h - 1); sp = pz + 1; }
+  bucketStart(b, h, &i, &sp);
   while (i < n) {
     if (!((H[sp >> 6] >> (sp & 63)) & 1)) { *val = getOne(b, i); return i; }   // the bucket of h ended: this value is bigger than x
     u64 lo = lowAt(low, l, i);
     if (lo >= xl) { *val = (u32)(((u64)(sp - i) << l) | lo); return i; }
+    if (++steps >= SCAN_STEPS) { i = gallop(b, i + 1, n, x); if (i < n) *val = getOne(b, i); return i; }
     i++; sp++;
   }
   return n;
@@ -103,11 +125,14 @@ void ef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) {
       u32 x = X[q], h = (u32)((u64)x >> l), i, sp;
       if (x > maxv) { out[j + q] = n; continue; }
       u64 xl = (u64)x & mask(l);
+      u32 steps = 0, far = 0;
       if (h == 0) { i = 0; sp = 0; }
       else { u32 jj = h - 1, p = P[q], rem = jj - ((jj >> s) << s), w = p >> 6, c; u64 cur = C[q] & (~0ULL << (p & 63));
-        while (rem >= (c = POP(cur))) { rem -= c; cur = ~H[++w]; }
-        u32 pz = w * 64 + sel64(cur, rem); i = pz - (h - 1); sp = pz + 1; }
-      while (i < n) { if (!((H[sp >> 6] >> (sp & 63)) & 1)) break; if (lowAt(low, l, i) >= xl) break; i++; sp++; }
+        while (rem >= (c = POP(cur))) { rem -= c; cur = ~H[++w]; if (++steps > SEL_WORDS) { far = 1; break; } }
+        if (far) { i = gallop(b, p - ((jj >> s) << s), n, (u32)((u64)h << l)); sp = i + h; }
+        else { u32 pz = w * 64 + sel64(cur, rem); i = pz - (h - 1); sp = pz + 1; } }
+      steps = 0;
+      while (i < n) { if (!((H[sp >> 6] >> (sp & 63)) & 1)) break; if (lowAt(low, l, i) >= xl) break; if (++steps >= SCAN_STEPS) { i = gallop(b, i + 1, n, x); break; } i++; sp++; }
       out[j + q] = i;
     }
   }

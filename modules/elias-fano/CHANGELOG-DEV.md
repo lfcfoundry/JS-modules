@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.1.3 · API 2 · 2026-11-21
+
+### Quick
+nextGEQ, nextGEQMany and intersect (nextOneV) in ef.c and the JavaScript fallback: the zero search gives up after 4 64-bit words (8 32-bit words in JS) and the bucket scan after 8 values, then gallop over values with getOne (a few dozen re…
+
+### Deep
+nextGEQ, nextGEQMany and intersect (nextOneV) in ef.c and the JavaScript fallback: the zero search gives up after 4 64-bit words (8 32-bit words in JS) and the bucket scan after 8 values, then gallop over values with getOne (a few dozen reads however long the run). Denser samples were not taken: they change saved blobs. Measured 5 pages, 15 rounds, median, 4-core cloud: fixture of 100,000 copies of 128 then a spread tail, batch of 8 nextGEQ(129): 0.026x Chromium 156, 0.033x Firefox 158, 0.042x WebKitGTK 2.52.6 of 2.1.2; random 10,000-query batch on that fixture 0.66/0.70/0.80x; random 10,000-query batch on a 1,000,000-value spread list 0.91/0.91/1.00x (no slowdown). Blobs unchanged (format and builders untouched); new test longruns.js (261,602 checks, both backends).
+
 ## 2.1.2 · API 2 · 2026-11-07
 
 ### Quick

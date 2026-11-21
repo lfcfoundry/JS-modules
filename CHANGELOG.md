@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.1.3 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.16.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
@@ -94,6 +94,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **idle-core** 1.3.0 · API 1: Prices of 1e10 and up are now exact to the coin and the same in every browser (before, from about 1e12 a price could be a coin low). Ordinary prices are as fast or a little faster.
 - 2026-11-21 · **guess-gate** 1.0.1 · API 1: Guesses use at most 5% of the time so far by default (was 10%): at 10% a progressive import ran 12% slower than none in WebKitGTK 2.52.6; at 5% Chromium 156, Firefox 158 and WebKitGTK are within noise of none.
 - 2026-11-21 · **guess-gate** 1.0.0 · API 1: New module: a time-boxed scheduler for first guesses during an import; guesses may use only a set share (10% by default) of the time so far, so a progressive import costs about the same total time as one without guesses.
+- 2026-11-21 · **elias-fano** 2.1.3 · API 2: "First value at or above" no longer crawls through long runs of one repeated value (24 to 42 times faster on a 100,000-copy run); same blobs and answers.
 - 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
 - 2026-11-20 · **netflow-plot** 2.19.0 · API 2: A table can be given as columns, { name: array } with plain or typed arrays (what lfc-pack's unpackColumns returns); the chart is the same as from rows, and a 100,000-point line builds in about 4 ms instead of 5 (Chromium 156) A Voronoi chart with an infinite value no longer hangs
 - 2026-11-20 · **netflow-plot** 2.18.1 · API 2: A line chart of many points builds about 3 times faster (100,000 points: 15 to 5 ms in Chromium 156, 20 to 5 in Firefox 158, 21 to 10 in WebKitGTK 2.52.6); the chart is exactly the same
