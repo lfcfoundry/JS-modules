@@ -32,18 +32,18 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.14.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.14.3 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.0 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [netflow-circular](modules/netflow-circular/README.md) | 1.4.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
+| [netflow-circular](modules/netflow-circular/README.md) | 1.5.0 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.7.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
-| [netflow-scene](modules/netflow-scene/README.md) | 1.14.0 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.17.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-scene](modules/netflow-scene/README.md) | 1.14.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.18.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -63,7 +63,15 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
+- 2026-11-20 · **netflow-plot** 2.18.0 · API 2: A line over 5,000 points draws one to four points per pixel column (first, lowest, highest, last); it looks the same. 100,000 points build in 16 ms (was 43) in Chromium 156, 19 (57) in Firefox 158, 16 (67) in WebKitGTK 2.52.6
+- 2026-11-20 · **netflow-plot** 2.17.1 · API 2: A line chart of many points builds its drawing 2.5 to 3.5 times faster (100,000 points: 42 to 17 ms in Chromium); the chart is the same
+- 2026-11-20 · **netflow-circular** 1.5.0 · API 1: New option typed: true lays out a dense chord (400 items, 80,000 links) in 15 to 24 ms, 1.5 to 2.3 times faster than d3-chord 3.0.2 (Chromium 156, Firefox 158, WebKitGTK 2.52.6); the default is also 18 to 40% faster
+- 2026-11-20 · **netflow-circular** 1.4.1 · API 1: Chord layout is 3 to 4 times faster on dense charts (400 items, 80,000 links: 185 to 48 ms in Chromium); the drawing is the same
 - 2026-11-20 · **lz4-kit** 1.1.0 · API 1: New last argument `{ view: true }` on the compress and decompress calls: no copy, valid until the next call. 4 MiB of logs: decompress 1.5 to 1.7 ms against 3.0 to 4.4 for other LZ4 libraries (Chromium 156, Firefox 158, WebKitGTK 2.52.6). New test page `bench/laptop-tester.html`: speed against gzip and four other LZ4 libraries, plus cross-reading checks, with a Copy results button.
+- 2026-11-20 · **lfc-pack** 0.14.3 · API 0: Number columns of decimals (like 12.35) find their whole-number form in wasm instead of a JavaScript loop; same bytes. Not yet timed in browsers.
+- 2026-11-20 · **lfc-pack** 0.14.2 · API 0: text: 'bytes' also returns date columns as byte views (fixed width): 1,500,000 taxi timestamps read in about half the time in Chromium, Firefox and WebKitGTK; the default read is unchanged
+- 2026-11-20 · **lfc-pack** 0.14.1 · API 0: packBlock text columns given as bytes with mid-size values (16 to 23 bytes on average) pack faster: 6 to 16% less time on a 60,000-row column of about 17-byte values in Chromium, Firefox and WebKitGTK; same bytes
 - 2026-11-20 · **lfc-pack** 0.14.0 · API 0: New opt-in read option text: 'bytes' (unpackColumns, open().columns): text columns come back as byte views instead of strings; default unchanged. Not yet timed in browsers.
 - 2026-11-20 · **lfc-pack** 0.13.9 · API 0: packBlock with timestamp columns ({ kind: 'ts' }) has less fixed cost per call: 6 to 15% less time for 16,384-row batches of real taxi columns in Chromium, Firefox and WebKitGTK; same bytes
 - 2026-11-20 · **lfc-pack** 0.13.8 · API 0: packBlock date and timestamp columns pack faster: the check for more than half different values uses a typed table, 10 to 27% less time for a 100,000-row block with two timestamp columns in Chromium, Firefox and WebKitGTK; same bytes
