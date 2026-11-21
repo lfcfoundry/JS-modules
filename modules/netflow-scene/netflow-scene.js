@@ -3,7 +3,7 @@
  * Big flat maps keep their links in typed lists and reuse each link's look between pictures, so rebuilding after a move is faster with the same pixels.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.14.1 (API 1)
+ * Version 1.14.2 (API 1)
  *
  *   var L = NetflowEngine.build(graph, { view: 'network' });          // netflow-engine 2.2.2 or newer
  *   var S = NetflowScene.make(L, { theme: 'light', colorBy: 'group' }); // S.dots, S.curves, S.labels ...
@@ -1158,6 +1158,8 @@ var NFMScene = (function () {
     if (P3) { if (P3.L !== L || !P3.net || P3.key !== planKey || (o.plan === true && P3.lf !== o.labelFn)) { P3.L = L; P3.key = planKey; P3.lf = o.labelFn; P3.net = { nodes: new Array(L.nodes.length), edges: new Array(L.edges.length), rk: null, idxOf: null }; } ST = P3.net; }
     var cy3 = Math.cos(cam.yaw), sy3 = Math.sin(cam.yaw), cp3 = Math.cos(cam.pitch), sp3 = Math.sin(cam.pitch), R3 = L.radius3 || 300, D3 = R3 * (cam.persp || 2.4);
     var recs = new Array(L.nodes.length), nodeIds = new Array(L.nodes.length);
+    /* a chart that draws its own shapes and has no links (L.dotFills) rarely asks for an item by name: the name table is then only filled when something does */
+    var lazyPN = L.dotFills === true && !n3 && !ST && m === 0, needPN = function () { if (lazyPN) { lazyPN = false; for (var z = 0; z < recs.length; z++) PN.set(nodeIds[z], recs[z]); } return PN; };
     L.nodes.forEach(function (n, qi) {
       var st = n._st, r = n.w / 2 * (st && st.scale ? st.scale : 1), px = n.cx, py = n.cy, depth = 0, f = 1;
       if (n3) {
@@ -1168,7 +1170,7 @@ var NFMScene = (function () {
         if (d < lens.r && d > 1e-6) { var u = d / lens.r, g = ((lens.d + 1) * u) / (lens.d * u + 1), nd2 = g * lens.r; px = lens.x + dx / d * nd2; py = lens.y + dy / d * nd2; r *= Math.min(2.6, Math.max(1, nd2 / d) * 0.85 + 0.15); }
       }
       var rec = { n: n, px: px, py: py, r: r, depth: depth, f: f, hide: !!(st && st.hide), qi: qi };
-      recs[qi] = rec; nodeIds[qi] = n.id; if (!ST) PN.set(n.id, rec); list.push(rec);
+      recs[qi] = rec; nodeIds[qi] = n.id; if (!ST && !lazyPN) PN.set(n.id, rec); list.push(rec);
     });
     if (n3) list.sort(function (p, q) { return q.depth - p.depth; });
     var dmin = Infinity, dmax = -Infinity; list.forEach(function (p) { if (p.depth < dmin) dmin = p.depth; if (p.depth > dmax) dmax = p.depth; });
@@ -1251,7 +1253,13 @@ var NFMScene = (function () {
     };
     list.forEach(function (p) {
       var n = p.n, st = n._st, r = p.r; if (p.hide) return;
-      var rec = addNode(n, p.px - r, p.py - r, 2 * r, 2 * r), q = idxOf ? idxOf.get(n.id) : PN.get(n.id).qi, fd = p.fd, np = ST ? ST.nodes[q] : undefined;
+      var rec = addNode(n, p.px - r, p.py - r, 2 * r, 2 * r), q, fd = p.fd, np;
+      if (NOD && !FM && !(X.LC.items.show || (st && st.labelShow)) && !(st && (st.icon || st.image) && st.iconMode !== 'inside')) {   /* an item the caller draws itself, with no name and no picture in place of its dot: only its color is wanted, so no look record and no lookup by name */
+        NOD[rec.i] = n.start ? mix(fillOf(n), T.accent, 0.7) : solidOf(fillOf(n));
+        if (n.choke) S.dots.push({ cx: p.px + r * 0.72, cy: p.py - r * 0.72, r: Math.max(2.5, r * 0.3), fill: T.gold, stroke: alpha(T.box, 0.9), sw: 1, layer: 1, node: rec.i });
+        X.addIcon(n, rec, p.px, p.py, r); return;
+      }
+      q = idxOf ? idxOf.get(n.id) : needPN().get(n.id).qi; np = ST ? ST.nodes[q] : undefined;
       if (recOf) { recOf[q] = rec.i; dotOf[q] = S.dots.length; }
       if (np === undefined) {
         var vc0 = n.end ? valCol(n.valence) : null, fill0 = n.start ? mix(fillOf(n), T.accent, 0.7) : solidOf(fillOf(n)), kind0 = SHAPE_KIND[st && st.shape]; if (kind0 === undefined) kind0 = 1;

@@ -6,6 +6,7 @@
 #include "lz4.h"
 #include "lz4hc.h"
 #include "lz4frame.h"
+#include "xxhash.h"
 typedef unsigned char u8; typedef unsigned int u32; typedef unsigned long long u64;
 #define EXPORT(n) __attribute__((export_name(n)))
 /* ---- memory: blocks carry a 16-byte header (size, free flag); free blocks are merged with neighbors; the heap grows a page at a time */
@@ -161,8 +162,36 @@ EXPORT("decompress") u32 lz_decompress(void* dst, u32 dcap, const void* src, u32
   int r = LZ4_decompress_safe((const char*)src, (char*)dst, (int)n, (int)dcap); return r < 0 ? 0xFFFFFFFFu : (u32)r;
 }
 /* the standard .lz4 frame: level 0 = fast, 1..12 = high compression; the content size and a content checksum are written */
-EXPORT("frame_bound") u32 lz_frame_bound(u32 n) { size_t r = LZ4F_compressFrameBound(n, 0); return LZ4F_isError(r) ? 0xFFFFFFFFu : (u32)r; }
+/* The fast frame of 64 KiB and more is written here, so its blocks can go through the kit's own compressor: independent blocks of up to 4 MiB
+ * (LZ4F writes linked 64 KiB blocks), content size and content checksum recorded as before. A block that does not shrink is stored as it is.
+ * The bound leaves each block the room the block compressor needs while it works. */
+#define LFC_FBLOCK (4u << 20)
+EXPORT("frame_bound") u32 lz_frame_bound(u32 n) {
+  size_t r = LZ4F_compressFrameBound(n, 0); u64 own = 15ull + n + n / 255 + 24ull * (n / LFC_FBLOCK + 1) + 8;
+  if (LZ4F_isError(r)) return 0xFFFFFFFFu; if (own > r) r = (size_t)own; return r > 0xFFFFFFF0ull ? 0xFFFFFFFFu : (u32)r;
+}
+static void wr32le(u8* p, u32 v) { p[0] = (u8)v; p[1] = (u8)(v >> 8); p[2] = (u8)(v >> 16); p[3] = (u8)(v >> 24); }
+static u32 lfc_frame(u8* dst, u32 dcap, const u8* src, u32 n) {
+  u8* op = dst; u32 at = 0;
+  wr32le(op, 0x184D2204u); op[4] = 0x6C;   /* version 1, independent blocks, content size, content checksum */
+  op[5] = 0x70;                            /* blocks of up to 4 MiB */
+  wr32le(op + 6, n); wr32le(op + 10, 0); op[14] = (u8)(XXH32(op + 4, 10, 0) >> 8); op += 15;
+  while (at < n) {
+    u32 len = n - at > LFC_FBLOCK ? LFC_FBLOCK : n - at, room = dcap - (u32)(op - dst) - 12, c = 0;
+    if (room >= (u32)LZ4_compressBound((int)len)) {
+      if (len >= LFC_MIN) c = lfc_fast(op + 4, room, src + at, len);
+      else { int r = LZ4_compress_fast((const char*)(src + at), (char*)(op + 4), (int)len, (int)room, 1); c = r > 0 ? (u32)r : 0; }
+    }
+    if (c == 0 || c >= len) { if (room < len) return 0; __builtin_memcpy(op + 4, src + at, len); wr32le(op, len | 0x80000000u); op += 4 + len; }
+    else { wr32le(op, c); op += 4 + c; }
+    at += len;
+  }
+  wr32le(op, 0); wr32le(op + 4, XXH32(src, n, 0)); return (u32)(op + 8 - dst);
+}
 EXPORT("frame_compress") u32 lz_frame_compress(void* dst, u32 dcap, const void* src, u32 n, int level) {
+#ifndef LFC_OFF
+  if (level == 0 && n >= LFC_MIN && n <= (u32)LZ4_MAX_INPUT_SIZE && dcap >= lz_frame_bound(n)) { u32 r = lfc_frame((u8*)dst, dcap, (const u8*)src, n); if (r) return r; }
+#endif
   LZ4F_preferences_t p; memset_(&p, 0, sizeof p); p.compressionLevel = level; p.frameInfo.contentSize = n; p.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled; p.frameInfo.blockMode = LZ4F_blockLinked;
   size_t r = LZ4F_compressFrame(dst, dcap, src, n, &p); return LZ4F_isError(r) ? 0xFFFFFFFFu : (u32)r;
 }

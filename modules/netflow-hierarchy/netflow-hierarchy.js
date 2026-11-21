@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.8.0 (API 1)
+ * Version 1.8.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -593,7 +593,7 @@ var NetflowHierarchy = (function () {
     var idxOfId = null; Object.defineProperty(C, 'idxOfId', { get: function () { if (!idxOfId) { idxOfId = new Map(); L.nodes.forEach(function (nd, q) { idxOfId.set(nd.id, q); }); } return idxOfId; } });   /* item name to number: made only for a view that asks */
     if (ext && ext.draw(type, C)) { /* drawn by the extension */ }
     else if (type === 'treemap' || type === 'icicle') {
-      var Rm = ch.R, cw = ch.colW, Hh = ch.H, rectLine = alpha(T.bg, 0.9), lookM = new Map(), seen = type === 'treemap' ? new Array(ch.N) : null, heads = [];   /* treemap: the color each box shows (laid over its parent box), so text is checked on the pixels a reader sees */
+      var Rm = ch.R, cw = ch.colW, Hh = ch.H, rectLine = alpha(T.bg, 0.9), lookM = new Map(), paintM = new Map(), seen = type === 'treemap' ? new Array(ch.N) : null, heads = [], tok = [];   /* treemap: the color each box shows (laid over its parent box), so text is checked on the pixels a reader sees */
       /* a box's fill from its base color: made once per base color and kind and shared (nothing changes these arrays in place) */
       var look = function (base, k) { var e = lookM.get(base); if (!e) lookM.set(base, e = [null, null]); return e[k] || (e[k] = k ? alpha(mix(base, T.bg, 0.55), 0.9) : alpha(base, type === 'icicle' ? 0.85 : 0.92)); };
       var TR = o.typedRects === true && NS.makeRectsT ? NS.makeRectsT(ch.order.length, rectLine) : null;   /* since 1.7.0: typedRects: true keeps the tiles as typed arrays in S.rectsT instead of one object each in S.rects */
@@ -606,12 +606,15 @@ var NetflowHierarchy = (function () {
         var it = ch.item[v], base = hcol(v), box = ch.kids[v].length > 0;
         var fill = look(base, type === 'treemap' && box ? 1 : 0), pv0 = seen ? ch.par[v] : -1, under = pv0 >= 0 && seen[pv0] ? seen[pv0] : T.bg, fit = fitFill(fill, under);
         if (fit) fill = fit;
-        if (seen) seen[v] = over(fill, under);
+        /* what a fill shows over what is under it, and the text color that reads on it: worked out once per pair of colors (siblings of one color share both) */
+        var pm = paintM.get(under); if (!pm) paintM.set(under, pm = new Map());
+        var pe = pm.get(fill); if (!pe) pm.set(fill, pe = [null, null, null]);
+        if (seen) seen[v] = pe[0] || (pe[0] = over(fill, under));
         if (TR) NS.pushRectT(TR, x0, y0, w2, h2, fill, it >= 0 ? recOf(it).i : -1);
         else S.rects.push({ x: x0, y: y0, w: w2, h: h2, r: 0, fill: fill, stroke: rectLine, sw: 1, layer: 1, node: it >= 0 ? recOf(it).i : -1, a: 1 });
         var size = (type === 'treemap' && box ? 12 : 11) * iscale, txt = ch.label[v];
         if (itemShow && w2 > size * 2.2 && h2 > size * 1.3) {
-          var maxC = Math.floor((w2 - 8) / (size * 0.58)), tcol = ink(fill, type === 'treemap' && box ? T.fg : null, under);
+          var maxC = Math.floor((w2 - 8) / (size * 0.58)), pk = type === 'treemap' && box ? 1 : 2, tcol = pe[pk] || (pe[pk] = ink(fill, pk === 1 ? T.fg : null, under));
           var lb = lab(x0 + 4, y0 + size + 2, clip(txt, maxC), size, tcol, { align: 'l', node: it >= 0 ? it : -1, minK: 0, bold: box, val: ch.val[v] });
           if (seen && box) heads.push(lb, v, 0);
         }
@@ -624,9 +627,9 @@ var NetflowHierarchy = (function () {
         var hc = underName(hl, function (x, y) {   /* the deepest box inside this one that holds the point */
           var u = hv, moved = true;
           while (moved) { moved = false; var ks = ch.kids[u]; for (var kq = 0; kq < ks.length; kq++) { var kk = ks[kq]; if (seen[kk] && x >= Rm[kk * 4] && x <= Rm[kk * 4 + 2] && y >= Rm[kk * 4 + 1] && y <= Rm[kk * 4 + 3]) { u = kk; moved = true; break; } } }
-          return seen[u];
+          return tok[u] || (tok[u] = seen[u].slice());   /* counted box by box, as before the colors were shared: one copy per box that is sampled */
         });
-        if (hc.length > 2 || hc[0] !== seen[hv]) hl.color = inkOver(hc, T.fg);
+        if (hc.length > 2 || hc[0] !== tok[hv]) hl.color = inkOver(hc, T.fg);
       }
     } else if (type === 'sunburst') {
       var Rs = ch.R, scx = ch.cx, scy = ch.cy, sfM = new Map();
@@ -722,7 +725,8 @@ var NetflowHierarchy = (function () {
   /** A color with opacity laid over an opaque one, as the picture shows it. */
   function over(c, bg) { var a = c[3] === undefined ? 1 : c[3]; return [c[0] * a + bg[0] * (1 - a), c[1] * a + bg[1] * (1 - a), c[2] * a + bg[2] * (1 - a), 1]; }
   /** WCAG relative luminance and contrast ratio (1 to 21) of two opaque colors with channels 0 to 1. */
-  function relLum(c) { var f = function (v) { return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); }
+  function linCh(v) { return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  function relLum(c) { return 0.2126 * linCh(c[0]) + 0.7152 * linCh(c[1]) + 0.0722 * linCh(c[2]); }
   function contrast(a, b) { var x = relLum(a), y = relLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
   /** The tree link from p to c as a link of the map, when it is one (made-up group boxes are not). */
   function edgeBetween(L, ch, p, c) {

@@ -20,11 +20,11 @@ One chart alone, from the call to the frame the browser reports as shown: Chromi
 
 Compared: netflow-plot against uPlot and Chart.js (gzipped size in KB, smaller is better).
 
-<!-- title: netflow-plot with netflow-scene is 62.5 KB gzipped, smaller than Chart.js (71 KB) and bigger than uPlot (22 KB) -->
+<!-- title: netflow-plot with netflow-scene is 62.6 KB gzipped, smaller than Chart.js (71 KB) and bigger than uPlot (22 KB) -->
 | way | gzip KB |
 |---|---:|
 | uPlot | 22.0 |
-| netflow-plot with netflow-scene | 62.5 |
+| netflow-plot with netflow-scene | 62.6 |
 | Chart.js | 70.9 |
 
-Same minifier for ours and uPlot; the rivals' own minified files otherwise. Measured at netflow-plot 2.20.0 and netflow-scene's current file, minified and gzipped (30.0 KB and 32.5 KB). netflow-scene is needed to draw.
+Same minifier for ours and uPlot; the rivals' own minified files otherwise. Measured at netflow-plot 2.20.0 and netflow-scene's current file, minified and gzipped (30.0 KB and 32.6 KB). netflow-scene is needed to draw.
