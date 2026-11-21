@@ -5,6 +5,7 @@ const J = require('../lfc-pack.js'), assert = require('assert');
 (async () => {
   await J.init(); let bad = 0, n = 0;
   const ok = (c, m) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
+  const exactQ = (srt) => { const m = srt.length, q = []; for (let k = 0; k < 257; k++) { const pos = k / 256 * (m - 1), lo = Math.floor(pos), fr = pos - lo; q.push(fr > 0 && lo + 1 < m ? srt[lo] + fr * (srt[lo + 1] - srt[lo]) : srt[lo]); } return q; };
   const N = 50000, id = new Int32Array(N), up = new Float64Array(N), down = new Float64Array(N), mix = new Float64Array(N), ts = new Array(N), cat = new Array(N), title = new Array(N), plain = new Array(N);
   for (let i = 0; i < N; i++) { id[i] = i; up[i] = i * 0.5; down[i] = 1e6 - i; mix[i] = i % 7 ? (i * 7919) % 1000 / 8 : NaN; ts[i] = new Date(1.7e12 + i * 3000).toISOString().slice(0, 19).replace('T', ' '); cat[i] = 'k' + (i % 9); title[i] = 'title ' + (i * 2654435761 % 1e9).toString(36); plain[i] = i % 5 ? i * 3 : null; }
   const cols = { id, up, down, mix, ts, cat, title, plain }, f = await J.packColumnsParallel(cols, { blockBytes: 100000 });
@@ -20,13 +21,34 @@ const J = require('../lfc-pack.js'), assert = require('assert');
     ok(c.min === Math.min(...fin) && c.max === Math.max(...fin), k + ' min max');
     const asc = fin.every((x, i) => i === 0 || x >= fin[i - 1]), desc = fin.every((x, i) => i === 0 || x <= fin[i - 1]);
     ok(c.sorted === (asc ? 'asc' : desc ? 'desc' : null), k + ' sorted ' + c.sorted);
-    ok(Array.isArray(c.hist) && c.hist.length === 64 && c.hist.reduce((a, b) => a + b, 0) === fin.length, k + ' hist total');
-    const h = new Array(64).fill(0), w = 64 / (c.max - c.min); fin.forEach((x) => { h[Math.min(63, ((x - c.min) * w) | 0)]++; }); ok(h.every((x, i) => x === c.hist[i]), k + ' hist buckets');
+    ok(!c.hist && Array.isArray(c.q), k + ' quantile grid by default, no hist');
+    const srt = Float64Array.from(fin).sort(), dv = [...new Set(srt)];
+    if (c.qExact) ok(JSON.stringify(c.q) === JSON.stringify(dv) && c.qn.reduce((a, b) => a + b, 0) === fin.length && c.qn.every((m, i) => m === fin.filter((x) => x === dv[i]).length), k + ' exact values and counts');
+    else { const want = exactQ(srt); ok(c.q.length === 257 && !c.qSample && c.q.every((x, i) => Math.abs(x - want[i]) <= 1e-9 * Math.max(1, Math.abs(want[i]))), k + ' exact grid'); }
   }
+  ok(!by.mix.qExact && !by.mix.qSample && by.mix.q.length === 257 && by.id.q.length === 257 && by.plain.q.length === 257, 'grid kinds');
   ok(by.id.sorted === 'asc' && by.down.sorted === 'desc' && by.mix.sorted === null, 'sorted flags');
   ok(by.ts.type === 'date' && by.ts.min === Date.parse('2023-11-14T22:13:20Z') && by.ts.max === by.ts.min + (N - 1) * 3000 && by.ts.sorted === 'asc', 'date range ' + JSON.stringify(by.ts));
   ok(by.cat.type === 'text' && by.cat.distinct === 9 && by.cat.top.length === 9 && by.cat.top.reduce((a, t) => a + t[1], 0) === N && by.cat.len[0] === 2 && by.cat.len[1] === 2, 'low-variety text ' + JSON.stringify(by.cat));
   ok(by.title.type === 'text' && by.title.distinct === null && !by.title.top && by.title.len[0] === Math.min(...title.map((s) => s.length)) && by.title.len[1] === Math.max(...title.map((s) => s.length)), 'text length range');
+  // quantiles: false keeps the 64-bucket hist instead
+  const fh = await J.packColumnsParallel(cols, { blockBytes: 100000, quantiles: false }), Sh = J.summary(fh);
+  for (const c of Sh.cols.filter((c) => c.type === 'num')) {
+    const fin = join(c.key).map((x) => (x === null ? NaN : x)).filter((x) => x === x);
+    ok(!c.q && Array.isArray(c.hist) && c.hist.length === 64 && c.hist.reduce((a, b) => a + b, 0) === fin.length, c.key + ' hist total');
+    const h = new Array(64).fill(0), w = 64 / (c.max - c.min); fin.forEach((x) => { h[Math.min(63, ((x - c.min) * w) | 0)]++; }); ok(h.every((x, i) => x === c.hist[i]), c.key + ' hist buckets');
+  }
+  // dates: the grid in epoch milliseconds, read off the writer's own date numbers
+  { const tv = ts.map((s) => Date.parse(s.replace(' ', 'T') + 'Z')); ok(JSON.stringify(by.ts.q) === JSON.stringify(exactQ(Float64Array.from(tv).sort())), 'date grid ' + JSON.stringify(by.ts).slice(0, 200)); }
+  // a long unordered float column: the grid comes from 65,536 sampled values; every point within 1% of rank of the exact one
+  { const M = 400000, v = new Float64Array(M); let sd = 5; for (let i = 0; i < M; i++) { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; v[i] = Math.exp((sd / 4294967296) * 6) + (i % 3) * 0.001; }
+    const fs = await J.packColumnsParallel({ v }, {}), c = J.summary(fs).cols[0], srt = Float64Array.from(v).sort();
+    const rank = (x) => { let lo = 0, hi = M; while (lo < hi) { const md = (lo + hi) >> 1; if (srt[md] < x) lo = md + 1; else hi = md; } return lo / (M - 1); };
+    let worst = 0; c.q.forEach((x, k) => { worst = Math.max(worst, Math.abs(rank(x) - k / 256)); });
+    ok(c.qSample === 65536 && c.q.length === 257 && c.q[0] >= c.min && c.q[256] <= c.max && worst < 0.01, 'sampled grid worst rank error ' + worst.toFixed(4)); }
+  // whole numbers in a short range are counted exactly, even unordered and long
+  { const M = 300000, v = new Float64Array(M); for (let i = 0; i < M; i++) v[i] = (i * 7919) % 5000; const c = J.summary(await J.packColumnsParallel({ v }, {})).cols[0];
+    ok(!c.qSample && !c.qExact && JSON.stringify(c.q) === JSON.stringify(exactQ(Float64Array.from(v).sort())), 'counted grid'); }
   // the file itself is the same with and without the section: every block byte equal, values equal
   const g = await J.packColumnsParallel(cols, { blockBytes: 100000, summary: false });
   ok(J.summary(g) === null && J.open && true, 'summary: false writes none');

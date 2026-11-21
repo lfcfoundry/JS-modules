@@ -429,9 +429,26 @@
     for (i = 0; i < n; i++) { if (typeof v[i] !== 'string') return null; t = dateMs(v[i], f); if (!(t >= 0)) return null; a[i] = t; }
     return dateMany(a, n) ? { f: f, a: a } : null;
   }
+  // since 0.15.0: while a column summary is being made, each date column the writer reads into numbers leaves its range and order here, per block (SUMCAP[key][first row]), so the summary needs no second pass over the strings
+  var SUMCAP = null, SUMA = 0;
+  function sumCapDates(key, a, f) {
+    var n = a.length, c, mn, mx, asc = true, desc = true, i, x, p, u = f & 4, A = SUMA, e, P, j, lo, hi, sv, gv, G; if (!n) return;   // six-digit forms hold microseconds: the range is given in whole milliseconds (as Date.parse reads them), the order is judged on the microseconds
+    mn = mx = p = a[0];
+    for (i = 1; i < n; i++) { x = a[i]; if (x < p) asc = false; else if (x > p) desc = false; if (x < mn) mn = x; else if (x > mx) mx = x; p = x; }
+    e = { a: A, n: n, mn: u ? Math.floor(mn / 1000) : mn, mx: u ? Math.floor(mx / 1000) : mx, asc: asc, desc: desc, first: a[0], last: a[n - 1], u: u, sv: null, gv: null };
+    if (SUMCAP.q) {   // the values the quantile grid needs: the sample positions inside this block, and the exact grid ranks (used when the whole column turns out ordered)
+      P = SUMCAP.pos;
+      if (!P) sv = a.slice();
+      else { lo = 0; hi = P.length; while (lo < hi) { j = (lo + hi) >> 1; if (P[j] < A) lo = j + 1; else hi = j; } sv = []; for (j = lo; j < P.length && P[j] < A + n; j++) sv.push(a[P[j] - A]); sv = Float64Array.from(sv); }
+      G = SUMCAP.grid; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= A && G[j] < A + n) gv.push(G[j], a[G[j] - A]);
+      e.sv = sv; e.gv = gv;
+    }
+    c = SUMCAP.cols[key] || (SUMCAP.cols[key] = {}); c[A] = e;
+  }
   var WMARK = 0, W3MARK = 0;   // count the date columns written (WMARK), and those in a space-separated or six-digit form (W3MARK), so a pack call can tell whether its file needs format minor 2 or 3
   function dateWrap(dn, zs, level, key) {   // the date numbers as the best number layout, as one 'W' column; null if the number layouts did not get a typed column
     var a = dn.a, nn = a.length, D = dn.f & 4 ? 1e6 : 1000, i, f = dn.f, b;
+    if (SUMCAP && typeof key === 'string') sumCapDates(key, a, f);
     for (i = 0; i < nn && a[i] % D === 0; i++);
     if (i === nn && nn > 0) { b = new Float64Array(nn); for (i = 0; i < nn; i++) b[i] = a[i] / D; a = b; f |= 8; }   // every value a whole number of seconds (taxi timestamps, plain YYYY-MM-DDTHH:MM:SS): store seconds, 4 bytes where the text form needs 8
     var wi = settle(zs, level, encodeColumn0(a, zs, level, 0, undefined, key, { nz: 0, ai: 1 }));
@@ -908,7 +925,7 @@
   }
   function b26Rows(rows, n) { for (var i = 0, r, t; i < n; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null)) throw B26_BAIL; } }
   function b26Vals(a) { for (var i = 0, x, t; i < a.length; i++) { x = a[i]; t = typeof x; if (t === 'number') { if (x - x !== 0 || (x === 0 && 1 / x < 0)) throw B26_BAIL; } else if (t !== 'string' && t !== 'boolean' && x !== null) throw B26_BAIL; } }
-  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); var shw0 = SHW; SHW = ctx && ctx.shw || null; try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; SHW = shw0; } }
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); var shw0 = SHW, sc0 = SUMCAP; SHW = ctx && ctx.shw || null; SUMCAP = input && (input.colsIn ? input.colsIn.sumCap : input.sumCap) || null; if (SUMCAP) SUMA = input.colsIn ? input.colsIn.a : input.sumA; try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; SHW = shw0; SUMCAP = sc0; } }
   function b21Generic(c) { var a = new Array(c.c), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }   // B21c: back to a generic array (values in order)
   function b21Flags(a, m) { if (m >= NK_MIN) return nkFlags(a, m); return b21FlagsJ(a, m); }
   function b21FlagsJ(a, m) { var nz = 0, ai = 1, nf = 0, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; if (x - x !== 0) nf = 1; } return { nz: nz, ai: ai, nf: nf }; }

@@ -1203,9 +1203,26 @@
     for (i = 0; i < n; i++) { if (typeof v[i] !== 'string') return null; t = dateMs(v[i], f); if (!(t >= 0)) return null; a[i] = t; }
     return dateMany(a, n) ? { f: f, a: a } : null;
   }
+  // since 0.15.0: while a column summary is being made, each date column the writer reads into numbers leaves its range and order here, per block (SUMCAP[key][first row]), so the summary needs no second pass over the strings
+  var SUMCAP = null, SUMA = 0;
+  function sumCapDates(key, a, f) {
+    var n = a.length, c, mn, mx, asc = true, desc = true, i, x, p, u = f & 4, A = SUMA, e, P, j, lo, hi, sv, gv, G; if (!n) return;   // six-digit forms hold microseconds: the range is given in whole milliseconds (as Date.parse reads them), the order is judged on the microseconds
+    mn = mx = p = a[0];
+    for (i = 1; i < n; i++) { x = a[i]; if (x < p) asc = false; else if (x > p) desc = false; if (x < mn) mn = x; else if (x > mx) mx = x; p = x; }
+    e = { a: A, n: n, mn: u ? Math.floor(mn / 1000) : mn, mx: u ? Math.floor(mx / 1000) : mx, asc: asc, desc: desc, first: a[0], last: a[n - 1], u: u, sv: null, gv: null };
+    if (SUMCAP.q) {   // the values the quantile grid needs: the sample positions inside this block, and the exact grid ranks (used when the whole column turns out ordered)
+      P = SUMCAP.pos;
+      if (!P) sv = a.slice();
+      else { lo = 0; hi = P.length; while (lo < hi) { j = (lo + hi) >> 1; if (P[j] < A) lo = j + 1; else hi = j; } sv = []; for (j = lo; j < P.length && P[j] < A + n; j++) sv.push(a[P[j] - A]); sv = Float64Array.from(sv); }
+      G = SUMCAP.grid; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= A && G[j] < A + n) gv.push(G[j], a[G[j] - A]);
+      e.sv = sv; e.gv = gv;
+    }
+    c = SUMCAP.cols[key] || (SUMCAP.cols[key] = {}); c[A] = e;
+  }
   var WMARK = 0, W3MARK = 0;   // count the date columns written (WMARK), and those in a space-separated or six-digit form (W3MARK), so a pack call can tell whether its file needs format minor 2 or 3
   function dateWrap(dn, zs, level, key) {   // the date numbers as the best number layout, as one 'W' column; null if the number layouts did not get a typed column
     var a = dn.a, nn = a.length, D = dn.f & 4 ? 1e6 : 1000, i, f = dn.f, b;
+    if (SUMCAP && typeof key === 'string') sumCapDates(key, a, f);
     for (i = 0; i < nn && a[i] % D === 0; i++);
     if (i === nn && nn > 0) { b = new Float64Array(nn); for (i = 0; i < nn; i++) b[i] = a[i] / D; a = b; f |= 8; }   // every value a whole number of seconds (taxi timestamps, plain YYYY-MM-DDTHH:MM:SS): store seconds, 4 bytes where the text form needs 8
     var wi = settle(zs, level, encodeColumn0(a, zs, level, 0, undefined, key, { nz: 0, ai: 1 }));
@@ -1682,7 +1699,7 @@
   }
   function b26Rows(rows, n) { for (var i = 0, r, t; i < n; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null)) throw B26_BAIL; } }
   function b26Vals(a) { for (var i = 0, x, t; i < a.length; i++) { x = a[i]; t = typeof x; if (t === 'number') { if (x - x !== 0 || (x === 0 && 1 / x < 0)) throw B26_BAIL; } else if (t !== 'string' && t !== 'boolean' && x !== null) throw B26_BAIL; } }
-  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); var shw0 = SHW; SHW = ctx && ctx.shw || null; try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; SHW = shw0; } }
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); var shw0 = SHW, sc0 = SUMCAP; SHW = ctx && ctx.shw || null; SUMCAP = input && (input.colsIn ? input.colsIn.sumCap : input.sumCap) || null; if (SUMCAP) SUMA = input.colsIn ? input.colsIn.a : input.sumA; try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; SHW = shw0; SUMCAP = sc0; } }
   function b21Generic(c) { var a = new Array(c.c), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }   // B21c: back to a generic array (values in order)
   function b21Flags(a, m) { if (m >= NK_MIN) return nkFlags(a, m); return b21FlagsJ(a, m); }
   function b21FlagsJ(a, m) { var nz = 0, ai = 1, nf = 0, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; if (x - x !== 0) nf = 1; } return { nz: nz, ai: ai, nf: nf }; }
@@ -2723,46 +2740,119 @@
 
   // ================================================================ column summaries (footer section 20, optional, advisory; SPEC.md 2.3a)
   // { v: 1, rows, cols: [{ key, type: 'num' | 'date' | 'text' | 'other', n, nulls, min, max, sorted, distinct, hist, len, top }], colsCut }; one entry per key over the whole file
-  var SEC_SUMMARY = 20, SUM_KEYS = 1000, SUM_HIST = 64, SUM_TOP = 16, SUM_DISTINCT_CAP = 64;
+  var SEC_SUMMARY = 20, SUM_KEYS = 1000, SUM_HIST = 64, SUM_TOP = 16, SUM_DISTINCT_CAP = 64, SUM_TEXT_ROWS = 65536;   // text columns are counted over their first SUM_TEXT_ROWS rows only (`sample` says so)
   var SUM_DATE = /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(\.\d+)?Z?$/;
+  // quantile grid (replaces hist unless quantiles: false): SUM_Q values at p = i / 256, linear between ranks. Exact when the column is ordered, is whole numbers over a short range (counted), or has at most SUM_QS values;
+  // otherwise read from SUM_QS values at fixed jittered positions (`qSample` says how many). At most SUM_Q different values: those values with their counts instead (`qExact`, `qn`).
+  var SUM_Q = 257, SUM_QS = 65536, SUM_QRANGE = 65536, sumPosN = -1, sumPosA = null;
+  function sumPos(n) {   // SUM_QS row positions spread over 0..n-1, one at a fixed random place in each equal slice (the same for every column and every run)
+    if (n === sumPosN) return sumPosA;
+    var p = new Int32Array(SUM_QS), s = 0x9E3779B9, j, w = n / SUM_QS;
+    for (j = 0; j < SUM_QS; j++) { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; p[j] = Math.min(n - 1, Math.floor((j + s / 4294967296) * w)); }
+    sumPosN = n; sumPosA = p; return p;
+  }
+  function qOf(get, m) { var q = new Array(SUM_Q), k, pos, lo, fr, v; for (k = 0; k < SUM_Q; k++) { pos = k / (SUM_Q - 1) * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); q[k] = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; } return q; }   // the grid from a value-at-rank function over m ranks
+  function qSortedArr(s, m) { return qOf(function (r) { return s[r]; }, m); }
+  function sumGridIdx(n) { var g = [], k, pos, lo; for (k = 0; k < SUM_Q; k++) { pos = k / (SUM_Q - 1) * (n - 1); lo = Math.floor(pos); g.push(lo); if (lo + 1 < n) g.push(lo + 1); } return g; }
+  function qCounts(cnt, base, tot) {   // whole numbers counted over [base, base + cnt.length): exact distinct values, or the exact grid
+    var d = 0, i, vals = [], ns = [], at, run;
+    for (i = 0; i < cnt.length; i++) if (cnt[i]) { d++; if (d <= SUM_Q) { vals.push(base + i); ns.push(cnt[i]); } }
+    if (d <= SUM_Q) return { q: vals, qn: ns, exact: true, distinct: d };
+    at = 0; run = 0;   // value at rank r: walk the counts forward (ranks are asked for in rising order)
+    return { q: qOf(function (r) { while (run + cnt[at] <= r) { run += cnt[at]; at++; } return base + at; }, tot), exact: false, distinct: d };
+  }
   // one copy of the number pass per kind of array (integer typed arrays, float typed arrays, plain arrays), so each copy stays monomorphic and fast
   function makeSumNums(kind) {   // kind 0: integer typed array (no missing values), 1: float typed array, 2: plain array (numbers, null, undefined)
-    return function (a, n) {   // -> { nulls, min, max, asc, desc, hist }, or null when a plain array holds something that is not a number, null or undefined
-      var mn = Infinity, mx = -Infinity, nul = 0, asc = true, desc = true, prev = 0, have = false, i, x, hist = null, w, b;
+    return function (a, n, wantQ) {   // -> { nulls, min, max, asc, desc, hist | q.. }, or null when a plain array holds something that is not a number, null or undefined
+      var mn = Infinity, mx = -Infinity, nul = 0, asc = true, desc = true, prev = 0, have = false, i, x, hist = null, w, b, r;
       if (kind === 0) {
-        for (i = 0; i < n; i++) { x = a[i]; if (x < mn) mn = x; if (x > mx) mx = x; }
-        have = n > 0;
-        for (i = 1; i < n; i++) if (a[i] < a[i - 1]) { asc = false; break; }   // each check stops at the first value that breaks the order
-        if (!asc) { desc = true; for (i = 1; i < n; i++) if (a[i] > a[i - 1]) { desc = false; break; } }
+        if (n > 0) { mn = mx = prev = a[0]; have = true; }
+        for (i = 1; i < n && (asc || desc); i++) { x = a[i]; if (x < prev) asc = false; else if (x > prev) desc = false; if (x < mn) mn = x; else if (x > mx) mx = x; prev = x; }   // one pass: range and order, until the order is settled as neither
+        for (; i < n; i++) { x = a[i]; if (x < mn) mn = x; else if (x > mx) mx = x; }   // then the range alone (no unpredictable order tests left)
       } else {
-        for (i = 0; i < n; i++) {
+        for (i = 0; i < n && (asc || desc); i++) {
           x = a[i];
           if (kind === 2 && typeof x !== 'number') { if (x === null || x === undefined) { nul++; continue; } return null; }
           if (!(x - x === 0)) { nul++; continue; }   // NaN and +-Infinity count as missing: JSON cannot hold them
-          if (x < mn) mn = x; if (x > mx) mx = x;
-          have = true;
+          if (!have) { mn = mx = prev = x; have = true; continue; }
+          if (x < prev) asc = false; else if (x > prev) desc = false; if (x < mn) mn = x; else if (x > mx) mx = x; prev = x;
         }
-        for (i = 0, prev = -Infinity; i < n; i++) { x = a[i]; if (typeof x !== 'number' || x - x !== 0) continue; if (x < prev) { asc = false; break; } prev = x; }
-        if (!asc) for (i = 0, prev = Infinity; i < n; i++) { x = a[i]; if (typeof x !== 'number' || x - x !== 0) continue; if (x > prev) { desc = false; break; } prev = x; }
+        for (; i < n; i++) {   // the order is settled as neither: the range and missing values alone
+          x = a[i];
+          if (kind === 2 && typeof x !== 'number') { if (x === null || x === undefined) { nul++; continue; } return null; }
+          if (!(x - x === 0)) { nul++; continue; }
+          if (x < mn) mn = x; else if (x > mx) mx = x;
+        }
       }
-      if (have && mx > mn) {
-        hist = new Array(SUM_HIST); for (b = 0; b < SUM_HIST; b++) hist[b] = 0;
-        w = SUM_HIST / (mx - mn);
-        if (kind === 0) for (i = 0; i < n; i++) { b = ((a[i] - mn) * w) | 0; hist[b >= SUM_HIST ? SUM_HIST - 1 : b]++; }
-        else for (i = 0; i < n; i++) { x = a[i]; if (typeof x === 'number' && x - x === 0) { b = ((x - mn) * w) | 0; hist[b >= SUM_HIST ? SUM_HIST - 1 : b]++; } }
+      r = { nulls: nul, min: have ? mn : null, max: have ? mx : null, asc: have && asc, desc: have && desc, hist: null };
+      if (!have) return r;
+      if (!wantQ) {
+        if (mx > mn) {
+          hist = new Array(SUM_HIST); for (b = 0; b < SUM_HIST; b++) hist[b] = 0;
+          w = SUM_HIST / (mx - mn);
+          if (kind === 0) for (i = 0; i < n; i++) { b = ((a[i] - mn) * w) | 0; hist[b >= SUM_HIST ? SUM_HIST - 1 : b]++; }
+          else for (i = 0; i < n; i++) { x = a[i]; if (typeof x === 'number' && x - x === 0) { b = ((x - mn) * w) | 0; hist[b >= SUM_HIST ? SUM_HIST - 1 : b]++; } }
+          r.hist = hist;
+        }
+        return r;
       }
-      return { nulls: nul, min: have ? mn : null, max: have ? mx : null, asc: have && asc, desc: have && desc, hist: hist };
+      var tot = n - nul, cnt, sm, m, j, P, isInt = kind === 0;
+      if (!isInt && mx - mn <= SUM_QRANGE && mn === Math.floor(mn) && mx === Math.floor(mx)) {   // whole numbers in a short range: check every value is whole (stops at the first that is not), then count
+        isInt = true; for (i = 0; i < n; i++) { x = a[i]; if (typeof x === 'number' && x - x === 0 && x !== Math.floor(x)) { isInt = false; break; } }
+      }
+      if (isInt && mx - mn <= SUM_QRANGE) {
+        cnt = new Int32Array(mx - mn + 1);
+        if (kind === 0) for (i = 0; i < n; i++) cnt[a[i] - mn]++;
+        else for (i = 0; i < n; i++) { x = a[i]; if (typeof x === 'number' && x - x === 0) cnt[x - mn]++; }
+        var qc = qCounts(cnt, mn, tot); r.q = qc.q; if (qc.exact) { r.qExact = true; r.qn = qc.qn; } return r;
+      }
+      if (!nul && (asc || desc)) { r.q = qOf(desc && !asc ? function (k) { return a[n - 1 - k]; } : function (k) { return a[k]; }, n); return r; }   // ordered: the grid is read straight off the column
+      if (tot <= SUM_QS) { sm = new Float64Array(tot); for (i = 0, j = 0; i < n; i++) { x = a[i]; if (typeof x === 'number' && x - x === 0) sm[j++] = x; } sm.sort(); r.q = qSortedArr(sm, tot); return r; }
+      P = sumPos(n); sm = new Float64Array(SUM_QS); for (j = 0, m = 0; j < SUM_QS; j++) { x = a[P[j]]; if (typeof x === 'number' && x - x === 0) sm[m++] = x; }
+      if (!m) return r;
+      sm = sm.subarray(0, m); sm.sort(); r.q = qSortedArr(sm, m); r.qSample = m; return r;
     };
   }
   var sumI = makeSumNums(0), sumF = makeSumNums(1), sumP = makeSumNums(2);
-  function sumNums(a, n, plain) { return plain ? sumP(a, n) : (a instanceof Float64Array || a instanceof Float32Array) ? sumF(a, n) : sumI(a, n); }
+  function sumNums(a, n, plain, wantQ) { return plain ? sumP(a, n, wantQ) : (a instanceof Float64Array || a instanceof Float32Array) ? sumF(a, n, wantQ) : sumI(a, n, wantQ); }
   function sumSorted(r) { return r.asc && r.desc ? 'asc' : r.asc ? 'asc' : r.desc ? 'desc' : null; }
+  function sumPut(c, r, k) {   // copy the number pass result into the entry (k scales values: timestamps to milliseconds)
+    var i, q;
+    c.nulls = r.nulls; c.min = r.min === null ? null : r.min * k; c.max = r.max === null ? null : r.max * k; c.sorted = sumSorted(r);
+    if (r.hist) c.hist = r.hist;
+    if (r.q) { q = r.q; if (k !== 1) { q = q.slice(); for (i = 0; i < q.length; i++) q[i] *= k; } c.q = q; if (r.qExact) { c.qExact = true; c.qn = r.qn; } if (r.qSample) c.qSample = r.qSample; }
+  }
   function sumDateMs(s) { var t = Date.parse((s.charCodeAt(10) === 32 ? s.slice(0, 10) + 'T' + s.slice(11) : s) + (s.charCodeAt(s.length - 1) === 90 ? '' : 'Z')); return t === t ? t : null; }   // read as UTC, as the date columns are
-  function sumColumn(key, a, n) {
+  function sumCapped(cp, n, Q) {   // the per-block date ranges the writer left (SUMCAP), merged, when they cover rows 0 to n - 1 exactly once; else null
+    if (!cp) return null;
+    var ks = Object.keys(cp), bl = [], i, j, b, r = { mn: Infinity, mx: -Infinity, asc: true, desc: true }, at = 0, p = null, m = 0, sm, gv = new Map(), g;
+    for (i = 0; i < ks.length; i++) bl.push(cp[ks[i]]);
+    bl.sort(function (x, y) { return x.a - y.a; });
+    for (i = 0; i < bl.length; i++) { b = bl[i]; if (b.a !== at || b.u !== bl[0].u) return null; at += b.n; m += b.sv ? b.sv.length : 0;
+      if (b.mn < r.mn) r.mn = b.mn; if (b.mx > r.mx) r.mx = b.mx;
+      if (!b.asc || (p !== null && b.first < p)) r.asc = false; if (!b.desc || (p !== null && b.first > p)) r.desc = false; p = b.last; }
+    if (at !== n) return null;
+    if (!Q) return r;
+    var k = bl[0].u ? 0.001 : 1, sc = function (v) { return v * k; };
+    if (r.asc || r.desc) { for (i = 0; i < bl.length; i++) { g = bl[i].gv; for (j = 0; j < g.length; j += 2) gv.set(g[j], g[j + 1]); }   // ordered: the grid values were kept at their exact ranks
+      r.q = qOf(r.asc ? function (x) { return sc(gv.get(x)); } : function (x) { return sc(gv.get(n - 1 - x)); }, n); return r; }
+    sm = new Float64Array(m); for (i = 0, j = 0; i < bl.length; i++) { sm.set(bl[i].sv, j); j += bl[i].sv.length; }
+    sm.sort(); r.q = qSortedArr(sm, m).map(sc); if (n > SUM_QS) r.qSample = m;
+    return r;
+  }
+  function sumDateQ(c, a, n, nl, sa, sd) {   // the grid of a date column read from its strings (when the writer left no date numbers): ordered columns at exact ranks, others from up to SUM_QS / 4 parsed values
+    var P, sm, j, m, x, t, step;
+    if (!nl && (sa || sd)) { c.q = qOf(sa ? function (r) { return sumDateMs(a[r]); } : function (r) { return sumDateMs(a[n - 1 - r]); }, n); for (j = 0; j < c.q.length; j++) if (c.q[j] === null) { delete c.q; return; } return; }
+    if (n <= SUM_QS / 4) { P = null; m = n; } else { P = sumPos(n); m = SUM_QS / 4; }
+    sm = new Float64Array(m); step = P ? 4 : 1;
+    for (j = 0, x = 0; j < m; j++) { t = a[P ? P[j * step] : j]; if (typeof t === 'string' && (t = sumDateMs(t)) !== null) sm[x++] = t; }
+    if (!x) return; sm = sm.subarray(0, x); sm.sort(); c.q = qSortedArr(sm, x); if (P) c.qSample = x;
+  }
+  function sumColumn(key, a, n, cp, Q) {   // Q: make the quantile grid (else the 64-bucket hist)
     var c = { key: key, type: 'other', n: n }, r, i, v, k, mn, mx, nul, map, cnt, lab, top, ent, dc;
     if (isTsCol(a)) {   // timestamp column: values since 1970 in a.unit; min and max are given in epoch milliseconds
-      r = sumNums(a.values, n, false); k = a.unit === 's' ? 1000 : a.unit === 'ms' ? 1 : 0.001;
-      c.type = 'date'; c.nulls = r.nulls; c.min = r.min === null ? null : r.min * k; c.max = r.max === null ? null : r.max * k; c.sorted = sumSorted(r); if (r.hist) c.hist = r.hist;
+      r = sumNums(a.values, n, false, Q); k = a.unit === 's' ? 1000 : a.unit === 'ms' ? 1 : 0.001;
+      c.type = 'date'; sumPut(c, r, k);
       return c;
     }
     if (isDictCol(a)) {   // labels and one code per row: exact distinct count and counts per label
@@ -2780,20 +2870,21 @@
       return c;
     }
     if (ArrayBuffer.isView(a)) {   // number typed array
-      r = sumNums(a, n, false); c.type = 'num'; c.nulls = r.nulls; c.min = r.min; c.max = r.max; c.sorted = sumSorted(r); if (r.hist) c.hist = r.hist;
+      r = sumNums(a, n, false, Q); c.type = 'num'; sumPut(c, r, 1);
       return c;
     }
     if (!Array.isArray(a)) return c;
     for (i = 0; i < n && (a[i] === null || a[i] === undefined); i++);   // the first value that is there decides the kind
     if (i === n) { c.type = 'other'; c.nulls = n; return c; }
     if (typeof a[i] === 'number') {
-      r = sumNums(a, n, true);
-      if (r) { c.type = 'num'; c.nulls = r.nulls; c.min = r.min; c.max = r.max; c.sorted = sumSorted(r); if (r.hist) c.hist = r.hist; }
+      r = sumNums(a, n, true, Q);
+      if (r) { c.type = 'num'; sumPut(c, r, 1); }
       return c;
     }
     if (typeof a[i] !== 'string') return c;
     // strings: date-like columns give their range (compared as text, which orders canonical dates), the others a length range, and the distinct count and top labels while there are few
     v = a[i]; k = SUM_DATE.test(v) && v.length >= 19 && SUM_DATE.test(a[n >> 1] || '') && SUM_DATE.test(a[n - 1] || '');
+    if (k && (r = sumCapped(cp, n, Q))) { c.type = 'date'; c.nulls = 0; c.min = r.mn; c.max = r.mx; c.sorted = r.asc ? 'asc' : r.desc ? 'desc' : null; if (r.q) { c.q = r.q; if (r.qSample) c.qSample = r.qSample; } return c; }   // the writer already read every value as a date
     if (k) {   // date-like strings: an ordered column is settled by one pass of single compares (first and last are the range); otherwise a second pass finds min, max and whether it is descending
       var pv = null, nl = 0, sa = true, sd = true; mn = mx = null;
       for (i = 0; i < n; i++) { x = a[i]; if (typeof x !== 'string') { if (x === null || x === undefined) { nl++; continue; } return c; } if (pv !== null && x < pv) { sa = false; break; } if (mn === null) mn = x; pv = x; }
@@ -2801,10 +2892,10 @@
       else { mn = mx = null; pv = null; nl = 0; sd = true;
         for (i = 0; i < n; i++) { x = a[i]; if (typeof x !== 'string') { if (x === null || x === undefined) { nl++; continue; } return c; } if (mn === null) { mn = mx = x; } else { if (x < mn) mn = x; else if (x > mx) mx = x; if (sd && x > pv) sd = false; } pv = x; } }
       var tmn = mn === null ? null : sumDateMs(mn), tmx = mx === null ? null : sumDateMs(mx);
-      if (tmn !== null && tmx !== null) { c.type = 'date'; c.nulls = nl; c.min = tmn; c.max = tmx; c.sorted = sa ? 'asc' : sd ? 'desc' : null; return c; }
+      if (tmn !== null && tmx !== null) { c.type = 'date'; c.nulls = nl; c.min = tmn; c.max = tmx; c.sorted = sa ? 'asc' : sd ? 'desc' : null; if (Q) sumDateQ(c, a, n, nl, sa, sd); return c; }
     }
-    nul = 0; mn = null; mx = null; map = k ? null : new Map(); var lo = Infinity, hi = 0, ok = true, x, pv = null, sa = true, sd = true;
-    for (i = 0; i < n; i++) {
+    nul = 0; mn = null; mx = null; map = k ? null : new Map(); var lo = Infinity, hi = 0, ok = true, x, pv = null, sa = true, sd = true, ns = k || n <= SUM_TEXT_ROWS ? n : SUM_TEXT_ROWS;
+    for (i = 0; i < ns; i++) {
       x = a[i];
       if (typeof x !== 'string') { if (x === null || x === undefined) { nul++; continue; } ok = false; break; }
       if (k) { if (mn === null || x < mn) mn = x; if (mx === null || x > mx) mx = x; if (pv !== null) { if (x < pv) sa = false; if (x > pv) sd = false; } pv = x; continue; }
@@ -2814,16 +2905,32 @@
     if (!ok) return c;
     c.nulls = nul;
     if (k) { var tmn = mn === null ? null : sumDateMs(mn), tmx = mx === null ? null : sumDateMs(mx); if (tmn !== null && tmx !== null) { c.type = 'date'; c.min = tmn; c.max = tmx; c.sorted = sa ? 'asc' : sd ? 'desc' : null; return c; } }
-    c.type = 'text'; c.len = n > nul ? [lo, hi] : [0, 0]; c.distinct = map ? map.size : null;
+    c.type = 'text'; c.len = ns > nul ? [lo, hi] : [0, 0]; c.distinct = map ? map.size : null; if (ns < n) c.sample = ns;   // len, distinct and top then describe the first `sample` rows
     if (map) { ent = Array.from(map.entries()); ent.sort(function (p, q) { return q[1] - p[1]; }); c.top = ent.slice(0, SUM_TOP); }
     return c;
   }
-  function columnSummary(obj, n) {   // the section payload for the column table obj ({ key: column }) of n rows
-    var keys = Object.keys(obj), cols = [], i, cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, o;
-    for (i = 0; i < m; i++) cols.push(sumColumn(keys[i], obj[keys[i]], n));
-    o = { v: 1, rows: n, cols: cols }; if (cut) o.colsCut = true;
-    return te.encode(JSON.stringify(o));
+  // the summary as one job per column, so a parallel save can run them on this thread while its helpers are busy (since 0.15.0); next() runs one column and says whether one ran, payload() runs the rest
+  var SUM_OFF_MIN = 65536;   // number columns at least this long are summed on a helper when the save has helpers
+  function sumJobs(obj, n, quantiles) {
+    var keys = Object.keys(obj), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, Q = quantiles !== false, cap = { cols: {}, n: n, q: Q, pos: Q && n > SUM_QS ? sumPos(n) : null, grid: Q ? sumGridIdx(n) : null }, away = [], st = new Uint8Array(m);   // st: 0 to do, 1 on a helper, 2 done
+    function one(k) { st[k] = 2; try { cols[k] = sumColumn(keys[k], obj[keys[k]], n, cap.cols[keys[k]], Q); } catch (e) { bad = true; } }
+    function next(early) {   // run one column still to do; early (blocks still being written): only columns that are not plain arrays, since a column of date strings waits for the date numbers every block leaves
+      for (var k = 0; k < m; k++) if (!st[k] && !(early && Array.isArray(obj[keys[k]]))) { one(k); return true; }
+      return false; }
+    function result() { if (bad) return null; var o = { v: 1, rows: n, cols: cols }; if (cut) o.colsCut = true; return te.encode(JSON.stringify(o)); }
+    return { cap: cap, next: next,
+      offload: function (post) {   // hand the long number columns to helpers: post({ kind: 's', key, col, n, q }, transfer) -> Promise of { sum }; a copy is sent, the caller's array stays as it is
+        var k, a, c, sent, txt = false; if (n < SUM_OFF_MIN) return;
+        for (k = 0; k < m; k++) { a = obj[keys[k]]; if (!ArrayBuffer.isView(a) && !isTsCol(a)) txt = true; }
+        if (!txt) return;   // numbers only: this thread mostly waits on the helpers, so it sums the columns itself while they pack (a copy for a helper costs more here)
+        for (k = 0; k < m; k++) { if (st[k]) continue; a = obj[keys[k]];
+          if (isTsCol(a)) { c = { kind: 'ts', unit: a.unit, values: a.values.slice(0, n) }; sent = c.values; } else if (ArrayBuffer.isView(a) && !(a instanceof DataView) && typeof a[0] !== 'bigint') { c = a.slice(0, n); sent = c; } else continue;
+          st[k] = 1;
+          away.push(post({ kind: 's', key: keys[k], col: c, n: n, q: Q }, [sent.buffer]).then((function (k2) { return function (msg) { cols[k2] = msg.sum; }; })(k), (function (k2) { return function () { one(k2); }; })(k))); } },
+      done: function () { while (next(false)); return Promise.all(away).then(result); },   // -> Promise of the payload (null if a column failed); called once every block is written
+      payload: function () { for (var k = 0; k < m; k++) if (st[k] !== 2) one(k); return result(); } };   // all on this thread
   }
+  function columnSummary(obj, n, quantiles) { return sumJobs(obj, n, quantiles).payload(); }   // the section payload for the column table obj ({ key: column }) of n rows
   function addSection(file, id, payload) {   // the same file with one more optional footer section (no other byte of the blocks changes); a file that already has section `id` comes back as it is
     var n = file.length, flen = rd32(file, n - 16), f = file.subarray(n - 16 - flen, n - 16), body = f[0] === 1 ? S.zfull.decompress(f.subarray(1)) : f.subarray(1), p = 0, h = new Uint8Array(8), t = new Uint8Array(16), nf;
     while (p < body.length) { if (rd16(body, p) === id) return file; p += 8 + rd32(body, p + 4); }
@@ -2970,7 +3077,7 @@
     if (inputs[ti].rowsArr) {   // B18b: row objects, in slices of about one block of text
       var RA = inputs[ti].rowsArr, est = JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est)), ra, sl, cnt;
       var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0;   // P13i: the B22 head block for tables that took the text path before
-      for (ra = 0, cnt = hb0 || stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts); if (blk.rows <= B39_ROWS && ra === 0 && sl.length === RA.length && inputs.length === 1) { blk = b39Small(ctx, blk, sl, opts, st); if (blk.kind === 'r') { NMARK = nm0; WMARK = wm0; W3MARK = w30; W3MARK = w30; } }
+      for (ra = 0, cnt = hb0 || stp;   /* B22 is for the text path: a head block on row saves made the first saves 1.2x slower (10 MB table, Chromium) */ ra < RA.length; ra += cnt, cnt = stp) { sl = RA.slice(ra, ra + cnt); blk = writeFlatBlock(ctx, { rowsIn: sl, sumCap: inputs.length === 1 && opts._side ? opts._side.cap : null, sumA: ra }, opts); if (!blk) return packManyNow([{ name: inputs[ti].name, bytes: rowsBytes(RA) }], opts); if (blk.rows <= B39_ROWS && ra === 0 && sl.length === RA.length && inputs.length === 1) { blk = b39Small(ctx, blk, sl, opts, st); if (blk.kind === 'r') { NMARK = nm0; WMARK = wm0; W3MARK = w30; W3MARK = w30; } }
         blocks.push(blockEntry(opts, off, blk.bytes, blk.rows, blk.kind || 'n', ti, blk.kind === 'f' ? blk.prefix : undefined)); zone.push(blk.zone);   // B55: row saves record the prefix size too, so their files get per-column checks as text saves do (B44)
  var eqb = blk.kind === 'f' ? eqOf(blk) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(blk.bytes); off += blk.bytes.length; rows += blk.rows; }
       tail = true; continue;
@@ -3780,7 +3887,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n) { return sumColumn(k, col, n); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.14.12', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n, q) { return sumColumn(k, col, n, undefined, q !== false); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.14.12', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -3923,6 +4030,7 @@
         return { msg: { id: m.id, bytes: out, bodyEnd: f.footer.sec[SEC_EQF] ? JSON.parse(tdr.decode(f.footer.sec[SEC_EQF]))[0] : f.footer.bodyEnd, blocks: f.blocks, zone: f.zone, tail: (jsonSec(f.footer.sec[SEC_FLAGS]) || {}).tail, picked: m.opts && m.opts._picked, eqf: eqo }, transfer: [out.buffer] };
       }
       if (m.kind === 'w') return { msg: { id: m.id, warm: true }, transfer: [] };
+      if (m.kind === 's') return { msg: { id: m.id, sum: sumColumn(m.key, m.col, m.n, undefined, m.q) }, transfer: [] };   // since 0.15.0: the summary entry of one number column
       if (m.kind === 'c') return b28Job(m);   // B28: one number column of a packRowsParallel block   // helper start-up only: the wasm is loaded by the time this answers
       var b = m.buf; if (crcJS(b, 0) !== m.crc) throw new Error('block ' + m.id + ' checksum mismatch');
       var F = m.kind === 'f' ? flatFrames(S.zdec, b, m.want, true) : nestedFrames(S.zdec, b);
@@ -4256,9 +4364,10 @@
     var t = colTable(obj, 'packColumnsParallel');
     if (t instanceof Error) return Promise.reject(t);
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
-    var pr = packRowsParallel(t.CT, opts), sm = null;
-    if (!opts || opts.summary !== false) { try { sm = columnSummary(obj, t.n); } catch (e) { sm = null; } }   // since 0.15.0: the column summary (footer section 20), made while the helpers pack
-    return sm ? pr.then(function (b) { return addSection(b, SEC_SUMMARY, sm); }) : pr;
+    if (opts && opts.summary === false) return packRowsParallel(t.CT, opts);
+    // since 0.15.0: the column summary (footer section 20). Its columns run on this thread while every helper has a full queue and after the last block is handed out, so it fills time this thread would wait anyway
+    var side = sumJobs(obj, t.n, opts && opts.quantiles), pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
+    return pr.then(function (b) { return side.done().then(function (sm) { return sm ? addSection(b, SEC_SUMMARY, sm) : b; }, function () { return b; }); });
   }
   function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
     if (!rows.__ct) return packRows(rows, opts);
@@ -4285,8 +4394,13 @@
         if (pre === 2 && col.np) tr.push(col.np.buffer);
         return new Promise(function (res, rej) { best.q.push([res, rej]); best.h.post(msg, tr); });
       }
-      function release(ok) { hs.forEach(function (x) { if (!ok || x.dead) x.h.kill(); else if (x.q.length) x.drain = true; else idleHelpers.push(x.h); }); hs = []; armIdle(3000); }
-      var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol, _hb: pay === 2 }), out;
+      function release(ok) { hs.forEach(function (x) { if (!ok || x.dead) { x.h.kill(); while (x.q.length) x.q.shift()[1](new Error('LfcPack: helper closed')); } else if (x.q.length) x.drain = true; else idleHelpers.push(x.h); }); hs = []; armIdle(3000); }
+      function sjob(msg, tr) {   // since 0.15.0: one column summary on a helper (a new one while there are fewer than w, else the least busy), posted before the first block so it runs while this thread writes that block
+        var best, i; if (hs.length < w) { best = helperQ(takeHelper()); hs.push(best); } else { best = hs[0]; for (i = 1; i < hs.length; i++) if (hs[i].q.length < best.q.length) best = hs[i]; }
+        msg.id = nextId++; return new Promise(function (res, rej) { best.q.push([res, rej]); try { best.h.post(msg, tr); } catch (e) { best.q.pop(); rej(e); } });   // a post that throws leaves no answer slot behind
+      }
+      if (opts && opts._side && opts._side.offload) opts._side.offload(sjob);
+      var jo = Object.assign({}, po, { _b26: 1, _rcol: rcol, _hb: pay === 2, _side: opts && opts._side, _busy: function () { if (hs.length < w) return false; for (var z = 0; z < hs.length; z++) if (hs[z].q.length < 2) return false; return true; } }), out;
       try { out = packRowsBlocks(rows, jo); } catch (e) { release(true); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; }
       if (out === null) { release(true); return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); }
       return out.then(function (b) { release(true); return b === null ? pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts) : b; }, function (e) { release(e === B26_BAIL); if (e === B26_BAIL) return pack(rowsBytes(rows.__ct ? rows.slice(0, rows.length) : rows), opts); throw e; });
@@ -4318,13 +4432,14 @@
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
     var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0, cnt = hb0 || stp;   // P13i: the B22 head block, as packRows cuts it
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;
-    if (!y31) { for (ra = 0; ra < RA.length; ra += cnt, cnt = stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
+    if (!y31) { for (ra = 0; ra < RA.length; ra += cnt, cnt = stp) { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol, sumCap: opts._side ? opts._side.cap : null } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) return null; waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); } return b31Join(waits); }
     ra = 0;
     return new Promise(function (res, rej) {
-      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += cnt; cnt = stp; if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
+      function one() { try { blk = writeFlatBlock(ctx, RA.__ct ? { colsIn: { keys: RA.__ct.keys, A: RA.__ct.A, a: ra, b: Math.min(ra + cnt, RA.length), view: !opts._rcol, sumCap: opts._side ? opts._side.cap : null } } : { rowsIn: RA.slice(ra, ra + cnt) }, opts); if (!blk) { b31Quiet(waits); res(null); return; } waits.push(blk.wait ? blk.wait : Promise.resolve(blk)); ra += cnt; cnt = stp; if (opts._side && opts._busy && opts._busy()) opts._side.next(ra < RA.length); if (ra < RA.length) b31Yield(one); else res(b31Join(waits)); } catch (e) { b31Quiet(waits); rej(e); } }
       one();
     });
-    function b31Join(waits) { return Promise.all(waits).then(function (bs) {
+    function b31Join(waits) { if (opts._side) while (opts._side.next(false));   // the summary columns left over run while the helpers finish the last blocks
+      return Promise.all(waits).then(function (bs) {
       var blocks = [], parts = [], zone = [], off = 0, rows = 0, i, b, eqf = [], eqAny = false, eqb;
       for (i = 0; i < bs.length; i++) { b = bs[i]; blocks.push(blockEntry(opts, off, b.bytes, b.rows, b.kind || 'n', 0, b.kind === 'f' ? b.prefix : undefined));   /* B55: per-column checks on parallel saves too */ zone.push(b.zone); eqb = b.kind === 'f' ? eqOf(b) : 0; eqf.push(eqb); if (eqb) eqAny = true; parts.push(b.bytes); off += b.bytes.length; rows += b.rows; }
       var eqs = null; if (eqAny && blocks.length > 1) { var eqr = eqRegion(eqf), eqz = S.zfull.compress(eqr, 3), eqn = 0; if (eqz.length < eqr.length) { eqn = eqr.length; eqr = eqz; } parts.push(eqr); eqs = { id: SEC_EQF, flags: 0, payload: te.encode(JSON.stringify([off, eqr.length, crcJS(eqr, 0), eqn])) }; }   // NX A, as packManyNow
