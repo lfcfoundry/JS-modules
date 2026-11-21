@@ -4,7 +4,7 @@ One row per module or piece of work. Update your row in its own small commit bef
 
 | Module / task | Status | Owner (session or person) | Notes |
 |---|---|---|---|
-| Remaining module performance handoffs (22 modules) | in progress 2026-11-21 | Codex | Evidence-based investigation plans for modules not covered by the two five-module handoff batches and not already in a focused review worktree. Read `docs/claude-handoffs/2026-11-21-remaining-module-performance/README.md`. |
+| Remaining module performance handoffs (22 modules) | done 2026-11-21 | Codex | Evidence-based investigation plans for modules not covered by the two five-module handoff batches and not already in a focused review worktree. Includes follow-up audit of both earlier batches and current versions at `a056fbd1`; see `docs/claude-handoffs/2026-11-21-remaining-module-performance/README.md`. |
 | `modules/lzma-decode` + `tools/lzma-pack` | done | first session | decoder, packer, 140 decoder checks against Python's lzma, 14 browser checks |
 | `modules/lzma-decode` WebAssembly add-on + `tools/lzma-pack --wasm` | done 2026-10-17 | JS-modules thread | optional lzma-decode-wasm.js (4,087 bytes, 2.0x as fast in Chromium and Firefox, 1.5x in WebKit), pack.py --wasm (off by default, +4.5 KB), 340 + 23 Node checks, 4-browser timing test |
 | `modules/save-kit` 1.2.0 | done 2026-10-17 | JS-modules thread | for Fancy and Apple Press: old-code endings (hex8, plain36), backup/damaged slot names, afterValidate hook, stamp name, lean.py (29% smaller for their sets); 43 + 15 Node checks, 4-browser check |
