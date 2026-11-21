@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.0 · API 0 · 2026-11-21
+
+### Quick
+`parseParallel(input, { onPiece(piece) })` (new, optional): as each helper answers, `piece` is `{ index, count, names, columns: [{ type, values }] }` (names only for piece 0). Number columns are Float64Arrays, text values are built when first read (read them inside the call). Pieces are a first guess: a column that is numbers in one piece and text in another is settled in the returned table, and `{ reset: true }` is sent when the file is read again or the call falls back to a direct read, so drop what you were given. A throwing callback rejects the call; a non-function is refused. With onPiece the helpers send their number columns to the page (the page joins them, the 0.6.0 way), so the whole read takes longer than without it; without onPiece nothing changes.
+
+### Details
+15.2 MB, 400,000 rows, 5 columns, 4 helpers running, Chromium 156: first piece after 27 to 61 ms, all four by 32 to 71 ms, the table after 92 to 216 ms (113 to 133 ms without onPiece: the page joins the numbers, so the whole read is about 10 to 30% longer). Firefox 158 first piece at 21 ms, WebKitGTK 2.52.6 at 29 ms.
+
+### Deep
+The helpers answer within a few ms of each other, so the gain is that the first picture can start at about a quarter of the read, not that pieces trickle in. Text columns are lazy per piece so a consumer that wants numbers only pays nothing for strings. The test (test/run.js) joins the pieces and compares every column with the returned table, with and without lazy.
+
 ## 0.6.5 · API 0 · 2026-10-31
 
 ### Quick
