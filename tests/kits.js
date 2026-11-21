@@ -42,6 +42,7 @@ var steps = [
   ['back-close node', 'node', ['modules/back-close/test/run.js']],
   ['back-close lean', 'node', ['modules/back-close/test/lean.js']],
   ['slow-note', 'node', ['modules/slow-note/test/run.js']],
+  ['guess-gate', 'node', ['modules/guess-gate/test/run.js']],
   ['netflow-chord', 'node', ['modules/netflow-chord/test/run.js']],
   ['spotlight-tour', 'node', ['modules/spotlight-tour/test/run.js']],
   ['test-isolation', 'node', ['tools/test-isolation/test/run.js']],

@@ -66,7 +66,7 @@ MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built
 
 Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
-**Modules & Tools (54)**
+**Modules & Tools (55)**
 
 - Device and browser adaptation: [env-probes](modules/env-probes/README.md), [field-report](modules/field-report/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [image-decode](modules/image-decode/README.md), [slow-note](modules/slow-note/README.md)
 - Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
@@ -75,7 +75,7 @@ Every piece in one place, by name. The tables below give the version, the sizes 
 - Games - Assist: [grown-ups-door](modules/grown-ups-door/README.md), [spotlight-tour](modules/spotlight-tour/README.md)
 - Games - Math: [idle-core](modules/idle-core/README.md)
 - Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-guard](tools/speed-guard/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [test-runner](tools/test-runner/README.md), [webkit-driver](tools/webkit-driver/README.md)
-- App - Efficiency: [elias-fano](modules/elias-fano/README.md), [lfc-pack](modules/lfc-pack/README.md), [lz4-kit](modules/lz4-kit/README.md), [memory-compression](modules/memory-compression/README.md), [single-file-tools](tools/single-file-tools/README.md), [text-columns](modules/text-columns/README.md), [zstd-kit](modules/zstd-kit/README.md)
+- App - Efficiency: [elias-fano](modules/elias-fano/README.md), [guess-gate](modules/guess-gate/README.md), [lfc-pack](modules/lfc-pack/README.md), [lz4-kit](modules/lz4-kit/README.md), [memory-compression](modules/memory-compression/README.md), [single-file-tools](tools/single-file-tools/README.md), [text-columns](modules/text-columns/README.md), [zstd-kit](modules/zstd-kit/README.md)
 - Graphs and simulation: [graph-walk](modules/graph-walk/README.md), [walker-sim](modules/walker-sim/README.md)
 - Visualization: [clip-writer](modules/clip-writer/README.md), [gif-writer](modules/gif-writer/README.md), [netflow-chord](modules/netflow-chord/README.md), [netflow-circular](modules/netflow-circular/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-hierarchy](modules/netflow-hierarchy/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-plot](modules/netflow-plot/README.md), [netflow-sankey](modules/netflow-sankey/README.md), [netflow-scene](modules/netflow-scene/README.md)
 - Size and packaging: [lzma-decode](modules/lzma-decode/README.md), [lzma-pack](tools/lzma-pack/README.md), [pcodec-js](modules/pcodec-js/README.md), [ppmd-decode](modules/ppmd-decode/README.md), [ppmd-pack](tools/ppmd-pack/README.md), [zip-open](modules/zip-open/README.md)
@@ -103,7 +103,7 @@ Grouped by what a piece does. The live page, with demos and a quick finder, is *
 **How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. Story Editor packages are measured on their built `global` file. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`.
 Every piece has a size.
 
-### Modules & Tools (54)
+### Modules & Tools (55)
 
 #### Device and browser adaptation
 
@@ -190,6 +190,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 | 115.0 | 39.0 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
+| [guess-gate](modules/guess-gate/README.md) | 1.0.0 | 3.3 | 1.4 | Lets a page draw first guesses during an import without slowing it. | — |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.14.12 | 683.7 | 297.0 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 | 136.4 | 49.7 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 | 464.7 | 134.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
