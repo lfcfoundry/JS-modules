@@ -31,7 +31,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.14.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.14.10 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -72,6 +72,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
 - 2026-11-21 · **netflow-chord** 1.0.0 · API 1: New module: the chord layout of Netflow Map as one small file with nothing to load first, 1.6 KB gzipped; it takes 0.46 to 0.68 of d3-chord's time in Chromium, Firefox and WebKitGTK.
 - 2026-11-21 · **lz4-kit** 1.1.2 · API 1: Default-speed .lz4 frames of 64 KiB and more are 23 to 26% faster and 12% smaller on 4 MiB of logs: 6.3 to 6.4 ms against 8.5 before (Chromium 156, Firefox 158, WebKitGTK 2.52.6). Still a standard frame with size and checksum.
+- 2026-11-21 · **lfc-pack** 0.14.10 · API 0: Packing a table with many columns skips two per-column costs: preview rows are made only when read, and whole numbers are counted without making their text. 120 columns, 700 rows: 0.6 to 0.7 of the time in three browsers. Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.9 · API 0: Reading text columns as bytes (text: 'bytes') cuts the values apart in one wasm pass: a 320,000-row title column reads 1.6 times faster in Chromium 156 and WebKitGTK 2.52.6, Firefox 158 the same. Same values.
 - 2026-11-21 · **lfc-pack** 0.14.8 · API 0: Text columns with long, nearly all different values (page titles, URLs) pack 6 to 9% faster: the checking and joining of the values runs 16 bytes at a time in wasm. 320,000 titles, Chromium 156, Firefox 158, WebKitGTK 2.52.6. Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.7 · API 0: Packing text columns scans and hashes short values faster in wasm: 0.96x (Chromium 156) and 0.91x (Firefox 158) the pack time, WebKitGTK 2.52.6 unchanged (44 columns, 20,000 rows). Same bytes.

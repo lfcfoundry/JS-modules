@@ -296,7 +296,9 @@
     if (n < 0) n = 0;
     function rowsOf(i0, i1) { var out = new Array(Math.max(0, i1 - i0)), i, r, q; for (i = i0; i < i1; i++) { r = {}; for (q = 0; q < keys.length; q++) r[keys[q]] = G[q] ? G[q](i) : A[q][i]; out[i - i0] = r; } return out; }
     var CT = { __ct: { keys: keys, A: A }, length: n, slice: function (s0, s1) { if (s0 < 0) s0 = Math.max(0, n + s0); if (s1 == null || s1 > n) s1 = n; return rowsOf(s0, s1); } }, z;
-    try { for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0]; } catch (e8) { return e8 instanceof Error ? e8 : new Error(String(e8)); }   // a timestamp column value that does not fit its fmt is refused here
+    var anyTs = false; for (z = 0; z < A.length; z++) if (isTsCol(A[z])) anyTs = true;
+    if (anyTs) { try { for (z = 0; z < Math.min(256, n); z++) CT[z] = rowsOf(z, z + 1)[0]; } catch (e8) { return e8 instanceof Error ? e8 : new Error(String(e8)); } }   // a timestamp column value that does not fit its fmt is refused here
+    else for (z = 0; z < Math.min(256, n); z++) (function (zz) { var memo; Object.defineProperty(CT, zz, { enumerable: true, configurable: true, get: function () { return memo || (memo = rowsOf(zz, zz + 1)[0]); } }); })(z);   // since 0.14.10: the 256 preview rows are made when read (a timestamp column keeps the eager check above)
     return { CT: CT, empty: !keys.length || n === 0, rowsOf: rowsOf, n: n };
   }
   // Save path (since 0.13.3): a piece of plain string arrays that is cut into several blocks gets its low-variety text columns turned into { kind: 'dict' } inputs first, so the blocks share one
@@ -364,14 +366,14 @@
   // (so blocks are cut where they were), without making a string and an object per cell. Only for text given as bytes, dictionary columns and Float64Array columns; 0 otherwise (the caller then takes the old way).
   function jsonStrLen(B, a, b) { var n = 2, i, c; for (i = a; i < b; i++) { c = B[i]; if (c < 128) { n += c === 34 || c === 92 || c === 8 || c === 9 || c === 10 || c === 12 || c === 13 ? 2 : c < 32 ? 6 : 1; } else if (c >= 192) n += c >= 240 ? 2 : 1; } return n; }
   function estCols(ct, rows) {
-    var A = ct.A, keys = ct.keys, fixed = 2 + rows - 1 + 1, per = 0, perRow = 0, q, a, i, j, c, tot, lc, nd;
+    var A = ct.A, keys = ct.keys, fixed = 2 + rows - 1 + 1, per = 0, perRow = 0, q, a, i, j, c, tot, lc, nd, v, av, dl, pw;
     if (!rows) return 0;
     for (q = 0; q < A.length; q++) { a = A[q]; if (!isByteCol(a) && !isDictCol(a) && !(a instanceof Float64Array)) return 0; if (a instanceof Float64Array && a.length < rows) return 0; }
     for (q = 0; q < A.length; q++) { a = A[q]; perRow += JSON.stringify(keys[q]).length + 1 + (q ? 1 : 0); }
     perRow += 2;   // the braces
     tot = perRow * rows;
     for (q = 0; q < A.length; q++) { a = A[q];
-      if (a instanceof Float64Array) { for (i = 0; i < rows; i++) tot += a[i] === a[i] && a[i] !== Infinity && a[i] !== -Infinity ? String(a[i]).length : 4; }
+      if (a instanceof Float64Array) { for (i = 0; i < rows; i++) { v = a[i]; if (v !== v || v === Infinity || v === -Infinity) tot += 4; else if (v === Math.floor(v) && v > -1e15 && v < 1e15) { av = v < 0 ? -v : v; dl = v < 0 ? 2 : 1; pw = 10; while (av >= pw) { dl++; pw *= 10; } tot += dl; } else tot += String(v).length; } }   // since 0.14.10: a whole number under 1e15 is counted by powers of ten, not by making its text (-0 prints as 0 and counts 1)
       else if (isDictCol(a)) { lc = []; for (i = 0; i < rows; i++) { c = a.ids[i]; if (lc[c] === undefined) lc[c] = jsonStrLen(a.labels.bytes, a.labels.start[c], a.labels.end[c]); tot += lc[c]; } }
       else for (i = 0; i < rows; i++) tot += jsonStrLen(a.bytes, a.start[i], a.end[i]); }
     return (2 + tot + rows - 1) / rows + 1;
@@ -382,7 +384,7 @@
     if (ctx.pick == null && opts.paths !== 'auto' && !PATHS_RULE) ctx.pick = 1;
     if (ctx.pick == null && opts.paths !== false && opts.paths !== 'only' && PATHS_RULE) ctx.pick = 2;
     if (ctx.pick == null && !opts._tryFirst) ctx.pick = 1;   // no input text: as packManyNow decides for a row input
-    var est = (RA.__ct && estCols(RA.__ct, Math.min(1024, RA.length))) || JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = Math.max(1024, Math.floor(bb / est));
+    var est = (!opts._hb && RA.length <= 1024) ? 0 : (RA.__ct && estCols(RA.__ct, Math.min(1024, RA.length))) || JSON.stringify(RA.slice(0, 1024)).length / Math.min(1024, RA.length) + 1, stp = est ? Math.max(1024, Math.floor(bb / est)) : 1024;   // since 0.14.10: up to 1,024 rows and no head block make one block whatever the size estimate says, so it is not made
     // B31 (research): yield to the event loop between blocks (a MessageChannel task, which browsers do not clamp like nested setTimeout), so the calling thread is never busy for more than one block
     var hb0 = opts._hb && headOn(est * RA.length, bb) ? Math.max(1, Math.ceil(HEAD_BYTES / est)) : 0, cnt = hb0 || stp;   // P13i: the B22 head block, as packRows cuts it
     var y31 = !(globalThis.__B31 === 0) && typeof MessageChannel === 'function' && RA.length > stp;

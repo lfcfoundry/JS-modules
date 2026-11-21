@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.10 · API 0 · 2026-11-21
+
+### Quick
+pool.js: `colTable` makes its 256 preview rows (`CT[z]`) lazily, as getters that build the row when first read, unless a timestamp column is present (those keep the eager check that refuses a value that does not fit its fmt). `estCols` counts the characters of a whole number under 1e15 by comparing against powers of ten instead of `String(v).length`. `packRowsBlocks` skips the size estimate when the table has 1,024 rows or fewer and no head block is asked for (the estimate can only decide where the blocks are cut, and one block is made anyway). Same bytes; no API change.
+
+### Details
+Made-up wide table, interleaved in one page, median of 15, new against 0.14.9 (new time as a share of old): 120 columns x 700 rows, Chromium 156 0.62 to 0.70, Firefox 158 0.70, WebKitGTK 2.52.6 0.67; 120 columns x 1,400 rows Chromium 0.97 to 0.99, Firefox 0.98; 4,111 rows Firefox 0.96, Chromium 1.00 to 1.01 (no change). 703 columns x 700 rows Chromium 0.62, x 1,400 rows 0.92. Nothing slower than 5% in any browser tried.
+
+### Deep
+Idea, prototype and the 703-column probe: the DuckDB-on-exoplanets thread (files under lfc-workbench/exoplanets-wide-2026.11.21). Not done yet from the same report: a plain Array column makes `estCols` return 0 and the fallback `JSON.stringify(RA.slice(0, 1024))` builds 1,024 row objects (only reached above 1,024 rows now, or when a head block is asked for). Byte identity checked on mixed columns (Float64 with NaN, -0, 1e15+4 and whole numbers; plain arrays with nulls; byte columns; dictionary-like text; empty columns).
+
 ## 0.14.9 · API 0 · 2026-11-21
 
 ### Quick
