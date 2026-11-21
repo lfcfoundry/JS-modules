@@ -21,7 +21,6 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pad-nav](modules/pad-nav/README.md) | 1.1.1 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
-| [wake-keeper](modules/wake-keeper/README.md) | 1.1.0 · API 1 | [changelog](modules/wake-keeper/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.7.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.7.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
@@ -652,7 +651,6 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-10-17 · **walker-sim** 2.1.0 · API 2: Faster, with the same answers: a million walkers run about 2.3 times faster in the test browsers.
 - 2026-10-17 · **walker-sim** 2.0.0 · API 2: The random-number menu moved to an optional file, and very large runs (over 100,000 walkers) give different counts for the same seed. Smaller runs are exactly the same.
 - 2026-10-17 · **walker-sim** 1.0.0 · API 1: New module: sends random walkers through a network and reports where they end, how many steps and what it cost, with a 95% range on every result.
-- 2026-10-17 · **wake-keeper** 1.1.0 · API 1: New trimming tool writes a smaller copy without the parts a game does not use. The full file works as before.
 - 2026-10-17 · **test-isolation** 1.1.0 · API 1: Test storage now behaves like the real thing when read or written as a property, and looping over many keys is no longer slow.
 - 2026-10-17 · **test-isolation** 1.0.0 · API 1: New tool, cut from Apple Press's speed-test page: a test page can no longer read or overwrite the real saved game.
 - 2026-10-17 · **tab-guard** 1.1.0 · API 1: New option so pressing Back restores the game from the browser's cache and it stays in charge, where Firefox used to reload it. Off unless you ask.

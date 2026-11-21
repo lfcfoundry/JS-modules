@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// The lean builds Fancy Banana asked for (back-close, wake-keeper, even-dt, quality-governor) in a real browser. Copyright (c) 2026 LFC Foundry. MIT License.
+// The lean builds Fancy Banana asked for (back-close, even-dt, quality-governor) in a real browser. Copyright (c) 2026 LFC Foundry. MIT License.
 // Builds Fancy's set of cuts with each lean.py (comments removed), then in the page: (1) back-close: panel opens, closes by its own button, back request (the real Escape key) closes the
-// newest panel and the other stays closable, no CloseWatcher; (2) wake-keeper: run starts, tab hidden, tab back, run ends, refused (8 s wait), lock released by the browser, no wake lock;
-// (3) even-dt and quality-governor: the 26 frame series of modules/frame-kit/test/series.js against Fancy's own code, 0 differences required. Each situation prints ok, FAIL or "not available"
+// newest panel and the other stays closable, no CloseWatcher;
+// (2) even-dt and quality-governor: the 26 frame series of modules/frame-kit/test/series.js against Fancy's own code, 0 differences required. Each situation prints ok, FAIL or "not available"
 // ("not available" means this browser lacks the API; it is not a pass). The full files run the same tables, for comparison.
 // Run one browser at a time: CHROMIUM=/path/to/chrome node tests/small-lean-browser.js   (FIREFOX=... for Firefox, WEBKIT=1 for WebKitGTK
 // OUT=file.json also writes the rows. Needs puppeteer-core for Chromium and Firefox; WebKitGTK goes through tests/webkit-shim.js. Exit 2 (skipped) when nothing can run.
@@ -13,7 +13,7 @@ const wd = require('./webkit-shim.js');
 const root = path.resolve(__dirname, '..') + '/', M = root + 'modules/';
 const exes = [['chromium', process.env.CHROMIUM], ['firefox', process.env.FIREFOX], ['webkit', process.env.WEBKIT]].filter(x => x[1] && (pp || x[0] === 'webkit'));
 if (!exes.length) { console.log('skipped: needs CHROMIUM, FIREFOX (with puppeteer-core) or WEBKIT=1'); process.exit(2); }
-// the wake lock only exists on a secure page, and http://localhost counts as one; about:blank does not
+// CloseWatcher needs a secure page, and http://localhost counts as one; about:blank does not
 const server = require('http').createServer((q, r) => { r.setHeader('content-type', 'text/html'); r.end('<!doctype html><title>small lean</title><body>x'); });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'small-lean-'));
 const lean = (mod, args, name) => { const out = path.join(tmp, name); const r = cp.spawnSync('python3', [M + mod + '/lean.py', ...args, '--no-comments', '-o', out], { encoding: 'utf8' }); if (r.status) throw new Error(r.stderr); return fs.readFileSync(out, 'utf8'); };
@@ -21,7 +21,6 @@ const rd = f => fs.readFileSync(f, 'utf8');
 const SRC = {
   battery: rd(root + 'tests/small-lean-battery.js'),
   bcFull: rd(M + 'back-close/back-close.js'), bcLean: lean('back-close', ['--without', 'history,element,closeRoute,supported'], 'bc.js'),
-  wkFull: rd(M + 'wake-keeper/wake-keeper.js'), wkLean: lean('wake-keeper', ['--without', 'idle,status,callbacks,inject'], 'wk.js'),
   edFull: rd(M + 'frame-kit/even-dt.js'), edLean: lean('frame-kit', ['--file', 'even-dt', '--without', 'options,stats,refreshRule'], 'ed.js'),
   qgFull: rd(M + 'frame-kit/quality-governor.js'), qgLean: lean('frame-kit', ['--file', 'quality-governor', '--without', 'options,control,errors,flipGuard,stats,stallRules,graceStart'], 'qg.js'),
   ref: rd(M + 'frame-kit/test/reference-frame.js'), series: rd(M + 'frame-kit/test/series.js'), compare: rd(M + 'frame-kit/test/lean-compare.js')
@@ -29,13 +28,12 @@ const SRC = {
 
 async function inPage(src, hasHooks) {
   const mod = s => { const m = { exports: {} }; new Function('module', 'exports', s)(m, m.exports); return m.exports; };
-  const S = mod(src.battery), env = { G: window, node: false, CloseWatcher: typeof window.CloseWatcher === 'function' ? window.CloseWatcher : undefined, realWakeLock: false, settleMs: 40,
+  const S = mod(src.battery), env = { G: window, node: false, CloseWatcher: typeof window.CloseWatcher === 'function' ? window.CloseWatcher : undefined, settleMs: 40,
     sleep: ms => new Promise(r => setTimeout(r, ms)), tap: async () => { if (hasHooks) await window.__tap(); }, esc: async () => { if (hasHooks) { await window.__esc(); } } };
-  const out = { rows: [], frame: null, errors: [], api: { CloseWatcher: !!env.CloseWatcher, wakeLock: !!navigator.wakeLock } };
+  const out = { rows: [], frame: null, errors: [], api: { CloseWatcher: !!env.CloseWatcher } };
   const run = async (label, fn) => { try { return await fn(); } catch (e) { out.errors.push(label + ': ' + (e && e.message)); return []; } };
-  for (const [label, bc, wk] of [['Fancy\'s lean set', mod(src.bcLean), mod(src.wkLean)], ['full file', mod(src.bcFull), mod(src.wkFull)]]) {
+  for (const [label, bc] of [['Fancy\'s lean set', mod(src.bcLean)], ['full file', mod(src.bcFull)]]) {
     (await run(label + ' back-close', () => S.backCloseRows(bc, env))).forEach(r => { r.variant = label; out.rows.push(r); });
-    (await run(label + ' wake-keeper', () => S.wakeKeeperRows(wk, env))).forEach(r => { r.variant = label; out.rows.push(r); });
   }
   const F = mod(src.ref), compare = mod(src.compare), series = mod(src.series)();
   const t0 = performance.now();
@@ -57,7 +55,7 @@ async function inPage(src, hasHooks) {
     let hooks = false;
     if (kind !== 'webkit' && p.exposeFunction) { await p.exposeFunction('__tap', async () => { await p.mouse.click(5, 5); }); await p.exposeFunction('__esc', async () => { await p.keyboard.press('Escape'); await new Promise(r => setTimeout(r, 120)); }); hooks = true; }
     const r = await p.evaluate(inPage, SRC, hooks);
-    console.log('  in this browser: CloseWatcher ' + (r.api.CloseWatcher ? 'yes' : 'no') + ', navigator.wakeLock ' + (r.api.wakeLock ? 'yes' : 'no'));
+    console.log('  in this browser: CloseWatcher ' + (r.api.CloseWatcher ? 'yes' : 'no'));
     for (const v of ["Fancy's lean set", 'full file']) {
       console.log('  ' + v + ':');
       r.rows.filter(x => x.variant === v).forEach(x => { console.log('    ' + (x.result === 'ok' ? 'ok           ' : x.result === 'FAIL' ? 'FAIL         ' : 'not available ') + x.module + ': ' + x.situation + ' -> ' + x.expect + (x.result === 'ok' ? '' : ' [' + x.note + ']')); });
