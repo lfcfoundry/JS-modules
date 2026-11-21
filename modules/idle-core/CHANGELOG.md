@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-11-21
+- Prices of 1e10 and up are now exact to the coin and the same in every browser (before, from about 1e12 a price could be a coin low). Ordinary prices are as fast or a little faster.
+
 ## 1.2.0 · API 1 · 2026-10-17
 - Fixed five traps: numbers typed as text (like "10" or "MAX") now work like numbers, and a frozen object no longer breaks it.
 - Faster number formatting and buy buttons, and five new helpers.
