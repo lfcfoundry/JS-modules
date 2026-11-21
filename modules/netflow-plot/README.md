@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.22.0 · API 2**
+**Version 2.23.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (speed and picture match in all three, one at a time); 772 module checks pass
+**Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -62,6 +62,16 @@ var svg = NetflowPlot.toSvg({
   v: { min: lows, max: highs, first: 0.12, last: -345.2 }        // y: one low and one high per run (plain or typed arrays), and the column's first and last value
 }, { type: 'line', x: 't', y: 'v' });
 ```
+
+**Summaries by default, all values on request (since 2.23.0).** An app can hand over both, and the chart picks: add `full` to each summary, either the list of all values or a function that returns it (the function is called only when the values are needed, so nothing is unpacked otherwise).
+
+```js
+var data = { t: { n: 1000000, bin: 256 }, v: { min: lows, max: highs, first: 0.12, last: -345.2, full: function () { return unpack('v'); } } };
+NetflowPlot.toSvg(data, { type: 'line', x: 't', y: 'v' });                       // default: from the summaries
+NetflowPlot.toSvg(data, { type: 'line', x: 't', y: 'v', precision: 'high' });    // every value, the same chart as the full columns
+```
+
+The default draws from the summaries while every run is at most half a pixel wide on the chart (two runs or more per pixel of `width`), so nothing sits more than half a pixel from its place: under the one arcminute a sharp eye resolves, as a CSS pixel is about 1.3 arcminutes at arm's length. When the runs are wider than that and `full` is there, the chart is drawn from all the values. `precision: 'high'` always uses all the values and throws a plain error when there are none. When x is the row number it needs no `full`; an x summary with `min` and `max` does.
 
 x may also be a summary of its own (`{ min, max }`, the first and last x of each run for a rising column). `first` and `last` put the right values at the line's two ends; without them the ends come from the first and last run. A run with no numbers has NaN for both. The summaries are read, never changed.
 
