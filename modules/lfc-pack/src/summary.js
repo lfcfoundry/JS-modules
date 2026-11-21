@@ -9,7 +9,7 @@
   var SUM_DATE = /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(\.\d+)?Z?$/;
   // quantile grid (replaces hist unless quantiles: false): SUM_Q values at p = i / 256, linear between ranks. Exact when the column is ordered with no missing values, is whole numbers within SUM_CNT of each
   // other in every block (counted), or has at most SUM_QS values; otherwise read from SUM_QS values at fixed positions (`qSample` says how many). At most SUM_Q different values: those values and their counts (`qExact`, `qn`).
-  var SUM_Q = 257, SUM_QS = 65536, SUM_CNT = 4096, SUM_KEEP = 1025, PYR_BINS = 2048;
+  var SUM_Q = 257, SUM_QS = 65536, SUM_CNT = 4096, SUM_KEEP = 1025, PYR_BINS = 4096;   // 4,096 bins (since 0.16.0; 2,048 in 0.15.0): netflow-plot draws from bins while there are 2 or more per pixel, so charts up to 2,048 px wide
   function sposAt(j, N) { return Math.min(N - 1, Math.floor((j + (Math.imul(j ^ 0x9E3779B9, 0x85EBCA6B) >>> 0) / 4294967296) * N / SUM_QS)); }   // sample position j of SUM_QS over N > SUM_QS rows: one fixed place in each equal slice, rising with j
   function sumPos(n) { var p = new Int32Array(SUM_QS), j; for (j = 0; j < SUM_QS; j++) p[j] = sposAt(j, n); return p; }
   function qOf(get, m) { var q = new Array(SUM_Q), k, pos, lo, fr, v; for (k = 0; k < SUM_Q; k++) { pos = k / (SUM_Q - 1) * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); q[k] = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; } return q; }   // the grid from a value-at-rank function over m ranks
@@ -185,7 +185,11 @@
       if (ent.length <= SUM_DISTINCT_CAP) { ent.sort(function (p, q) { return q[1] - p[1] || p[0] - q[0]; }); c.top = ent.slice(0, SUM_TOP).map(function (e) { return [tdr.decode(lab.bytes.subarray(lab.start[e[0]], lab.end[e[0]])), e[1]]; }); }
       return c;
     }
-    if (isByteCol(a)) {   // text held as bytes: length range in bytes
+    if (isByteCol(a)) {   // text held as bytes: length range in bytes; a column the writer stored as dates (every block left date numbers) is summed as dates (since 0.16.0)
+      if (cp) { var kb = Object.keys(cp), du = kb.length > 0; for (i = 0; i < kb.length; i++) if (cp[kb[i]].u === undefined) du = false; if (du && (g = sumMergeU(cp, n, R)) && !g.nulls) return putMerged(c, g, 'date'); }
+      if (n >= 1) { var bf = dateForm(a.end[0] - a.start[0], a.bytes[a.start[0] + 10]), bw = bf < 0 ? -1 : dateW(bf), bd = null, bt;   // date text the writer kept as text (few distinct values): parsed here
+        if (bw > 0) { bd = new Float64Array(n); for (i = 0; i < n; i++) { if (a.end[i] - a.start[i] !== bw || !((bt = dateAt(a.bytes, a.start[i], bf)) >= 0)) { bd = null; break; } bd[i] = bt; } }
+        if (bd) return putMerged(c, sumWhole(bd, n, R, bf & 4 ? 0.001 : 1, !!(bf & 4)), 'date'); }
       mn = Infinity; mx = 0; for (i = 0; i < n; i++) { v = a.end[i] - a.start[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
       c.type = 'text'; c.nulls = 0; c.len = n ? [mn, mx] : [0, 0]; c.distinct = null;
       return c;
@@ -235,7 +239,7 @@
   // { sum: section 20 payload or null, pyr: section 21 payload or null }; cap is where the writer leaves each block's part (SUMCAP)
   function sumJobs(obj, n, opts) {
     opts = opts || {};
-    var keys = Object.keys(obj), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
+    var so = opts._sort || null, keys = Object.keys(obj).filter(function (k) { return !(so && so.keep && k === SORT_ROW); }), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
     function one(k) { st[k] = 1; try { cols[k] = sumColumn(keys[k], obj[keys[k]], n, cap.cols[keys[k]], R); } catch (e) { bad = true; } }
     function next(early) {   // early (blocks still being written): only columns that are not plain arrays or typed numbers, since those wait for the parts every block leaves
       for (var k = 0; k < m; k++) if (!st[k] && !(early && (Array.isArray(obj[keys[k]]) || ArrayBuffer.isView(obj[keys[k]]) || isTsCol(obj[keys[k]])))) { one(k); return true; }
@@ -243,7 +247,8 @@
     function result() {
       if (bad) return { sum: null, pyr: null };
       var py = [], k, o; for (k = 0; k < m; k++) if (cols[k]._pyr) { py.push([keys[k], cols[k]._pyr]); delete cols[k]._pyr; }
-      o = { v: 1, rows: n, cols: cols }; if (cut) o.colsCut = true;
+      o = { v: 1, rows: n }; if (so) { o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
+      o.cols = cols; if (cut) { o.colsCut = true; if (so && so.keep) o.keys = keys; }
       return { sum: te.encode(JSON.stringify(o)), pyr: py.length ? pyrPayload(py, n, R.bin) : null };
     }
     return { cap: cap, next: next, done: function () { while (next(false)); return Promise.resolve(result()); }, payload: function () { while (next(false)); return result(); } };
@@ -257,7 +262,29 @@
     for (i = 0; i < py.length; i++) { o = h0 + per * i; out.set(new Uint8Array(py[i][1].min.buffer, 0, bins * 8), o); out.set(new Uint8Array(py[i][1].max.buffer, 0, bins * 8), o + bins * 8); out.set(new Uint8Array(py[i][1].count.buffer, 0, bins * 4), o + bins * 16); }
     return out;
   }
-  function pyramids(bytes, key) { return pyrRead(readFooter(S.zdec, bytes).sec[SEC_PYRAMID], key); }   // { key: { n, bin, min, max, count, first, last } } from footer section 21, one entry with key, or null; nothing is decoded
+  function pyramids(bytes, key, opts) {   // { key: { n, bin, min, max, count, first, last } } from footer section 21, one entry with key, or null; nothing is decoded
+    if (key !== null && typeof key === 'object') { opts = key; key = undefined; }
+    var p = pyrRead(readFooter(S.zdec, bytes).sec[SEC_PYRAMID], key), k;
+    if (!p || !(opts && opts.full)) return p;
+    if (key !== undefined) { pyrFull(bytes, key, p); return p; }
+    for (k in p) pyrFull(bytes, k, p[k]);
+    return p;
+  }
+  // { full: true } (since 0.16.0): each entry also gets full(), which reads that one column the first time it is called and returns all its values as a Float64Array (NaN for a missing value,
+  // dates in epoch milliseconds, as the bins are), so a chart that is wider than the bins can draw every point without the app wiring up the read (netflow-plot calls it only then)
+  function pyrFull(bytes, k, p) {
+    var got = null;
+    p.full = function () {
+      if (got) return got;
+      var bl = unpackColumns(bytes, { keys: [k], nulls: 'NaN', dates: 'numbers' }), n = 0, i, j, c, sc, o = 0;
+      for (i = 0; i < bl.length; i++) n += bl[i].n;
+      got = new Float64Array(n);
+      for (i = 0; i < bl.length; i++) { c = bl[i].cols[k]; sc = bl[i].dates && bl[i].dates[k] && bl[i].dates[k].unit === 'us' ? 0.001 : 1;
+        if (!c) { got.fill(NaN, o, o + bl[i].n); o += bl[i].n; continue; }
+        for (j = 0; j < bl[i].n; j++) { var v = c[j]; got[o + j] = typeof v === 'number' ? v * sc : NaN; } o += bl[i].n; }
+      return got;
+    };
+  }
   function pyrRead(s, key) {   // typed arrays over one aligned copy of the section
     var hl, hd, buf, bins, h0, cb, per, out = {}, i, o, c;
     if (!s) return null;

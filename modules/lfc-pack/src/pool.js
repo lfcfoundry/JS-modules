@@ -235,7 +235,11 @@
       out[k] = a; }
     return out;
   }
-  function unpackColumnsParallel(bytes, opts) {
+  function unpackColumnsParallel(bytes, opts) {   // since 0.16.0: a keepOrder file's row-position column only when asked for by name
+    if ((opts && opts.keys) || !(bytes instanceof Uint8Array)) return unpackColumnsParallel0(bytes, opts);
+    return init({ readOnly: true }).then(function () { var ri = rowIndexOf(openFile(bytes)); return unpackColumnsParallel0(bytes, ri && ri.keys ? Object.assign({}, opts, { keys: ri.keys }) : opts); });
+  }
+  function unpackColumnsParallel0(bytes, opts) {
     opts = opts || {};
     var onBlock = opts.onBlock; if (onBlock !== undefined && typeof onBlock !== 'function') return Promise.reject(new Error('LfcPack: onBlock must be a function'));   // since 0.14.11: onBlock(block, index, count) as each block is read, then the joined result as before
     function emit(blocks) { if (onBlock) for (var q = 0; q < blocks.length; q++) onBlock(blocks[q], q, blocks.length); return blocks; }
@@ -287,6 +291,7 @@
       var rest = {}, k, other = false; for (k in opts) if (k !== 'workers') { rest[k] = opts[k]; other = true; }
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, flat = true, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f') flat = false; n += file.blocks[i][3]; }
+      if (rowIndexOf(file)) return unpackRows(bytes, other ? rest : undefined);   // since 0.16.0: a keepOrder file (its row-position column left out, or original order) reads on this thread
       if (other || !flat || nb < 2 || w < 1) return unpackRows(bytes, other ? rest : undefined);
       if (!B38_POOL) { var out0 = unpackRows(bytes); setTimeout(function () { if (!B38_POOL) { B38_W = w; B38_POOL = makePool({ workers: w }); b38Arm(); } }, 0); return out0; }
       clearTimeout(B38_TIMER);
@@ -345,8 +350,15 @@
     return any ? out : obj;
   }
   function packColumnsParallel(obj, opts) {
-    var t = colTable(obj, 'packColumnsParallel');
+    var t = colTable(obj, 'packColumnsParallel'), so;
     if (t instanceof Error) return Promise.reject(t);
+    try { so = sortOpt(opts); } catch (e) { return Promise.reject(e); }
+    if (so) {   // since 0.16.0: sortBy (and keepOrder): the table sorted first, then saved as any table; section 20 says which column (written even with summary: false)
+      try { obj = sortTable(obj, so).obj; } catch (e) { return Promise.reject(e); }
+      t = colTable(obj, 'packColumnsParallel'); if (t instanceof Error) return Promise.reject(t);
+      opts = Object.assign({}, opts, { _sort: so, sortBy: null, keepOrder: false });
+      if (opts.summary === false) { var ks = Object.keys(obj).filter(function (k) { return k !== SORT_ROW || !so.keep; }); return packRowsParallel(t.empty ? t.rowsOf(0, t.n) : t.CT, opts).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, t.n, ks)]]); }); }
+    }
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
     if (opts && opts.summary === false) return packRowsParallel(t.CT, opts);
     // since 0.15.0: the column summary (footer section 20) and the line-chart pyramids (21; pyramids: false leaves them out, summary: false both). Number and date columns are summed inside the writer's own
@@ -360,10 +372,23 @@
     if (out === null) return pack(rowsBytes(rows.slice(0, rows.length)), opts);
     return out.then(function (b) { return b === null ? pack(rowsBytes(rows.slice(0, rows.length)), opts) : b; }, function (e) { if (e === B26_BAIL) return pack(rowsBytes(rows.slice(0, rows.length)), opts); throw e; });
   }
+  // since 0.16.0: in a column table a Float64Array (or Float32Array) uses NaN for an empty cell, which the column writer stores as null; the row check should not see it as a NaN value (it sent every
+  // table with an empty number cell down the row-object path: no helpers, no column summary parts)
+  function ctNaN(rows, smp) {
+    if (!rows.__ct) return smp;
+    var A = rows.__ct.A, K = rows.__ct.keys, fk = [], i, j, r;
+    for (j = 0; j < A.length; j++) if (A[j] instanceof Float64Array || A[j] instanceof Float32Array) fk.push(K[j]);
+    if (!fk.length) return smp;
+    for (i = 0; i < smp.length; i++) { r = smp[i]; for (j = 0; j < fk.length; j++) if (r[fk[j]] !== r[fk[j]]) r[fk[j]] = null; }
+    return smp;
+  }
   function packRowsParallel(rows, opts) {
+    var so; try { so = rows && rows.__ct ? null : sortOpt(opts); } catch (e) { return Promise.reject(e); }
+    if (so) { var sr; try { sr = sortRowArray(rows, so); } catch (e) { return Promise.reject(e); }   // since 0.16.0: sortBy on a row array
+      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
     return init().then(function () {
       var pay = 1, po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
-      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);
+      if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(ctNaN(rows, rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows)) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);
       if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return b34Plain(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
       if (B28_AUTO && !idleHelpers.length) { var out0 = b34Plain(rows, opts); if (!b28Starting) { b28Starting = true; setTimeout(function () { b28Starting = false; if (idleHelpers.length) return; clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); }, 0); } return out0; }   // no helpers yet: save this call on this thread first, then start them (laptop Firefox: starting them before the save made it 1.06x)   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
       var hs = [], k, nextId = 0;
