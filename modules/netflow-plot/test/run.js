@@ -352,6 +352,31 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const xSpike = hx[0] + (hx[hp - 1] - hx[0]) * 12345 / 19999;
   ok(Math.abs(hx[kmin] - xSpike) < 1.5 && hy[kmin] < hy[0] - 50, 'a one-point spike in a 20,000-point line is kept (the lowest kept point is at the spike)');
 }
+/* 2.18.1: a long plain line reads its two number columns in one walk of the rows and builds its points straight from the columns; the drawing lists are the same whichever way the numbers arrive */
+{
+  const r = rnd(9), n = 20000, rows = [], srows = [], arows = []; let y = 0;
+  for (let i = 0; i < n; i++) {
+    y += r() - 0.5; const v = i % 997 === 5 ? NaN : i % 1001 === 7 ? -0 : Math.round(y * 1000) / 1000, t = i * 0.5;
+    rows.push({ t: t, v: v }); srows.push({ t: String(t), v: v !== v ? '' : Object.is(v, -0) ? '-0' : String(v) }); arows.push({ id: 'r' + i, attrs: { t: t, v: v } });
+  }
+  const J = (S) => JSON.stringify(S, (k, x) => (k === 'ms' ? undefined : x)), sp = { type: 'line', x: 't', y: 'v' }, NS = global.NetflowScene;
+  const a = J(P.make(rows, sp, {}, NS));
+  ok(a === J(P.make(srows, sp, {}, NS)), 'a 20,000-point line with gaps draws the same from numbers and from number text');
+  ok(a === J(P.make(arows, sp, {}, NS)), 'a 20,000-point line draws the same from rows that keep their values under attrs');
+  ok(a === J(P.make(rows, sp, { get: (q, k) => q[k] }, NS)), 'a 20,000-point line draws the same through a get function');
+  ok(a === J(P.make(rows, sp, {}, NS)), 'a second call on the same rows draws the same');
+  ok(!P.make(rows.map((q, i) => ({ t: q.t, v: i === n - 1 ? -0 : q.v })), sp, {}, NS).labels.some((l) => /^-0(\.0+)?$/.test(l.t)), 'a line that ends on -0 writes 0 at its end, not -0');
+  for (const agg of ['mean', 'min', 'max', 'median', 'count']) { const q = Object.assign({ agg: agg }, sp); ok(J(P.make(rows, q, {}, NS)) === J(P.make(srows, q, {}, NS)), 'the same with ' + agg); }
+  const S = P.make(rows, sp, {}, NS); let c = S.curves[0]; S.curves.forEach((q) => { if (q.P.length > c.P.length) c = q; });
+  let fin = true; for (let k = 0; k < c.P.length; k++) if (!isFinite(c.P[k])) fin = false;
+  ok(fin && (c.P.length - 2) / 6 + 1 < n / 4, 'gaps in a long line leave no broken point (' + ((c.P.length - 2) / 6 + 1) + ' points kept)');
+  const pct = []; for (let i = 0; i < 3000; i++) pct.push({ t: i, v: Math.round(r() * 1000) / 1000 });
+  ok(P.make(pct, sp, {}, NS).labels.some((l) => /%$/.test(l.t)), 'a long column of shares between 0 and 1 is still written as percents');
+  const bigv = []; for (let i = 0; i < 3000; i++) bigv.push({ t: i, v: 2e6 + i * 1500 });
+  ok(P.make(bigv, sp, {}, NS).labels.some((l) => /M$/.test(l.t)), 'a long column of millions is still written with M');
+  const down = rows.map((q, i) => ({ t: n - i, v: q.v })), up2 = down.slice().reverse();
+  ok(J(P.make(down, sp, {}, NS).curves.map((q) => q.P.length)) === J(P.make(up2, sp, {}, NS).curves.map((q) => q.P.length)), 'rows that run right to left draw the same line as the same rows sorted');
+}
 /* 2.17.0: rest identity, row and value conservation, and wedge area after SVG rounding */
 require('./rest-and-wedges.js')(P, global.NetflowScene, ok);
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');

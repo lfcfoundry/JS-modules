@@ -1,5 +1,18 @@
 # netflow-plot developer changelog
 
+## 2.18.1 · API 2 · 2026-11-20
+
+### Quick
+A long plain line (one line, no colors, no smoothing, 2,000 rows or more, x rising) reads its two number columns in one walk of the rows, gathers the column facts (lowest, highest, size classes, decimals) once, and builds the kept points straight from the columns. Same SVG text and same drawing lists as 2.18.0 (398 random charts compared, 0 differences). No API change, no new setting.
+
+### Details
+100,000-point line, toSvg() plus the SVG into the page plus layout, fresh page per library, median of 10 calls, 2 passes (ms): Chromium 156 15.4 to 5.6, Firefox 158 20.5 to 5, WebKitGTK 2.52.6 21 to 10.5. Steady redraw (every frame throws away and rebuilds 5 or 20 charts, cost per chart from the slope, so script, layout, paint and raster all count): Chromium 15.5 to 4.9, Firefox 17.1 to 3.5, WebKitGTK 14.3 to 5.5; uPlot 1.6.32 on the same test 11.4, 8.2, 17.2; Chart.js 4.6.1 with min-max decimation 13.4, 12.3, 14.7, all points 41.7, 36.1, 32.6.
+uPlot's 1 ms in earlier entries was only its constructor returning: it draws in a microtask afterwards. Through the microtask it is 5.5 ms in Chromium and 9.5 in Firefox, and through a pixel readback 10.9 in Chromium.
+Time until the frame is shown (Chromium element timing, Firefox MozAfterPaint), one chart: Chromium 16.7 against uPlot 21.5 to 23.5; Firefox 22.5 against 21 to 21.5 (a tie inside one screen refresh). Per extra chart in the same frame: Chromium 8.3 against 11 to 13, Firefox 6.5 against 7.1 to 9.2. Of ours, about 5 ms (Chromium) and 2.4 ms (Firefox) is the browser painting the line path.
+
+### Deep
+Where 2.18.0 spent its 15 ms (Chromium profile): reading rows 5.5 ms (a list of raw values per column, then a number per value), CH.line 4.7 ms (copies of both columns, the number-format walk with a string-keyed table per value), axis and percent walks, pixelColumns on a 200,000-number list. Only about 1.4 ms was the SVG going into the page and layout.\nNow: reader.pre() reads both columns in one walk of the rows when every value is a plain number (else nothing is kept and num() works as before; num() itself reads a plain-number column without the raw list). colStat() gathers lowest, highest and their places, a -0 flag, the size classes fmtFor needs, decimals and the 0..1 share test in short separate loops and keeps them on the column; colUp() does the same for strictly rising. fmtFor, axisFor, fractionCol and the high/low labels read those. series() hands the columns over without copies (a copy only when a sum would turn a -0 into 0). linePts() maps and thins in one walk (same arithmetic as linear() and pixelColumns(), so the same doubles); linear() keeps lo, k and a on the function for it.\nOne loop that gathers everything was 3 to 5 times slower than the short loops (branch misses on the rising test of a random walk), so the facts are split.\nChecks: old against new on 398 random charts (285 lines of 3 to 20,000 rows with gaps, -0, text numbers, dates, attrs rows, get, colors, smoothing, all aggregates; 113 of the other 21 types), SVG text and drawing lists as JSON, 0 differences. New run.js checks: numbers against number text, attrs rows, get, a second call, each aggregate, gaps, -0 at the end, shares as percents, millions as M.\nFound on the way, not changed here: 2.18.0 never returns on a voronoi whose values include Infinity.\nNot done: taking columns directly (a table of typed arrays) would cut about 1.5 ms more; that is a new input and waits for the owner. The browser's paint of the line path is now the largest part in Chromium.
+
 ## 2.18.0 · API 2 · 2026-11-20
 
 ### Quick
