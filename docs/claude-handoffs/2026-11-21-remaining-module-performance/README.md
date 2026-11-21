@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 LFC Foundry. MIT License. -->
 # Remaining module performance investigations
 
-**Baseline:** `JS-modules` main `a056fbd1` (2026-11-21; 43 modules in the repository). Recheck `origin/main`, the module version, README limits, `TASKS.md`, and current test instructions before starting each item.
+**Baseline:** `JS-modules` main `adda9357` (2026-11-21; 43 module directories in the repository). Recheck `origin/main`, the module version, README limits, `TASKS.md`, and current test instructions before starting each item.
 
 This batch covers the 22 remaining modules below. It excludes the two prior five-module handoff batches and eleven modules with focused review worktrees (`clip-writer`, `gif-writer`, `image-decode`, `lfc-pack`, `memory-compression`, `netflow-layers`, `pcodec-js`, `ppmd-decode`, `save-kit`, `text-columns`, and `zip-open`). Do not duplicate or overwrite those reviews. Their current status belongs to their own branches.
 

@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 LFC Foundry. MIT License. -->
 # Review of the two earlier five-module handoff batches
 
-This is a code and merged-history review as of `JS-modules` main `a056fbd1`. The referenced PRs are evidence from their descriptions and file lists; this review did not rerun them.
+This is a code and merged-history review as of `JS-modules` main `adda9357`. The referenced PRs are evidence from their descriptions and file lists; this review did not rerun them.
 
 ## First five
 
