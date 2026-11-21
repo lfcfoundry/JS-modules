@@ -1,5 +1,16 @@
 # netflow-circular developer changelog
 
+## 1.5.1 · API 1 · 2026-11-20
+
+### Quick
+The default chord layout runs the typed path and makes chart.flows (the band objects) when it is first read. Same output (300 random charts compared as JSON with sorted keys, flows included), no API change, no new setting.
+
+### Details
+400 items, 79,795 links, chordBy 'items', chordOrder 'fast', alternating pages, median: Chromium 156 32.1 to 18 ms (0.52x, 7 pages), Firefox 158 28 to 14.3 (0.51x, 7 pages), WebKitGTK 2.52.6 34 to 23 (0.70x, 2 pages). Against d3-chord 3.0.2 in Chromium the default is now ahead (28.9 against 22.7 ms in one run, 5 pages). Node: 32 to 14 ms.
+
+### Deep
+chart.flows is an own enumerable accessor that builds the list from the typed arrays on first read and then replaces itself with the list as a plain value; setting it also replaces it. scene() draws from the arrays while the getter has not run (a WeakMap keeps the arrays), and from the list afterward. toSvg of 80,000 links is byte equal (MD5) to 1.5.0. Reading chart.flows costs about what 1.5.0 spent in the layout.
+
 ## 1.5.0 · API 1 · 2026-11-20
 
 ### Quick
