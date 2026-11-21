@@ -456,6 +456,19 @@
       "category": "visualization"
     },
     {
+      "id": "netflow-chord",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "NetflowChord",
+      "summary": "The chord layout of Netflow Map as one small file with nothing to load first: arcs around a circle and a band for each pair as wide as the amount it carries, as typed lists. Layout only (no picture); 1.6 KB gzipped, the same as d3-chord alone and smaller than d3-chord with d3-path.",
+      "short": "A small chord layout: arcs and bands as typed lists, no dependencies.",
+      "file": "modules/netflow-chord/netflow-chord.js",
+      "readme": "modules/netflow-chord/README.md",
+      "dependencies": "none",
+      "formats": "browser global, CommonJS (module.exports)",
+      "category": "visualization"
+    },
+    {
       "id": "netflow-circular",
       "version": "1.5.2",
       "api": 1,

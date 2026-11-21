@@ -38,6 +38,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
@@ -66,6 +67,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-plot** 2.20.0 · API 2: A line over 5,000 points is drawn as a filled band, one piece per pixel column, in place of a zigzag stroke; 97.5% of the pixels are the same and spikes are kept A finished 100,000-point line chart costs 3.3 to 4.0 ms in Chromium 156 and Firefox 158 (was 4.0 to 5.5); one chart reaches the screen in 12 to 13 ms in Chromium (was 17)
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
+- 2026-11-21 · **netflow-chord** 1.0.0 · API 1: New module: the chord layout of Netflow Map as one small file with nothing to load first, 1.6 KB gzipped; it takes 0.46 to 0.68 of d3-chord's time in Chromium, Firefox and WebKitGTK.
 - 2026-11-21 · **lz4-kit** 1.1.2 · API 1: Default-speed .lz4 frames of 64 KiB and more are 23 to 26% faster and 12% smaller on 4 MiB of logs: 6.3 to 6.4 ms against 8.5 before (Chromium 156, Firefox 158, WebKitGTK 2.52.6). Still a standard frame with size and checksum.
 - 2026-11-21 · **lfc-pack** 0.14.7 · API 0: Packing text columns scans and hashes short values faster in wasm: 0.96x (Chromium 156) and 0.91x (Firefox 158) the pack time, WebKitGTK 2.52.6 unchanged (44 columns, 20,000 rows). Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.6 · API 0: Text columns that get a dictionary compress their label bytes once instead of twice while the layouts are tried: 0.96x to 0.97x the pack time (44 text columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6). Same bytes.
