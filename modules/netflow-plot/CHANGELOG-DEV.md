@@ -1,5 +1,18 @@
 # netflow-plot developer changelog
 
+## 2.22.0 · API 2 · 2026-11-21
+
+### Quick
+New input for line charts: a table of summaries, { name: { min, max, first, last, n, bin } } (lfc-pack's per-256-row pyramids); x may be just { n, bin }. toSvg() and make() only, type line, no color. Rows and columns input unchanged (lines-only test set identical). Nothing breaks.
+
+### Details
+1,000,000-point line, call with the SVG in the page and layout, median (ms): from summaries Chromium 156 2.2 to 2.5, Firefox 158 3, WebKitGTK 2.52.6 4 to 6; from the two full Float64Array columns 13.6 to 14, 15 to 17, 17 to 19; uPlot 1.6.32 (constructor and its deferred draw, no paint) 18 to 18.5, 21 to 23, 29 to 31. 5,000,000 points: 2.8, 3, 7 against 57.3, 73, 83. Summary size at 256 rows per run: 16 bytes per run, 62,512 bytes per million rows.
+Picture against the chart from all values (920 x 520, exact pixel compare): 99.26% the same in Chromium and Firefox, 99.76% in WebKitGTK at 1,000,000 points; 99.57%, 99.57% and 99.93% at 5,000,000. Label texts are the same; the highest and lowest value labels can sit up to one run to the side.
+Shape: min and max are arrays of equal length (plain or typed); first, last, n, bin optional except that an x given without min and max needs n and bin. A summaries table always draws the band and never a dot per point. Errors are plain: wrong type, color, missing column, mixed with plain columns, unequal lengths, auto(), guess(), takeaway(), title 'auto'.
+
+### Deep
+Requested by the owner on a card (2026-11-21 10:37 AM Detroit) after the LFCP research thread measured pyramid-fed drawing. sumCols() turns the two summaries into two point columns: the first value, then for every run its low and high at a quarter and three quarters of the run's x span, in the order the line most likely ran (the end nearer the previous point first), then the last value. The normal column path draws them, forced to the band (as for lines over 5,000 points) and with no per-point dots. Placing both ends of a run at the run's edges was tried and matched only 95.6%; the quarter points gave 99.26%. A finer run (64 rows) gave 99.69% at the same draw time. The lines-only file leaves summaries out (with them it grew to 22.3 KB gzipped, over uPlot's 22.0); it gives its plain error for them.
+
 ## 2.21.0 · API 2 · 2026-11-21
 
 ### Quick
