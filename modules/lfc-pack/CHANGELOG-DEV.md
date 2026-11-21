@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.8 · API 0 · 2026-11-21
+
+### Quick
+flatscan.c: a value is checked for NUL and high bytes with 16-byte loads (a value under 16 bytes with one masked load, a longer one in 16-byte steps plus one overlapping load), in `bcscan` (fallback loop) and `bcscanw`; `bcjoinw` copies whole 16-byte pieces instead of one memory.copy per value. Output is byte-identical; no API change.
+
+### Details
+packBlock of 320,000 generated near-unique titles (about 25 bytes, 2,389,045 bytes out) and of titles plus a 10-label column sharing one 9.8 MB buffer (2,525,369 bytes out), new against 0.14.7 taking turns in one page, median of 15 packs: Chromium 156 80.8 to 71.3 ms (-6.7%) and 101.2 to 88.3 (-9.1%); Firefox 158 78.1 to 71.2 (-6.1%) and 102.2 to 94.7 (-7.4%); WebKitGTK 2.52.6 90 to 81 (-9%) and 119 to 107 (-6.4%). 44 SBA-shaped columns (contiguous values): about -5%.
+
+### Deep
+Where a title pack goes (Chromium, per pack of 320,000 titles, about 62 ms): the zstd frame 38 to 48 ms (text frames use zstd's fast strategy at level 1 whatever level is passed, so levels 1, 3 and 5 give the same bytes and time), copy of the column into wasm 5, scan 6, join 6, candidate sizing 3, distinct test 3. The zstd wasm built at -O2, -O3 and with SIMD gave the same time (0.96 to 1.03x), so the compiler flags are not the limit; negative levels are slower or bigger. The scan finished each value with a byte loop and the join called memory.copy per value; both were per-value call and tail costs.
+
 ## 0.14.7 · API 0 · 2026-11-21
 
 ### Quick
