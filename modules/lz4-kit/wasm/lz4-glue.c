@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License.
- * Small C layer around LZ4 1.11.1 (BSD-2-Clause, Yann Collet) for wasm32: a first-fit allocator that grows the wasm memory, and the calls the JavaScript side needs.
+ * Small C layer around LZ4 1.11.1 (BSD-2-Clause, Yann Collet) for wasm32: a first-fit allocator that grows the wasm memory, the calls the JavaScript side needs,
+ * and the kit's own fast block compressor for data that packs well (it writes standard LZ4 blocks and hands hard data to LZ4 itself).
  * Built by build.sh together with the pinned LZ4 release, which is compiled unchanged. */
 #include <stddef.h>
 #include "lz4.h"
@@ -35,9 +36,108 @@ EXPORT("heap_used") u32 heap_used(void) { return (u32)(heapTop - heapLo); }
 /* ---- calls. A failure is returned as 0xFFFFFFFF (LZ4 returns 0 or a negative number for it). */
 EXPORT("version") u32 lz_version(void) { return (u32)LZ4_versionNumber(); }
 EXPORT("bound") u32 lz_bound(u32 n) { return n > (u32)LZ4_MAX_INPUT_SIZE ? 0xFFFFFFFFu : (u32)LZ4_compressBound((int)n); }
-/* fast levels: acceleration 1 is the default, higher is faster and larger */
+/* ---- the kit's own fast block compressor (default speed, inputs of 64 KiB and more). It writes a standard LZ4 block, read by any LZ4 decoder.
+ * How it differs from LZ4_compress_fast: a 6-byte hash into a 65,536-entry table (LZ4: 4 bytes, 4,096 entries). On data that packs well (logs, JSON, CSV)
+ * it finds longer matches, so there are fewer sequences to write: faster and smaller. On data that packs poorly the large table only costs cache misses,
+ * so the input is worked through in pieces (4, 8, 16, then 32 KiB) and when the pieces stop packing well the rest of the input is handed to
+ * LZ4_compress_fast, which carries on in the same block. Data that never packs well goes there from byte 0 and gives the same bytes as before.
+ * Table entries are positions counted from a base that moves up by more than 64 KiB after every call, so entries left by earlier calls are always
+ * "too far" and are never read: the table is not cleared per call and the output depends on the input alone. */
+#ifndef LFC_LOG
+#define LFC_LOG 16
+#endif
+#ifndef LFC_HB
+#define LFC_HB 6
+#endif
+#ifndef LFC_HARD
+#define LFC_HARD 34        /* a 32 KiB piece that packs above this percent counts as hard; two in a row hand the rest to LZ4 */
+#endif
+#ifndef LFC_HARD0
+#define LFC_HARD0 60       /* the same for the first pieces (4, 8, 16 KiB), which have little history yet; one is enough */
+#endif
+#define LFC_PIECE 32768u
+#define LFC_MIN 65536u
+static u32 lfcTab[1 << LFC_LOG]; static u32 lfcBase = 65536;
+typedef struct { const u8* ip; const u8* anchor; u8* op; u32 nb; } lfc_state;
+static inline u64 rd64(const u8* p) { u64 v; __builtin_memcpy(&v, p, 8); return v; }
+static inline u32 rd32(const u8* p) { u32 v; __builtin_memcpy(&v, p, 4); return v; }
+static inline void wr64(u8* p, u64 v) { __builtin_memcpy(p, &v, 8); }
+static inline u32 lfc_count(const u8* p, const u8* m, const u8* lim) {
+  const u8* s = p;
+  while (p + 8 <= lim) { u64 x = rd64(p) ^ rd64(m); if (x) return (u32)(p - s) + ((u32)__builtin_ctzll(x) >> 3); p += 8; m += 8; }
+  while (p < lim && *p == *m) { p++; m++; }
+  return (u32)(p - s);
+}
+#define LFC_H(v) ((u32)((((v) << (64 - 8 * LFC_HB)) * 0x9E3779B185EBCA87ULL) >> (64 - LFC_LOG)))
+#define LFC_POS(p) (base + (u32)((p) - src))
+/* one piece: searches from st->ip until the position passes lim (lim is at most 12 bytes before the end of the input) */
+static void lfc_piece(lfc_state* st, const u8* const src, const u32 base, const u8* const lim, const u8* const matchlimit) {
+  const u8* ip = st->ip; const u8* anchor = st->anchor; u8* op = st->op; u32 nb = st->nb;
+  u32* const tab = lfcTab; const u8* m; u64 seq; u32 h, pos, ref; u8* tok;
+  for (;;) {
+    /* search: the hash of the next position is worked out before this one is checked */
+    { const u8* fip = ip; u64 fseq = rd64(ip); u32 fh = LFC_H(fseq);
+      for (;;) {
+        seq = fseq; h = fh; ip = fip; fip += nb++ >> 6;                 /* after 64 misses in a row the step grows, as in LZ4 */
+        if (fip > lim) { ip = fip; goto done; }
+        ref = tab[h]; fseq = rd64(fip); fh = LFC_H(fseq); pos = LFC_POS(ip); tab[h] = pos;
+        if (pos - ref <= 65535) { m = src + (ref - base); if (rd32(m) == (u32)seq) break; }
+      } }
+    nb = 1 << 6;
+    while (ip > anchor && m > src && ip[-1] == m[-1]) { ip--; m--; }      /* grow the match backwards */
+    { u32 ll = (u32)(ip - anchor); tok = op++;
+      if (ll >= 15) { u32 r = ll - 15; *tok = 0xF0; while (r >= 255) { *op++ = 255; r -= 255; } *op++ = (u8)r;
+        { const u8* s = anchor; u8* d = op; u8* const e = op + ll; do { wr64(d, rd64(s)); d += 8; s += 8; } while (d < e); op = e; } }
+      else { *tok = (u8)(ll << 4); wr64(op, rd64(anchor)); if (ll > 8) wr64(op + 8, rd64(anchor + 8)); op += ll; } }
+    for (;;) {
+      u32 off = (u32)(ip - m), ml;
+      op[0] = (u8)off; op[1] = (u8)(off >> 8); op += 2;
+      ml = lfc_count(ip + 4, m + 4, matchlimit); ip += 4 + ml;
+      if (ml >= 270) { u32 r = ml - 15; *tok |= 15; while (r >= 255) { *op++ = 255; r -= 255; } *op++ = (u8)r; }
+      else { *tok |= (u8)(ml < 15 ? ml : 15); *op = (u8)(ml - 15); op += ml >= 15; }   /* the extra length byte is written either way and kept only when needed */
+      anchor = ip;
+      if (ip > lim) goto done;
+      tab[LFC_H(rd64(ip - 2))] = LFC_POS(ip - 2);
+      seq = rd64(ip); h = LFC_H(seq); pos = LFC_POS(ip); ref = tab[h]; tab[h] = pos;       /* most matches are followed at once by another */
+      if (pos - ref <= 65535) { m = src + (ref - base); if (rd32(m) == (u32)seq) { tok = op++; *tok = 0; continue; } }
+      break;
+    }
+    if (++ip > lim) goto done;
+  }
+done:
+  st->ip = ip; st->anchor = anchor; st->op = op; st->nb = nb;
+}
+/* dcap is at least LZ4_compressBound(n); n is at least 13. Returns the block size, or 0 when LZ4 itself failed (it cannot with that much room). */
+static u32 lfc_fast(u8* dst, u32 dcap, const u8* src, u32 n) {
+  const u8* const iend = src + n; const u8* const mflimit = iend - 12; const u8* const matchlimit = iend - 5;
+  lfc_state st; u32 base, piece = 4096, hard = 0;
+  if ((u64)lfcBase + n + 65536 > 0xFFFF0000ull) { memset_(lfcTab, 0, sizeof lfcTab); lfcBase = 65536; }
+  base = lfcBase; lfcBase = base + n + 65536;
+  st.ip = src; st.anchor = src; st.op = dst; st.nb = 1 << 6;
+  while (st.ip <= mflimit) {
+    const u8* const cin = st.ip; const u8* const cout = st.op + (st.ip - st.anchor);          /* bytes not yet written count as stored */
+    const u8* const lim = (u32)(mflimit - st.ip) > piece ? st.ip + piece : mflimit;
+    lfc_piece(&st, src, base, lim, matchlimit);
+    { u32 in = (u32)(st.ip - cin), out = (u32)(st.op + (st.ip - st.anchor) - cout);
+      if (in >= piece / 2) {
+        if (out * 100 > in * (piece < LFC_PIECE ? LFC_HARD0 : LFC_HARD)) { if (piece < LFC_PIECE || ++hard >= 2) break; } else hard = 0; } }
+    if (piece < LFC_PIECE) piece *= 2;
+  }
+  if (st.ip <= mflimit) {   /* hard data: LZ4 packs everything after the last match written. Its sequences only point inside its own part, so the two parts read as one block */
+    const u8* const p = st.anchor;
+    int r = LZ4_compress_fast((const char*)p, (char*)st.op, (int)(iend - p), (int)(dcap - (u32)(st.op - dst)), 1);
+    return r <= 0 ? 0 : (u32)(st.op - dst) + (u32)r;
+  }
+  { u8* op = st.op; u32 ll = (u32)(iend - st.anchor);
+    if (ll >= 15) { u32 r = ll - 15; *op++ = 0xF0; while (r >= 255) { *op++ = 255; r -= 255; } *op++ = (u8)r; } else *op++ = (u8)(ll << 4);
+    __builtin_memcpy(op, st.anchor, ll); op += ll; return (u32)(op - dst); }
+}
+/* fast levels: acceleration 1 is the default, higher is faster and larger. The default on 64 KiB and more with a full-size output buffer goes to the kit's own compressor above. */
 EXPORT("compress") u32 lz_compress(void* dst, u32 dcap, const void* src, u32 n, int accel) {
   if (n > (u32)LZ4_MAX_INPUT_SIZE || dcap > 0x7FFFFFFFu) return 0xFFFFFFFFu;
+#ifndef LFC_OFF
+  if (accel <= 1 && n >= LFC_MIN && dcap >= (u32)LZ4_compressBound((int)n)) { u32 r = lfc_fast((u8*)dst, dcap, (const u8*)src, n); return r ? r : 0xFFFFFFFFu; }
+#endif
   int r = LZ4_compress_fast((const char*)src, (char*)dst, (int)n, (int)dcap, accel < 1 ? 1 : accel); return r <= 0 && n ? 0xFFFFFFFFu : (u32)r;
 }
 /* high compression: level 1..12 (LZ4_compress_HC allocates its own working state) */
