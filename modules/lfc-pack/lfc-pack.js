@@ -1816,6 +1816,7 @@
   // dictionary ('D') layouts are built straight from the bytes, by the same rules and with the same frames the string path builds from the same values (labels in first-seen order,
   // the count stopping where the string path stops), so the file is the same bytes and no JS string is made. Values that could take another layout (hex, UUID, IPv4: tested on the
   // first value), a 0 byte inside a value, or templates: true go through the string path instead (same file, slower).
+  function isByteHolder(x) { return !!x && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start instanceof Int32Array && x.end instanceof Int32Array; }   // since 0.15.0: the arrays a text:'bytes' read fills (unpackColumns { into: { key: { bytes, start, end } } })
   function isByteCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start != null && x.end != null && typeof x.start.length === 'number' && x.start.length === x.end.length; }
   function byteColStrings(bc, a, n) { var out = new Array(n), B = bc.bytes, S = bc.start, E = bc.end, i; for (i = 0; i < n; i++) out[i] = td.decode(B.subarray(S[a + i], E[a + i])); return out; }
   // byteCol kernel (from the text-columns research; source in wasm/flatscan.c: bcscan, bcdict, bcjoin): the checks, the distinct-value hash and the joins of a text column given as bytes, in WebAssembly (the template builder's instance)
@@ -2646,7 +2647,7 @@
       if (F.ordList) throw new Error('LfcPack: columns read needs a block without key-order lists');
       for (j = 0; j < K; j++) {
         if (want && !want[meta.keys[j]]) continue;
-        var tg = into && into[meta.keys[j]] && meta.cols[j].n === n ? intoSlot(into[meta.keys[j]], meta.keys[j], off, n) : null;   // 0.10.33 into: the caller's Float64Array, the n values of this block
+        var tg = into && into[meta.keys[j]] && meta.cols[j].n === n && !isByteHolder(into[meta.keys[j]]) ? intoSlot(into[meta.keys[j]], meta.keys[j], off, n) : null;   // 0.10.33 into: the caller's Float64Array, the n values of this block
         v = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr, nan, tg);
         if (tg && v && v !== tg && v.length === n && (v instanceof Float64Array || v instanceof Int32Array)) { tg.set(v); v = tg; }
         if (!v) continue;
@@ -2793,6 +2794,15 @@
     if (typeof a[i] !== 'string') return c;
     // strings: date-like columns give their range (compared as text, which orders canonical dates), the others a length range, and the distinct count and top labels while there are few
     v = a[i]; k = SUM_DATE.test(v) && v.length >= 19 && SUM_DATE.test(a[n >> 1] || '') && SUM_DATE.test(a[n - 1] || '');
+    if (k) {   // date-like strings: an ordered column is settled by one pass of single compares (first and last are the range); otherwise a second pass finds min, max and whether it is descending
+      var pv = null, nl = 0, sa = true, sd = true; mn = mx = null;
+      for (i = 0; i < n; i++) { x = a[i]; if (typeof x !== 'string') { if (x === null || x === undefined) { nl++; continue; } return c; } if (pv !== null && x < pv) { sa = false; break; } if (mn === null) mn = x; pv = x; }
+      if (sa) mx = pv;
+      else { mn = mx = null; pv = null; nl = 0; sd = true;
+        for (i = 0; i < n; i++) { x = a[i]; if (typeof x !== 'string') { if (x === null || x === undefined) { nl++; continue; } return c; } if (mn === null) { mn = mx = x; } else { if (x < mn) mn = x; else if (x > mx) mx = x; if (sd && x > pv) sd = false; } pv = x; } }
+      var tmn = mn === null ? null : sumDateMs(mn), tmx = mx === null ? null : sumDateMs(mx);
+      if (tmn !== null && tmx !== null) { c.type = 'date'; c.nulls = nl; c.min = tmn; c.max = tmx; c.sorted = sa ? 'asc' : sd ? 'desc' : null; return c; }
+    }
     nul = 0; mn = null; mx = null; map = k ? null : new Map(); var lo = Infinity, hi = 0, ok = true, x, pv = null, sa = true, sd = true;
     for (i = 0; i < n; i++) {
       x = a[i];
@@ -3469,10 +3479,28 @@
     if (dt) { dl = []; var dprev = setDatesLog(dl); try { return unpackColumns0(file, rf, out, want, nan, off, opts, dl); } finally { setDatesLog(dprev); } }
     return unpackColumns0(file, rf, out, want, nan, off, opts, null);
   }
+  // since 0.15.0: text read as bytes (text: 'bytes') can fill arrays the caller keeps: into: { key: { bytes: Uint8Array, start: Int32Array, end: Int32Array } }. Block after block, the text of this block is copied after the last one's and its starts and ends (offsets into holder.bytes) are written at the block's first row; the entry's column is then { bytes: holder.bytes, start, end } with start and end views of the holder's arrays
+  function intoBytes(blk, into, off, bo) {
+    var k, c, h, n = blk.n, i, lo, hi, d, s, e;
+    for (k in into) {
+      h = into[k]; if (!isByteHolder(h)) continue;
+      c = blk.cols[k]; if (!c || !isByteCol(c) || c.start.length !== n) continue;
+      if (!bo) bo = {}; d = bo[k] || 0;
+      if (off + n > h.start.length || off + n > h.end.length) throw new Error('LfcPack: into.' + k + ' holds ' + Math.min(h.start.length, h.end.length) + ' values but the file needs ' + (off + n));
+      lo = Infinity; hi = 0; for (i = 0; i < n; i++) { s = c.start[i]; e = c.end[i]; if (e > s) { if (s < lo) lo = s; if (e > hi) hi = e; } }
+      if (lo === Infinity) lo = hi = 0;
+      if (d + hi - lo > h.bytes.length) throw new Error('LfcPack: into.' + k + ' holds ' + h.bytes.length + ' bytes but the file needs ' + (d + hi - lo) + ' or more');
+      h.bytes.set(c.bytes.subarray(lo, hi), d);
+      for (i = 0; i < n; i++) { s = c.start[i]; e = c.end[i]; h.start[off + i] = e > s ? s - lo + d : d; h.end[off + i] = e > s ? e - lo + d : d; }
+      blk.cols[k] = { bytes: h.bytes, start: h.start.subarray(off, off + n), end: h.end.subarray(off, off + n) };
+      bo[k] = d + hi - lo;
+    }
+    return bo;
+  }
   function unpackColumns0(file, rf, out, want, nan, off, opts, dl) {
-    var i, k;
+    var i, k, bo = null;
     opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
-    for (i = 0; i < file.blocks.length; i++) { if (i) off += out[i - 1].n; if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] === 'n') { var nbk = b39Cols(nestedRowsOf(file, i, want), want); out.push(nan ? nanCols(nbk) : nbk); continue; } /* a nested block (auto mode can write one, often a small first block) is read as rows, then turned into columns, so the file keeps its column path */ { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan, opts.into, off)); if (dl) datesOf(out[out.length - 1], dl); } }
+    for (i = 0; i < file.blocks.length; i++) { if (i) off += out[i - 1].n; if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] === 'n') { var nbk = b39Cols(nestedRowsOf(file, i, want), want); out.push(nan ? nanCols(nbk) : nbk); continue; } /* a nested block (auto mode can write one, often a small first block) is read as rows, then turned into columns, so the file keeps its column path */ { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan, opts.into, off)); if (dl) datesOf(out[out.length - 1], dl); if (opts.into) bo = intoBytes(out[out.length - 1], opts.into, off, bo); } }
     return out;
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were
@@ -4093,13 +4121,19 @@
   var B35_POOL = null, B35_TIMER = null, B35_W = 0;
   // B42: with nulls: 'NaN' every block's number column is already a typed array of one value per row (nanCols); a key that some block lacks entirely is NaN there
   function b35Num(blocks, k) { for (var i = 0; i < blocks.length; i++) { var v = blocks[i].cols[k]; if (v && (Array.isArray(v) || blocks[i].present[k])) return false; } return true; }
-  function b35Join(blocks, n, nan) {
+  function b35Target(into, k, n, T) {   // since 0.15.0: the caller's Float64Array for key k (unpackColumnsParallel { into }), checked as unpackColumns checks it; the joined column is written there instead of into a new array
+    var t = into && into[k]; if (!t) return new T(n);
+    if (!(t instanceof Float64Array)) throw new Error('LfcPack: into.' + k + ' must be a Float64Array');
+    if (t.length < n) throw new Error('LfcPack: into.' + k + ' holds ' + t.length + ' values but the file needs ' + n);
+    return t.length === n ? t : t.subarray(0, n);
+  }
+  function b35Join(blocks, n, nan, into) {
     var keys = [], seen = {}, i, j, k, out = {}, b, v, T, off, a;
     for (i = 0; i < blocks.length; i++) for (j = 0; j < blocks[i].keys.length; j++) { k = blocks[i].keys[j]; if (!seen[k]) { seen[k] = 1; keys.push(k); } }
     for (j = 0; j < keys.length; j++) { k = keys[j]; T = undefined;
       for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; if (!v || b.present[k] || Array.isArray(v)) { T = Array; break; } var C = Array.isArray(v) ? Array : v.constructor; if (T === undefined) T = C; else if (T !== C) T = (T === Array || C === Array) ? Array : Float64Array; }
-      if (T !== Array) { a = new T(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } out[k] = a; continue; }
-      if (nan && b35Num(blocks, k)) { a = new Float64Array(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; if (v) a.set(v, off); else a.fill(NaN, off, off + blocks[i].n); off += blocks[i].n; } out[k] = a; continue; }
+      if (T !== Array) { a = b35Target(into, k, n, T); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } out[k] = a; continue; }
+      if (nan && b35Num(blocks, k)) { a = b35Target(into, k, n, Float64Array); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; if (v) a.set(v, off); else a.fill(NaN, off, off + blocks[i].n); off += blocks[i].n; } out[k] = a; continue; }
       a = new Array(n); off = 0;
       for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; var pr = b.present[k], m = b.n, q, z = 0;
         if (!v) { for (q = 0; q < m; q++) a[off + q] = undefined; }
@@ -4115,12 +4149,12 @@
     function emit(blocks) { if (onBlock) for (var q = 0; q < blocks.length; q++) onBlock(blocks[q], q, blocks.length); return blocks; }
     // on this thread with onBlock: block by block with a yield between, so each block reaches onBlock as soon as it is read (not after the last one)
     function here(bytes, n) {
-      if (!onBlock) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+      if (!onBlock) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN', opts.into);
       return open(bytes).then(function (rd) {
         var nb = rd.blocks.length, got = [], q;
-        for (q = 0; q < nb; q++) if (rd.blocks[q].kind === 'r') return b35Join(emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls })), n, opts.nulls === 'NaN');   // a raw block (a tiny table kept as text): one read, then the calls
+        for (q = 0; q < nb; q++) if (rd.blocks[q].kind === 'r') return b35Join(emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls })), n, opts.nulls === 'NaN', opts.into);   // a raw block (a tiny table kept as text): one read, then the calls
         return new Promise(function (res, rej) {
-          function step(i) { if (i >= nb) { try { res(b35Join(got, n, opts.nulls === 'NaN')); } catch (e) { rej(e); } return; }
+          function step(i) { if (i >= nb) { try { res(b35Join(got, n, opts.nulls === 'NaN', opts.into)); } catch (e) { rej(e); } return; }
             rd.columns(i, { keys: opts.keys, nulls: opts.nulls }).then(function (b) { got.push(b); onBlock(b, i, nb); b31Yield(function () { step(i + 1); }); }).catch(rej); }
           step(0); });
       });
@@ -4129,7 +4163,7 @@
     if (opts.dates) return init({ readOnly: true }).then(function () {   // dates: 'numbers' (since 0.13.6): read on the calling thread; the result's non-enumerable `dates` says each date column's unit and fmt
       var blocks = emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' })), n = 0, i, res, info = {}, k;
       for (i = 0; i < blocks.length; i++) { n += blocks[i].n; for (k in blocks[i].dates) info[k] = blocks[i].dates[k]; }
-      res = b35Join(blocks, n, opts.nulls === 'NaN'); Object.defineProperty(res, 'dates', { value: info }); return res;
+      res = b35Join(blocks, n, opts.nulls === 'NaN', opts.into); Object.defineProperty(res, 'dates', { value: info }); return res;
     });
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
@@ -4144,7 +4178,7 @@
       var pp = B35_POOL && B35_W === w ? B35_POOL : (B35_POOL ? B35_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B35_W = w; return (B35_POOL = makePool({ workers: w })); });
       return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys, _onBlock: onBlock || null }); }).then(function (blocks) {
         B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
-        return b35Join(blocks, n, opts.nulls === 'NaN'); });
+        return b35Join(blocks, n, opts.nulls === 'NaN', opts.into); });
     });
   }
   // B38 (research): unpackRowsParallel(bytes, { workers }) -> Promise of the rows unpackRows returns, for whole-table reads of flat-row files.

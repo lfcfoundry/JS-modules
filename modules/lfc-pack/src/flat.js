@@ -1042,6 +1042,7 @@
   // dictionary ('D') layouts are built straight from the bytes, by the same rules and with the same frames the string path builds from the same values (labels in first-seen order,
   // the count stopping where the string path stops), so the file is the same bytes and no JS string is made. Values that could take another layout (hex, UUID, IPv4: tested on the
   // first value), a 0 byte inside a value, or templates: true go through the string path instead (same file, slower).
+  function isByteHolder(x) { return !!x && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start instanceof Int32Array && x.end instanceof Int32Array; }   // since 0.15.0: the arrays a text:'bytes' read fills (unpackColumns { into: { key: { bytes, start, end } } })
   function isByteCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start != null && x.end != null && typeof x.start.length === 'number' && x.start.length === x.end.length; }
   function byteColStrings(bc, a, n) { var out = new Array(n), B = bc.bytes, S = bc.start, E = bc.end, i; for (i = 0; i < n; i++) out[i] = td.decode(B.subarray(S[a + i], E[a + i])); return out; }
   // byteCol kernel (from the text-columns research; source in wasm/flatscan.c: bcscan, bcdict, bcjoin): the checks, the distinct-value hash and the joins of a text column given as bytes, in WebAssembly (the template builder's instance)
@@ -1872,7 +1873,7 @@
       if (F.ordList) throw new Error('LfcPack: columns read needs a block without key-order lists');
       for (j = 0; j < K; j++) {
         if (want && !want[meta.keys[j]]) continue;
-        var tg = into && into[meta.keys[j]] && meta.cols[j].n === n ? intoSlot(into[meta.keys[j]], meta.keys[j], off, n) : null;   // 0.10.33 into: the caller's Float64Array, the n values of this block
+        var tg = into && into[meta.keys[j]] && meta.cols[j].n === n && !isByteHolder(into[meta.keys[j]]) ? intoSlot(into[meta.keys[j]], meta.keys[j], off, n) : null;   // 0.10.33 into: the caller's Float64Array, the n values of this block
         v = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr, nan, tg);
         if (tg && v && v !== tg && v.length === n && (v instanceof Float64Array || v instanceof Int32Array)) { tg.set(v); v = tg; }
         if (!v) continue;

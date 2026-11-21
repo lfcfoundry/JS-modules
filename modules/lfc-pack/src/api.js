@@ -644,10 +644,28 @@
     if (dt) { dl = []; var dprev = setDatesLog(dl); try { return unpackColumns0(file, rf, out, want, nan, off, opts, dl); } finally { setDatesLog(dprev); } }
     return unpackColumns0(file, rf, out, want, nan, off, opts, null);
   }
+  // since 0.15.0: text read as bytes (text: 'bytes') can fill arrays the caller keeps: into: { key: { bytes: Uint8Array, start: Int32Array, end: Int32Array } }. Block after block, the text of this block is copied after the last one's and its starts and ends (offsets into holder.bytes) are written at the block's first row; the entry's column is then { bytes: holder.bytes, start, end } with start and end views of the holder's arrays
+  function intoBytes(blk, into, off, bo) {
+    var k, c, h, n = blk.n, i, lo, hi, d, s, e;
+    for (k in into) {
+      h = into[k]; if (!isByteHolder(h)) continue;
+      c = blk.cols[k]; if (!c || !isByteCol(c) || c.start.length !== n) continue;
+      if (!bo) bo = {}; d = bo[k] || 0;
+      if (off + n > h.start.length || off + n > h.end.length) throw new Error('LfcPack: into.' + k + ' holds ' + Math.min(h.start.length, h.end.length) + ' values but the file needs ' + (off + n));
+      lo = Infinity; hi = 0; for (i = 0; i < n; i++) { s = c.start[i]; e = c.end[i]; if (e > s) { if (s < lo) lo = s; if (e > hi) hi = e; } }
+      if (lo === Infinity) lo = hi = 0;
+      if (d + hi - lo > h.bytes.length) throw new Error('LfcPack: into.' + k + ' holds ' + h.bytes.length + ' bytes but the file needs ' + (d + hi - lo) + ' or more');
+      h.bytes.set(c.bytes.subarray(lo, hi), d);
+      for (i = 0; i < n; i++) { s = c.start[i]; e = c.end[i]; h.start[off + i] = e > s ? s - lo + d : d; h.end[off + i] = e > s ? e - lo + d : d; }
+      blk.cols[k] = { bytes: h.bytes, start: h.start.subarray(off, off + n), end: h.end.subarray(off, off + n) };
+      bo[k] = d + hi - lo;
+    }
+    return bo;
+  }
   function unpackColumns0(file, rf, out, want, nan, off, opts, dl) {
-    var i, k;
+    var i, k, bo = null;
     opts = opts || {}; if (opts.keys) { want = {}; for (k = 0; k < opts.keys.length; k++) want[opts.keys[k]] = 1; }
-    for (i = 0; i < file.blocks.length; i++) { if (i) off += out[i - 1].n; if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] === 'n') { var nbk = b39Cols(nestedRowsOf(file, i, want), want); out.push(nan ? nanCols(nbk) : nbk); continue; } /* a nested block (auto mode can write one, often a small first block) is read as rows, then turned into columns, so the file keeps its column path */ { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan, opts.into, off)); if (dl) datesOf(out[out.length - 1], dl); } }
+    for (i = 0; i < file.blocks.length; i++) { if (i) off += out[i - 1].n; if (file.blocks[i][4] === 'r') { { var rb = b39Cols(rawRows(readRawBlock(S.zdec, blockBytes(file, i))), want); out.push(nan ? nanCols(rb) : rb); } continue; } if (file.blocks[i][4] === 'n') { var nbk = b39Cols(nestedRowsOf(file, i, want), want); out.push(nan ? nanCols(nbk) : nbk); continue; } /* a nested block (auto mode can write one, often a small first block) is read as rows, then turned into columns, so the file keeps its column path */ { var pbc = want ? partialBytes(file, i) : null; out.push(rf.columnsOf(pbc || blockBytes(file, i), want, !!pbc, nan, opts.into, off)); if (dl) datesOf(out[out.length - 1], dl); if (opts.into) bo = intoBytes(out[out.length - 1], opts.into, off, bo); } }
     return out;
   }
   // the object packTables was given: arrays come back as arrays of rows, other values as they were

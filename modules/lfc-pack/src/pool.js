@@ -213,13 +213,19 @@
   var B35_POOL = null, B35_TIMER = null, B35_W = 0;
   // B42: with nulls: 'NaN' every block's number column is already a typed array of one value per row (nanCols); a key that some block lacks entirely is NaN there
   function b35Num(blocks, k) { for (var i = 0; i < blocks.length; i++) { var v = blocks[i].cols[k]; if (v && (Array.isArray(v) || blocks[i].present[k])) return false; } return true; }
-  function b35Join(blocks, n, nan) {
+  function b35Target(into, k, n, T) {   // since 0.15.0: the caller's Float64Array for key k (unpackColumnsParallel { into }), checked as unpackColumns checks it; the joined column is written there instead of into a new array
+    var t = into && into[k]; if (!t) return new T(n);
+    if (!(t instanceof Float64Array)) throw new Error('LfcPack: into.' + k + ' must be a Float64Array');
+    if (t.length < n) throw new Error('LfcPack: into.' + k + ' holds ' + t.length + ' values but the file needs ' + n);
+    return t.length === n ? t : t.subarray(0, n);
+  }
+  function b35Join(blocks, n, nan, into) {
     var keys = [], seen = {}, i, j, k, out = {}, b, v, T, off, a;
     for (i = 0; i < blocks.length; i++) for (j = 0; j < blocks[i].keys.length; j++) { k = blocks[i].keys[j]; if (!seen[k]) { seen[k] = 1; keys.push(k); } }
     for (j = 0; j < keys.length; j++) { k = keys[j]; T = undefined;
       for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; if (!v || b.present[k] || Array.isArray(v)) { T = Array; break; } var C = Array.isArray(v) ? Array : v.constructor; if (T === undefined) T = C; else if (T !== C) T = (T === Array || C === Array) ? Array : Float64Array; }
-      if (T !== Array) { a = new T(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } out[k] = a; continue; }
-      if (nan && b35Num(blocks, k)) { a = new Float64Array(n); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; if (v) a.set(v, off); else a.fill(NaN, off, off + blocks[i].n); off += blocks[i].n; } out[k] = a; continue; }
+      if (T !== Array) { a = b35Target(into, k, n, T); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; a.set(v, off); off += v.length; } out[k] = a; continue; }
+      if (nan && b35Num(blocks, k)) { a = b35Target(into, k, n, Float64Array); off = 0; for (i = 0; i < blocks.length; i++) { v = blocks[i].cols[k]; if (v) a.set(v, off); else a.fill(NaN, off, off + blocks[i].n); off += blocks[i].n; } out[k] = a; continue; }
       a = new Array(n); off = 0;
       for (i = 0; i < blocks.length; i++) { b = blocks[i]; v = b.cols[k]; var pr = b.present[k], m = b.n, q, z = 0;
         if (!v) { for (q = 0; q < m; q++) a[off + q] = undefined; }
@@ -235,12 +241,12 @@
     function emit(blocks) { if (onBlock) for (var q = 0; q < blocks.length; q++) onBlock(blocks[q], q, blocks.length); return blocks; }
     // on this thread with onBlock: block by block with a yield between, so each block reaches onBlock as soon as it is read (not after the last one)
     function here(bytes, n) {
-      if (!onBlock) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN');
+      if (!onBlock) return b35Join(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls }), n, opts.nulls === 'NaN', opts.into);
       return open(bytes).then(function (rd) {
         var nb = rd.blocks.length, got = [], q;
-        for (q = 0; q < nb; q++) if (rd.blocks[q].kind === 'r') return b35Join(emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls })), n, opts.nulls === 'NaN');   // a raw block (a tiny table kept as text): one read, then the calls
+        for (q = 0; q < nb; q++) if (rd.blocks[q].kind === 'r') return b35Join(emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls })), n, opts.nulls === 'NaN', opts.into);   // a raw block (a tiny table kept as text): one read, then the calls
         return new Promise(function (res, rej) {
-          function step(i) { if (i >= nb) { try { res(b35Join(got, n, opts.nulls === 'NaN')); } catch (e) { rej(e); } return; }
+          function step(i) { if (i >= nb) { try { res(b35Join(got, n, opts.nulls === 'NaN', opts.into)); } catch (e) { rej(e); } return; }
             rd.columns(i, { keys: opts.keys, nulls: opts.nulls }).then(function (b) { got.push(b); onBlock(b, i, nb); b31Yield(function () { step(i + 1); }); }).catch(rej); }
           step(0); });
       });
@@ -249,7 +255,7 @@
     if (opts.dates) return init({ readOnly: true }).then(function () {   // dates: 'numbers' (since 0.13.6): read on the calling thread; the result's non-enumerable `dates` says each date column's unit and fmt
       var blocks = emit(unpackColumns(bytes, { keys: opts.keys, nulls: opts.nulls, dates: 'numbers' })), n = 0, i, res, info = {}, k;
       for (i = 0; i < blocks.length; i++) { n += blocks[i].n; for (k in blocks[i].dates) info[k] = blocks[i].dates[k]; }
-      res = b35Join(blocks, n, opts.nulls === 'NaN'); Object.defineProperty(res, 'dates', { value: info }); return res;
+      res = b35Join(blocks, n, opts.nulls === 'NaN', opts.into); Object.defineProperty(res, 'dates', { value: info }); return res;
     });
     return init({ readOnly: true }).then(function () {
       var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
@@ -264,7 +270,7 @@
       var pp = B35_POOL && B35_W === w ? B35_POOL : (B35_POOL ? B35_POOL.then(function (p) { p.close(); }) : Promise.resolve()).then(function () { B35_W = w; return (B35_POOL = makePool({ workers: w })); });
       return Promise.resolve(pp).then(function (pool) { return pool.unpack(bytes, { _columns: true, _nan: opts.nulls === 'NaN', stable: true, keys: opts.keys, _onBlock: onBlock || null }); }).then(function (blocks) {
         B35_TIMER = setTimeout(function () { var q = B35_POOL; B35_POOL = null; if (q) q.then(function (p) { p.close(); }); }, 10000); if (B35_TIMER.unref) B35_TIMER.unref();
-        return b35Join(blocks, n, opts.nulls === 'NaN'); });
+        return b35Join(blocks, n, opts.nulls === 'NaN', opts.into); });
     });
   }
   // B38 (research): unpackRowsParallel(bytes, { workers }) -> Promise of the rows unpackRows returns, for whole-table reads of flat-row files.
