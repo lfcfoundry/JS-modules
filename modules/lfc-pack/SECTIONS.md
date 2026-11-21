@@ -27,7 +27,7 @@ One place to see which footer section ids are taken. Rules are in `SPEC.md` 2.2 
 | 20 | column summaries (range, order, quantile grid, top labels) | written by `packColumnsParallel` (since 0.15.0; `summary: false` turns it off) | no | `SPEC.md` 2.3 |
 | 21 | chart bins (pyramids): min, max and count of every run of rows, per number and date column | written by `packColumnsParallel` (since 0.15.0; `pyramids: false` or `summary: false` turns it off) | no | `SPEC.md` 2.3 |
 | 22 | materialized group-by views | reserved for a later 0.15 release (head-start spec draft) | | |
-| 23 | graph (CSR edge lists, zero-copy views) | reserved for a later 0.15 release (graph spec draft) | | |
+| 23 | graph (CSR link lists in a raw region after the blocks, read as typed views) | written by `packColumnsParallel` with `graph` or by `addGraph` (since 0.17.0) | no | `SPEC.md` 2.3 |
 | 24 to 999 | later parts of this format | reserved | | |
 
 ## Application ids (1000 and up)

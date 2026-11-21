@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.9.0 · API 1 · 2026-11-21
+
+### Quick
+New option parentKey: name the field that holds each item's parent id and leave edges out.
+
+### Details
+The picture is the same as with the matching list of links. No list is built unless something reads edges on the result. Nothing changes when the option is not used.
+
+### Deep
+New option parentKey (requested by the owner): items can carry their parent's id in a field, with no list of links. Same layout and drawing as the matching links list; a missing, empty, unknown or self parent makes a top item; edges on the result is made only when read. Icicle with no sorting spends 5 to 8% less time in ungoogled-chromium 156 than with a links list.
+
 ## 1.8.2 · API 1 · 2026-11-21
 
 ### Quick

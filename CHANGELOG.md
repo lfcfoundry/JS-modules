@@ -31,17 +31,17 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.3 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.16.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.17.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.7.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.6.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.6.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.1 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.23.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -73,13 +73,16 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-plot** 2.21.0 · API 2: New: netflow-plot-line.min.js, one small file that draws line charts only and needs nothing else: 21.6 KB gzipped, against 22.0 KB for uPlot's script Same line charts, character for character, as the full files; anything else gives a plain error
 - 2026-11-21 · **netflow-plot** 2.20.1 · API 2: A long line builds faster with exactly the same picture: a finished 100,000-point chart costs 3.2 ms in Chromium 156 (was 3.7 to 4.0); in Firefox 158 one chart alone reaches the screen in 14 to 20 ms (was 23 to 24)
 - 2026-11-21 · **netflow-plot** 2.20.0 · API 2: A line over 5,000 points is drawn as a filled band, one piece per pixel column, in place of a zigzag stroke; 97.5% of the pixels are the same and spikes are kept A finished 100,000-point line chart costs 3.3 to 4.0 ms in Chromium 156 and Firefox 158 (was 4.0 to 5.5); one chart reaches the screen in 12 to 13 ms in Chromium (was 17)
+- 2026-11-21 · **netflow-hierarchy** 1.9.0 · API 1: Items can name their own parent, with no list of links
 - 2026-11-21 · **netflow-hierarchy** 1.8.2 · API 1: Circle pack is faster, most of all on trees where items have two children; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
+- 2026-11-21 · **netflow-engine** 2.6.1 · API 2: Big Network maps (Distances layout) build in about a fifth less time again (up to 47% less), with exactly the same picture as 2.6.0.
 - 2026-11-21 · **netflow-engine** 2.6.0 · API 2: Big Network maps (Distances layout) build in 12 to 73% less time, most about 60% less, with the same or lower stress, fewer link crossings and no touching items. Items now spread more evenly instead of packing into a dense middle.
 - 2026-11-21 · **netflow-engine** 2.5.0 · API 2: New quickNetwork(graph): a rough first picture of a partly read map to draw while the rest arrives. 10,000 items: 5.9 ms Chromium 156, 4.6 Firefox 158, 6 WebKitGTK 2.52.6; 50,000 items: 23.5, 39.5, 60 ms.
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
 - 2026-11-21 · **netflow-chord** 1.0.0 · API 1: New module: the chord layout of Netflow Map as one small file with nothing to load first, 1.6 KB gzipped; it takes 0.46 to 0.68 of d3-chord's time in Chromium, Firefox and WebKitGTK.
 - 2026-11-21 · **lz4-kit** 1.1.2 · API 1: Default-speed .lz4 frames of 64 KiB and more are 23 to 26% faster and 12% smaller on 4 MiB of logs: 6.3 to 6.4 ms against 8.5 before (Chromium 156, Firefox 158, WebKitGTK 2.52.6). Still a standard frame with size and checksum.
+- 2026-11-21 · **lfc-pack** 0.17.0 · API 0: Graphs stored ready to use: a graph option keeps the links as CSR arrays that graph() reads as typed views with no parse or build.
 - 2026-11-21 · **lfc-pack** 0.16.0 · API 0: Sorted saves (sortBy, keepOrder with original order back), chart bins doubled to 4,096 with an optional full() for wide charts, and column tables with empty number cells save 3 to 4 times faster.
 - 2026-11-21 · **lfc-pack** 0.15.0 · API 0: Saved column tables now carry a summary of every column (range, order, a 257-point quantile grid, the most common labels) and chart bins for number and date columns, read without unpacking anything. New: LfcPack.summary(bytes) and LfcPack.pyramids(bytes), also open().summary() and open().pyramids(key); options summary: false, pyramids: false or { bins }, quantiles: false. Reads can fill arrays you keep in more places: unpackColumnsParallel into, and text as bytes into a holder.
 - 2026-11-21 · **lfc-pack** 0.14.9 · API 0: Reading text columns as bytes (text: 'bytes') cuts the values apart in one wasm pass: a 320,000-row title column reads 1.6 times faster in Chromium 156 and WebKitGTK 2.52.6, Firefox 158 the same. Same values.

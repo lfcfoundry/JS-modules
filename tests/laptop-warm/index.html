@@ -1,57 +1,80 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>Warm start tester</title>
 <style>
-:root { --bg: #ffffff; --fg: #1a1a1a; --mut: #5a5a5a; --line: #d4d4d4; --acc: #1d4ed8; --card: #f6f7f9; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #14161a; --fg: #ececec; --mut: #a0a4ab; --line: #34383f; --acc: #7aa2ff; --card: #1d2026; } }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 980px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 22px; margin: 0 0 6px; }
-p { margin: 6px 0; color: var(--mut); }
-button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
-button.go { background: var(--acc); color: #fff; border-color: var(--acc); font-weight: 600; }
-button:disabled { opacity: .5; cursor: default; }
-#bar { height: 8px; background: var(--card); border-radius: 4px; margin: 12px 0; overflow: hidden; }
-#bar i { display: block; height: 100%; width: 0; background: var(--acc); transition: width .2s; }
-#log { font: 13px/1.4 ui-monospace, Consolas, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 190px; overflow: auto; white-space: pre-wrap; }
-table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 14px; }
-th, td { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: right; }
-th:first-child, td:first-child { text-align: left; }
-.pics { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; }
-.pics figure { margin: 0; flex: 1 1 280px; }
-.pics canvas { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
-.pics figcaption { font-size: 13px; color: var(--mut); text-align: center; }
-h2 { font-size: 17px; margin: 18px 0 4px; }
-</style>
-</head>
-<body>
-<main>
-<h1>Warm start tester</h1>
-<p>One button. It lays out four test drops with the Network layout three ways, 5 runs each: <b>today</b> (netflow-engine 2.5.0: an early picture of the whole drop, then the final picture), <b>new</b> (netflow-engine 2.6.0: a guess from the first half of the rows, made while the file is still being read, then one final build) and <b>new, fastest</b> (the same without the extra fitting pass). It then measures how good each picture is and draws them side by side. It takes about 2 to 4 minutes; the page is busy while it runs, so leave it alone. The drops are test files (big50k is the real drop; the other three are made-up).</p>
-<p><button class="go" id="start">Start</button> <button id="copy" disabled>Copy results</button> <span id="state"></span></p>
-<div id="bar"><i></i></div>
-<div id="log"></div>
-<div id="sum"></div>
-<div id="out"></div>
-</main>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1b2433;--muted:#566277;--soft:#f1f4f9;--line:#dde3ee;--hero:#0f2a47;--hero-fg:#f3f7fc;--hero-muted:#a9bdd6;--accent:#1f7ae0;--us:#1f6fb5;--us-pale:#b9d3ea;--dot:#0b2e52;--rival:#7b8494;--bad:#c62828;--good:#1b7f4b;--font:'Segoe UI',system-ui,sans-serif;--mono:ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1522;--fg:#e4ebf5;--muted:#9db0c8;--soft:#13233a;--line:#25364f;--hero:#08111d;--accent:#4c9bf5;--us:#4c9bf5;--us-pale:#23466e;--dot:#d7e8fb;--rival:#8f9bb0;--bad:#ff7b72;--good:#56d08e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--font)}
+header{background:var(--hero);color:var(--hero-fg);padding:22px 16px 20px}
+.in{max-width:1080px;margin:0 auto}
+header .tag{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--hero-muted)}
+h1{font-size:clamp(24px,5vw,34px);font-weight:800;letter-spacing:-.01em;line-height:1.15;margin:6px 0 6px}
+header p{margin:0;color:var(--hero-muted);max-width:46rem}
+main{padding:16px 16px 40px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}.bar button{flex:1 1 130px;max-width:220px}
+button{font:inherit;font-weight:600;min-height:48px;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button small{display:block;font-weight:400;font-size:12px;opacity:.85}
+.card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 14px;background:var(--bg)}
+.prog{height:12px;border-radius:6px;background:var(--soft);overflow:hidden;margin:10px 0 8px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);border-radius:6px;transition:width .25s}
+#st{font-weight:600}
+#sub{color:var(--muted);font-size:14px;min-height:1.5em}
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}
+.score div{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.score b{display:block;font-size:28px;line-height:1.1;font-weight:800;letter-spacing:-.01em}
+.score span{color:var(--muted);font-size:13px}
+h2{font-size:20px;margin:0 0 2px;line-height:1.2}
+.note{color:var(--muted);font-size:13px;margin:0 0 10px}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}.panels>div{max-width:460px}
+.panels h3{font-size:15px;margin:0 0 2px}
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--font)}
+details{margin:0 0 14px}
+summary{cursor:pointer;font-weight:600;padding:6px 0}
+pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.45 var(--mono);padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);margin:8px 0 0;max-height:60vh;overflow:auto}
+.key{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);margin:0 0 8px}
+.key i{display:inline-block;width:22px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+.pics{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:8px 0 14px}
+.pics figure{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.pics canvas{display:block;width:100%;height:auto}
+.pics figcaption{font-size:13px;padding:6px 10px;color:#1b2433;background:#f1f4f9}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:6px 0 4px}
+@media (max-width:520px){table{font-size:12.5px}td,th{padding:5px 4px}}
+td,th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right}
+td:first-child,th:first-child{text-align:left}
+</style></head><body>
+<header><div class="in"><div class="tag">LFC Foundry tester</div><h1>Network layout: one final build against today's two</h1>
+<p>Builds the Network picture of four test drops with netflow-engine 2.5.0 (an early picture, then the final one) and with the newest netflow-engine (a guess during the read, then one final build), and draws the result as it goes. Measure only; nothing is sent anywhere.</p></div></header>
+<main><div class="in">
+<div class="bar"><button id="quick" class="primary">Quick run<small>about 1 minute</small></button><button id="go">Full run<small>about 3 minutes</small></button><button id="stop" disabled>Stop<small>keeps results</small></button><button id="copy" disabled>Copy results<small>as text</small></button><button id="down" disabled>Download results<small>as a file</small></button></div>
+<div class="card"><div id="st">Ready. Close other tabs and keep the screen on, then tap Quick run.</div><div class="prog"><i id="pb"></i></div><div id="sub"></div></div>
+<div class="score"><div><b id="s1">-</b><span>drops where the new build was faster</span></div><div><b id="s2">-</b><span>its typical share of today's time</span></div><div><b id="s3">-</b><span>its closest drop</span></div><div><b id="s4">-</b><span>touching items in the new pictures</span></div></div>
+<div class="card"><h2>Share of today's build, by drop</h2><p class="note">Shorter is better. The grey line is today (2.5.0). Time is the middle run; stress and crossings measure how good the picture is.</p>
+<div class="key"><span><i style="background:var(--us)"></i>newest engine</span><span><i style="background:var(--us-pale)"></i>newest, no extra fitting pass (Full run)</span><span><i style="background:var(--rival);width:4px"></i>today</span></div>
+<div class="panels" id="panels"></div></div>
+<div id="tables"></div>
+<details><summary>What is measured</summary><p class="note">Four drops: big50k (the real one, 50,000 items), the same drop with its rows in random order, and two made-up drops with six communities (10,000 and 50,000 items). Today = netflow-engine 2.5.0, an early picture of the whole drop and then the final picture. New = the newest netflow-engine: a guess from the first half of the rows (timed apart, because it runs while the file is still being read), then one final build. Quick run: 3 builds each, today and new. Full run: 5 builds each and a third version with the extra fitting pass off. The versions take turns and the order flips every round. Stress, touching items and crossings are measured on the first picture of each.</p></details>
+<details id="rawd"><summary>Results as text</summary><pre id="out"></pre></details>
+</div></main>
 <script>
 (function () {
   'use strict';
-  var $ = function (id) { return document.getElementById(id); }, logEl = $('log'), results = { ua: navigator.userAgent, cores: navigator.hardwareConcurrency, date: new Date().toISOString(), engines: {}, layout: [] }, text = '';
+  var $ = function (id) { return document.getElementById(id); }, results = null, text = '', stopAsked = false, running = false, sumRows = [];
   var tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
-  var log = function (s) { logEl.textContent += s + '\n'; logEl.scrollTop = logEl.scrollHeight; };
-  var prog = function (f) { $('bar').firstChild.style.width = Math.round(f * 100) + '%'; };
   var med = function (a) { return a.slice().sort(function (x, y) { return x - y; })[a.length >> 1]; };
-  var DROPS = [['big50k (real drop)', 'data/big50k.csv'], ['shuffled50k (rows unordered)', 'data/shuffled50k.csv'], ['communities10k (made up)', 'data/communities10k.csv'], ['communities50k (made up)', 'data/communities50k.csv']];
+  var DROPS = [['big50k (real drop)', 'data/big50k.csv', 5.5], ['shuffled50k (rows unordered)', 'data/shuffled50k.csv', 5.5], ['communities10k (made up)', 'data/communities10k.csv', 1.3], ['communities50k (made up)', 'data/communities50k.csv', 6.5]];
   // each engine file sets the same global, so they are loaded one after the other and kept under their own names
-  var ENGINES = [['today', 'engine-2.5.0.js'], ['new', '../../modules/netflow-engine/netflow-engine.js'], ['new, fastest', 'engine-fastest.js']], ENG = {};
+  var ALL = [['today', 'engine-2.5.0.js'], ['new', '../../modules/netflow-engine/netflow-engine.js'], ['new, fastest', 'engine-fastest.js']], ENG = {};
   var OPTS = { view: 'network', arrange: 'stress', colorBy: 'found', widthBy: 'weight', agg: 'sum', lazyLinks: true, runs: 2000 };
-  var RUNS = 5;
-  function loadEngine(name, src) { return new Promise(function (ok, bad) { var s = document.createElement('script'); s.src = src; s.onload = function () { ENG[name] = window.NetflowEngine; results.engines[name] = ENG[name].version; ok(); }; s.onerror = function () { bad(new Error('could not load ' + src)); }; document.head.appendChild(s); }); }
+  function loadEngine(name, src) { return new Promise(function (ok, bad) { if (ENG[name]) return ok(); var s = document.createElement('script'); s.src = src; s.onload = function () { ENG[name] = window.NetflowEngine; ok(); }; s.onerror = function () { bad(new Error('could not load ' + src)); }; document.head.appendChild(s); }); }
+  function clock(s) { s = Math.max(0, Math.round(s)); return s >= 60 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : s + ' s'; }
+  function pct(a, b) { var v = (a / b - 1) * 100; return (v > 0 ? '+' : '') + v.toFixed(Math.abs(v) < 10 ? 1 : 0) + '%'; }
 
   function parseCsv(t) {
     var lines = t.split('\n'), ids = new Map(), nodes = [], E = [], i, p, a, b;
@@ -100,52 +123,83 @@ h2 { font-size: 17px; margin: 18px 0 4px; }
     L.edges.forEach(function (e) { var a = idx[e.from], b = idx[e.to]; if (!a || !b) return; g.moveTo(20 + (a.cx - x0) * f, 20 + (a.cy - y0) * f); g.lineTo(20 + (b.cx - x0) * f, 20 + (b.cy - y0) * f); }); g.stroke();
     L.nodes.forEach(function (n) { kk = n.group || 0; if (!gm.has(kk)) gm.set(kk, gm.size); g.fillStyle = pal[gm.get(kk) % pal.length]; g.fillRect(20 + (n.cx - x0) * f - 0.8, 20 + (n.cy - y0) * f - 0.8, 1.6, 1.6); });
   }
-  function pct(a, b) { var v = (a / b - 1) * 100; return (v > 0 ? '+' : '') + v.toFixed(Math.abs(v) < 10 ? 1 : 0) + '%'; }
-  // one timed run. today: an early picture of everything, then the final picture (both wait for the whole file). new: the guess uses the first half of the rows (timed apart: it runs while the file is read), then one final build.
+  // one timed run. today: an early picture of everything, then the final picture. new: the guess uses the first half of the rows (timed apart), then one final build.
   function runOnce(E, D, twoStep) {
     var full = D.E.length, t0, g0 = 0, L;
     if (twoStep) { t0 = performance.now(); E.build(graphOf(D, full), Object.assign({ previewOnly: true }, OPTS)); L = E.build(graphOf(D, full), Object.assign({}, OPTS)); }
     else { t0 = performance.now(); E.build(graphOf(D, Math.floor(full / 2)), Object.assign({ previewOnly: true }, OPTS)); g0 = performance.now() - t0; t0 = performance.now(); L = E.build(graphOf(D, full), Object.assign({}, OPTS)); }
     return { ms: performance.now() - t0, guess: g0, L: L };
   }
-  async function runLayout(total, doneRef) {
-    var out = $('out'), di, vi, rep, sum = [];
-    for (di = 0; di < DROPS.length; di++) {
-      var name = DROPS[di][0]; log('Loading ' + name + ' ...');
-      var D = parseCsv(await (await fetch(DROPS[di][1])).text()), rows = ENGINES.map(function (e) { return { drop: name, variant: e[0], items: D.nodes.length, rows: D.E.length, runsMs: [], guess: [] }; }), pics = [];
-      log('  ' + D.nodes.length + ' items, ' + D.E.length + ' rows'); await tick();
-      for (rep = 0; rep < RUNS; rep++) for (vi = 0; vi < ENGINES.length; vi++) {   // the three take turns, and the order flips every run
-        var v = rep % 2 ? ENGINES.length - 1 - vi : vi, r = runOnce(ENG[ENGINES[v][0]], D, v === 0), row = rows[v];
-        row.runsMs.push(Math.round(r.ms)); row.guess.push(Math.round(r.guess));
-        if (rep === 0) { var M = metrics(r.L); row.stress = +M.stress.toFixed(4); row.touchPct = +M.touchPct.toFixed(2); row.crossPerEdge = +M.crossPerEdge.toFixed(2); var cv = document.createElement('canvas'); cv.width = 900; cv.height = 700; draw(r.L, cv); pics[v] = [ENGINES[v][0], cv]; }
-        doneRef.n++; prog(doneRef.n / total); await tick();
-      }
-      rows.forEach(function (row) { row.buildMs = med(row.runsMs); row.guessMs = med(row.guess); delete row.guess; log('  ' + row.variant + ': ' + row.buildMs + ' ms (runs ' + row.runsMs.join(', ') + '), stress ' + row.stress.toFixed(3) + ', crossings ' + row.crossPerEdge.toFixed(1)); });
-      results.layout = results.layout.concat(rows);
-      var t = rows[0], h = '<h2>' + name + ': ' + D.nodes.length + ' items</h2><table><tr><th>Layout</th><th>Build ms (median of ' + RUNS + ')</th><th>Guess ms (hidden in the read)</th><th>Stress (lower is better)</th><th>Touching items %</th><th>Crossings per edge</th></tr>';
-      rows.forEach(function (r2, k) { h += '<tr><td>' + r2.variant + '</td><td>' + r2.buildMs + (k ? ' (' + pct(r2.buildMs, t.buildMs) + ')' : '') + '</td><td>' + (r2.guessMs || '') + '</td><td>' + r2.stress.toFixed(3) + (k ? ' (' + pct(r2.stress, t.stress) + ')' : '') + '</td><td>' + r2.touchPct.toFixed(2) + '</td><td>' + r2.crossPerEdge.toFixed(1) + (k ? ' (' + pct(r2.crossPerEdge, t.crossPerEdge) + ')' : '') + '</td></tr>'; });
-      h += '</table><div class="pics" id="pics' + di + '"></div>'; out.insertAdjacentHTML('beforeend', h);
-      pics.forEach(function (p) { var fg = document.createElement('figure'); fg.appendChild(p[1]); var fc = document.createElement('figcaption'); fc.textContent = p[0]; fg.appendChild(fc); $('pics' + di).appendChild(fg); });
-      sum.push(rows);
-    }
-    var s = '<h2>Summary: change against today (minus is better)</h2><table><tr><th>Drop</th><th>new: build time</th><th>new: stress</th><th>new: crossings</th><th>fastest: build time</th><th>fastest: stress</th><th>fastest: crossings</th></tr>';
-    sum.forEach(function (rw) { var t0 = rw[0]; s += '<tr><td>' + t0.drop + '</td>' + [1, 2].map(function (k) { return '<td>' + pct(rw[k].buildMs, t0.buildMs) + '</td><td>' + pct(rw[k].stress, t0.stress) + '</td><td>' + pct(rw[k].crossPerEdge, t0.crossPerEdge) + '</td>'; }).join('') + '</tr>'; });
-    $('sum').innerHTML = s + '</table>';
+  // one small chart per drop: bars are the new build as a share of today's (time, stress, crossings); the grey line is today
+  function panel(rows) {
+    var t = rows[0], W = 360, L = 96, R = 52, rh = 30, names = [['Build time', 'buildMs'], ['Stress', 'stress'], ['Crossings', 'crossPerEdge']], H = names.length * rh + 30, top = 1.25, pw = W - L - R, X = function (v) { return L + Math.min(v, top) / top * pw; };
+    var s = '<div><h3>' + t.drop + '</h3><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t.drop + ': the new build as a share of today">';
+    names.forEach(function (nm, k) {
+      var y = k * rh + 6, n = rows[1], f = rows[2], v = n[nm[1]] != null && t[nm[1]] ? n[nm[1]] / t[nm[1]] : null, vf = f && f[nm[1]] != null && t[nm[1]] ? f[nm[1]] / t[nm[1]] : null;
+      s += '<text x="' + (L - 8) + '" y="' + (y + 15) + '" text-anchor="end" font-size="13" fill="var(--fg)">' + nm[0] + '</text>';
+      if (vf != null) s += '<rect x="' + L + '" y="' + (y + 13) + '" width="' + (X(vf) - L) + '" height="7" rx="2" fill="var(--us-pale)"/>';
+      if (v != null) s += '<rect x="' + L + '" y="' + y + '" width="' + (X(v) - L) + '" height="' + (vf != null ? 12 : 20) + '" rx="2" fill="var(--us)"/><text x="' + ((Math.max(v, vf || 0) > 0.8 && Math.max(v, vf || 0) < 1.03 ? X(1) + 2 : X(Math.max(v, vf || 0))) + 6) + '" y="' + (y + 15) + '" font-size="13" font-weight="700" fill="' + (v > 1.05 ? 'var(--bad)' : 'var(--fg)') + '">' + v.toFixed(2) + '</text>';
+    });
+    s += '<line x1="' + X(1) + '" y1="2" x2="' + X(1) + '" y2="' + (names.length * rh + 4) + '" stroke="var(--rival)" stroke-width="3"/><text x="' + X(1) + '" y="' + (names.length * rh + 20) + '" text-anchor="middle" font-size="12" fill="var(--muted)">today = 1</text></svg></div>';
+    return s;
   }
-  $('start').onclick = async function () {
-    $('start').disabled = true; $('state').textContent = 'running ...'; var t0 = performance.now(), ref = { n: 0 }, total = DROPS.length * ENGINES.length * RUNS, i;
-    try { for (i = 0; i < ENGINES.length; i++) await loadEngine(ENGINES[i][0], ENGINES[i][1]);
-      log('Engines: ' + ENGINES.map(function (e) { return e[0] + ' = ' + results.engines[e[0]]; }).join(', '));
-      await runLayout(total, ref); prog(1); $('state').textContent = 'done in ' + Math.round((performance.now() - t0) / 1000) + ' s'; results.seconds = Math.round((performance.now() - t0) / 1000);
-      text = 'Warm start tester results\n' + JSON.stringify(results); $('copy').disabled = false; log('Done. Press Copy results and paste them to the chat.'); }
-    catch (e) { $('state').textContent = 'stopped'; log('ERROR ' + (e && e.stack || e)); results.error = String(e && e.stack || e); text = 'Warm start tester results (error)\n' + JSON.stringify(results); $('copy').disabled = false; }
-  };
+  function redraw() {
+    $('panels').innerHTML = sumRows.map(panel).join('');
+    var done = sumRows.filter(function (r) { return r[1].buildMs != null; }), ratios = done.map(function (r) { return r[1].buildMs / r[0].buildMs; });
+    if (!done.length) return;
+    var worst = Math.max.apply(null, ratios), wi = ratios.indexOf(worst);
+    $('s1').textContent = ratios.filter(function (x) { return x < 1; }).length + ' of ' + done.length;
+    $('s2').textContent = med(ratios).toFixed(2);
+    $('s3').textContent = worst.toFixed(2); $('s3').nextSibling.textContent = 'its closest drop (' + done[wi][0].drop.split(' ')[0] + ')';
+    $('s4').textContent = Math.max.apply(null, done.map(function (r) { return r[1].touchPct || 0; })).toFixed(2) + '%';
+  }
+  function finish(msg) {
+    results.seconds = Math.round((performance.now() - results.t0) / 1000); delete results.t0;
+    text = 'Warm start tester results\n' + JSON.stringify(results); $('out').textContent = text;
+    $('copy').disabled = false; $('down').disabled = false; $('quick').disabled = false; $('go').disabled = false; $('stop').disabled = true; running = false; $('st').textContent = msg; $('sub').textContent = 'Tap Copy results and paste them to the chat.';
+  }
+  async function run(mode) {
+    if (running) return; running = true; stopAsked = false; sumRows = []; $('tables').innerHTML = ''; $('panels').innerHTML = '';
+    ['quick', 'go', 'copy', 'down'].forEach(function (id) { $(id).disabled = true; }); $('stop').disabled = false;
+    var ENGINES = mode === 'quick' ? ALL.slice(0, 2) : ALL, RUNS = mode === 'quick' ? 3 : 5, di, vi, rep, i;
+    results = { ua: navigator.userAgent, cores: navigator.hardwareConcurrency, date: new Date().toISOString(), mode: mode, runs: RUNS, engines: {}, layout: [], t0: performance.now() };
+    var total = DROPS.length * ENGINES.length * RUNS, n = 0, T0 = performance.now(), nominal = DROPS.reduce(function (a, d) { return a + d[2]; }, 0) * RUNS * (ENGINES.length === 2 ? 1 : 1.35);
+    var eta = function () { var el = (performance.now() - T0) / 1000; return n < 4 ? Math.max(0, nominal - el) : el / n * (total - n); };
+    try {
+      $('st').textContent = 'Loading the engines ...';
+      for (i = 0; i < ENGINES.length; i++) { await loadEngine(ENGINES[i][0], ENGINES[i][1]); results.engines[ENGINES[i][0]] = ENG[ENGINES[i][0]].version; }
+      for (di = 0; di < DROPS.length && !stopAsked; di++) {
+        var name = DROPS[di][0]; $('st').textContent = 'Reading ' + name + ' ...'; await tick();
+        var D = parseCsv(await (await fetch(DROPS[di][1])).text()), rows = ENGINES.map(function (e) { return { drop: name, variant: e[0], items: D.nodes.length, rows: D.E.length, runsMs: [], guess: [] }; }), pics = [];
+        sumRows.push(rows);
+        for (rep = 0; rep < RUNS && !stopAsked; rep++) for (vi = 0; vi < ENGINES.length; vi++) {   // the versions take turns, and the order flips every round
+          var v = rep % 2 ? ENGINES.length - 1 - vi : vi, row = rows[v];
+          $('st').textContent = name + ': round ' + (rep + 1) + ' of ' + RUNS + ', ' + ENGINES[v][0]; $('sub').textContent = 'About ' + clock(eta()) + ' left'; await tick();
+          var r = runOnce(ENG[ENGINES[v][0]], D, v === 0);
+          row.runsMs.push(Math.round(r.ms)); row.guess.push(Math.round(r.guess)); row.buildMs = med(row.runsMs); row.guessMs = med(row.guess);
+          if (rep === 0) { var M = metrics(r.L); row.stress = +M.stress.toFixed(4); row.touchPct = +M.touchPct.toFixed(2); row.crossPerEdge = +M.crossPerEdge.toFixed(2); var cv = document.createElement('canvas'); cv.width = 900; cv.height = 700; draw(r.L, cv); pics[v] = [ENGINES[v][0], cv]; }
+          n++; $('pb').style.width = Math.round(n / total * 100) + '%'; if (rows[1].buildMs != null && rows[0].buildMs != null) redraw(); await tick();
+        }
+        rows.forEach(function (row) { delete row.guess; });
+        if (rows[0].buildMs == null || rows[1].buildMs == null) { sumRows.pop(); break; }   // stopped before this drop had a build of each
+        results.layout = results.layout.concat(rows.filter(function (row) { return row.buildMs != null; }));
+        var t = rows[0], h = '<div class="card"><h2>' + name + ': ' + D.nodes.length.toLocaleString('en-US') + ' items</h2><div class="tw"><table><tr><th>Version</th><th>Build ms</th><th>Guess ms</th><th>Stress</th><th>Touching %</th><th>Crossings per link</th></tr>';
+        rows.forEach(function (r2, k) { if (r2.buildMs == null) return; h += '<tr><td>' + r2.variant + '</td><td>' + r2.buildMs + (k ? ' (' + pct(r2.buildMs, t.buildMs) + ')' : '') + '</td><td>' + (r2.guessMs || '') + '</td><td>' + r2.stress.toFixed(3) + (k ? ' (' + pct(r2.stress, t.stress) + ')' : '') + '</td><td>' + r2.touchPct.toFixed(2) + '</td><td>' + r2.crossPerEdge.toFixed(1) + (k ? ' (' + pct(r2.crossPerEdge, t.crossPerEdge) + ')' : '') + '</td></tr>'; });
+        h += '</table></div><p class="note">Lower is better in every column. The guess runs while the file is read, so it is not part of the build time.</p><div class="pics" id="pics' + di + '"></div></div>'; $('tables').insertAdjacentHTML('beforeend', h);
+        pics.forEach(function (p) { if (!p) return; var fg = document.createElement('figure'); fg.appendChild(p[1]); var fc = document.createElement('figcaption'); fc.textContent = p[0]; fg.appendChild(fc); $('pics' + di).appendChild(fg); });
+      }
+      if (!stopAsked) $('pb').style.width = '100%';
+      finish(stopAsked ? 'Stopped. Results so far are kept.' : 'Done in ' + clock((performance.now() - T0) / 1000) + '.');
+    } catch (e) { results.error = String(e && e.stack || e); finish('Stopped on an error (it is in the results).'); }
+  }
+  $('quick').onclick = function () { run('quick'); }; $('go').onclick = function () { run('full'); };
+  $('stop').onclick = function () { stopAsked = true; $('stop').disabled = true; $('st').textContent = 'Stopping after this build ...'; };
   $('copy').onclick = function () {
-    var done = function () { $('state').textContent = 'copied'; };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { fallback(); }); else fallback();
-    function fallback() { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { $('state').textContent = 'copy failed: select the box and copy'; } }
+    var done = function () { $('sub').textContent = 'Copied. Paste it to the chat.'; };
+    function fallback() { $('rawd').open = true; var rg = document.createRange(); rg.selectNodeContents($('out')); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); try { document.execCommand('copy'); done(); } catch (e) { $('sub').textContent = 'Copy failed: the text is selected below, copy it by hand.'; } }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
   };
+  $('down').onclick = function () { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = 'warm-start-results.txt'; document.body.appendChild(a); a.click(); a.remove(); };
 })();
 </script>
-</body>
-</html>
+</body></html>
