@@ -2,6 +2,73 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.2 · API 2 · 2026-11-21
+
+### Quick
+Same output as 2.6.1 to the last digit (positions, item and link records, groups), less time. The work around the Distances layout (reading the links, finding groups, picking the start item, folding links) no longer builds one small list per item. No API change, no new option, saved layouts stay valid.
+
+### Details
+Median build time of 2.6.1 against 2.6.2 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns. First table: 6 builds per case (2 page loads x 3). Second table: 5 builds per case, and 20 per case in Chromium 156 for the eight maps from mesh22k down, because the first single pass there was noisy (it read 14% slower to 8% faster on the same code) and was repeated three more times with the versions taking turns; all runs are pooled. Lower is better. 39 of 42 cases are faster, the middle case 10% less, best 31% less, worst 4% more (two small maps in Chromium, inside the noise of this machine, about 8%).
+
+| Browser | Map | Build ms 2.6.1 | Build ms 2.6.2 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 844 | 802 | -5% | yes |
+| Chromium 156 | shuffled50k | 787 | 679 | -14% | yes |
+| Chromium 156 | communities10k | 264 | 211 | -20% | yes |
+| Chromium 156 | communities50k | 982 | 794 | -19% | yes |
+| Firefox 158 | big50k | 901 | 824 | -9% | yes |
+| Firefox 158 | shuffled50k | 780 | 702 | -10% | yes |
+| Firefox 158 | communities10k | 289 | 252 | -13% | yes |
+| Firefox 158 | communities50k | 1083 | 747 | -31% | yes |
+| WebKitGTK 2.52.6 | big50k | 855 | 774 | -9% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 817 | 687 | -16% | yes |
+| WebKitGTK 2.52.6 | communities10k | 300 | 254 | -15% | yes |
+| WebKitGTK 2.52.6 | communities50k | 1018 | 727 | -29% | yes |
+
+| Browser | Map | Build ms 2.6.1 | Build ms 2.6.2 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | bigshufB | 924 | 716 | -23% | yes |
+| Chromium 156 | commshuf10k | 265 | 231 | -13% | yes |
+| Chromium 156 | mesh22k | 624 | 551 | -12% | yes |
+| Chromium 156 | ba30k | 410 | 361 | -12% | yes |
+| Chromium 156 | tree20k | 364 | 336 | -8% | yes |
+| Chromium 156 | smallworld20k | 408 | 399 | -2% | yes |
+| Chromium 156 | ba3k | 303 | 290 | -4% | yes |
+| Chromium 156 | tree1500 | 117 | 115 | -2% | yes |
+| Chromium 156 | mesh1600 | 91 | 95 | +4% | yes |
+| Chromium 156 | comm3500 | 389 | 400 | +3% | yes |
+| Firefox 158 | bigshufB | 874 | 790 | -10% | yes |
+| Firefox 158 | commshuf10k | 356 | 258 | -28% | yes |
+| Firefox 158 | mesh22k | 581 | 537 | -8% | yes |
+| Firefox 158 | ba30k | 423 | 325 | -23% | yes |
+| Firefox 158 | tree20k | 325 | 287 | -12% | yes |
+| Firefox 158 | smallworld20k | 413 | 366 | -11% | yes |
+| Firefox 158 | ba3k | 277 | 285 | +3% | yes |
+| Firefox 158 | tree1500 | 121 | 116 | -4% | yes |
+| Firefox 158 | mesh1600 | 98 | 91 | -7% | yes |
+| Firefox 158 | comm3500 | 390 | 382 | -2% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 868 | 706 | -19% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 315 | 271 | -14% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 596 | 530 | -11% | yes |
+| WebKitGTK 2.52.6 | ba30k | 386 | 361 | -6% | yes |
+| WebKitGTK 2.52.6 | tree20k | 375 | 332 | -11% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 426 | 382 | -10% | yes |
+| WebKitGTK 2.52.6 | ba3k | 436 | 405 | -7% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 161 | 144 | -11% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 115 | 115 | +0% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 487 | 472 | -3% | yes |
+
+### Deep
+Where a 2.6.1 build spent its time on a 50,000-item map with groups: about half was outside the layout. Changes, each checked to give identical output:
+- Network layout: links are kept as two flat number rows (a start offset per item and the neighbors), not one array per item; the pieces of the map are found over those rows; per-item arrays are built only for the Force and Radial arrangements, which still read them.
+- prepare: the link columns are typed rows filled in place.
+- Start-item search: the reach counts of the first 40 candidates are found in one pass with two 32-bit words per item (the same many-at-once idea as the 2.6.1 hop table), not 40 separate searches.
+- Groups finder: items are ordered with a counting sort, neighbors are read from one combined row, and an item is looked at again only if its own or a neighbor's label changed in the last round (the answer of a round cannot change otherwise).
+- Folding links: the merge key is a number, and it is built only when something is folded.
+- Item and link records: fast paths for one item per page and one source per link.
+- fitScale (2D): the hop search goes level by level and switches direction when the frontier is large; same hop counts.
+Tests: the module tests (20 checks), 120 position comparisons over all arrangements, 36 whole-output comparisons on file maps (with and without a start item, 3 option sets) and 480 story-map comparisons over all views with folding, all against 2.6.1: 0 differences.
+
 ## 2.6.1 · API 2 · 2026-11-21
 
 ### Quick
