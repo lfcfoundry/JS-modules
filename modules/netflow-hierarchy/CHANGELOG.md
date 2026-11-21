@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.1 · API 1 · 2026-11-20
+- Every nested view is laid out faster, the icicle most: 100,000 items take about 0.55 of the time; same picture.
+
 ## 1.7.0 · API 1 · 2026-11-15
 - typedRects: true keeps treemap and icicle tiles as typed arrays
 
