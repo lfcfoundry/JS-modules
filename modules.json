@@ -361,7 +361,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",
@@ -443,7 +443,7 @@
     },
     {
       "id": "netflow-engine",
-      "version": "2.6.0",
+      "version": "2.6.1",
       "api": 2,
       "global": "NetflowEngine",
       "summary": "The engine of Netflow Map as a module you can copy and adapt: nine views of a map and eleven network layouts, no two items on top of each other, WebAssembly twins for Force and Distances, and a use() hand-over for the layers and Sankey add-ons; a 30,000-item network lays out in about 0.8 s in the Netflow Map app (Firefox).",

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.1 · API 2 · 2026-11-21
+- Big Network maps (Distances layout) build in about a fifth less time again (up to 47% less), with exactly the same picture as 2.6.0.
+
 ## 2.6.0 · API 2 · 2026-11-21
 - Big Network maps (Distances layout) build in 12 to 73% less time, most about 60% less, with the same or lower stress, fewer link crossings and no touching items. Items now spread more evenly instead of packing into a dense middle.
 

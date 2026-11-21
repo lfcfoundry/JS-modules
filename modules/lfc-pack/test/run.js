@@ -17,6 +17,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('metadata section', 'node', ['meta.cjs']);
   step('column summaries (section 20)', 'node', ['summary.cjs']);
   step('sortBy and keepOrder', 'node', ['sortby.cjs']);
+  step('graph section (23)', 'node', ['graph.cjs']);
   step('reads into reusable arrays (parallel, dates, bytes)', 'node', ['intoparallel.cjs']);
   step('xxh64 block checks', 'node', ['xxh.cjs']);
   step('deflated wasm: zlib and JS inflater', 'node', ['inflate.cjs']);
