@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.2 · API 1 · 2026-11-21
+- Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
+
 ## 1.5.1 · API 1 · 2026-11-20
 - The default chord layout is about twice as fast (400 items, 80,000 links: 32 to 18 ms in Chromium, 28 to 14 in Firefox, 34 to 23 in WebKitGTK); the band objects in chart.flows are now made the first time they are read. Same output.
 
