@@ -1,5 +1,18 @@
 # netflow-plot developer changelog
 
+## 2.20.0 · API 2 · 2026-11-21
+
+### Quick
+Look change (approved by the owner on a card): a line that was thinned (over 5,000 points) is now drawn with F.band as filled quads, one per whole-pixel column, 2 px thick at least, in place of a 2 px stroked curve. Lines of 5,000 points or fewer are unchanged. No new setting, no API change; code that reads the long line from the scene's curves list must read polys instead.
+
+### Details
+Finished 100,000-point line chart, steady redraw, ms per chart (2 passes, rows input): Chromium 156 3.3 to 3.5 (2.19.0: 5.5; uPlot 1.6.32: 10.8 to 11.9), Firefox 158 3.9 to 4.0 (4.0; uPlot 7.5 to 7.8), WebKitGTK 2.52.6 7.3 to 7.8 against 7.3 to 8.1 for 2.19.0 on 30 charts a frame (a tie; uPlot 17.1 to 17.5 in the standard run). Columns input: Chromium 2.0 to 2.3, Firefox 2.5 to 2.6, WebKitGTK 4.3 to 5.1.
+One chart from the call to the shown frame: Chromium 11.7 to 12.7 ms rows, 10.2 to 11.4 columns (2.19.0: 16.6; uPlot 21.7 to 24.5). Firefox 21 to 23 rows and 10 to 22 columns against uPlot 21 to 22: still a tie inside one screen refresh.
+Size: 144.0 KB, 45.9 KB gzipped (minified and gzipped 30.0 KB; with netflow-scene 62.5 KB).
+
+### Deep
+The browser's painting of the 3,200-segment 2 px zigzag stroke was the largest cost left in a 100,000-point line chart (about 5.2 ms a chart in Chromium 156, 2.0 in Firefox 158, 2.4 to 3.5 in WebKitGTK 2.52.6, measured with a prebuilt SVG). A filled band paints in 0.6, 0.5 and 1.7 to 2.0 ms. lineBand() takes the thinned points (first, lowest, highest, last per pixel column), keeps each column's lowest and highest, widens them to the midpoint of the join to each neighbor column so steep joins stay covered, grows 1 px up and down for the 2 px stroke, and joins columns across a gap through the joining points themselves. It returns nothing when x ever runs backward, and the line is then stroked as before. The band goes through the existing F.band, so netflow-scene is unchanged. Picture against 2.19.0: 97.4 to 97.6% of pixels identical, below the 99.5% gate, so the owner chose the look on a card (option C of three, 2026-11-21 12:00 AM Detroit). Tests: the two 2.18.0 checks that read the long curve now read the band (piece count, left to right, joined, never thinner than 2 px, every sampled point inside, spike kept, same from rows and columns); 747 checks pass. WebKitGTK steady redraw was noisy on short samples (6 to 8 frames); with 28 to 31 frames of 30 charts each the frame took 267 to 275 ms against 272 to 292 for 2.19.0.
+
 ## 2.19.0 · API 2 · 2026-11-20
 
 ### Quick

@@ -42,7 +42,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.19.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.20.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -62,6 +62,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-21 · **netflow-plot** 2.20.0 · API 2: A line over 5,000 points is drawn as a filled band, one piece per pixel column, in place of a zigzag stroke; 97.5% of the pixels are the same and spikes are kept A finished 100,000-point line chart costs 3.3 to 4.0 ms in Chromium 156 and Firefox 158 (was 4.0 to 5.5); one chart reaches the screen in 12 to 13 ms in Chromium (was 17)
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
 - 2026-11-21 · **lfc-pack** 0.14.6 · API 0: Text columns that get a dictionary compress their label bytes once instead of twice while the layouts are tried: 0.96x to 0.97x the pack time (44 text columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6). Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.5 · API 0: Packing many text columns given as bytes (CSV imports) takes 0.79x to 0.88x the time (44 columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6): the block-size estimate no longer builds a string per cell. Same bytes.

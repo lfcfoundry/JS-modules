@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.19.0 · API 2**
+**Version 2.20.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (one at a time, cloud machine); Node checks 741 of 741
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (speed race in all three, one at a time); 747 module checks pass
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -128,6 +128,7 @@ A chart colored by a column keeps a 44 px key row at the top, so its picture and
 
 ## Limits
 
+- A line over 5,000 points is drawn from each pixel column's lowest and highest point (first and last too), as a filled band at least 2 px thick (since 2.20.0; a stroked line before). A one-point spike is kept. Lines of 5,000 points or fewer draw every point as a stroke.
 - Text sizes are estimated, not measured, so very long labels are cut with an ellipsis.
 - A scatter of tens of thousands of dots makes one SVG element per dot, which is slow for a page to read; see the race below.
 
