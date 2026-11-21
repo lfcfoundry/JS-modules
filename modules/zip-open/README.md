@@ -1,6 +1,6 @@
 # zip-open
 
-**Version 1.20.2 · API 1**
+**Version 1.21.0 · API 1**
 
 **Tested in:** cloud ungoogled Chromium 155, Firefox 158 and WebKitGTK 2.52.6, 2026-11-06 night (fresh pages 6 s after load, 16 per browser, both orders); 49 module checks pass
 
@@ -41,6 +41,8 @@ var toc = ZipOpen.list(bytes);                          // every entry, nothing 
 var got = await ZipOpen.read(bytes, toc.entries[0], 5e6);   // { bytes } or { skip: "why" }; the third argument is the most bytes you accept
 await ZipOpen.expand(bytes, "x.zip", { maxFiles: 100, textExt: /\.(csv|txt)$/i });   // change the limits or what counts as text
 ```
+Files as they open (since 1.21.0): `await ZipOpen.expand(bytes, name, { onFile(file, index) { ... } })` (also `expandBlob`) calls `onFile` for each file `{ name, path, text }` as soon as it is unpacked, in the order of `r.files`, then resolves with the whole answer as before. A callback that throws rejects the call.
+
 Also exported: `isZip`, `looksLikeArchive`, `decodeText` (UTF-8, else Windows-1252), `crc32(bytes)` (WebAssembly from 1,024 bytes up; `crc32(bytes, true)` forces the plain JavaScript loop), `wasmAvailable()` and `LIMITS`.
 
 Needs async functions and, in a browser, `DecompressionStream("deflate-raw")`. In Node it uses `zlib`.
