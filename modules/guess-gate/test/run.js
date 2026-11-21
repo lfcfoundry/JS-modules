@@ -3,7 +3,7 @@
 var assert = require('assert'), G = require('../guess-gate.js'), fail = 0, pass = 0;
 function t(name, fn) { try { fn(); pass++; console.log('  ok   ' + name); } catch (e) { fail++; console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); } }
 function clock() { var c = { t: 1000, now: function () { return c.t; }, tick: function (ms) { c.t += ms; } }; return c; }
-t('version and api', function () { assert.strictEqual(G.version, '1.0.0'); assert.strictEqual(G.api, 1); });
+t('version and api', function () { assert.strictEqual(G.version, '1.0.1'); assert.strictEqual(G.api, 1); });
 t('nothing is allowed before start, before minMs, or after finish', function () {
   var c = clock(), g = G.create({ now: c.now, minMs: 40 });
   assert.strictEqual(g.allowed(), false); assert.strictEqual(g.run(function () { throw new Error('no'); }), false);
