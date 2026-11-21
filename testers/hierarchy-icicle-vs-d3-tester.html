@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Icicle layout tester</title>
+<style>:root{color-scheme:light dark}body{font:16px/1.4 system-ui,sans-serif;margin:16px;max-width:40rem}button{font:inherit;padding:12px 16px;margin:6px 6px 6px 0;min-height:48px}pre{white-space:pre-wrap;word-break:break-word;font:13px/1.4 ui-monospace,monospace;padding:10px;border:1px solid #8886}</style></head><body>
+<h1>Icicle layout tester</h1>
+<p>Times the icicle layout of <b>netflow-hierarchy</b> (LFC Foundry, loaded from this site) against <b>d3-hierarchy 3.1.2</b> (loaded from jsDelivr) on the same made-up tree of 1,000, 10,000 and 100,000 items. The libraries take turns on this page, 15 rounds each; netflow-hierarchy is timed twice, once including the making of its input lists from the same rows and once with them already made. About 1 minute. Measure only; nothing is sent anywhere.</p>
+<p>Close other tabs and plug in the laptop first. Run it once in each browser you have.</p>
+<button id="go">Run</button><button id="copy" disabled>Copy results</button>
+<p id="st">Ready.</p>
+<pre id="out"></pre>
+<script src="https://cdn.jsdelivr.net/npm/d3-hierarchy@3.1.2/dist/d3-hierarchy.min.js"></script>
+<script src="../modules/netflow-hierarchy/netflow-hierarchy.js"></script>
+<script>
+var report=[],out=document.getElementById('out'),st=document.getElementById('st');
+function show(){out.textContent=report.join('\n');}
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function makeRows(N){var r=rng(11),rows=[{id:'n0',parent:null,value:0}],i,p,kids={};for(i=1;i<N;i++){p=i<50?0:Math.floor(r()*Math.min(i,Math.max(50,i/6)));rows.push({id:'n'+i,parent:'n'+p,value:1+Math.floor(r()*100)});}
+ rows.forEach(function(x){if(x.parent)kids[x.parent]=1;});rows.forEach(function(x){if(kids[x.id])x.value=0;});return rows;}
+function med(a){a=a.slice().sort(function(x,y){return x-y;});return a[a.length>>1];}
+function tick(){return new Promise(function(r){setTimeout(r,30);});}
+document.getElementById('go').onclick=async function(){
+ var btn=this;btn.disabled=true;report=[];
+ report.push('ICICLE vs d3-hierarchy | '+navigator.userAgent+' | cores '+(navigator.hardwareConcurrency||'?')+' | netflow-hierarchy '+(window.NetflowHierarchy&&NetflowHierarchy.version?JSON.stringify(NetflowHierarchy.version):'(version not shown)')+' | d3-hierarchy 3.1.2');show();
+ try{
+  var NH=window.NetflowHierarchy;if(!NH||!window.d3)throw new Error('a library did not load (NetflowHierarchy '+!!NH+', d3 '+!!window.d3+')');
+  var sizes=[1000,10000,100000];
+  for(var si=0;si<sizes.length;si++){var N=sizes[si],rows=makeRows(N);
+   var runD3=function(){var root=d3.stratify().id(function(d){return d.id;}).parentId(function(d){return d.parent;})(rows);root.sum(function(d){return d.value;});d3.partition().size([1000,600])(root);return root;};
+   var mk=function(){var nodes=new Array(N),edges=[],i,x;for(i=0;i<N;i++){x=rows[i];nodes[i]={id:x.id,label:x.id,sizeV:x.value};if(x.parent)edges.push({from:x.parent,to:x.id,weight:1,widthV:1});}return {nodes:nodes,edges:edges};};
+   var pre=mk();
+   var runLay=function(G){return NH.layout('icicle',G,{nest:'links',sized:true});};
+   var runAll=function(){return runLay(mk());};
+   var fns=[runD3,runAll,function(){return runLay(pre);}],T=[[],[],[]];
+   for(var w=0;w<3;w++)for(var f=0;f<3;f++)fns[f]();
+   var R=15,k,f2,t0,wins1=0,wins2=0;
+   for(k=0;k<R;k++){st.textContent=N+' items, round '+(k+1)+' of '+R;
+    for(f2=0;f2<3;f2++){var f3=(f2+k)%3;t0=performance.now();fns[f3]();T[f3].push(performance.now()-t0);}
+    await tick();}
+   for(k=0;k<R;k++){if(T[1][k]<T[0][k])wins1++;if(T[2][k]<T[0][k])wins2++;}
+   var d=med(T[0]),a=med(T[1]),b=med(T[2]);
+   report.push(N+' items: d3 (from rows) median '+d.toFixed(1)+' ms (min '+Math.min.apply(null,T[0]).toFixed(1)+') | netflow-hierarchy including building its nodes and links from the same rows: '+a.toFixed(1)+' ms (ratio '+(a/d).toFixed(2)+', faster in '+wins1+' of '+R+') | netflow-hierarchy layout only, nodes and links already built: '+b.toFixed(1)+' ms (ratio '+(b/d).toFixed(2)+', faster in '+wins2+' of '+R+')');show();}
+ }catch(e){report.push('ERROR '+(e&&e.stack||e));show();}
+ st.textContent='Done. Tap Copy results.';document.getElementById('copy').disabled=false;btn.disabled=false;};
+document.getElementById('copy').onclick=function(){var t=document.createElement('textarea');t.value=report.join('\n');document.body.appendChild(t);t.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(report.join('\n'));document.body.removeChild(t);this.textContent='Copied';};
+</script></body></html>
