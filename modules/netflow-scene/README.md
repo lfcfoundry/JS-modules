@@ -1,8 +1,8 @@
 # netflow-scene
 
-**Version 1.14.1 · API 1**
+**Version 1.14.2 · API 1**
 
-**Tested in:** Node suite, 50k treemap in Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** ungoogled-chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6, one at a time (netflow-hierarchy scene step with 1.14.1 against 1.14.2 taking turns, 31 rounds at 50,000 items, 61 rounds at 1,000). Node: netflow-scene suite, 997 hierarchy, 997 circular, 741 plot and 17 engine checks; same scene lists and SVG on 912 charts against 1.14.1
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. This is the scene builder of Netflow Map as a module you can adapt.
 
