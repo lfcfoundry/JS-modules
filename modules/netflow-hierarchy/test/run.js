@@ -210,6 +210,30 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   const S2 = C.scene(L2, { typedRects: true }, { ...global.NetflowScene, makeRectsT: undefined });
   ok(S2.rects.length > 100 && !S2.rectsT, 'a scene module without typed rects (older) gives the object form');
 }
+{   /* items that name their own parent (o.parentKey) lay out and draw exactly as the same tree given as a list of links */
+  const A = require('../netflow-hierarchy.js'), B = require('../netflow-hierarchy.min.js');
+  const norm = (x) => JSON.stringify(x, (k, v) => ArrayBuffer.isView(v) ? Array.from(v) : v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((o, q) => (o[q] = v[q], o), {}) : v);
+  for (const n of [1, 2, 3, 40, 700]) for (const shape of ['random', 'two children', 'shuffled', 'forest']) {
+    const r = rnd(3 + n), rows = [];
+    for (let i = 0; i < n; i++) rows.push({ id: 'n' + i, parent: i && !(shape === 'forest' && i % 9 === 0) ? 'n' + (shape === 'two children' ? (i - 1) >> 1 : Math.floor(r() * i)) : (i % 2 ? null : undefined), sizeV: 1 + Math.floor(r() * 9) });
+    if (shape === 'shuffled') rows.sort(() => r() - 0.5);
+    const links = () => ({ nodes: rows.map((x) => ({ id: x.id, label: x.id, sizeV: x.sizeV })), edges: rows.filter((x) => x.parent).map((x) => ({ from: x.parent, to: x.id })), name: 't' });
+    const named = () => ({ nodes: rows.map((x) => ({ id: x.id, label: x.id, sizeV: x.sizeV, parent: x.parent })), name: 't' });
+    for (const view of ['treemap', 'sunburst', 'icicle', 'pack', 'tree']) for (const nest of ['links', 'auto']) {
+      const o = { nest, sized: true }, a = A.layout(view, links(), o), b = A.layout(view, named(), Object.assign({ parentKey: 'parent' }, o)), c = B.layout(view, named(), Object.assign({ parentKey: 'parent' }, o));
+      const tag = view + ' ' + nest + ', ' + n + ' items, ' + shape;
+      ok(norm(b.edges) === norm(a.edges) && norm(c.edges) === norm(a.edges), 'parentKey: the links it hands back are the tree\'s links, ' + tag);
+      b.nodes.forEach((x) => delete x.parent); c.nodes.forEach((x) => delete x.parent);
+      ok(norm(a) === norm(b), 'parentKey: same layout as the links list, ' + tag);
+      ok(norm(b) === norm(c), 'parentKey: the minified file agrees, ' + tag);
+      a.view = b.view = view; a.groups = b.groups = [''];
+      ok(norm(A.scene(a, {}, global.NetflowScene)) === norm(A.scene(b, {}, global.NetflowScene)), 'parentKey: same drawing as the links list, ' + tag);
+    }
+  }
+  const odd = A.layout('icicle', { nodes: [{ id: 'a', up: 'zz' }, { id: 'b', up: 'a' }, { id: 'c', up: 'c' }, { id: 'd', up: '' }] }, { nest: 'links', parentKey: 'up' });
+  ok(odd.nodes.length === 4 && odd.nodes.every((d) => isFinite(d.x) && isFinite(d.h)), 'parentKey: an unknown parent, an item naming itself and an empty name are all tops');
+  ok(odd.edges.length === 3, 'parentKey: the links list is made when it is read');
+}
 {   /* the minified file is this version and draws the same pictures (rebuild: test/make-min.js) */
   const fs = require('fs'), path = require('path'), dir = path.join(__dirname, '..');
   const src = fs.readFileSync(path.join(dir, 'netflow-hierarchy.js'), 'utf8'), min = fs.readFileSync(path.join(dir, 'netflow-hierarchy.min.js'), 'utf8');
