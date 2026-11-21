@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.7.2 · API 1**
+**Version 1.8.0 · API 1**
 
-**Tested in:** ungoogled-chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6, one at a time (icicle race against d3-hierarchy 3.1.3 at 1,000, 10,000 and 100,000 items). Node: 991 hierarchy and 991 circular checks; same layout as 1.7.0 on 21,168 comparisons, 3,000 sort trials
+**Tested in:** ungoogled-chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6, one at a time (minified against readable: same SVG on 15 pictures, same icicle layout time at 10,000 items). Node: 997 checks on the readable file and 997 on the minified file
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -31,7 +31,7 @@ Netflow Map draws these views from any map: a tree of links, or items grouped by
 
 ## Use
 
-Load `netflow-scene.js` first, then `netflow-hierarchy.js`. One call, data only (links as `{ from, to, value }`, or `{ nodes, edges }`; each box is as big as what flows into it):
+Load `netflow-scene.js` first, then `netflow-hierarchy.js`. `netflow-hierarchy.min.js` is the same module minified (31.7 KB, 14.1 KB gzipped; same pictures), for pages that must stay small. One call, data only (links as `{ from, to, value }`, or `{ nodes, edges }`; each box is as big as what flows into it):
 
 ```js
 // netflow-scene.js, then netflow-hierarchy.js

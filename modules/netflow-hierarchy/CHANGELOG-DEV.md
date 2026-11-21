@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.8.0 · API 1 · 2026-11-20
+
+### Quick
+A minified copy ships beside the readable file. Nothing else changes.
+
+### Details
+test/make-min.js builds netflow-hierarchy.min.js with terser (ecma 2018, two compress passes, mangled names). The tests fail when the minified file is not this version or draws a different picture; NH_FILE=path runs the whole suite on another copy.
+
+### Deep
+netflow-hierarchy.min.js: 31,719 bytes, 14,095 gzipped (readable file 66 KB, 22.6 KB gzipped). d3-hierarchy 3.1.3 minified is 14.8 KB, 5.8 KB gzipped, and does layout only; this file also draws the picture. Requested by the owner (card, 2026.11.20: Minify the whole module). Same SVG as the readable file on 15 pictures in each of the three browsers; icicle layout at 10,000 items readable/minified: Chromium 156 3.13/3.13 ms, Firefox 158 3.25/3.25, WebKitGTK 2.52.6 2.50/2.75 (one 0.25 ms clock step).
+
 ## 1.7.2 · API 1 · 2026-11-20
 
 ### Quick
