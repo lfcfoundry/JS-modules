@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.8.2 · API 1 · 2026-11-21
+
+### Quick
+Circle pack keeps its sizes and places in plain number lists, and the smallest-enclosing-circle step no longer creates anything while it works. Same layout numbers. Old code keeps working.
+
+### Details
+pack(): each box's radius and its place inside its parent live in three Float64Arrays instead of an object and a list per parent; a parent with one or two children and nothing of its own needs no packing; two children plus the parent's own circle (the usual case on a two-children tree, since an item with no size counts as 1) run on three circles kept for the whole call. enclose(): the helper functions are made once for the module, the edge set is three locals and candidate circles are passed as numbers through one small Float64Array, so the walk allocates nothing; packSiblings() makes its ring only for four or more circles. enclose() and packSiblings() return the same values as before.
+
+### Deep
+Circle pack against d3-hierarchy 3.1.3 doing the same job from the same rows (stratify, sum, sort, pack), tree with two children per item, share of d3's time, medians of 41 to 61 paired rounds: ungoogled-chromium 156 0.60 to 0.70 at 1,000 items, 0.54 to 0.56 at 10,000, 0.55 at 100,000 (1.8.1: 1.33 to 1.54, 0.97 to 1.26, 0.85 to 1.42); Firefox 158 0.95, 0.67, 0.66 (1.8.1: 1.32 to 1.48, 1.24 to 1.29, 1.36 to 1.45); WebKitGTK 2.52.6 0.71, 0.56, 0.53 (1.8.1: 1.36 to 1.40, 1.22 to 1.29, 0.96 to 1.02). Mixed tree: Chromium 0.53, 0.46, 0.50 (1.8.1: 0.72, 0.63, 0.62); Firefox 0.44, 0.36, 0.33; WebKitGTK 0.42, 0.39, 0.32. A few huge folders (the packing itself dominates): no change within noise, 0.42 to 0.62. Same layout output as 1.8.1 on 1,302 charts (10 sizes, 8 tree shapes, groups, sized and not, sorted and not), and enclose() and packSiblings() give the same values on 60,000 direct cases including degenerate ones. Found by the new nested views tester (testers/hierarchy-icicle-vs-d3-tester.html).
+
 ## 1.8.1 · API 1 · 2026-11-21
 
 ### Quick
