@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.7.2 · API 1 · 2026-11-20
+
+### Quick
+Children are sorted by a quicksort written out in the file instead of a call back per comparison. Same order, same layout. Old code keeps working.
+
+### Details
+sums(): lists of 3 or more children go through kidSort (quicksort over the typed child list, insertion for 12 or fewer). Every pair has one right order (bigger value first, ties by lower number), so the result is the same.
+
+### Deep
+Icicle from rows at 1,000 items in Chromium 156, both sorting: 0.24 ms against d3-hierarchy 3.1.3 at 0.28 (0.86); 1.7.1 on the same page was between 0.95 and 1.12. 10,000 and 100,000 items and the other two browsers unchanged within noise (Firefox 0.67/0.47/0.31, WebKitGTK 0.60/0.47/0.38 of d3). Also measured in this round, against d3-hierarchy 3.1.3 doing the same job (stratify, sum, sort, layout), share of d3's time at 1,000 / 10,000 / 100,000 items: treemap Chromium 0.74/0.59/0.41, Firefox 0.61/0.50/0.34, WebKitGTK 0.62/0.58/0.42; sunburst 0.74/0.94/0.72, 0.73/0.59/0.37, 0.80/0.67/0.49; pack 0.62/0.61/0.41, 0.53/0.46/0.44, 0.55/0.51/0.40; tree 0.76/0.62/0.44, 0.76/0.43/0.35, 0.82/0.71/0.48. Size: layout part minified 16.3 KB (7.4 KB gzip), whole module minified 31.5 KB (13.8 KB gzip), as shipped 66 KB (22.6 KB gzip); d3-hierarchy 3.1.3 minified 14.8 KB (5.8 KB gzip), layouts only.
+
 ## 1.7.1 · API 1 · 2026-11-20
 
 ### Quick
