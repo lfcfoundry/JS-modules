@@ -1,6 +1,6 @@
 # text-columns
 
-**Version 0.7.0 · API 0**
+**Version 0.7.1 · API 0**
 
 **Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
 
@@ -45,7 +45,7 @@ var t = await TextColumns.parseParallel(input.files[0]);              // since 0
 ```
 The file is cut at line ends outside quotes, each Web Worker reads a piece with this same code, and the columns are joined. Files under 4 MB once the helpers are running (from `warm()` or an earlier call), or under 32 MB before that (`minBytes`), a quote in the middle of a plain field, any error, or no Workers: it reads the file directly, so answers and error messages are the same. Number columns gain most; text columns are bound by making strings on the main thread. Measured with helpers already started, 4 helpers against one thread (ms, lower is better; Firefox 158 / Chromium 155 / WebKitGTK 2.52.6): numbers 152 MB 1,089 / 850 / 524 against 3,032 / 1,524 / 2,821; numbers 45 MB 213 / 196 / 172 against 518 / 322 / 332; text-heavy 61 MB 1,258 / 870 / 736 against 1,622 / 830 / 1,126 (Chromium loses). Starting the helpers costs about 30 to 130 ms the first time, which is why the floor is 32 MB until they run. With helpers running, 4 to 16 MB files take 0.58 to 0.92x the time in Firefox 158 and WebKitGTK 2.52.6 and 0.62 to 0.87x in Chromium 153 (one 7.8 MB mixed file 1.23x); container, 4 cores.
 
-Since 0.7.0, `parseParallel(input, { onPiece(piece) })` hands each piece over as soon as its helper answers: `piece` is `{ index, count, names, columns: [{ type, values }] }` (`names` only for piece 0; number columns are `Float64Array`s, text values are built when first read, so read them inside the call). It is a first guess for a first picture: the returned table settles columns that are numbers in one piece and text in another, and `{ reset: true }` means the file is being read again, so drop what you were given. The helpers send their number columns to the page for this, so the whole read takes about 10 to 30% longer than without `onPiece` (Chromium 156, 15 MB); without it nothing changes.
+Since 0.7.0, `parseParallel(input, { onPiece(piece) })` hands each piece over as soon as its helper answers: `piece` is `{ index, count, names, columns: [{ type, values }] }` (`names` only for piece 0; number columns are `Float64Array`s, text values are built when first read, so read them inside the call). It is a first guess for a first picture: the returned table settles columns that are numbers in one piece and text in another, and `{ reset: true }` means the file is being read again, so drop what you were given. Each helper copies its number columns for the page for this, so the whole read takes about 0 to 10% longer than without `onPiece` (Chromium 156 about the same, Firefox 158 +10%, WebKitGTK 2.52.6 +1%, 15 MB); without it nothing changes.
 
 Since 0.5.2, a piece with non-ASCII text (accents, emoji) is decoded once inside its helper, which sends the piece's text as one string plus where each field sits in it; the page only cuts substrings instead of decoding every field. Plain-ASCII files are unchanged. `tests/text-columns-utf16-browser.js` checks the same answers as `parse()` in 56 cases (accents, emoji, quotes, CRLF, `columns`, `lazy`, a column that is numbers in one piece and text in another, a piece that is not valid UTF-8).
 

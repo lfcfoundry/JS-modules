@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.1 · API 0 · 2026-11-21
+- Using onPiece now costs the whole read about 0 to 10% (it was 10 to 30%): the helpers keep joining their number columns and send the page a copy for the piece only.
+
 ## 0.7.0 · API 0 · 2026-11-21
 - New opts.onPiece on parseParallel: each piece's columns reach your function as soon as its helper answers (about 30 ms in on 15 MB), so a first picture can draw before the whole table is joined. Opt-in; without it nothing changes.
 

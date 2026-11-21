@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.7.1 · API 0 · 2026-11-21
+
+### Quick
+With `onPiece`, the 0.7.0 read switched the helpers to the page-joins-numbers way (join: false), which made the whole read 10 to 30% longer. Now join stays on: each helper still keeps its number columns for the parallel fill into the final arrays and, when `onPiece` is used, posts a copy (`peek: true`) of each number column for the piece event. Same pieces, same table.
+
+### Details
+15.2 MB, 400,000 rows, 5 columns, 4 helpers, whole read with onPiece against without, interleaved in one page, medians: Chromium 156 0.92 to 1.20 over three pages (about 0.96, noisy), Firefox 158 1.10 over two pages, WebKitGTK 2.52.6 1.01. 0.7.0 measured 1.09 in Chromium on the same page. First piece 28 to 36 ms.
+
+### Deep
+A copy made in the helper costs the helper, not the page, and the page receives the buffer without copying it. The alternatives: sending the original (the page then joins serially, the 0.7.0 cost) or asking the helper later (the helper frees its columns during the final fill, so a late ask can fail). Firefox keeps a 10% cost; the cause is not found (the copy is made off the page thread).
+
 ## 0.7.0 · API 0 · 2026-11-21
 
 ### Quick
