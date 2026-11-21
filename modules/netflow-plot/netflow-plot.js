@@ -1,11 +1,12 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.18.1 (API 2)
+ * Version 2.19.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
  *
  * rows: plain objects (an item or a link); a column is read with get(row, key) (o.get, default row.attrs[key] ?? row[key]).
+ *       Or a table of columns, { name: array, ... } with plain or typed arrays (since 2.19.0): the same chart, with no rows made for make().
  * spec: { type, x, y, color, size, agg ('sum' | 'mean' | 'count' | 'min' | 'max' | 'median'), stack ('stack' | 'group' | 'normalize' | 'stream' | 'none'),
  *         horizontal, top (bars: the N biggest plus one bar for the rest), bins, smooth (moving average window), index (lines from 100), cols (parallel / matrix), sort ('value' | 'name' | 'none') }.
  * Marks: S.marks = [{ x0, y0, x1, y1, row (index) or rows, t (tooltip text) }] for pointing at things.
@@ -303,7 +304,23 @@ var NetflowPlot = (function () {
   function bandAxis(cats, a, b, pad) { var n = Math.max(1, cats.length), step = (b - a) / n, bw = step * (1 - (pad === undefined ? 0.2 : pad)), pos = new Map(); cats.forEach(function (c, i) { pos.set(c, a + i * step + (step - bw) / 2); }); return { kind: 'band', list: cats, bw: bw, step: step, map: function (c) { return pos.get(c); }, fmt: function (c) { return c === '' ? '(blank)' : String(c); } }; }
 
   /* ---------------------------------------------------------------- reading the table */
-  function reader(rows, o) {
+  /** A table given as columns, { name: array, ... } (plain arrays or typed arrays, the shape lfc-pack's unpackColumns returns; since 2.19.0), or null
+      when t is a list of rows. n is the longest column. */
+  function colsOf(t) {
+    if (!t || typeof t !== 'object' || Array.isArray(t) || typeof t.length === 'number') return null;
+    var n = 0, any = false, k, c;
+    for (k in t) { if (!Object.prototype.hasOwnProperty.call(t, k)) continue; c = t[k]; if (!(Array.isArray(c) || ArrayBuffer.isView(c)) || typeof c.length !== 'number') return null; any = true; if (c.length > n) n = c.length; }
+    return any ? { c: t, n: n } : null;
+  }
+  /** Rows made from a table of columns, for the paths that read rows one by one (the chart picked for you, flows, trees, the takeaway). */
+  function rowsOf(t) {
+    var co = colsOf(t); if (!co) return t;
+    var keys = Object.keys(co.c), rows = new Array(co.n), i, j, r;
+    for (i = 0; i < co.n; i++) { r = {}; for (j = 0; j < keys.length; j++) if (i < co.c[keys[j]].length) r[keys[j]] = co.c[keys[j]][i]; rows[i] = r; }
+    return rows;
+  }
+  function reader(rows, o, cols) {
+    if (cols) return colReader(cols);
     var HAS = Object.prototype.hasOwnProperty, get = o.get || function (r, k) { var a = r.attrs; return a && HAS.call(a, k) ? a[k] : r[k]; };
     var cache = new Map();
     var R = {
@@ -343,6 +360,33 @@ var NetflowPlot = (function () {
       },
       cat: function (k) { var key = 'c' + k; if (cache.has(key)) return cache.get(key); var raw = R.raw(k), out = new Array(raw.length); for (var i = 0; i < raw.length; i++) out[i] = raw[i] === undefined || raw[i] === null ? '' : String(raw[i]); cache.set(key, out); return out; },
       label: function (i) { var r = rows[i]; return r.label !== undefined ? r.label : r.id !== undefined ? r.id : r.from !== undefined ? r.from + ' \u2192 ' + r.to : 'row ' + (i + 1); }
+    };
+    return R;
+  }
+  /** The same reader over a table of columns (since 2.19.0). A Float64Array column is used as it is, through a view of its own so nothing is
+      written on the caller's array; other columns are read value by value as a row's values would be. */
+  function colReader(cols) {
+    var C = cols.c, n = cols.n, cache = new Map(), has = function (k) { return Object.prototype.hasOwnProperty.call(C, k); };
+    var at = function (k, i) { var c = has(k) ? C[k] : null; return c && i < c.length ? c[i] : undefined; };
+    var R = {
+      n: n,
+      raw: function (k) { var key = 'r' + k; if (cache.has(key)) return cache.get(key); var c = has(k) ? C[k] : null, out; if (c && c.length === n && Array.isArray(c)) out = c; else { out = new Array(n); if (c) for (var i = 0; i < c.length; i++) out[i] = c[i]; } cache.set(key, out); return out; },
+      num: function (k) {
+        var key = 'n' + k; if (cache.has(key)) return cache.get(key);
+        var c = has(k) ? C[k] : null, out, good = 0, dates = 0, i, v;
+        if (c && c.length === n && ArrayBuffer.isView(c) && !(typeof BigInt64Array !== 'undefined' && (c instanceof BigInt64Array || c instanceof BigUint64Array)) && !(c instanceof DataView)) {
+          out = c instanceof Float64Array ? c.subarray(0) : Float64Array.from(c);
+          if (/year|^yr$/i.test(k)) out.yearName = true; cache.set(key, out); return out;
+        }
+        var raw = R.raw(k); out = new Float64Array(n);
+        for (i = 0; i < n; i++) { v = num(raw[i]); out[i] = v; if (v === v) good++; }
+        if (good < 0.8 * countFilled(raw)) { var dt = new Float64Array(n), seen = new Map(); for (i = 0; i < n; i++) { var rv = raw[i], d = typeof rv === 'string' ? seen.get(rv) : undefined; if (d === undefined) { d = dateMs(rv); if (typeof rv === 'string') seen.set(rv, d); } dt[i] = d; if (d === d) dates++; } if (dates > good) { dt.time = true; out = dt; } }
+        if (!out.time && /year|^yr$/i.test(k)) out.yearName = true;
+        cache.set(key, out); return out;
+      },
+      pre: function () { },
+      cat: function (k) { var key = 'c' + k; if (cache.has(key)) return cache.get(key); var raw = R.raw(k), out = new Array(n); for (var i = 0; i < n; i++) out[i] = raw[i] === undefined || raw[i] === null ? '' : String(raw[i]); cache.set(key, out); return out; },
+      label: function (i) { var l = at('label', i), d, f; if (l !== undefined) return l; d = at('id', i); if (d !== undefined) return d; f = at('from', i); return f !== undefined ? f + ' \u2192 ' + at('to', i) : 'row ' + (i + 1); }
     };
     return R;
   }
@@ -923,8 +967,10 @@ var NetflowPlot = (function () {
   /** Voronoi cells of points clipped to a box: each cell is the box cut by the half-planes of its nearer neighbors (found on a grid). */
   function voronoiCells(pts, x0, y0, x1, y1) {
     var n = pts.length / 2, cells = new Array(n), cs = Math.max(8, Math.sqrt((x1 - x0) * (y1 - y0) / Math.max(1, n)) * 1.5), cols = Math.ceil((x1 - x0) / cs) + 1, rows = Math.ceil((y1 - y0) / cs) + 1, grid = new Array(cols * rows), i;
-    for (i = 0; i < n; i++) { var c = Math.min(cols - 1, Math.max(0, Math.floor((pts[i * 2] - x0) / cs))), r = Math.min(rows - 1, Math.max(0, Math.floor((pts[i * 2 + 1] - y0) / cs))), k = r * cols + c; (grid[k] || (grid[k] = [])).push(i); }
+    var fin = function (q) { return isFinite(pts[q * 2]) && isFinite(pts[q * 2 + 1]); };   /* a point at infinity has no place on the grid and no cell (since 2.19.0; before, the walk around it never ended) */
+    for (i = 0; i < n; i++) { if (!fin(i)) continue; var c = Math.min(cols - 1, Math.max(0, Math.floor((pts[i * 2] - x0) / cs))), r = Math.min(rows - 1, Math.max(0, Math.floor((pts[i * 2 + 1] - y0) / cs))), k = r * cols + c; (grid[k] || (grid[k] = [])).push(i); }
     for (i = 0; i < n; i++) {
+      if (!fin(i)) { cells[i] = []; continue; }
       var px = pts[i * 2], py = pts[i * 2 + 1], poly = [x0, y0, x1, y0, x1, y1, x0, y1], ci = Math.floor((px - x0) / cs), ri = Math.floor((py - y0) / cs);
       for (var ring = 0; ring < Math.max(cols, rows); ring++) {
         var far2 = 0; for (var q = 0; q < poly.length; q += 2) { var dx = poly[q] - px, dy = poly[q + 1] - py; far2 = Math.max(far2, dx * dx + dy * dy); }
@@ -962,7 +1008,8 @@ var NetflowPlot = (function () {
   var NOKEYROW = { donut: 1, heat: 1, slope: 1, ridgeline: 1, splom: 1 };   /* these name their parts on the picture */
   function make(rows, spec, o, NS) {
     o = o || {}; spec = spec || {};
-    var F = frame(spec, o, NS), R = reader(rows, o), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
+    var cols = colsOf(rows); if (cols) rows = { length: cols.n };   /* a table of columns: read through the same reader, with no rows made (since 2.19.0) */
+    var F = frame(spec, o, NS), R = reader(rows, o, cols), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
     if (type === 'line' && spec.x && spec.y && !spec.color) R.pre(spec.x, spec.y);
     if ((type === 'bar' || type === 'dotplot') && spec.x && spec.y && rows.length && !mostlyNum(R, spec.y) && mostlyNum(R, spec.x)) {   /* x is the number and y the names: swap them and lay the bars sideways instead of drawing an empty chart */
       spec = Object.assign({}, spec, { x: spec.y, y: spec.x }); if (type === 'bar') spec.horizontal = true;
@@ -1034,6 +1081,7 @@ var NetflowPlot = (function () {
   }
   function gQ(c) { return '"' + c.k + '"'; }
   function guess(rows) {
+    rows = rowsOf(rows);
     rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; });
     if (!rows.length) return null;
     var n = Math.min(rows.length, 500), cs = gCols(rows, n), out = [], i;
@@ -1118,7 +1166,7 @@ var NetflowPlot = (function () {
     if (b > 0 && a > 0) { var q = a / b; if (q >= 2) return q >= 100 ? 'far ahead of' : (Math.round(q * 10) / 10) + ' times as much as'; if (PCT) return tPts(a - b) + ' more than'; if (b >= a / 10) return Math.round((a - b) / b * 100) + '% more than'; }
     return 'ahead of';
   }
-  function takeaway(rows, spec, o) {   /* o: the chart's options; values written as percents when the chart writes them so (since 2.12.1), percent: false turns it off */
+  function takeaway(rows, spec, o) { rows = rowsOf(rows);   /* o: the chart's options; values written as percents when the chart writes them so (since 2.12.1), percent: false turns it off */
     var was = PCT;
     try { rows = (rows || []).map(function (r) { return r && r.attrs ? r.attrs : r; }).filter(function (r) { return r && typeof r === 'object'; }); spec = spec || {};
       PCT = !(o && o.percent === false) && rows.length > 0 && !!spec.type && fractionCol(reader(rows, {}), spec, spec.type);
@@ -1218,7 +1266,7 @@ var NetflowPlot = (function () {
    * A Sankey or treemap pick needs netflow-sankey or netflow-hierarchy on the page; without it the next pick is drawn.
    */
   function auto(rows, o) {
-    o = o || {}; rows = rows || [];
+    o = o || {}; rows = rowsOf(rows || []);
     var g = guess(rows);
     if (!g) return { svg: toSvg(rows, { type: 'bar', title: o.title }), type: 'bar', spec: { type: 'bar' }, why: rows.length ? 'no column could be read as a number or a category' : 'there are no rows', others: [] };
     var list = [{ type: g.type, spec: g.spec, why: g.why }].concat(g.others), i, svg = null;
@@ -1250,6 +1298,12 @@ var NetflowPlot = (function () {
    */
   function toSvg(rows, o) {
     o = o || {}; rows = rows || [];
+    var tc = colsOf(rows);
+    if (tc) {   /* a table of columns: a chart with its type and columns named is drawn straight from the columns; the paths that read row by row get rows */
+      if (o.type === 'sankey' || o.type === 'treemap' || o.type === 'chord' || o.title === 'auto' || (o.type === undefined && o.x === undefined && o.y === undefined) || !o.x || (!o.y && !o.type)) return toSvg(rowsOf(rows), o);
+      var cs = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) cs[k] = o[k]; }); if (!cs.type) cs.type = 'bar';
+      var NC = sceneLib('netflow-plot'); return NC.toSvg(make(rows, cs, o, NC), o.title);
+    }
     if (o.type === 'sankey' || o.type === 'treemap' || o.type === 'chord') { var sp = { from: o.from, to: o.to, value: o.value, id: o.id, parent: o.parent, size: o.size }, pk = { type: o.type, spec: sp }, out = drawPick(rows, pk, o); if (out === null) throw new Error('netflow-plot: type ' + o.type + ' needs ' + (o.type === 'sankey' ? 'netflow-sankey' : o.type === 'chord' ? 'netflow-hierarchy and netflow-circular' : 'netflow-hierarchy') + '.js on the page.'); return out; }
     if (o.type === undefined && o.x === undefined && o.y === undefined && rows.length) return auto(rows, o).svg;
     if (o.title === 'auto') { var sp2 = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) sp2[k] = o[k]; }); o = autoTitle(rows, sp2, o); }

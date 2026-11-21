@@ -14,6 +14,8 @@ How it is measured: every frame the page throws away its charts and builds new o
 
 Why not just time the call: uPlot's call returns in 1 to 3 ms, because it only schedules its drawing for a moment later. Counting that drawing, the page is busy for 5.5 ms in Chromium and 9.5 ms in Firefox, and until the canvas holds its pixels 10.9 ms in Chromium. netflow-plot's call (with the finished SVG in the page and laid out) takes 5.6, 5 and 10.5 ms in the three browsers, and Chart.js with thinning 7.2, 14.5 and 19. Earlier versions of this page compared netflow-plot's whole call with uPlot's 1 ms and so showed uPlot far ahead.
 
+Given the same points as two number columns instead of rows (since 2.19.0), netflow-plot's own call drops from 5 to 3.8 ms in Chromium, and one chart reaches the screen in about 15.5 ms instead of 18; the steady-redraw figures above stay the same, because there the browser's painting of the line is the limit.
+
 One chart alone, from the call to the frame the browser reports as shown: Chromium 16.7 ms against uPlot's 21.5 to 23.5; Firefox 22.5 against 21 to 21.5, a tie inside one screen refresh (WebKitGTK has no such report). Fairness notes: above 5,000 points on a line, netflow-plot keeps for each whole-pixel column its first, lowest, highest and last point; uPlot also draws the lowest and highest of each pixel column, and Chart.js's min-max thinning does much the same, so those three draw about the same picture, while "all points" draws every one. WebKitGTK timings vary about 20% from run to run on this machine.
 
 Compared: netflow-plot against uPlot and Chart.js (gzipped size in KB, smaller is better).
