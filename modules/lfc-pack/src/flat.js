@@ -429,9 +429,13 @@
     for (i = 0; i < n; i++) { if (typeof v[i] !== 'string') return null; t = dateMs(v[i], f); if (!(t >= 0)) return null; a[i] = t; }
     return dateMany(a, n) ? { f: f, a: a } : null;
   }
+  // since 0.15.0: while a column summary is being made, every number and date column the writer reads leaves its part here per block (SUMCAP.cols[key][first row], blockStats), so the summary needs no pass of its own
+  var SUMCAP = null, SUMA = 0;
+  function sumCapDates(key, a, f) { var e = blockStats(a, a.length, SUMA, SUMCAP.R); e.u = f & 4; capPut(SUMCAP, key, e); }   // six-digit forms hold microseconds (scaled when merged)
   var WMARK = 0, W3MARK = 0;   // count the date columns written (WMARK), and those in a space-separated or six-digit form (W3MARK), so a pack call can tell whether its file needs format minor 2 or 3
   function dateWrap(dn, zs, level, key) {   // the date numbers as the best number layout, as one 'W' column; null if the number layouts did not get a typed column
     var a = dn.a, nn = a.length, D = dn.f & 4 ? 1e6 : 1000, i, f = dn.f, b;
+    if (SUMCAP && typeof key === 'string') sumCapDates(key, a, f);
     for (i = 0; i < nn && a[i] % D === 0; i++);
     if (i === nn && nn > 0) { b = new Float64Array(nn); for (i = 0; i < nn; i++) b[i] = a[i] / D; a = b; f |= 8; }   // every value a whole number of seconds (taxi timestamps, plain YYYY-MM-DDTHH:MM:SS): store seconds, 4 bytes where the text form needs 8
     var wi = settle(zs, level, encodeColumn0(a, zs, level, 0, undefined, key, { nz: 0, ai: 1 }));
@@ -908,7 +912,7 @@
   }
   function b26Rows(rows, n) { for (var i = 0, r, t; i < n; i++) { r = rows[i]; if (r === null || typeof r !== 'object' || Array.isArray(r) || ((t = Object.getPrototypeOf(r)) !== OP26 && t !== null)) throw B26_BAIL; } }
   function b26Vals(a) { for (var i = 0, x, t; i < a.length; i++) { x = a[i]; t = typeof x; if (t === 'number') { if (x - x !== 0 || (x === 0 && 1 / x < 0)) throw B26_BAIL; } else if (t !== 'string' && t !== 'boolean' && x !== null) throw B26_BAIL; } }
-  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); var shw0 = SHW; SHW = ctx && ctx.shw || null; try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; SHW = shw0; } }
+  function writeFlatBlock(ctx, input, opts) { B18_ALLV = !!(input && (input.rowsIn || input.colsIn)); var shw0 = SHW, sc0 = SUMCAP; SHW = ctx && ctx.shw || null; SUMCAP = input && (input.colsIn ? input.colsIn.sumCap : input.sumCap) || null; if (SUMCAP) SUMA = input.colsIn ? input.colsIn.a : input.sumA; try { return writeFlatBlock0(ctx, input, opts); } finally { B18_ALLV = false; SHW = shw0; SUMCAP = sc0; } }
   function b21Generic(c) { var a = new Array(c.c), i, k = 0; for (i = 0; i < c.c; i++) a[i] = c.np !== null && (c.np[i >> 3] >> (i & 7)) & 1 ? null : c.nb[k++]; return a; }   // B21c: back to a generic array (values in order)
   function b21Flags(a, m) { if (m >= NK_MIN) return nkFlags(a, m); return b21FlagsJ(a, m); }
   function b21FlagsJ(a, m) { var nz = 0, ai = 1, nf = 0, i, x; for (i = 0; i < m; i++) { x = a[i]; if (ai && !(x % 1 === 0 && x < 1125899906842624 && x > -1125899906842624)) ai = 0; if (x === 0 && 1 / x < 0) nz = 1; if (x - x !== 0) nf = 1; } return { nz: nz, ai: ai, nf: nf }; }
@@ -1016,12 +1020,12 @@
       else if (c21.m > 0 && c21.c > 1 && NULL_MODE === 'plane') { cols[j] = c21; pre21[j] = 2; }
       else { cols[j] = b21Generic(c21); if (chk26) b26Vals(cols[j]); } }
     var enc = [], frames = [], meta = { keys: keys, cols: [] }, zone = [];
-    var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol;
+    var tm21 = opts.templates === false ? 0 : opts.templates === true ? 2 : 1, es = new Array(cols.length), wait = null, rc = opts._rcol, capB = SUMCAP, sqB = capB ? { a0: SUMA, R: capB.R } : null;   // capB: where this block's summary parts go (the block may finish after SUMCAP is reset)
     for (j = 0; j < cols.length; j++) {
       if (rc && pre21[j] && pre21[j] !== 3 && (pre21[j] === 1 ? cols[j].length : cols[j].c) >= B28_MIN) {   // B28: a big typed number column is encoded in a helper (its Float64Array moves there)
-        (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; if (r.e.t === 'W') WMARK++; es[j2] = r; }; }(j)));
+        (wait || (wait = [])).push(rc(j, pre21[j], cols[j], keys[j], level, tm21, chk26, sqB && (pre21[j] === 1 ? cols[j].length : cols[j].c) === n ? sqB : null).then(function (j2) { return function (r) { if (r.bail) throw B26_BAIL; if (r.e.t === 'N') NMARK++; if (r.e.t === 'W') WMARK++; if (r.sb && capB) capPut(capB, keys[j2], r.sb); es[j2] = r; }; }(j)));
         cols[j] = []; continue; }
-      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26, fl21[j]);
+      es[j] = b28Col(pre21[j], cols[j], keys[j], zs, level, tm21, chk26, fl21[j], sqB && (pre21[j] === 1 || pre21[j] === 2) && (pre21[j] === 1 ? cols[j].length : cols[j].c) === n ? sqB : null); if (es[j].sb && capB) capPut(capB, keys[j], es[j].sb);
     }
     function finish() {
       for (j = 0; j < cols.length; j++) {
@@ -1042,6 +1046,7 @@
   // dictionary ('D') layouts are built straight from the bytes, by the same rules and with the same frames the string path builds from the same values (labels in first-seen order,
   // the count stopping where the string path stops), so the file is the same bytes and no JS string is made. Values that could take another layout (hex, UUID, IPv4: tested on the
   // first value), a 0 byte inside a value, or templates: true go through the string path instead (same file, slower).
+  function isByteHolder(x) { return !!x && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start instanceof Int32Array && x.end instanceof Int32Array; }   // since 0.15.0: the arrays a text:'bytes' read fills (unpackColumns { into: { key: { bytes, start, end } } })
   function isByteCol(x) { return !!x && !Array.isArray(x) && !ArrayBuffer.isView(x) && x.bytes instanceof Uint8Array && x.start != null && x.end != null && typeof x.start.length === 'number' && x.start.length === x.end.length; }
   function byteColStrings(bc, a, n) { var out = new Array(n), B = bc.bytes, S = bc.start, E = bc.end, i; for (i = 0; i < n; i++) out[i] = td.decode(B.subarray(S[a + i], E[a + i])); return out; }
   // byteCol kernel (from the text-columns research; source in wasm/flatscan.c: bcscan, bcdict, bcjoin): the checks, the distinct-value hash and the joins of a text column given as bytes, in WebAssembly (the template builder's instance)
@@ -1205,8 +1210,10 @@
         if (c21.a !== null) c21.a.push(x); else if (typeof x === 'number') { c21.nb[c21.m++] = x; c21.c++; } else if (x === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x); c21.nb = null; } } }
   }
   // one column of the general flat writer, as writeFlatBlock0 encodes it: pre 1 = a typed number column, 2 = numbers and nulls ({ nb, np, m, c }), else a generic array; -> { e, zn: zone entry [min, max, count] or null }
-  function b28Col(pre, a, key, zs, level, tm21, chk26, pf) {
-    var e, fl = null, zn = null, i, mn, mx, c21;
+  function b28Col(pre, a, key, zs, level, tm21, chk26, pf, sq) {   // sq (since 0.15.0): { a0, R } when the save wants this block's part of the column summary (blockStats), read before the column is encoded
+    var e, fl = null, zn = null, i, mn, mx, c21, sb = null, rr, k;
+    if (sq && pre === 1) sb = blockStats(a, a.length, sq.a0, sq.R);
+    else if (sq && pre === 2) { rr = new Float64Array(a.c); for (i = 0, k = 0; i < a.c; i++) rr[i] = a.np && (a.np[i >> 3] >> (i & 7) & 1) ? NaN : a.nb[k++]; sb = blockStats(rr, a.c, sq.a0, sq.R); }
     if (pre === 1) fl = pf || b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
     if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
     if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
@@ -1216,13 +1223,13 @@
     NK_BUF = null;
     if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === e.nn) { mn = NKZ.mn; mx = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mn) mn = e.nn[i]; if (e.nn[i] > mx) mx = e.nn[i]; } zn = [mn, mx, e.n]; }
     if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && a.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zn = [mn, mx, a.length]; }
-    return { e: e, zn: zn };
+    return { e: e, zn: zn, sb: sb };
   }
   function b28Job(m) {   // in a helper: one column -> { msg, transfer }
     try {
       var a = m.pre === 2 ? { nb: m.nb, np: m.np, m: m.m, c: m.c } : m.nb, r; B18_ALLV = true;
-      try { r = b28Col(m.pre, a, m.key, S.zfull, m.level, m.tm, m.chk); } finally { B18_ALLV = false; }
-      var e = r.e; return { msg: { id: m.id, e: { t: e.t, p: e.p, n: e.n, z: e.z, st: e.st }, zn: r.zn }, transfer: [] };
+      try { r = b28Col(m.pre, a, m.key, S.zfull, m.level, m.tm, m.chk, undefined, m.sq); } finally { B18_ALLV = false; }
+      var e = r.e; return { msg: { id: m.id, e: { t: e.t, p: e.p, n: e.n, z: e.z, st: e.st }, zn: r.zn, sb: r.sb }, transfer: [] };
     } catch (er) { if (er === B26_BAIL) return { msg: { id: m.id, bail: 1 }, transfer: [] }; return { msg: { id: m.id, error: String(er && er.message || er) }, transfer: [] }; }
   }
   // ---- flat writer, fast path (flatscan.c): rows whose values are all numbers or arrays of whole numbers are read straight from the text bytes in wasm, no JSON.parse; anything else returns null and the JSON.parse path runs
@@ -1872,7 +1879,7 @@
       if (F.ordList) throw new Error('LfcPack: columns read needs a block without key-order lists');
       for (j = 0; j < K; j++) {
         if (want && !want[meta.keys[j]]) continue;
-        var tg = into && into[meta.keys[j]] && meta.cols[j].n === n ? intoSlot(into[meta.keys[j]], meta.keys[j], off, n) : null;   // 0.10.33 into: the caller's Float64Array, the n values of this block
+        var tg = into && into[meta.keys[j]] && meta.cols[j].n === n && !isByteHolder(into[meta.keys[j]]) ? intoSlot(into[meta.keys[j]], meta.keys[j], off, n) : null;   // 0.10.33 into: the caller's Float64Array, the n values of this block
         v = F.cols[j] === null ? null : F.cols[j].pre ? F.cols[j].pre : decodeColumn(meta.cols[j], zs, F.cols[j].fr, nan, tg);
         if (tg && v && v !== tg && v.length === n && (v instanceof Float64Array || v instanceof Int32Array)) { tg.set(v); v = tg; }
         if (!v) continue;

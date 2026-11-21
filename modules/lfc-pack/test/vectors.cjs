@@ -12,7 +12,8 @@ const CASES = {
   'numbers': '{"n":0}\n{"n":-0}\n{"n":9007199254740993}\n{"n":1.7976931348623157e308}\n{"n":5e-324}\n',
   'spelling-and-spacing': '{"a": 1.0,  "b":"x"}\n{"a":1E5,"b":"y"}\n',
   'blank-and-crlf': '{"a":1}\r\n\n{"a":2}\r\n',
-  'no-final-newline': '{"a":1}\n{"a":2}'
+  'no-final-newline': '{"a":1}\n{"a":2}',
+  'column-summary': '{"id":1,"v":2.5,"name":"a"}\n{"id":2,"v":null,"name":"b"}\n{"id":3,"v":4,"name":"a"}\n'   // both files carry footer section 20 (optional): a reader that does not know it must still give the rows
 };
 (async () => {
   await JF.init();
@@ -20,13 +21,18 @@ const CASES = {
   let bad = 0;
   for (const name of Object.keys(CASES)) {
     const src = Buffer.from(CASES[name], 'utf8'), f1 = path.join(dir, name + '.json.lfc'), f2 = path.join(dir, name + '.x.json.lfc'), f0 = path.join(dir, name + '.ndjson');
-    if (upd) { fs.writeFileSync(f0, src); fs.writeFileSync(f1, JF.pack(src)); fs.writeFileSync(f2, JF.pack(src, { exact: true })); }
+    if (upd) {
+      let a = JF.pack(src), b = JF.pack(src, { exact: true });
+      if (name === 'column-summary') { const sm = Buffer.from(JSON.stringify(JF.summary(await JF.packColumnsParallel({ id: [1, 2, 3], v: [2.5, null, 4], name: ['a', 'b', 'a'] })))); a = JF._addSection(a, 20, sm); b = JF._addSection(b, 20, sm); }
+      fs.writeFileSync(f0, src); fs.writeFileSync(f1, a); fs.writeFileSync(f2, b);
+    }
     try {
       const want = src.toString('utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
       assert.deepStrictEqual(fs.readFileSync(f0), src, 'source changed');
       assert.deepStrictEqual(JF.unpack(fs.readFileSync(f1)), want, 'value-exact');
       assert.deepStrictEqual(JF.unpack(fs.readFileSync(f2)), want, 'value-exact (x)');
       assert.ok(Buffer.from(JF.unpackText(fs.readFileSync(f2))).equals(src), 'byte-exact');
+      if (name === 'column-summary') assert.ok(JF.summary(fs.readFileSync(f1)).cols.length === 3 && JF.summary(fs.readFileSync(f2)).rows === 3, 'summary section');
       console.log('ok  ', name);
     } catch (e) { bad++; console.log('FAIL', name, e.message); }
   }
