@@ -223,20 +223,6 @@
       "category": "saving"
     },
     {
-      "id": "wake-keeper",
-      "version": "1.1.0",
-      "api": 1,
-      "global": "WakeKeeper",
-      "summary": "Keeps the screen awake only while a game wants it: released on pause, hidden tab and idle, asked again when allowed, no retry storms.",
-      "short": "Keeps the screen awake only while a game wants it.",
-      "file": "modules/wake-keeper/wake-keeper.js",
-      "readme": "modules/wake-keeper/README.md",
-      "demo": "modules/wake-keeper/demo.html",
-      "dependencies": "none",
-      "formats": "browser global, CommonJS (module.exports)",
-      "category": "controls"
-    },
-    {
       "id": "back-close",
       "version": "1.2.0",
       "api": 1,
@@ -375,7 +361,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.14.4",
+      "version": "0.14.5",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",

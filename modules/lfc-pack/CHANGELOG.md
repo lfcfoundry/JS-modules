@@ -2,8 +2,11 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.5 · API 0 · 2026-11-21
+- Packing many text columns given as bytes (CSV imports) takes 0.79x to 0.88x the time (44 columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6): the block-size estimate no longer builds a string per cell. Same bytes.
+
 ## 0.14.4 · API 0 · 2026-11-21
-- Date-time text columns (like 2024-01-31 10:15:07) pack about 10 to 30% faster: the calendar arithmetic runs once per day, not once per cell. Same bytes.
+- Date-time text columns (like 2024-01-31 10:15:07) pack faster, as the date math runs once per day: 12% less time in Chromium 156, 34% in Firefox 158, 8 to 13% in WebKitGTK 2.52.6 (two 200,000-row columns). Same bytes.
 
 ## 0.14.3 · API 0 · 2026-11-20
 - Number columns of decimals (like 12.35) find their whole-number form in wasm instead of a JavaScript loop; same bytes. Not yet timed in browsers.

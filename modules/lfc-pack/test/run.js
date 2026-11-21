@@ -75,6 +75,7 @@ const step = (name, cmd, args) => { const r = spawnSync(cmd, args, { encoding: '
   step('unpackRowsParallel (B38)', 'node', ['b38.cjs']);
   step('chosen rows of a block: block(i, { rows })', 'node', ['blockrows.cjs']);
   step('blocks given as columns: packBlock(columns)', 'node', ['packblockcols.cjs']);
+  step('block-size estimate for a column table gives the same blocks (0.14.5)', 'node', ['estcols.cjs']);
   step('column reads of files with nested blocks', 'node', ['nestedcols.cjs']);
   step('per-column checks on row saves (B55)', 'node', ['b55.cjs']);
   step('unpackColumns into (0.10.33)', 'node', ['into.cjs']);

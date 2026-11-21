@@ -43,8 +43,7 @@
  *                       (sideways drift costs 2.5x). 'edges' first looks for a button that sits directly in line (its edge overlaps the
  *                       focused button's across the direction of travel) and takes the nearest of those; with none in line it falls back to
  *                       'center'. On regular grids both pick the same button; they differ on menus with mixed widths.
- *   onInput(pad)        any pad input (button or stick direction), at most every inputMs: for example onInput: function () { wk.poke(); }
- *                       (WakeKeeper) so controller play keeps the screen awake
+ *   onInput(pad)        any pad input (button or stick direction), at most every inputMs: for example to reset an idle timer
  *   inputMs             minimum ms between onInput calls, default 250
  *
  * step() never throws: getGamepads (which throws a SecurityError when the page disables the feature) and every callback
