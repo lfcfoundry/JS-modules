@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.7 · API 0 · 2026-11-21
+
+### Quick
+flatscan.c: `bcscan` checks a contiguous column range once with 16-byte SIMD (falls back to the per-value loop on a NUL, a gap or a bad offset), and `bc_hash`/`bc_hashw`/`bc_eq` use at most two 8-byte loads for values of 16 bytes or less. The hash only picks table slots and labels are numbered in first-seen order, so output is byte-identical. No API change.
+
+### Details
+packBlock of 44 text columns x 20,000 rows (SBA-shaped training stand-in, bytes input, level 3), best of 30 packs per page vs 0.14.6: Chromium 156 99.3 to 94.1 ms (0.962x, 9 pages), Firefox 158 92.1 to 84.3 (0.908x, 9 pages), WebKitGTK 2.52.6 1.019 and 0.912 (2 pages, both orders). Bytes 1,677,784 in both.
+
+### Deep
+flatscan.wasm and flatscan-plain.wasm rebuilt with clang 18.1.3 and the same flags as before (the rebuild of the old source reproduced the committed binaries byte for byte). Short-value reads use the 16 spare bytes after the heap copy of B. Remaining profile: zstd about 25%.
+
 ## 0.14.6 · API 0 · 2026-11-21
 
 ### Quick
