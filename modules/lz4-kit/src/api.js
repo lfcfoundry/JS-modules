@@ -77,7 +77,7 @@
     return level;
   }
   return {
-    version: '1.1.1',
+    version: '1.1.2',
     lz4Version: '1.11.1',
     init: init,
     ready: function () { return !!Z; },

@@ -33,7 +33,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.14.6 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
-| [lz4-kit](modules/lz4-kit/README.md) | 1.1.1 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
+| [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -63,6 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
+- 2026-11-21 · **lz4-kit** 1.1.2 · API 1: Default-speed .lz4 frames of 64 KiB and more are 23 to 26% faster and 12% smaller on 4 MiB of logs: 6.3 to 6.4 ms against 8.5 before (Chromium 156, Firefox 158, WebKitGTK 2.52.6). Still a standard frame with size and checksum.
 - 2026-11-21 · **lfc-pack** 0.14.6 · API 0: Text columns that get a dictionary compress their label bytes once instead of twice while the layouts are tried: 0.96x to 0.97x the pack time (44 text columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6). Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.5 · API 0: Packing many text columns given as bytes (CSV imports) takes 0.79x to 0.88x the time (44 columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6): the block-size estimate no longer builds a string per cell. Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.4 · API 0: Date-time text columns (like 2024-01-31 10:15:07) pack faster, as the date math runs once per day: 12% less time in Chromium 156, 34% in Firefox 158, 8 to 13% in WebKitGTK 2.52.6 (two 200,000-row columns). Same bytes.

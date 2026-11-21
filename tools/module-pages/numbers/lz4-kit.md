@@ -1,4 +1,4 @@
-**Against the browser's gzip and other LZ4 libraries, cloud-browser runs.** 4 MiB of made-up web-server log lines (JSON), median of 3 pages per browser, each timed over a batch of at least 60 ms. Shared 4-core cloud machine, not a laptop; gaps under about 10% are noise. lz4-kit 1.1.1 (LZ4 1.11.1), every row measured again on 2026-11-21 in one session. "view" returns a window into the library's memory without a copy (valid until the next call, like gorhill/lz4-wasm); "copy" returns a private copy (lz4-kit's default). Page: `bench/laptop-tester.html`. No phone or laptop run yet.
+**Against the browser's gzip and other LZ4 libraries, cloud-browser runs.** 4 MiB of made-up web-server log lines (JSON), median of 3 pages per browser, each timed over a batch of at least 60 ms. Shared 4-core cloud machine, not a laptop; gaps under about 10% are noise. lz4-kit 1.1.1 (LZ4 1.11.1), every row measured again on 2026-11-21 in one session; the fast frame size is from 1.1.2. "view" returns a window into the library's memory without a copy (valid until the next call, like gorhill/lz4-wasm); "copy" returns a private copy (lz4-kit's default). Page: `bench/laptop-tester.html`. No phone or laptop run yet.
 
 Compared: every library, compress 4 MiB (ms, lower is faster).
 
@@ -25,18 +25,18 @@ Compared: every library, decompress 4 MiB (ms, lower is faster).
 | lz4-kit (copy) | 4.0 | 4.0 | 2.7 |
 | lz4-kit (view) | 1.4 | 1.6 | 1.5 |
 
-In the default copy mode lz4-kit compresses 4 MiB of logs in 6.7 to 7.1 ms against 47 to 52 for the browser's gzip. Even with its default private copy, lz4-kit compresses 15 to 31% faster than gorhill/lz4-wasm's view and decompresses 11 to 39% faster. gzip makes files 1.7 to 1.9 times smaller on these logs; lz4-kit is the speed pick. gorhill/lz4-wasm has no frame, levels or checksum; wasm-lz4 only decompresses.
+In the default copy mode lz4-kit compresses 4 MiB of logs in 6.7 to 7.1 ms against 47 to 52 for the browser's gzip. Even with its default private copy, lz4-kit compresses 15 to 31% faster than gorhill/lz4-wasm's view and decompresses 11 to 39% faster. gzip makes files 1.5 to 1.7 times smaller on these logs; lz4-kit is the speed pick. gorhill/lz4-wasm has no frame, levels or checksum; wasm-lz4 only decompresses.
 
 Compared: output size for the same 4 MB (bytes, smaller is better). This is where lz4-kit loses to gzip.
 
-<!-- title: Output size: lz4-kit's fast mode is 1.7 to 1.9 times the size of the browser's gzip, and even level 12 is bigger -->
+<!-- title: Output size: lz4-kit's fast mode is 1.5 to 1.7 times the size of the browser's gzip, and even level 12 is bigger -->
 | way | Output size, bytes |
 |---|---:|
 | browser gzip (Chromium 156) | 511510 |
 | lz4-wasm | 984527 |
 | lz4js | 965955 |
 | gorhill/lz4-wasm block | 960429 |
-| lz4-kit, fast frame | 955395 |
+| lz4-kit, fast frame | 847281 |
 | lz4-kit, fast block | 847254 |
 | lz4-kit, level 9 | 664534 |
 | lz4-kit, level 12 | 646725 |

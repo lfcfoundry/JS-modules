@@ -1,5 +1,13 @@
 # lz4-kit developer changelog
 
+## 1.1.2 · API 1 · 2026-11-21
+
+### Quick
+Default-speed frames of 64 KiB and more use the kit's own compressor: 23 to 26% faster and 12% smaller on 4 MiB of logs, nothing slower.
+
+### Deep
+Asked for by the orchestrater after 1.1.1: give frames the same compressor. Lz4Kit.compress at level 0 on 64 KiB and more now writes the frame in wasm/lz4-glue.c: independent blocks of up to 4 MiB, each through the kit's own block compressor from 1.1.1 (hard data still goes to LZ4_compress_fast inside it), a block that does not shrink is stored as it is, content size and XXH32 content checksum as before. LZ4F wrote linked 64 KiB blocks. Frames under 64 KiB and levels 1 to 12 still go through LZ4F and give the same bytes as 1.1.1. frame_bound grew so each block has the room the compressor needs. Paired on one page, 1.1.1 and 1.1.2 taking turns, order swapped every round, 24 rounds on each of 2 pages (1 page in WebKitGTK), whole call with the copy in and a view out, median ms new / old: 4 MiB of logs Chromium 156.0.8078.79 6.40 / 8.47 (26% faster, quartiles of the paired ratio 0.713 to 0.787), Firefox 158.0 6.35 / about 8.3 (23%), WebKitGTK 2.52.6 6.25 / 8.50 (24%); frame 722,000 bytes against 821,391. 64 calls of 64 KiB: 13%, 10% and 15% faster. Other files in Chromium (new/old time): number CSV 0.95, machine code 0.94, store CSV 0.81, random bytes 0.65; Firefox number CSV 0.93, machine code 0.92; WebKitGTK 0.86 and 0.87. Nothing slower. Reading the new frames back is 5 to 14% faster. The public tester page passes its 64 checks in Chromium 156 with wasm-lz4 2.0.0 reading the new frames (847,281 bytes on its logs against 955,395). 65 new checks (1,332 in all): LZ4F and the independent parser read frames at 9 sizes around 64 KiB, 4 MiB and 9 MiB, stored blocks, mixed data, joined frames, same bytes whatever was packed before, a wrong checksum throws. wasm 98,236 to 98,819 bytes. Not measured: phone, owner laptop.
+
 ## 1.1.1 · API 1 · 2026-11-20
 
 ### Quick
