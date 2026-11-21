@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.8.1 (API 1)
+ * Version 1.8.2 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -290,15 +290,16 @@ var NetflowHierarchy = (function () {
     } else { c.x = a.x + c.r; c.y = a.y; }
   }
   function overlaps(a, b) { var dr = a.r + b.r - 1e-6, dx = b.x - a.x, dy = b.y - a.y; return dr > 0 && dr * dr > dx * dx + dy * dy; }
+  function ps_score(nd) { var p = nd.c, q = nd.next.c, ab = p.r + q.r, dx = (p.x * q.r + q.x * p.r) / ab, dy = (p.y * q.r + q.y * p.r) / ab; return dx * dx + dy * dy; }
   function packSiblings(cs) {
     var n = cs.length; if (!n) return 0;
     var a = cs[0]; a.x = 0; a.y = 0; if (n === 1) return a.r;
     var b = cs[1]; a.x = -b.r; b.x = a.r; b.y = 0; if (n === 2) return a.r + b.r;
-    var c = cs[2]; place(b, a, c);
+    var c = cs[2], i; place(b, a, c);
+    if (n > 3) {
     /* the front chain as a ring of links */
     var A = { c: a }, B = { c: b }, C = { c: c }; A.next = C.prev = B; B.next = A.prev = C; C.next = B.prev = A;
-    var score = function (nd) { var p = nd.c, q = nd.next.c, ab = p.r + q.r, dx = (p.x * q.r + q.x * p.r) / ab, dy = (p.y * q.r + q.y * p.r) / ab; return dx * dx + dy * dy; };
-    pack: for (var i = 3; i < n; i++) {
+    pack: for (i = 3; i < n; i++) {
       c = cs[i]; place(A.c, B.c, c); C = { c: c };
       var j = B.next, k = A.prev, sj = B.c.r, sk = A.c.r;
       do {
@@ -306,59 +307,92 @@ var NetflowHierarchy = (function () {
         else { if (overlaps(k.c, C.c)) { A = k; A.next = B; B.prev = A; --i; continue pack; } sk += k.c.r; k = k.prev; }
       } while (j !== k.next);
       C.prev = A; C.next = B; A.next = B.prev = B = C;
-      var aa = score(A), bb; while ((C = C.next) !== B) { if ((bb = score(C)) < aa) { A = C; aa = bb; } } B = A.next;
+      var aa = ps_score(A), bb; while ((C = C.next) !== B) { if ((bb = ps_score(C)) < aa) { A = C; aa = bb; } } B = A.next;
+    }
     }
     var e = enclose(cs);
     for (i = 0; i < n; i++) { cs[i].x -= e.x; cs[i].y -= e.y; }
     return e.r;
   }
+  /* the smallest enclosing circle: its helpers are made once and pass circles as plain numbers (EN holds the last one worked out), so nothing is created along the way */
+  var EN = new Float64Array(3);
+  function en_inside(ax, ay, ar, b) { var dr = ar - b.r + Math.max(ar, b.r, 1) * 1e-9, dx = b.x - ax, dy = b.y - ay; return dr >= 0 && dr * dr >= dx * dx + dy * dy; }
+  function en_not(ax, ay, ar, b) { var dr = ar - b.r, dx = b.x - ax, dy = b.y - ay; return dr < 0 || dr * dr < dx * dx + dy * dy; }
+  function en_all(ax, ay, ar, nb, b0, b1, b2) { return !(nb > 0 && !en_inside(ax, ay, ar, b0)) && !(nb > 1 && !en_inside(ax, ay, ar, b1)) && !(nb > 2 && !en_inside(ax, ay, ar, b2)); }
+  function en_c2(a, b) { var x1 = a.x, y1 = a.y, r1 = a.r, x21 = b.x - x1, y21 = b.y - y1, r21 = b.r - r1, l = Math.sqrt(x21 * x21 + y21 * y21) || 1e-12; EN[0] = (x1 + b.x + x21 / l * r21) / 2; EN[1] = (y1 + b.y + y21 / l * r21) / 2; EN[2] = (l + r1 + b.r) / 2; }
+  function en_c3(a, b, c) {
+    var x1 = a.x, y1 = a.y, r1 = a.r, x2 = b.x, y2 = b.y, r2 = b.r, x3 = c.x, y3 = c.y, r3 = c.r;
+    var a2 = x1 - x2, a3 = x1 - x3, b2 = y1 - y2, b3 = y1 - y3, c2_ = r2 - r1, c3_ = r3 - r1, d1 = x1 * x1 + y1 * y1 - r1 * r1, d2 = d1 - x2 * x2 - y2 * y2 + r2 * r2, d3 = d1 - x3 * x3 - y3 * y3 + r3 * r3;
+    var ab = a3 * b2 - a2 * b3; if (!ab) { en_c2(a, c); return; }
+    var xa = (b2 * d3 - b3 * d2) / (ab * 2) - x1, xb = (b3 * c2_ - b2 * c3_) / ab, ya = (a3 * d2 - a2 * d3) / (ab * 2) - y1, yb = (a2 * c3_ - a3 * c2_) / ab;
+    var A = xb * xb + yb * yb - 1, Bq = 2 * (r1 + xa * xb + ya * yb), Cq = xa * xa + ya * ya - r1 * r1, r = -(Math.abs(A) > 1e-6 ? (Bq + Math.sqrt(Math.max(0, Bq * Bq - 4 * A * Cq))) / (2 * A) : Cq / Bq);
+    EN[0] = x1 + xa + xb * r; EN[1] = y1 + ya + yb * r; EN[2] = r;
+  }
   function enclose(cs) {
-    var L = cs.slice(), i, n = L.length, B = [], e = null, seed = 1;
+    var L = cs.slice(), i, n = L.length, seed = 1;
     for (i = n - 1; i > 0; i--) { seed = (seed * 1664525 + 1013904223) >>> 0; var j = seed % (i + 1), t = L[i]; L[i] = L[j]; L[j] = t; }   /* shuffled with a fixed seed: the same picture every time */
-    var inside = function (a, b) { var dr = a.r - b.r + Math.max(a.r, b.r, 1) * 1e-9, dx = b.x - a.x, dy = b.y - a.y; return dr >= 0 && dr * dr >= dx * dx + dy * dy; };
-    var c1 = function (a) { return { x: a.x, y: a.y, r: a.r }; };
-    var c2 = function (a, b) { var x1 = a.x, y1 = a.y, r1 = a.r, x21 = b.x - x1, y21 = b.y - y1, r21 = b.r - r1, l = Math.sqrt(x21 * x21 + y21 * y21) || 1e-12; return { x: (x1 + b.x + x21 / l * r21) / 2, y: (y1 + b.y + y21 / l * r21) / 2, r: (l + r1 + b.r) / 2 }; };
-    var c3 = function (a, b, c) {
-      var x1 = a.x, y1 = a.y, r1 = a.r, x2 = b.x, y2 = b.y, r2 = b.r, x3 = c.x, y3 = c.y, r3 = c.r;
-      var a2 = x1 - x2, a3 = x1 - x3, b2 = y1 - y2, b3 = y1 - y3, c2_ = r2 - r1, c3_ = r3 - r1, d1 = x1 * x1 + y1 * y1 - r1 * r1, d2 = d1 - x2 * x2 - y2 * y2 + r2 * r2, d3 = d1 - x3 * x3 - y3 * y3 + r3 * r3;
-      var ab = a3 * b2 - a2 * b3; if (!ab) return c2(a, c);
-      var xa = (b2 * d3 - b3 * d2) / (ab * 2) - x1, xb = (b3 * c2_ - b2 * c3_) / ab, ya = (a3 * d2 - a2 * d3) / (ab * 2) - y1, yb = (a2 * c3_ - a3 * c2_) / ab;
-      var A = xb * xb + yb * yb - 1, Bq = 2 * (r1 + xa * xb + ya * yb), Cq = xa * xa + ya * ya - r1 * r1, r = -(Math.abs(A) > 1e-6 ? (Bq + Math.sqrt(Math.max(0, Bq * Bq - 4 * A * Cq))) / (2 * A) : Cq / Bq);
-      return { x: x1 + xa + xb * r, y: y1 + ya + yb * r, r: r };
-    };
-    var all = function (c, list) { for (var q = 0; q < list.length; q++) if (!inside(c, list[q])) return false; return true; };
-    var basis = function (Bs) { return Bs.length === 1 ? c1(Bs[0]) : Bs.length === 2 ? c2(Bs[0], Bs[1]) : c3(Bs[0], Bs[1], Bs[2]); };
-    var not = function (a, b) { var dr = a.r - b.r, dx = b.x - a.x, dy = b.y - a.y; return dr < 0 || dr * dr < dx * dx + dy * dy; };
-    var extend = function (Bs, p) {
-      var q, r;
-      if (all(p, Bs)) return [p];
-      for (q = 0; q < Bs.length; q++) if (not(p, Bs[q]) && all(c2(Bs[q], p), Bs)) return [Bs[q], p];
-      for (q = 0; q < Bs.length - 1; q++) for (r = q + 1; r < Bs.length; r++) {
-        if (not(c2(Bs[q], Bs[r]), p) && not(c2(Bs[q], p), Bs[r]) && not(c2(Bs[r], p), Bs[q]) && all(c3(Bs[q], Bs[r], p), Bs)) return [Bs[q], Bs[r], p];
+    en_core(L, n);
+    return { x: EN[0], y: EN[1], r: EN[2] };
+  }
+  /* the circle around the first n of L, in that order, left in EN */
+  function en_core(L, n) {
+    var i = 0, b0 = null, b1 = null, b2 = null, nb = 0, has = false, ex = 0, ey = 0, er = 0, q, r, Bq, Br, found;
+    while (i < n) {
+      var p = L[i];
+      if (has && en_inside(ex, ey, er, p)) { ++i; continue; }
+      /* the new edge set: p alone, p with one old edge circle, or p with two */
+      if (en_all(p.x, p.y, p.r, nb, b0, b1, b2)) { b0 = p; nb = 1; }
+      else {
+        found = false;
+        for (q = 0; q < nb && !found; q++) {
+          Bq = q === 0 ? b0 : q === 1 ? b1 : b2;
+          if (en_not(p.x, p.y, p.r, Bq)) { en_c2(Bq, p); if (en_all(EN[0], EN[1], EN[2], nb, b0, b1, b2)) { b0 = Bq; b1 = p; nb = 2; found = true; } }
+        }
+        for (q = 0; q < nb - 1 && !found; q++) for (r = q + 1; r < nb && !found; r++) {
+          Bq = q === 0 ? b0 : b1; Br = r === 1 ? b1 : b2;
+          en_c2(Bq, Br); if (!en_not(EN[0], EN[1], EN[2], p)) continue;
+          en_c2(Bq, p); if (!en_not(EN[0], EN[1], EN[2], Br)) continue;
+          en_c2(Br, p); if (!en_not(EN[0], EN[1], EN[2], Bq)) continue;
+          en_c3(Bq, Br, p); if (en_all(EN[0], EN[1], EN[2], nb, b0, b1, b2)) { b0 = Bq; b1 = Br; b2 = p; nb = 3; found = true; }
+        }
+        if (!found) { b0 = p; nb = 1; }
       }
-      return [p];
-    };
-    i = 0;
-    while (i < n) { var p = L[i]; if (e && inside(e, p)) ++i; else { B = extend(B, p); e = basis(B); i = 0; } }
-    return e || { x: 0, y: 0, r: 0 };
+      if (nb === 1) { ex = b0.x; ey = b0.y; er = b0.r; }
+      else { if (nb === 2) en_c2(b0, b1); else en_c3(b0, b1, b2); ex = EN[0]; ey = EN[1]; er = EN[2]; }
+      has = true; i = 0;
+    }
+    EN[0] = ex; EN[1] = ey; EN[2] = er;
   }
   function pack(G, o) {
-    var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, C = new Array(N), i, padR = 3;
-    for (i = H.order.length - 1; i >= 0; i--) {
-      var v = H.order[i], k = H.kids[v];
-      if (!k.length) { C[v] = { x: 0, y: 0, r: Math.sqrt(val[v] || 1) * 10 }; continue; }
-      var cs = k.map(function (c) { return { x: 0, y: 0, r: C[c].r + padR, id: c }; });
-      if (H.own(v) > 0) cs.push({ x: 0, y: 0, r: Math.sqrt(H.own(v)) * 10 + padR, id: -1 });   /* what the item holds itself: a circle of its own inside */
-      var r = packSiblings(cs);
-      C[v] = { x: 0, y: 0, r: r + padR, kids: cs };
+    var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, i, j, c, padR = 3, order = H.order, kidOff = H.kidOff, kidList = H.kidList, own = H.ownV;
+    /* each box's own circle size and its place inside its parent, in plain number lists; one or two children need no packing at all */
+    var PR = new Float64Array(N), SX = new Float64Array(N), SY = new Float64Array(N), T0 = { x: 0, y: 0, r: 0 }, T1 = { x: 0, y: 0, r: 0 }, T2 = { x: 0, y: 0, r: 0 }, L3 = [T2, T1, T0];   /* the order the fixed shuffle gives three circles */
+    for (i = order.length - 1; i >= 0; i--) {
+      var v = order[i], j0 = kidOff[v], j1 = kidOff[v + 1], n = j1 - j0, ow = own[v];
+      if (!n) { PR[v] = Math.sqrt(val[v] || 1) * 10; continue; }
+      if (!(ow > 0) && n < 3) {
+        if (n === 1) { PR[v] = PR[kidList[j0]] + padR + padR; continue; }
+        var ra = PR[kidList[j0]] + padR, rb = PR[kidList[j0 + 1]] + padR;
+        SX[kidList[j0]] = -rb; SX[kidList[j0 + 1]] = ra; PR[v] = ra + rb + padR; continue;
+      }
+      if (n === 2) {   /* two children and the item's own circle: the same sums as the general case below, on three circles kept for the whole run */
+        T0.x = 0; T0.y = 0; T0.r = PR[kidList[j0]] + padR; T1.x = 0; T1.y = 0; T1.r = PR[kidList[j0 + 1]] + padR; T2.x = 0; T2.y = 0; T2.r = Math.sqrt(ow) * 10 + padR;
+        T0.x = -T1.r; T1.x = T0.r; place(T1, T0, T2); en_core(L3, 3);
+        c = kidList[j0]; SX[c] = T0.x - EN[0]; SY[c] = T0.y - EN[1]; c = kidList[j0 + 1]; SX[c] = T1.x - EN[0]; SY[c] = T1.y - EN[1];
+        PR[v] = EN[2] + padR; continue;
+      }
+      var cs = new Array(n);
+      for (j = 0; j < n; j++) cs[j] = { x: 0, y: 0, r: PR[kidList[j0 + j]] + padR };
+      if (ow > 0) cs.push({ x: 0, y: 0, r: Math.sqrt(ow) * 10 + padR });   /* what the item holds itself: a circle of its own inside */
+      PR[v] = packSiblings(cs) + padR;
+      for (j = 0; j < n; j++) { c = kidList[j0 + j]; SX[c] = cs[j].x; SY[c] = cs[j].y; }
     }
-    var scale = 0, root = C[H.root];
-    var want = Math.max(300, Math.min(3000, Math.sqrt(N) * 40)); scale = root.r > 0 ? want / root.r : 1;
+    var root = H.root, want = Math.max(300, Math.min(3000, Math.sqrt(N) * 40)), scale = PR[root] > 0 ? want / PR[root] : 1;
     var X = new Float64Array(N), Y = new Float64Array(N), Rr = new Float64Array(N);
-    X[H.root] = want + 40; Y[H.root] = want + 40; Rr[H.root] = want;
-    for (i = 0; i < H.order.length; i++) {
-      var u = H.order[i], cu = C[u]; if (!cu.kids) continue;
-      cu.kids.forEach(function (s) { if (s.id < 0) return; X[s.id] = X[u] + s.x * scale; Y[s.id] = Y[u] + s.y * scale; Rr[s.id] = (s.r - padR) * scale; });
+    X[root] = want + 40; Y[root] = want + 40; Rr[root] = want;
+    for (i = 0; i < order.length; i++) {
+      var u = order[i], xu = X[u], yu = Y[u];
+      for (j = kidOff[u], j1 = kidOff[u + 1]; j < j1; j++) { c = kidList[j]; X[c] = xu + SX[c] * scale; Y[c] = yu + SY[c] * scale; Rr[c] = (PR[c] + padR - padR) * scale; }
     }
     return nestedOut('pack', G, H, val, { X: X, Y: Y, Rr: Rr, W: want * 2 + 80, H: want * 2 + 80 });
   }

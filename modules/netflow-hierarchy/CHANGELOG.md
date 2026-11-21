@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.8.2 · API 1 · 2026-11-21
+- Circle pack is faster, most of all on trees where items have two children; same picture.
+
 ## 1.8.1 · API 1 · 2026-11-21
 - Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 
