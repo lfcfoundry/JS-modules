@@ -4,7 +4,7 @@
  * (4 bytes each) plus one Uint16 "hop code" (the hop count, +512 when the pivot weight applies); distance and weight come from two 1,024-entry tables
  * the page fills with the same float32 rounding the JavaScript used, so 10 bytes a pair instead of 16. All memory is handed in by the page. */
 #include <wasm_simd128.h>
-typedef int i32; typedef unsigned int u32; typedef unsigned short u16;
+typedef int i32; typedef unsigned int u32; typedef unsigned short u16; typedef unsigned long long u64;
 #define EXP(n) __attribute__((export_name(n)))
 static i32 *off_, *nbr_, *dist_, *queue_;
 static i32 K;
@@ -163,16 +163,29 @@ EXP("sweepsv") void sweepsv(double *X, const i32 *pa, const i32 *pb, const u16 *
 /* Every-pair pieces without a pair list. dense(): the hop counts of all pairs as one byte each, kept by offset: row r - 1 (r = 1 .. k/2) holds, for every item i, the
  * count between i and i + r (wrapping round), so a sweep reads its row straight through. Returns the largest count, or -2 when one is over 255 (the page then uses
  * the pair list). */
-EXP("dense") i32 dense(i32 k, i32 *off, i32 *nbr, unsigned char *D, i32 *dist, i32 *queue, unsigned char *T) {
-  K = k; off_ = off; nbr_ = nbr; dist_ = dist; queue_ = queue; degsum_ = off[k]; i32 maxD = 1, nr = k / 2;
-  for (i32 i = 0; i < k; i++) {   /* first by item (T: row i = the counts from i to i + 1 .. i + k/2), written straight through */
-    bfs_levels(i); unsigned char *row = T + (long)i * nr; i32 n1 = k - 1 - i < nr ? k - 1 - i : nr, md = 0, r = 0;
-    const i32 *src = dist + i + 1;
-    for (; r < n1; r++) { i32 d = src[r]; if (d < 0) d = 0; if (d > md) md = d; row[r] = (unsigned char)d; }
-    src = dist - (k - 1 - i);
-    for (; r < nr; r++) { i32 d = src[r]; if (d < 0) d = 0; if (d > md) md = d; row[r] = (unsigned char)d; }
-    if (md > 255) return -2;
-    if (md > maxD) maxD = md;
+EXP("dense") i32 dense(i32 k, i32 *off, i32 *nbr, unsigned char *D, u64 *seen, u64 *front, unsigned char *T) {
+  /* First by item (T: row i = the counts from i to i + 1 .. i + k/2). The search runs from 64 items at once: each item keeps one bit per start item ("reached"),
+   * and a level is one pass over the links that ORs the bits of the newest level into the neighbors. Hop counts are whole numbers, so they are the ones a search
+   * from one item at a time finds. (Idea: Then and others, "The More the Merrier: Efficient Multi-Source Graph Traversal", 2014.) */
+  i32 maxD = 1, nr = k / 2; u64 *next = front + k;
+  __builtin_memset(T, 0, (unsigned long)k * (unsigned long)nr);
+  for (i32 b0 = 0; b0 < k; b0 += 64) {
+    i32 nb = k - b0 < 64 ? k - b0 : 64;
+    for (i32 v = 0; v < k; v++) { seen[v] = 0; front[v] = 0; }
+    for (i32 t = 0; t < nb; t++) { seen[b0 + t] = (u64)1 << t; front[b0 + t] = (u64)1 << t; }
+    for (i32 level = 1; ; level++) {   /* plain passes over all items: keeping lists of the newest level was tried and was slower on meshes */
+      for (i32 v = 0; v < k; v++) next[v] = 0;
+      for (i32 u = 0; u < k; u++) { u64 f = front[u]; if (!f) continue; for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) next[nbr[e]] |= f; }
+      i32 any = 0;
+      for (i32 v = 0; v < k; v++) {
+        u64 n = next[v] & ~seen[v]; front[v] = n; if (!n) continue;
+        seen[v] |= n; any = 1;
+        if (level > 255) return -2;
+        do { i32 s = b0 + (i32)__builtin_ctzll(n), r = v - s; n &= n - 1; if (r < 0) r += k; if (r <= nr) T[(long)s * nr + r - 1] = (unsigned char)level; } while (n);
+      }
+      if (!any) break;
+      if (level > maxD) maxD = level;
+    }
   }
   for (i32 ib = 0; ib < k; ib += 64) for (i32 rb = 0; rb < nr; rb += 64) {   /* then turned on its side, a block at a time (kind to the cache) */
     i32 ie = ib + 64 < k ? ib + 64 : k, re = rb + 64 < nr ? rb + 64 : nr;
