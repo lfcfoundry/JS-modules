@@ -18,13 +18,15 @@ Given the same points as two number columns instead of rows (since 2.19.0), netf
 
 One chart alone, from the call to the frame the browser reports as shown: Chromium 11.7 to 12.7 ms against uPlot's 21.7 to 24.5; Firefox 21 to 23 against 21 to 22, a tie inside one screen refresh (from number columns Firefox showed it in 10 to 22 ms; WebKitGTK has no such report). Fairness notes: above 5,000 points on a line, netflow-plot keeps for each whole-pixel column its first, lowest, highest and last point, and since 2.20.0 draws them as a filled band, one piece per pixel column (97.5% of the pixels match the stroked line it replaced, which cost 4.0 to 5.5 ms per chart); uPlot also draws the lowest and highest of each pixel column, and Chart.js's min-max thinning does much the same, so those three draw about the same picture, while "all points" draws every one. WebKitGTK timings vary about 20% from run to run on this machine.
 
+From a packed file's summaries (since 2.22.0; the lowest and highest value of every 256 rows, no column unpacked), a 1,000,000-point line takes 2.2 to 2.5 ms in Chromium 156, 3 in Firefox 158 and 4 to 6 in WebKitGTK 2.52.6, against 14, 15 to 17 and 17 to 19 from the two full columns, and against 18, 21 to 23 and 29 to 31 for uPlot's script alone on all the points (its painting not counted). The picture matches the one from all values on 99.26% of pixels (99.76% in WebKitGTK).
+
 Compared: netflow-plot against uPlot and Chart.js (gzipped size in KB, smaller is better).
 
-<!-- title: netflow-plot's lines-only file is 21.6 KB gzipped, smaller than uPlot (22.0 KB); the full pair is 62.6 KB, smaller than Chart.js (70.9 KB) -->
+<!-- title: netflow-plot's lines-only file is 21.8 KB gzipped, smaller than uPlot (22.0 KB); the full pair is 62.6 KB, smaller than Chart.js (70.9 KB) -->
 | way | gzip KB |
 |---|---:|
 | uPlot | 22.0 |
-| netflow-plot lines-only file | 21.6 |
+| netflow-plot lines-only file | 21.8 |
 | netflow-plot with netflow-scene | 62.6 |
 | Chart.js | 70.9 |
 
