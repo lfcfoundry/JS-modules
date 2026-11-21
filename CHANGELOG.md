@@ -63,7 +63,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
-- 2026-11-21 · **lfc-pack** 0.14.4 · API 0: Date-time text columns (like 2024-01-31 10:15:07) pack about 10 to 30% faster: the calendar arithmetic runs once per day, not once per cell. Same bytes.
+- 2026-11-21 · **lfc-pack** 0.14.4 · API 0: Date-time text columns (like 2024-01-31 10:15:07) pack faster, as the date math runs once per day: 12% less time in Chromium 156, 34% in Firefox 158, 8 to 13% in WebKitGTK 2.52.6 (two 200,000-row columns). Same bytes.
 - 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
 - 2026-11-20 · **netflow-plot** 2.18.0 · API 2: A line over 5,000 points draws one to four points per pixel column (first, lowest, highest, last); it looks the same. 100,000 points build in 16 ms (was 43) in Chromium 156, 19 (57) in Firefox 158, 16 (67) in WebKitGTK 2.52.6
 - 2026-11-20 · **netflow-plot** 2.17.1 · API 2: A line chart of many points builds its drawing 2.5 to 3.5 times faster (100,000 points: 42 to 17 ms in Chromium); the chart is the same
