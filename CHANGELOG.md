@@ -14,7 +14,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gpu-blur](modules/gpu-blur/README.md) | 1.4.2 · API 1 | [changelog](modules/gpu-blur/CHANGELOG.md) |
 | [fly-to-mini](modules/fly-to-mini/README.md) | 1.2.0 · API 1 | [changelog](modules/fly-to-mini/CHANGELOG.md) |
 | [sticker-text](modules/sticker-text/README.md) | 1.2.0 · API 1 | [changelog](modules/sticker-text/CHANGELOG.md) |
-| [idle-core](modules/idle-core/README.md) | 1.2.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
+| [idle-core](modules/idle-core/README.md) | 1.3.0 · API 1 | [changelog](modules/idle-core/CHANGELOG.md) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 · API 1 | [changelog](modules/frame-kit/CHANGELOG.md) |
 | [field-report](modules/field-report/README.md) | 1.1.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.11.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
@@ -75,6 +75,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **lfc-pack** 0.14.6 · API 0: Text columns that get a dictionary compress their label bytes once instead of twice while the layouts are tried: 0.96x to 0.97x the pack time (44 text columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6). Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.5 · API 0: Packing many text columns given as bytes (CSV imports) takes 0.79x to 0.88x the time (44 columns, 20,000 rows, Chromium 156, Firefox 158, WebKitGTK 2.52.6): the block-size estimate no longer builds a string per cell. Same bytes.
 - 2026-11-21 · **lfc-pack** 0.14.4 · API 0: Date-time text columns (like 2024-01-31 10:15:07) pack faster, as the date math runs once per day: 12% less time in Chromium 156, 34% in Firefox 158, 8 to 13% in WebKitGTK 2.52.6 (two 200,000-row columns). Same bytes.
+- 2026-11-21 · **idle-core** 1.3.0 · API 1: Prices of 1e10 and up are now exact to the coin and the same in every browser (before, from about 1e12 a price could be a coin low). Ordinary prices are as fast or a little faster.
 - 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
 - 2026-11-20 · **netflow-plot** 2.19.0 · API 2: A table can be given as columns, { name: array } with plain or typed arrays (what lfc-pack's unpackColumns returns); the chart is the same as from rows, and a 100,000-point line builds in about 4 ms instead of 5 (Chromium 156) A Voronoi chart with an infinite value no longer hangs
 - 2026-11-20 · **netflow-plot** 2.18.1 · API 2: A line chart of many points builds about 3 times faster (100,000 points: 15 to 5 ms in Chromium 156, 20 to 5 in Firefox 158, 21 to 10 in WebKitGTK 2.52.6); the chart is exactly the same

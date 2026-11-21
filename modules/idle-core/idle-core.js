@@ -2,7 +2,7 @@
  * idle-core.js: the small maths every idle / clicker game ends up needing, tested.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.2.0 (API 1)
+ * Version 1.3.0 (API 1)
  *
  *  upgradeCost(base, risePct, owned, discount)   price of the next copy: base * (1 + rise/100)^owned * discount, rounded up
  *  costOfMany(base, risePct, owned, n, discount) price of the next n copies in one sum (the "buy 10" button)
@@ -58,12 +58,70 @@
     return Math.ceil(x);
   }
 
+  // ---- exact price path (double-double) --------------------------------------------------------------------------------
+  // Math.pow drifts by a few units in the last place and differs between engines, which moves a big price by a coin. The fast
+  // double result is kept whenever it sits clearly away from a whole number; only a result close to one (rare) is re-worked
+  // in double-double arithmetic (about 106 bits, plain + and *, identical in every engine) so the round-up decision is exact.
+  var H = 0, L = 0;
+  function twoSum(a, b) { var s = a + b, bb = s - a; H = s; L = (a - (s - bb)) + (b - bb); }
+  function twoProd(a, b) {
+    var p = a * b, c = 134217729 * a, ah = c - (c - a), al = a - ah, bh, bl;
+    c = 134217729 * b; bh = c - (c - b); bl = b - bh;
+    H = p; L = ((ah * bh - p) + ah * bl + al * bh) + al * bl;
+  }
+  function ddMul(ah, al, bh, bl) { twoProd(ah, bh); var p = H, e = L + (ah * bl + al * bh); H = p + e; L = e - (H - p); }
+  function ddDiv(ah, al, bh, bl) {
+    var q1 = ah / bh, ph, pl, s, e, q2;
+    ddMul(bh, bl, q1, 0); ph = H; pl = L;
+    twoSum(ah, -ph); s = H; e = L + (al - pl);
+    q2 = (s + e) / bh; H = q1 + q2; L = q2 - (H - q1);
+  }
+  var gh = 0, gl = 0;                                              // (1 + rise/100) as a double-double
+  function ddPow(k) {                                              // (gh,gl)^k for whole k >= 0, result in H, L
+    var rh = 1, rl = 0, bh = gh, bl = gl, th, tl;
+    while (k > 0) {
+      if (k % 2 === 1) { ddMul(rh, rl, bh, bl); rh = H; rl = L; }
+      k = Math.floor(k / 2);
+      if (k > 0) { ddMul(bh, bl, bh, bl); bh = H; bl = L; }
+    }
+    H = rh; L = rl;
+  }
+  function exactOk(a, n) { return a.owned === Math.floor(a.owned) && a.owned < 1e6 && n < 1e6 && a.base < 1e150 && a.disc < 1e150 && Math.abs(a.p) >= 1e-8; }
+  // Exact value of base*disc*(1+p)^k (n = 0) or of the n-copy bundle starting at k. Leaves it in H, L; false when not applicable.
+  function exactValue(a, k, n) {
+    var fh, fl, rp = lastRp;
+    if (!exactOk(a, n) || k !== Math.floor(k)) return false;
+    twoSum(100, rp); ddDiv(H, L, 100, 0); gh = H; gl = L;
+    if (k === 0) { fh = 1; fl = 0; } else { ddPow(k); fh = H; fl = L; }   // the first copy is one plain product: nothing to drift
+    twoProd(a.base, a.disc); ddMul(fh, fl, H, L); fh = H; fl = L;
+    if (n === 0) return true;
+    ddPow(n); var nh = H, nl = L;                                  // r^n - 1, then / (r - 1)
+    twoSum(nh, -1); nl += L; nh = H;
+    ddMul(fh, fl, nh, nl); fh = H; fl = L;
+    ddDiv(rp, 0, 100, 0); ddDiv(fh, fl, H, L);                     // / (r - 1), which is rise/100
+    return true;
+  }
+  function settleDD(a) {                                            // H + L rounded up, forgiving noise far below one coin
+    var h = H, v = L, r = Math.round(h), d = (h - r) + v, tol = a.disc === 1 ? 1e-9 : Math.max(1e-9, h * 1.2e-16);
+    return Math.abs(d) <= tol || d < 0 ? r : r + 1;
+  }
+  // x: the double estimate (already limited). Clear of a whole number -> plain ceil; close to one -> exact path.
+  function settle(x, a, k, n) {
+    if (x >= 9e15) return x;
+    var f = Math.floor(x), d = x - f, m = x * 1e-15 * (a.owned + k + n + 16);
+    if (d > m && d < 1 - m) return f + 1;                          // clear of a whole number: the plain round-up
+    if (exactValue(a, a.owned + k, n)) return settleDD(a);
+    return roundUp(x);
+  }
+
   // ---- prices -------------------------------------------------------------------------------------------------------
   // Shared clean-up of the arguments: base >= 0, rise > -100 (percent), owned >= 0, discount >= 0 (missing or broken = 1).
+  var lastRp = 0;
   function priceArgs(base, risePct, owned, discount) {
+    var rp = lastRp = Math.max(-99, safe(risePct, 0));          // (kept aside, undivided, for the exact path)
     return {
       base: Math.max(0, safe(base, 0)),
-      p: Math.max(-99, safe(risePct, 0)) / 100,
+      p: rp / 100,
       owned: Math.max(0, safe(owned, 0)),
       disc: discount == null ? 1 : Math.max(0, safe(discount, 1))
     };
@@ -72,7 +130,8 @@
   function upgradeCost(base, risePct, owned, discount) {
     var a = priceArgs(base, risePct, owned, discount);
     if (a.base === 0 || a.disc === 0) return 0;
-    return roundUp(limit(a.base * a.disc * Math.pow(1 + a.p, a.owned)));
+    var x = a.base * a.disc * Math.pow(1 + a.p, a.owned);
+    return x < 1e10 ? roundUp(x) : settle(limit(x), a, 0, 0);          // below 1e10 the plain answer matched the exact one in every test
   }
 
   // Closed-form sum of n prices (Kongregate "Math of Idle Games"): first * (r^n - 1) / (r - 1), where r = 1 + rise/100.
@@ -91,9 +150,11 @@
     var a = priceArgs(base, risePct, owned, discount);
     n = Math.floor(Math.max(0, safe(n, 0)));
     if (n === 0 || a.base === 0 || a.disc === 0) return 0;
-    return roundUp(limit(bundle(a, n)));
+    var x = bundle(a, n);
+    return x < 1e10 ? roundUp(x) : settle(limit(x), a, 0, n);
   }
 
+  function manyOf(a, k) { var x = bundle(a, k); return x < 1e10 ? roundUp(x) : settle(limit(x), a, 0, k); }
   // Largest n with costOfMany(...n) <= money. 0 when not even one copy is affordable, and 0 when the copies are free.
   function maxAffordable(base, risePct, owned, money, discount) {
     var a = priceArgs(base, risePct, owned, discount);
@@ -103,9 +164,8 @@
     var est = a.p === 0 ? money / first : log1p(money * a.p / first) / log1p(a.p);
     var n = Math.floor(safe(est, 0)), i;
     if (n < 0) n = 0;
-    function cost(k) { return roundUp(limit(bundle(a, k))); }
-    for (i = 0; i < 8 && n > 0 && cost(n) > money; i++) n--;          // the estimate can be one too high ...
-    for (i = 0; i < 8 && cost(n + 1) <= money; i++) n++;              // ... or one too low
+    for (i = 0; i < 8 && n > 0 && manyOf(a, n) > money; i++) n--;          // the estimate can be one too high ...
+    for (i = 0; i < 8 && manyOf(a, n + 1) <= money; i++) n++;              // ... or one too low
     return n;
   }
 
@@ -116,9 +176,10 @@
   function buyPlan(base, risePct, owned, discount, money, mode, cap) {
     var m = Math.min(LIMIT, Math.max(0, safe(money, 0))), c = Math.max(1, Math.min(1000, Math.floor(safe(cap, 100))));
     var isMax = String(mode).toLowerCase() === 'max' || mode === 0, want = isMax ? c : Math.max(1, Math.min(c, Math.floor(safe(mode, 1))));
-    var a = priceArgs(base, risePct, owned, discount), r = 1 + a.p, raw = firstPrice(a), n = 0, total = 0, first = roundUp(limit(raw)), k, p;
+    var a = priceArgs(base, risePct, owned, discount), r = 1 + a.p, raw = firstPrice(a), n = 0, total = 0, first = limit(raw), k, p;
+    first = first < 1e10 ? roundUp(first) : settle(first, a, 0, 0);
     for (k = 0; k < want; k++) {                                   // each next price is the last one times the growth: no Math.pow per copy
-      p = k === 0 ? first : roundUp(limit(raw *= r));
+      if (k === 0) p = first; else { raw *= r; p = raw < 1e10 ? roundUp(raw) : settle(limit(raw), a, k, 0); }
       if (isMax && total + p > m) break;
       total = limit(total + p); n++;
     }

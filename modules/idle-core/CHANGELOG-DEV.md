@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.3.0 · API 1 · 2026-11-21
+
+### Quick
+upgradeCost, costOfMany, maxAffordable and buyPlan give the exact whole-coin price for prices of 1e10 and up (plain results below that, unchanged). A displayed price at 1e12 and up can now be one coin higher than before; no API change, no new setting, still plain ES5.
+
+### Details
+A double result clearly away from a whole number keeps the plain round-up; a result close to one is redone in double-double arithmetic (plain + and *, the same in every engine) and rounded up exactly. Against an exact-fraction (BigInt) check on 4,000 cases from 1e8 to 1e14, wrong prices fell from 327 to 3 (Node reference; Chromium 156 and Firefox 158 324, WebKitGTK 2.52.6 365 before; 3 in all three after), maxAffordable 345 to 3; the 3 left are discounts like 0.95 that a double cannot hold. Speed, new against old taking turns in one page (median of 9 rounds, 3 to 5 pages; upgradeCost, maxAffordable, costOfMany x10, buyPlan 100, buyPlan 1000): Chromium -4, +2, 0, -10, -24%; Firefox -5, -3, +1, -9, -13%; WebKitGTK -7, -12, -3 to -6, -14 to -20, -10 to -16%. Exact whole-number prices of 1e10 and up (owned 1 or more) take the exact path every call: 0.1 to 0.3 microseconds per call instead of 0.02.
+
+### Deep
+Found by the idle-core price boundary suite (Codex scan item 3, 2026-11-20): the old code forgave noise below 1e-13 of the price, which is a whole coin from 1e13, and Math.pow differs between engines. A first version slowed Firefox by 12 to 17%; the owner asked for one more speed pass: the exact path now starts at 1e10, the gate is inlined at the call sites, priceArgs computes the rise once, and maxAffordable's price function is a module-level function (as a closure it made WebKitGTK +27 to +35% on maxAffordable). Tests: 38 (new: four exact big prices, money equal to and one coin under the price, Infinity times 0). The test fixtures are test-only.
+
 ## 1.2.0 · API 1 · 2026-10-17
 
 ### Quick

@@ -2,6 +2,9 @@
 # no longer cancel each other (the built-in Pages deploy drops the older run). The site is plain files:
 # there is no _config.yml, no front matter and no underscore folder, so this uploads exactly what Jekyll served.
 # Needs Settings > Pages > Source set to "GitHub Actions".
+# Two failures seen on 11.21 and fixed here: (1) right after the upload, GitHub's artifact list can still be empty,
+# so deploy-pages finds 0 artifacts; the deploy step is tried again after a wait. (2) A by-hand re-run of a run added a
+# second artifact with the same name; the artifact name now carries the attempt number.
 name: pages-deploy
 on:
   push:
@@ -20,12 +23,24 @@ jobs:
     timeout-minutes: 10
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy2.outputs.page_url || steps.deploy1.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: .
-      - id: deployment
+      - run: sleep 10
+      - id: deploy1
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      - if: steps.deploy1.outcome == 'failure'
+        run: sleep 30
+      - id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
