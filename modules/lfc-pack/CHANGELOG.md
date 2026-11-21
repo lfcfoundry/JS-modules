@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.4 · API 0 · 2026-11-21
+- Date-time text columns (like 2024-01-31 10:15:07) pack about 10 to 30% faster: the calendar arithmetic runs once per day, not once per cell. Same bytes.
+
 ## 0.14.3 · API 0 · 2026-11-20
 - Number columns of decimals (like 12.35) find their whole-number form in wasm instead of a JavaScript loop; same bytes. Not yet timed in browsers.
 

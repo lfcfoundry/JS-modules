@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.4 · API 0 · 2026-11-21
+
+### Quick
+dateMs (the parse of "YYYY-MM-DD HH:MM:SS" and ISO forms in a text column) reads the digits inline and keeps the last year-month-day with its day number, so the calendar arithmetic (dateParts) runs once per day, not per cell. Same bytes, no API change, no new setting.
+
+### Details
+packBlock of two 200,000-row timestamp text columns (second steps, a new day about every 50 rows), alternating pages, median of steady runs: Chromium 156 57.7 to 51.0 ms (0.88x, 5 pages), Firefox 158 72.2 to 43.1 (0.66x, 5 pages), WebKitGTK 2.52.6 about 0.87 to 0.92 (two pairs in swapped order; the second page of a pair runs about 15% slower in WebKitGTK, so a 2-page A/B in one order alone showed 1.16 wrongly). Node 22: 35 to 30 ms for one such column. Stored bytes identical in all runs (157,398); 20 cases (4 forms, 5 kinds of bad cell) compared with 0.14.3 byte for byte; test/datecol.cjs and datecol2.cjs pass.
+
+### Deep
+Found in the Workbench Save CPU profile (timestamp parse about 21% of a Save): dig() was called six times per cell and dateParts redid the era arithmetic every time. The cache is a module-level (key, days) pair, so a column with unsorted days still gives the right answer, it just misses. Non-digit characters fail one of the 0 to 9 tests, as dig() returned -1 before. The byte path (dateAt, used for text:'bytes' input) is unchanged and could take the same step.
+
 ## 0.14.3 · API 0 · 2026-11-20
 
 ### Quick
