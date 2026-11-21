@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.20.1 · API 2 · 2026-11-21
+- A long line builds faster with exactly the same picture: a finished 100,000-point chart costs 3.2 ms in Chromium 156 (was 3.7 to 4.0); in Firefox 158 one chart alone reaches the screen in 14 to 20 ms (was 23 to 24)
+
 ## 2.20.0 · API 2 · 2026-11-21
 - A line over 5,000 points is drawn as a filled band, one piece per pixel column, in place of a zigzag stroke; 97.5% of the pixels are the same and spikes are kept
 - A finished 100,000-point line chart costs 3.3 to 4.0 ms in Chromium 156 and Firefox 158 (was 4.0 to 5.5); one chart reaches the screen in 12 to 13 ms in Chromium (was 17)

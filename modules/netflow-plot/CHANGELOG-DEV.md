@@ -1,5 +1,17 @@
 # netflow-plot developer changelog
 
+## 2.20.1 · API 2 · 2026-11-21
+
+### Quick
+Speed only, same drawing lists and SVG (800 random long lines against 2.20.0, 0 differences). No API change.
+
+### Details
+A long line whose x rises no longer makes thinned points: lineCols() finds each pixel column's end on x by doubling steps and takes the lowest and highest value before mapping to pixels; reading rows also answers whether x rises. Steady redraw per chart, rows, 2 passes (ms): Chromium 156 3.16 and 3.16 against 3.67 and 3.97 for 2.20.0; Firefox 158 2.79 and 2.95 against 2.86 and 3.11; WebKitGTK 2.52.6 on 30 charts a frame 7.0 to 8.2 against 7.4 to 8.5. Columns input: Chromium 1.84 to 2.06 against 1.81 to 1.99, Firefox 2.16 to 2.54 against 2.27 to 2.53 (no change).
+One chart from the call to the shown frame: Firefox rows 14 to 20 ms against 23 to 24 (uPlot 1.6.32: 21 to 22); in a 24-try run columns input was shown one screen refresh early 18 times (uPlot 0). Chromium 12.4 to 13.5 against 12.7 to 13.2 (no change).
+
+### Deep
+Firefox shows a chart one screen refresh sooner (about 10 ms after the call, not 22) when the script before the page update takes under about 3 ms (found with a fixed busy wait before a prebuilt chart: 2 ms early 15 times in 16, 3 ms 7 in 16, 4 ms 1 in 16). 2.20.0 took about 4.5 ms from rows in that test; this version about 4.1, and 3.1 from columns. Cuts: (1) lineCols() builds the band's columns straight from the two number columns when x rises, with no thinned points array; the end of each pixel column is found by doubling then halving steps on x and fixed up with the same sum the points are mapped with, so the columns are exactly those of 2.20.0; (2) lowest and highest per column use Math.min and Math.max on a line with no gaps (0.17 ms less in Firefox, 0.04 more in Chromium, 0.13 more in WebKitGTK on 100,000 values); (3) reader.pre() answers colUp() for the x column while it reads the rows. bandCols() keeps the old route for other long lines. Tests: 4 new checks (uneven x, gaps, repeated x, points on pixel edges); 751 pass.
+
 ## 2.20.0 · API 2 · 2026-11-21
 
 ### Quick

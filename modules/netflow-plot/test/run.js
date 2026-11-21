@@ -363,6 +363,23 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   ok(SB.curves.length + SB.polys.length > 0, 'a 20,000-point line given right to left still draws');
   ok(P.toSvg(big, { type: 'line', x: 't', y: 'v' }) === P.toSvg(big, { type: 'line', x: 't', y: 'v' }) && P.toSvg({ t: big.map((q) => q.t), v: big.map((q) => q.v) }, { type: 'line', x: 't', y: 'v' }) === P.toSvg(big, { type: 'line', x: 't', y: 'v' }), 'the band chart is the same every time, from rows or from columns');
 }
+/* 2.20.1: a long line whose x rises builds its band straight from the two columns (no thinned points); uneven x steps, gaps and repeated x give the same band as before */
+{
+  const r = rnd(21), n = 30000, quads = (S) => S.polys.filter((q) => q.pts.length === 8 && q.stroke[3] === 0);
+  const mk = (step, gap) => { const rows = []; let y = 0, x = -500; for (let i = 0; i < n; i++) { y += r() - 0.5; x += step(i); rows.push({ t: x, v: gap(i) ? null : Math.round(y * 1000) / 1000 || 0 }); } return rows; };
+  const uneven = mk(() => r() * r() * 10 + 1e-6, () => false), jumps = mk(() => (r() < 0.01 ? 400 : 1), (i) => i > 9000 && i < 12000), rep = mk((i) => (i % 3 ? 1 : 0), () => false);
+  [['uneven x steps', uneven], ['x jumps and a run of empty values', jumps], ['repeated x values', rep]].forEach((c) => {
+    const rows = c[1], cols = { t: Float64Array.from(rows, (q) => q.t), v: Float64Array.from(rows, (q) => (q.v === null ? NaN : q.v)) }, sp = { type: 'line', x: 't', y: 'v' };
+    const S = P.make(rows, sp, {}, global.NetflowScene), Q = quads(S), a = P.toSvg(rows, sp), b = P.toSvg(cols, sp);
+    let ok2 = Q.length > 100 && a === b && a.indexOf('NaN') < 0, k;
+    for (k = 0; k < Q.length; k++) { const p = Q[k].pts; if (!(p[2] >= p[0]) || p[7] - p[1] < 2 - 1e-9 || p[5] - p[3] < 2 - 1e-9) ok2 = false; }
+    ok(ok2, 'a 30,000-point line with ' + c[0] + ' draws a band, the same from rows and columns (' + Q.length + ' pieces)');
+  });
+  /* a column end that falls exactly on a whole pixel: x = 0..n-1 over a plot whose width divides evenly still puts each point in one column */
+  const even = []; for (let i = 0; i < 20001; i++) even.push({ t: i, v: Math.sin(i / 50) });
+  const SE = P.make(even, { type: 'line', x: 't', y: 'v' }, { width: 1080 }, global.NetflowScene), QE = quads(SE); let mono = QE.length > 100; for (let k = 1; k < QE.length; k++) if (QE[k].pts[0] !== QE[k - 1].pts[2]) mono = false;
+  ok(mono, 'band pieces stay joined when points land exactly on pixel edges');
+}
 /* 2.18.1: a long plain line reads its two number columns in one walk of the rows and builds its points straight from the columns; the drawing lists are the same whichever way the numbers arrive */
 {
   const r = rnd(9), n = 20000, rows = [], srows = [], arows = []; let y = 0;
