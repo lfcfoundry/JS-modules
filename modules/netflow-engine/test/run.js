@@ -39,6 +39,20 @@ t('with WebAssembly off the picture is the same (Force and Distances, 600 items)
     ok(same(w, j), arr + ': positions differ between wasm and plain JavaScript');
   });
 });
+t('a big Distances map (6,000 items: shrunken copies, the wider near-neighbor walk, stretch-once overlap removal) is the same with and without WebAssembly, with no touching items', () => {
+  const g = network(6000, 21), W = E.stressWasm, c0 = W.calls, s0 = W.sepCalls;
+  const w = E.build(copy(g), { view: 'network', arrange: 'stress' }); ok(W.calls > c0 && W.sepCalls > s0, 'WebAssembly did not run');
+  W.on = false; let j; try { j = E.build(copy(g), { view: 'network', arrange: 'stress' }); } finally { W.on = true; }
+  ok(same(w, j), 'positions differ between wasm and plain JavaScript'); ok(touching(w) === 0, touching(w) + ' touching pairs');
+});
+t('the active push-apart (only items that moved are looked at again) is the same with and without WebAssembly, also when the grid outgrows its first table', () => {
+  const W = E.stressWasm; [[3000, 900], [400, 20000]].forEach(([k, span]) => {
+    const r = rng(k), X0 = new Float64Array(k * 2); for (let i = 0; i < k * 2; i++) X0[i] = (r() - 0.5) * span; for (let i = 1; i < k; i += 3) { X0[2 * i] = X0[2 * i - 2] + 3; X0[2 * i + 1] = X0[2 * i - 1]; }
+    const rad = (i) => 6 + (i % 5) * 3, XA = Float64Array.from(X0), XB = Float64Array.from(X0), keep = W.minItems; let a, b;
+    W.on = false; a = E.separate(XA, k, 2, rad, 10, true); W.on = true; W.minItems = 0; try { b = E.separate(XB, k, 2, rad, 10, true); } finally { W.minItems = keep; }
+    ok(a === b && XA.every((v, i) => v === XB[i]), 'positions differ (' + k + ' items)'); ok(XA.some((v, i) => v !== X0[i]), 'nothing moved');
+  });
+});
 t('Distances 3D, Closeness and the hash-grid push-apart give the same picture with and without WebAssembly (smallest sizes lowered for the check)', () => {
   const W = E.stressWasm, keep = { a: W.min3d, b: W.minClose }; W.min3d = 100; W.minClose = 100;
   try {

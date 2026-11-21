@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.0 · API 2 · 2026-11-21
+- Big Network maps (Distances layout) build in 12 to 73% less time, most about 60% less, with the same or lower stress, fewer link crossings and no touching items. Items now spread more evenly instead of packing into a dense middle.
+
 ## 2.5.0 · API 2 · 2026-11-21
 - New quickNetwork(graph): a rough first picture of a partly read map to draw while the rest arrives. 10,000 items: 5.9 ms Chromium 156, 4.6 Firefox 158, 6 WebKitGTK 2.52.6; 50,000 items: 23.5, 39.5, 60 ms.
 

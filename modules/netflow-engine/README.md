@@ -1,6 +1,6 @@
 # netflow-engine
 
-**Version 2.5.0 · API 2**
+**Version 2.6.0 · API 2**
 
 **Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
@@ -79,7 +79,7 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 
 ## WebAssembly
 
-The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items (`force2dTuning`). The flat Distances sweeps also have a two-lanes-at-a-time form (`stressWasm.simd`, on by default where the browser supports it; any size since 2.2.1): two neighbors in the shuffled order that share no item run side by side, so the positions are the same to the last digit; turn it off with `NetflowEngine.stressWasm.simd = false`. Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
+The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items (`force2dTuning`). The flat Distances sweeps also have a two-lanes-at-a-time form (`stressWasm.simd`, on by default where the browser supports it; any size since 2.2.1): two neighbors in the shuffled order that share no item run side by side, so the positions are the same to the last digit; turn it off with `NetflowEngine.stressWasm.simd = false`. Since 2.6.0 the Distances layout of a big Network map also runs these steps in the same program: the search for which pairs of items to fit, an every-pair fit for pieces of up to 4,000 items that keeps hop counts in one byte table and no pair list, and the push-apart that first stretches the picture once and then only revisits items that still touch. Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
 
 ## Speed
 
@@ -92,6 +92,8 @@ Layout time, lower is better, one run each, cold start, the same network (1,000,
 | WebKitGTK 2.52.6 | 244 ms | 770 ms | 552 ms |
 
 The 10,000-item map is quicker than the 3,000-item one because the first big layout in a fresh page is cold (the wasm code warms up); a layout after that is about 1.4× faster in Chromium. Against the first version of Netflow Map's engine (2026-10-14), the same maps in the app took: 10,000 items 7.25 s to 456 ms (16×, Firefox 159), 30,000 items 42.1 s to 812 ms (52×), 100,000 items from over 60 s to 4.29 s. Netflow Map's numbers come from the app's build of this same engine (identical layouts, see Tests).
+
+Since 2.6.0 the Distances layout of a big Network map takes 12 to 73% less time than 2.5.0 (48 cases: 16 maps of 1,500 to 50,000 items in Chromium 156, Firefox 158 and WebKitGTK 2.52.6), for example a 50,000-item drop in 1,105 to 1,460 ms instead of 2,904 to 3,502 ms, with the same or lower stress and fewer crossings. The tables on this page were measured before 2.6.0.
 
 ## How it compares
 
@@ -162,11 +164,11 @@ The libraries do more than this engine (drawing, routing, bundling, hundreds of 
 
 ## Size
 
-207 KB as one file, 65 KB gzipped (about 21 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
+241 KB as one file, 78 KB gzipped (about 33 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
 
 ## Tests
 
-`node modules/netflow-engine/test/run.js` (15 checks, about 8 seconds): every view on a 300-page story and a 1,500-item network, repeatable output, identical positions with and without WebAssembly (Force and Distances, 600 items; Distances 3D, Closeness and the hash-grid push-apart), flat Force from 5,000 items, no two items on top of each other (2,000 items, three arrangements), odd inputs (a start that does not exist, an empty map, one item), `use()` names, the column reader, and that the file builds no code from text. Separately, Netflow Map checks that this file gives the same layout as its own engine: 315 builds (5 maps × 9 views × 7 option sets), 0 differences.
+`node modules/netflow-engine/test/run.js` (20 checks, about 10 seconds): every view on a 300-page story and a 1,500-item network, repeatable output, identical positions with and without WebAssembly (Force and Distances, 600 items; Distances 3D, Closeness and the hash-grid push-apart; since 2.6.0 also a 6,000-item Distances map and the new push-apart on its own), flat Force from 5,000 items, no two items on top of each other (2,000 items, three arrangements), odd inputs (a start that does not exist, an empty map, one item), `use()` names, the column reader, and that the file builds no code from text. Separately, Netflow Map checks that this file gives the same layout as its own engine: 315 builds (5 maps × 9 views × 7 option sets), 0 differences.
 
 ## Limits
 
@@ -195,6 +197,7 @@ The file is generated; do not hand-edit `netflow-engine.js`. It is made from Net
 
 - The engine is Netflow Map's own, by LFC Foundry. It starts from the layered, arc, matrix and shape drawings, choke points, traffic and drawing scores of the Story Editor's map (story-editor `editor/maplayout.js`, MIT, copied and generalized; no dependency on it).
 - Choke points use the dominator tree of Cooper, Harvey and Kennedy (2001, linked below). The Distances (stress) layout minimizes stress by stochastic gradient descent (Zheng, Pawar and Goodman, 2018) and uses far-apart pivot items for big maps. The Force arrangement uses Barnes-Hut repulsion (a quadtree in 2D, an octree in 3D). Quick groups use label propagation. The source comments name no other published method.
+- Since 2.6.0 the Distances layout of a big map also uses three known ideas, named here with thanks: hop counts are found with a search that switches direction when the frontier gets large (Beamer, Asanovic and Patterson, "Direction-Optimizing Breadth-First Search", 2012); touching items are cleared by first stretching the whole picture and then moving only what still touches, the order used by scale-then-fix overlap removal (Gansner and Hu, "Efficient, Proximity-Preserving Node Overlap Removal", 2010); and the layout stays multilevel, shrinking the map, laying out the small copy and growing it back, as in sfdp (Hu, "Efficient and High Quality Force-Directed Graph Drawing", 2005) and FM3 (Hachul and Juenger, 2004). These four papers are named without links because their pages could not be opened from the build machine on 2026-11-21; no code from them is included. cosmos.gl ([cosmosgl/graph](https://github.com/cosmosgl/graph), link checked 2026-11-21) was studied as a rival and none of its method is used.
 - Related published pieces: [netflow-layers](../netflow-layers/README.md) and [netflow-sankey](../netflow-sankey/README.md), both cut from Netflow Map.
 
 **Original sources** (links checked 2026-11-14; ideas only unless the section above says code is included):
