@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.5 · API 0 · 2026-11-21
+
+### Quick
+packRowsBlocks sized its blocks from `JSON.stringify(RA.slice(0, 1024))`; for a column table that meant a row object and a TextDecoder string per cell. `estCols` now works out the same number from the bytes (text as bytes, dictionary and Float64Array columns; anything else takes the old way). Same bytes, no API change.
+
+### Details
+packBlock of 44 text columns (first 44 columns of the SBA-shaped training stand-in, 20,000 rows, bytes input, level 3, blockBytes 2 MiB), alternating pages, median of steady runs: Chromium 156 168 to 130 ms (0.79x, 7 pages), Firefox 158 140 to 110 (0.88x, 7 pages), WebKitGTK 2.52.6 0.87 and 0.79 (2 pages, both orders). Bytes 1,677,784 in both. Check: 24 packBlock cases (6 text columns with quotes, backslashes, controls, accents, CJK and emoji, a Float64Array with NaN and a dictionary column; blockBytes 65,536 to 4 MiB) gave byte-identical files against 0.14.4; the same check fails (9 of 24) if the estimate is made 15% larger, so it does see block cuts.
+
+### Deep
+The Chromium CPU profile of the pack showed decode (TextDecoder) at 12.5%, of which 128 of 185 ms came from packRowsBlocks via slice and rowsOf, plus colTable's 256-row check. The estimate is JSON length of the first rows over the row count, plus 1; `jsonStrLen` counts UTF-16 units of the decoded text plus JSON escapes (quote, backslash, \b \t \n \f \r as 2, other controls as 6, 4-byte UTF-8 as 2 units). PR 807 (previewLen, closed) shortened the preview and was judged on 19 taxi columns only. Left for later: colTable's 256-row check (about 2%), dateNumsBC, bkPrep.
+
 ## 0.14.4 · API 0 · 2026-11-21
 
 ### Quick
