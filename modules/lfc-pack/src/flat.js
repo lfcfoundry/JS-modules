@@ -297,10 +297,24 @@
   // The date forms (the W column's f): bit 1 (value 1) = no fraction, bit 2 (value 2) = a space between the date and the time instead of T, bit 4 = six fraction digits stored as whole microseconds (years up to 2255); f 0 = T and .mmm, 1 = T only, 2 = space and .mmm, 3 = space only, 4 = T and .uuuuuu, 6 = space and .uuuuuu. The values are epoch milliseconds, or microseconds for 4 and 6.
   function dateW(f) { return f & 4 ? 26 : f & 1 ? 19 : 23; }
   function dateForm(len, s10) { var f = len === 19 ? 1 : len === 23 ? 0 : len === 26 ? 4 : -1; return f < 0 ? -1 : s10 === 84 ? f : s10 === 32 ? f | 2 : -1; }
+  var DM_KEY = -1, DM_DAYS = 0;   // the last year-month-day seen by dateMs and its day number (a column of timestamps mostly repeats the day, so the calendar arithmetic runs once per day)
   function dateMs(x, f) {   // -> the epoch value (ms, or us for forms 4 and 6), or NaN if x is not exactly that form
     if (x.length !== dateW(f) || x.charCodeAt(4) !== 45 || x.charCodeAt(7) !== 45 || x.charCodeAt(10) !== (f & 2 ? 32 : 84) || x.charCodeAt(13) !== 58 || x.charCodeAt(16) !== 58 || (!(f & 1) && x.charCodeAt(19) !== 46)) return NaN;
-    var u = f & 4, fr = f & 1 ? 0 : dig(x, 20, u ? 6 : 3); if (!(fr >= 0)) return NaN;
-    var t = dateParts(dig(x, 0, 4), dig(x, 5, 2), dig(x, 8, 2), dig(x, 11, 2), dig(x, 14, 2), dig(x, 17, 2), u ? 0 : fr);
+    var u = f & 4, fr = 0, c, k, i;
+    if (!(f & 1)) { for (k = u ? 6 : 3, i = 20; k > 0; k--, i++) { c = x.charCodeAt(i) - 48; if (c < 0 || c > 9) return NaN; fr = fr * 10 + c; } }
+    var a = x.charCodeAt(0) - 48, b = x.charCodeAt(1) - 48, c2 = x.charCodeAt(2) - 48, d3 = x.charCodeAt(3) - 48, mo = (x.charCodeAt(5) - 48) * 10 + x.charCodeAt(6) - 48, dd = (x.charCodeAt(8) - 48) * 10 + x.charCodeAt(9) - 48;
+    var h = (x.charCodeAt(11) - 48) * 10 + x.charCodeAt(12) - 48, mi = (x.charCodeAt(14) - 48) * 10 + x.charCodeAt(15) - 48, se = (x.charCodeAt(17) - 48) * 10 + x.charCodeAt(18) - 48;
+    // every digit is checked once, together: a non-digit makes one of the 0..9 tests fail (the pairs above can hide a +/- cancel, so the digits are tested one by one)
+    var q = x.charCodeAt(5) - 48, r2 = x.charCodeAt(6) - 48, s8 = x.charCodeAt(8) - 48, s9 = x.charCodeAt(9) - 48, h1 = x.charCodeAt(11) - 48, h2 = x.charCodeAt(12) - 48, m1 = x.charCodeAt(14) - 48, m2 = x.charCodeAt(15) - 48, e1 = x.charCodeAt(17) - 48, e2 = x.charCodeAt(18) - 48;
+    if (a < 0 || a > 9 || b < 0 || b > 9 || c2 < 0 || c2 > 9 || d3 < 0 || d3 > 9 || q < 0 || q > 9 || r2 < 0 || r2 > 9 || s8 < 0 || s8 > 9 || s9 < 0 || s9 > 9 || h1 < 0 || h1 > 9 || h2 < 0 || h2 > 9 || m1 < 0 || m1 > 9 || m2 < 0 || m2 > 9 || e1 < 0 || e1 > 9 || e2 < 0 || e2 > 9) return NaN;
+    if (h > 23 || mi > 59 || se > 59) return NaN;
+    var y = a * 1000 + b * 100 + c2 * 10 + d3, key = (y * 100 + mo) * 100 + dd, days;
+    if (key === DM_KEY) days = DM_DAYS;
+    else {
+      var t0 = dateParts(y, mo, dd, 0, 0, 0, 0); if (t0 !== t0) return NaN;
+      days = t0 / 86400000; DM_KEY = key; DM_DAYS = days;
+    }
+    var t = ((days * 24 + h) * 60 + mi) * 60000 + se * 1000 + (u ? 0 : fr);
     if (!u) return t; t = t * 1000 + fr; return t <= 9007199254740991 ? t : NaN;
   }
   function digB(b, i, k) { var r = 0, c; for (; k > 0; k--, i++) { c = b[i] - 48; if (c < 0 || c > 9) return -1; r = r * 10 + c; } return r; }
