@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.7.0 (API 1)
+ * Version 1.7.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -51,73 +51,155 @@ var NetflowHierarchy = (function () {
     var b = SCR_F[slot]; if (!b || b.length < n) b = SCR_F[slot] = new Float64Array(Math.max(n, 256));
     var w = b.subarray(0, n); w.fill(0); return w;
   }
+  /* A list that is only made when someone reads it (most layouts never read the child lists, names or groups of the tree: the drawing does, later). */
+  function lazy(obj, key, make) {
+    var put = function (v) { Object.defineProperty(obj, key, { value: v, writable: true, configurable: true, enumerable: true }); };
+    Object.defineProperty(obj, key, { configurable: true, enumerable: true, get: function () { var v = make(); put(v); return v; }, set: put });
+  }
+  function kidArrays(N, kidOff, kidList) {
+    var kids = new Array(N);
+    for (var v = 0; v < N; v++) { var a = kidOff[v], c = kidOff[v + 1] - a; if (!c) { kids[v] = EMPTY; continue; } var k = new Array(c); for (var j = 0; j < c; j++) k[j] = kidList[a + j]; kids[v] = k; }
+    return kids;
+  }
+  var HS = null, HS_MAX = 180002;   /* the working list of hierarchy(), reused up to 20,000 items and links (720 KB held) */
   function hierarchy(G, o) {
-    /* One pass into typed arrays: boxes are numbered in the order they are reached, so a parent always comes before its children and the
-       drawing order is simply 0..N-1; a box with no children shares one empty list (most boxes are leaves, and a list each was a third of the garbage). */
-    var n = G.nodes.length, idx = null, i, e, nodes = G.nodes;
-    var E = G.edges, indeg = tmpI(0, n), from = new Int32Array(E.length), to = new Int32Array(E.length), m = 0, eA = G.eA, eB = G.eB;
-    if (eA && eA.length === E.length) {   /* the app gives each link's item numbers: no lookup by name (that lookup was a third of the setup) */
-      for (i = 0; i < E.length; i++) { var a0 = eA[i], b0 = eB[i]; if (a0 === b0) continue; from[m] = a0; to[m++] = b0; indeg[b0]++; }
+    /* Boxes are numbered in the order they are reached, so a parent always comes before its children and the drawing order is simply
+       0..N-1. Everything is kept in a few typed lists: the children of box v are kidList[kidOff[v]] .. kidList[kidOff[v + 1] - 1], and
+       the plain lists (kids, label, group, idx) are only made when they are first read. All working lists are pieces of one list S. */
+    var nodes = G.nodes, n = nodes.length, E = G.edges, ne = E.length, eA = G.eA, eB = G.eB, nest = o.nest, i, e, nd, a, b, w, m = 0, st = -1;
+    var named = !(eA && eA.length === ne), need = 4 * n + 2 + (named ? 5 : 1) * ne, S;
+    if (need > HS_MAX) S = new Int32Array(need); else { S = HS || (HS = new Int32Array(HS_MAX)); S.fill(0, 0, 3 * n + 2); }
+    var OFF = n, PO = 2 * n + 2, QU = 3 * n + 2, NB = 4 * n + 2, PE = NB + ne, TB = PE + ne, NO = TB + ne;   /* S: links into each item, where each item's links start, parents, the walk's queue, link ends by start, then the name work */
+    var FT = new Int32Array(ne * 2), szOk = true, mkIdx = function () { var M = new Map(); for (var q = 0; q < n; q++) M.set(nodes[q].id, q); return M; }, idx = null;
+    var grouped = nest === 'groups', gcount = 0, groups = null, groupsOf = function () { if (!groups) { groups = new Map(); for (var q = 0; q < n; q++) { var g = nodes[q].group || ''; if (!groups.has(g)) groups.set(g, groups.size); } } return groups; };
+    if (grouped) gcount = groupsOf().size;
+    var F = null, SZ = 0, mkF = function (cap) { F = new Float64Array(cap * 2 + n); SZ = cap * 2; };   /* totals, own values, and each item's size in item order */
+    if (nest === 'groups' || nest === 'links') mkF(n + 1 + gcount);
+    var sizes = function () { for (var q = 0; q < n; q++) { var x = nodes[q].sizeV; if (typeof x !== 'number') { if (x !== undefined) szOk = false; x = NaN; } F[SZ + q] = x; } };
+    if (!named) {   /* the app gives each link's item numbers: no lookup by name */
+      for (i = 0; i < ne; i++) { a = eA[i]; b = eB[i]; if (a === b) continue; FT[m] = a; FT[ne + m] = b; m++; S[b]++; S[OFF + a + 2]++; }
+      for (i = 0; i < n; i++) if (nodes[i].start) { st = i; break; }
+      if (F) sizes();
     } else {
-      idx = new Map(); for (i = 0; i < n; i++) idx.set(nodes[i].id, i);
-      for (i = 0; i < E.length; i++) { e = E[i]; var a = idx.get(e.from), b = idx.get(e.to); if (a === undefined || b === undefined || a === b) continue; from[m] = a; to[m++] = b; indeg[b]++; }
+      /* Names: only the names the links use go into a lookup table (the starts of links, far fewer than the items in a tree), and each item's
+         name is then asked for once. The end of a link is usually the next item in the list, which one comparison settles with no lookup.
+         A full table of every name is only made for a list of links in no such order. */
+      var M = new Map(), P = 0, g = 0, ls = S, lp = -1, miss = 0, fs, ts, pid, tv, full = false;
+      for (i = 0; i < ne; i++) {
+        e = E[i]; fs = e.from; ts = e.to;
+        if (g < n && nodes[g].id === ts) { tv = g; g++; }
+        else if (g + 1 < n && nodes[g + 1].id === ts) { tv = g + 1; g += 2; }
+        else { if (++miss > 32 + (i >> 3)) { full = true; break; } pid = M.get(ts); if (pid === undefined) { pid = P++; M.set(ts, pid); } tv = -1 - pid; }
+        if (fs === ls) pid = lp; else { pid = M.get(fs); if (pid === undefined) { pid = P++; M.set(fs, pid); } ls = fs; lp = pid; }
+        S[PE + i] = pid; S[TB + i] = tv;
+      }
+      if (full) {
+        idx = mkIdx(); ls = S;
+        for (i = 0; i < ne; i++) { e = E[i]; fs = e.from; if (fs !== ls) { a = idx.get(fs); ls = fs; } b = idx.get(e.to); if (a === undefined || b === undefined || a === b) continue; FT[m] = a; FT[ne + m] = b; m++; S[b]++; S[OFF + a + 2]++; }
+        for (i = 0; i < n; i++) if (nodes[i].start) { st = i; break; }
+        if (F) sizes();
+      } else {
+        S.fill(-1, NO, NO + P);
+        if (F) for (i = 0; i < n; i++) {
+          nd = nodes[i]; pid = M.get(nd.id); if (pid !== undefined) S[NO + pid] = i;
+          if (st < 0 && nd.start) st = i;
+          w = nd.sizeV; if (typeof w !== 'number') { if (w !== undefined) szOk = false; w = NaN; } F[SZ + i] = w;
+        } else for (i = 0; i < n; i++) { nd = nodes[i]; pid = M.get(nd.id); if (pid !== undefined) S[NO + pid] = i; if (st < 0 && nd.start) st = i; }
+        for (i = 0; i < ne; i++) { a = S[NO + S[PE + i]]; tv = S[TB + i]; b = tv >= 0 ? tv : S[NO - 1 - tv]; if (a < 0 || b < 0 || a === b) continue; FT[m] = a; FT[ne + m] = b; m++; S[b]++; S[OFF + a + 2]++; }
+      }
     }
-    from = from.subarray(0, m); to = to.subarray(0, m);
-    var isForest = true;
-    for (i = 0; i < n; i++) if (indeg[i] > 1) { isForest = false; break; }
-    var groups = null, groupsOf = function () { if (!groups) { groups = new Map(); for (var q = 0; q < n; q++) { var g = nodes[q].group || ''; if (!groups.has(g)) groups.set(g, groups.size); } } return groups; };
-    var mode = o.nest === 'groups' || o.nest === 'links' ? o.nest : isForest && m > 0 ? 'links' : (groupsOf().size >= 2 && groups.size <= Math.max(2, n / 2) ? 'groups' : 'links');
-    var cap = mode === 'groups' ? n + 1 + groupsOf().size : n + 1, N = 0;
-    var IA = new Int32Array(cap * 4), par = IA.subarray(0, cap), item = IA.subarray(cap, cap * 2), depth = IA.subarray(cap * 2, cap * 3), label = new Array(cap), group = new Array(cap), kids = new Array(cap);
-    var add = function (p, lab, it, g) { var v = N++; par[v] = p; item[v] = it; label[v] = lab; group[v] = g; kids[v] = EMPTY; if (p >= 0) { depth[v] = depth[p] + 1; if (kids[p] === EMPTY) kids[p] = [v]; else kids[p].push(v); } else depth[v] = 0; return v; };
-    var root = -1, extra = [];
-    if (mode === 'groups') {
+    var mode = nest;
+    if (!F) {
+      var isForest = true;
+      for (i = 0; i < n; i++) if (S[i] > 1) { isForest = false; break; }
+      mode = isForest && m > 0 ? 'links' : (groupsOf().size >= 2 && groups.size <= Math.max(2, n / 2) ? 'groups' : 'links');
+      if (mode === 'groups') { grouped = true; gcount = groups.size; }
+      mkF(n + 1 + gcount); sizes();
+    }
+    var cap = n + 1 + gcount, N = 0, KO = cap * 4, KL = cap * 5 + 1, AT = cap * 6 + 1;
+    var IA = new Int32Array(cap * 6 + 1 + n), label = null, group = null, kids = null;   /* parents, items, depths, drawing order, where each box's children start (N + 1), the children, each item's box */
+    var root = 0, extra = [], v, p, k, u;
+    if (grouped) {
+      label = new Array(cap); group = new Array(cap); kids = new Array(cap);
+      var add = function (p, lab, it, g) { var v = N++; IA[v] = p; IA[cap + v] = it; label[v] = lab; group[v] = g; kids[v] = EMPTY; if (it >= 0) IA[AT + it] = v; if (p >= 0) { IA[cap * 2 + v] = IA[cap * 2 + p] + 1; if (kids[p] === EMPTY) kids[p] = [v]; else kids[p].push(v); } else IA[cap * 2 + v] = 0; return v; };
       root = add(-1, G.name || 'All', -1, '');
       var gbox = []; groups.forEach(function (k, g) { gbox[k] = add(root, g || '(no group)', -1, g); });
       for (i = 0; i < n; i++) { var gi = nodes[i].group || ''; add(gbox[groups.get(gi)], nodes[i].label, i, gi); }
       for (i = 0; i < m; i++) extra.push(i);
+      label.length = N; group.length = N; kids.length = N;
+      for (v = 0, k = 0; v < N; v++) { IA[cap * 3 + v] = v; IA[KO + v] = k; var kv = kids[v]; for (i = 0; i < kv.length; i++) IA[KL + k++] = kv[i]; }
+      IA[KO + N] = k;
     } else {
-      var off = tmpI(1, n + 1); for (i = 0; i < m; i++) off[from[i] + 1]++; for (i = 0; i < n; i++) off[i + 1] += off[i];
-      var nb = tmpI(2, m), en = tmpI(3, m), fill = tmpI(9, n); fill.set(off.subarray(0, n));
-      for (i = 0; i < m; i++) { var q = fill[from[i]]++; nb[q] = to[i]; en[q] = i; }
-      var pOf = tmpI(4, n, -2), viaEdge = tmpI(5, n, -1), queue = tmpI(6, n), qh = 0, qt = 0;
-      var walk = function (s) {
-        pOf[s] = -1; queue[qt++] = s;
-        while (qh < qt) { var u = queue[qh++]; for (var j = off[u]; j < off[u + 1]; j++) { var v = nb[j]; if (pOf[v] !== -2) continue; pOf[v] = u; viaEdge[v] = en[j]; queue[qt++] = v; } }
-      };
-      var st = -1; for (i = 0; i < n; i++) if (nodes[i].start) { st = i; break; }
-      if (st >= 0) walk(st);
-      for (i = 0; i < n; i++) if (pOf[i] === -2 && indeg[i] === 0) walk(i);
-      while (qt < n) {   /* loops nothing leads into: start from the best-linked item left */
-        var best = -1, bd = -1; for (i = 0; i < n; i++) if (pOf[i] === -2) { var d = off[i + 1] - off[i]; if (d > bd) { bd = d; best = i; } }
-        walk(best);
+      var j, j1, x, qh = 0, qt = 0, T = 0, scan = 0, phase = st >= 0 ? 0 : 1, s0;
+      for (i = 0; i < n; i++) S[OFF + i + 2] += S[OFF + i + 1];
+      for (i = 0; i < m; i++) { a = FT[i]; S[NB + S[OFF + a + 1]++] = FT[ne + i]; }   /* now the links out of item u are NB[OFF[u]] .. NB[OFF[u + 1] - 1], in the order given */
+      /* a walk out from the start, then from each item nothing leads to, then (loops nothing leads into) from the best-linked item left */
+      for (;;) {
+        if (phase === 0) { s0 = st; phase = 1; }
+        else if (phase === 1) { while (scan < n && (S[PO + scan] !== 0 || S[scan] !== 0)) scan++; if (scan < n) s0 = scan++; else { phase = 2; continue; } }
+        else { if (qt >= n) break; var bd = -1; s0 = -1; for (i = 0; i < n; i++) if (S[PO + i] === 0) { var d = S[OFF + i + 1] - S[OFF + i]; if (d > bd) { bd = d; s0 = i; } } }
+        S[PO + s0] = 1; S[QU + qt++] = s0; T++;
+        while (qh < qt) {
+          u = S[QU + qh]; IA[KO + qh + 1] = qt - T; qh++;   /* its children will be the next boxes made: how many boxes that are not tops came before */
+          for (j = S[OFF + u], j1 = S[OFF + u + 1]; j < j1; j++) { x = S[NB + j]; if (S[PO + x] !== 0) continue; S[PO + x] = u + 2; S[QU + qt++] = x; }
+        }
       }
-      var tops = 0; for (i = 0; i < n; i++) if (pOf[i] === -1) tops++;
-      /* one real top item is the root itself; several hang under a made-up root */
-      if (tops !== 1) root = add(-1, G.name || 'All', -1, '');
-      var at = tmpI(7, n);
-      for (var k = 0; k < qt; k++) { var u2 = queue[k], nd = nodes[u2]; at[u2] = add(pOf[u2] < 0 ? root : at[pOf[u2]], nd.label, u2, nd.group || ''); }
-      if (tops === 1) root = 0;
-      var inTree = tmpI(8, m); for (i = 0; i < n; i++) if (viaEdge[i] >= 0) inTree[viaEdge[i]] = 1;
-      for (i = 0; i < m; i++) if (!inTree[i]) extra.push(i);
+      /* one real top item is the root itself; several hang under a made-up root. Box k + sh is the k-th item reached. */
+      var sh = T !== 1 ? 1 : 0, ti = 0, nt = sh ? T : 0, c2 = cap * 2, c3 = cap * 3;
+      if (sh) { IA[0] = -1; IA[cap] = -1; }
+      for (k = 0; k < qt; k++) {
+        u = S[QU + k]; v = k + sh; IA[AT + u] = v; IA[cap + v] = u; IA[c3 + v] = v; p = S[PO + u];
+        if (p === 1) { IA[v] = sh - 1; IA[c2 + v] = sh; if (sh) IA[KL + ti++] = v; }
+        else { p = IA[AT + p - 2]; IA[v] = p; IA[c2 + v] = IA[c2 + p] + 1; IA[KL + nt++] = v; }
+        if (sh) IA[KO + v] += T; else IA[KO + k] = IA[KO + k + 1];
+      }
+      N = qt + sh; IA[KO + N] = N - 1; if (sh) IA[KO] = 0;
+      if (m > n - T) {   /* more links than the tree uses: list the rest. The tree's link into an item is the first one from its parent. */
+        S.fill(0, 0, n);
+        for (i = 0; i < m; i++) { b = FT[ne + i]; if (S[PO + b] === FT[i] + 2 && S[b] === 0) S[b] = 1; else extra.push(i); }
+      }
     }
-    var order = IA.subarray(cap * 3, cap * 3 + N); for (i = 0; i < N; i++) order[i] = i;
-    if (N < cap) { par = par.subarray(0, N); item = item.subarray(0, N); depth = depth.subarray(0, N); label.length = N; group.length = N; kids.length = N; }
-    return { N: N, par: par, kids: kids, label: label, item: item, group: group, root: root, depth: depth, order: order, mode: mode, extra: extra, from: from, to: to, idx: idx };   /* idx: null when the app gave item numbers */
+    var kidOff = IA.subarray(KO, KO + N + 1), kidList = IA.subarray(KL, KL + Math.max(0, N - 1)), item = IA.subarray(cap, cap + N);
+    var H = { N: N, par: IA.subarray(0, N), kids: kids, label: label, item: item, group: group, root: root, depth: IA.subarray(cap * 2, cap * 2 + N), order: IA.subarray(cap * 3, cap * 3 + N), mode: mode, extra: extra,
+      from: FT.subarray(0, m), to: FT.subarray(ne, ne + m), idx: idx, kidOff: kidOff, kidList: kidList, at: IA.subarray(AT, AT + n), F: F, cap: cap, szOk: szOk };   /* idx: null when the app gave item numbers */
+    if (!kids) {
+      var topName = G.name || 'All';
+      lazy(H, 'kids', function () { return kidArrays(N, kidOff, kidList); });
+      lazy(H, 'label', function () { var L = new Array(N); for (var q = 0; q < N; q++) L[q] = item[q] >= 0 ? nodes[item[q]].label : topName; return L; });
+      lazy(H, 'group', function () { var L = new Array(N); for (var q = 0; q < N; q++) L[q] = item[q] >= 0 ? nodes[item[q]].group || '' : ''; return L; });
+    }
+    if (named && !idx) lazy(H, 'idx', mkIdx);
+    return H;
   }
   /** Sums: value[i] = own value (leaves, or every item when sized) + what its children hold. Children are sorted biggest first (o.sort !== false). */
   function sums(G, H, o) {
-    var N = H.N, val = new Float64Array(N), sized = !!o.sized, i;
-    for (i = H.order.length - 1; i >= 0; i--) {
-      var v = H.order[i], k = H.kids[v], s = 0;
-      for (var j = 0; j < k.length; j++) s += val[k[j]];
-      var own = H.item[v] >= 0 && (sized || !k.length) ? itemValue(G.nodes[H.item[v]]) : 0;
-      val[v] = s + own;
+    var N = H.N, F = H.F, cap = H.cap, val = F.subarray(0, N), own = F.subarray(cap, cap + N), SZ = cap * 2, szOk = H.szOk, sized = !!o.sized, v, j, kidOff = H.kidOff, kidList = H.kidList, item = H.item, nodes = G.nodes, a, b, it, w, s;
+    for (v = N - 1; v >= 0; v--) {
+      s = 0; a = kidOff[v]; b = kidOff[v + 1]; w = 0;
+      for (j = a; j < b; j++) s += val[kidList[j]];
+      it = item[v];
+      if (it >= 0 && (sized || a === b)) {
+        if (szOk) { w = F[SZ + it]; if (!(w > 0)) w = 1; s += w; }
+        else { w = nodes[it].sizeV; if (!(w === w && w > 0)) w = 1; s = s + w; }   /* a size that is not a plain number: read as before */
+      }
+      own[v] = w; val[v] = s;
     }
-    if (o.sort !== false) {   /* biggest first; two children (the most common case) are just swapped, longer lists share one comparison */
-      var cmp = function (a, b) { return val[b] - val[a] || a - b; };
-      for (i = 0; i < N; i++) { var kk = H.kids[i], L = kk.length; if (L < 2) continue; if (L === 2) { var k0 = kk[0], k1 = kk[1]; if (val[k1] > val[k0] || (val[k1] === val[k0] && k1 < k0)) { kk[0] = k1; kk[1] = k0; } } else kk.sort(cmp); }
+    if (o.sort !== false) {   /* biggest first; two children (the most common case) are just swapped, short lists are sorted in place, longer lists share one comparison */
+      var cmp = function (p, q) { return val[q] - val[p] || p - q; }, moved = false;
+      for (v = 0; v < N; v++) {
+        a = kidOff[v]; var L = kidOff[v + 1] - a; if (L < 2) continue;
+        if (L === 2) { var k0 = kidList[a], k1 = kidList[a + 1]; if (val[k1] > val[k0] || (val[k1] === val[k0] && k1 < k0)) { kidList[a] = k1; kidList[a + 1] = k0; moved = true; } }
+        else if (L <= 24) {
+          for (j = a + 1, b = a + L; j < b; j++) {
+            var c = kidList[j], vc = val[c], i = j - 1, d;
+            while (i >= a && (val[d = kidList[i]] < vc || (val[d] === vc && d > c))) { kidList[i + 1] = d; i--; }
+            if (i + 1 !== j) { kidList[i + 1] = c; moved = true; }
+          }
+        } else { kidList.subarray(a, a + L).sort(cmp); moved = true; }
+      }
+      if (moved && Object.getOwnPropertyDescriptor(H, 'kids').get === undefined) H.kids = kidArrays(N, kidOff, kidList);   /* plain lists that were already made follow the new order */
     }
+    H.ownV = own;
     H.own = function (v) { return H.item[v] >= 0 && (sized || !H.kids[v].length) ? itemValue(G.nodes[H.item[v]]) : 0; };
     return val;
   }
@@ -167,16 +249,18 @@ var NetflowHierarchy = (function () {
   }
   /** Partition: depth across, value along (icicle), or the same in rings (sunburst). */
   function partition(G, o, radial) {
-    var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, R = new Float64Array(N * 4), maxD = 0, i, sized = !!o.sized;
-    for (i = 0; i < N; i++) if (H.depth[i] > maxD) maxD = H.depth[i];
-    var skipRoot = H.item[H.root] < 0 ? 1 : 0, levels = maxD + 1 - skipRoot;
+    var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, R = new Float64Array(N * 4), maxD = 0, v, own = H.ownV, kidOff = H.kidOff, kidList = H.kidList, depth = H.depth;
+    var skipRoot = H.item[H.root] < 0 ? 1 : 0;
     R[H.root * 4 + 1] = 0; R[H.root * 4 + 3] = 1;
-    for (i = 0; i < H.order.length; i++) {
-      var v = H.order[i], k = H.kids[v], a = R[v * 4 + 1], span = R[v * 4 + 3] - a, t = val[v] || 1;
-      var it0 = H.item[v], at = a + (it0 >= 0 && (sized || !k.length) ? span * itemValue(G.nodes[it0]) / t : 0);   /* an item that holds something itself keeps that much of its own slice, first */
-      for (var j = 0; j < k.length; j++) { var c = k[j], w = span * val[c] / t; R[c * 4 + 1] = at; R[c * 4 + 3] = at + w; at += w; }
+    for (v = 0; v < N; v++) {   /* a parent always comes before its children */
+      var v4 = v * 4, a = R[v4 + 1], d = depth[v], j = kidOff[v], j1 = kidOff[v + 1];
+      if (d > maxD) maxD = d;
+      R[v4] = d - skipRoot; R[v4 + 2] = d - skipRoot + 1;
+      if (j === j1) continue;
+      var span = R[v4 + 3] - a, t = val[v] || 1, at = a + (own[v] > 0 ? span * own[v] / t : 0);   /* an item that holds something itself keeps that much of its own slice, first */
+      for (; j < j1; j++) { var c = kidList[j], w = span * val[c] / t; R[c * 4 + 1] = at; R[c * 4 + 3] = at + w; at += w; }
     }
-    for (i = 0; i < N; i++) { var d = H.depth[i] - skipRoot; R[i * 4] = d; R[i * 4 + 2] = d + 1; }
+    var levels = maxD + 1 - skipRoot;
     if (radial) {
       var Rad = Math.max(260, Math.min(2200, 120 + Math.sqrt(N) * 26)), ring = Rad / Math.max(1, levels + 0.4);
       return nestedOut('sunburst', G, H, val, { R: R, W: Rad * 2 + 340, H: Rad * 2 + 340, cx: Rad + 170, cy: Rad + 170, ring: ring, hole: ring * 0.4, skipRoot: skipRoot, levels: levels });
@@ -361,9 +445,15 @@ var NetflowHierarchy = (function () {
 
   /** The common result of the nested views: G's items placed where the shape put them (for picking and names), plus the shape itself. */
   function nestedOut(type, G, H, val, geo) {
-    var nodes = G.nodes.slice(), at = tmpI(13, G.nodes.length, -1), i;
-    for (i = 0; i < H.N; i++) if (H.item[i] >= 0) at[H.item[i]] = i;
+    var nodes = G.nodes.slice(), nn = nodes.length, at = H.at, i;
     var R = geo.R, ch = geo;
+    if (type === 'icicle') {
+      var cw = ch.colW, hh = ch.H;
+      for (i = 0; i < nn; i++) {
+        var n1 = nodes[i], b = at[i], b4 = b * 4, xa = R[b4] * cw, xb = R[b4 + 2] * cw, ya = R[b4 + 1] * hh, yb = R[b4 + 3] * hh;
+        n1.x = xa; n1.y = ya; n1.w = Math.max(0, xb - xa); n1.h = Math.max(0, yb - ya); n1.cx = (xa + xb) / 2; n1.cy = (ya + yb) / 2; n1.hv = b;
+      }
+    } else
     for (var q = 0; q < nodes.length; q++) {
       var nd = nodes[q], v = at[q], x0, y0, x1, y1;
       if (type === 'treemap') { x0 = R[v * 4]; y0 = R[v * 4 + 1]; x1 = R[v * 4 + 2]; y1 = R[v * 4 + 3]; }
@@ -373,7 +463,7 @@ var NetflowHierarchy = (function () {
       else { x0 = ch.X[v] - 5; x1 = ch.X[v] + 5; y0 = ch.Y[v] - 5; y1 = ch.Y[v] + 5; }
       nd.x = x0; nd.y = y0; nd.w = Math.max(0, x1 - x0); nd.h = Math.max(0, y1 - y0); nd.cx = (x0 + x1) / 2; nd.cy = (y0 + y1) / 2; nd.hv = v;
     }
-    geo.type = type; geo.val = val; geo.N = H.N; geo.par = H.par; geo.kids = H.kids; geo.depth = H.depth; geo.item = H.item; geo.label = H.label; geo.group = H.group; geo.root = H.root; geo.order = H.order; geo.mode = H.mode;
+    geo.type = type; geo.val = val; geo.N = H.N; geo.par = H.par; lazy(geo, 'kids', function () { return H.kids; }); geo.depth = H.depth; geo.item = H.item; lazy(geo, 'label', function () { return H.label; }); lazy(geo, 'group', function () { return H.group; }); geo.root = H.root; geo.order = H.order; geo.mode = H.mode;
     geo.extra = H.extra.length; geo.tree = { from: H.from, to: H.to, extraList: H.extra };
     return { kind: type, dir: 'none', nodes: nodes, edges: G.edges, chart: geo, width: geo.W, height: geo.H };
   }

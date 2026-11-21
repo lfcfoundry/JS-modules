@@ -40,7 +40,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.1 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.7.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.7.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.1 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.18.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -67,6 +67,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
 - 2026-11-20 · **netflow-plot** 2.18.0 · API 2: A line over 5,000 points draws one to four points per pixel column (first, lowest, highest, last); it looks the same. 100,000 points build in 16 ms (was 43) in Chromium 156, 19 (57) in Firefox 158, 16 (67) in WebKitGTK 2.52.6
 - 2026-11-20 · **netflow-plot** 2.17.1 · API 2: A line chart of many points builds its drawing 2.5 to 3.5 times faster (100,000 points: 42 to 17 ms in Chromium); the chart is the same
+- 2026-11-20 · **netflow-hierarchy** 1.7.1 · API 1: Every nested view is laid out faster, the icicle most: 100,000 items take about 0.55 of the time; same picture.
 - 2026-11-20 · **netflow-circular** 1.5.1 · API 1: The default chord layout is about twice as fast (400 items, 80,000 links: 32 to 18 ms in Chromium, 28 to 14 in Firefox, 34 to 23 in WebKitGTK); the band objects in chart.flows are now made the first time they are read. Same output.
 - 2026-11-20 · **netflow-circular** 1.5.0 · API 1: New option typed: true lays out a dense chord (400 items, 80,000 links) in 15 to 24 ms, 1.5 to 2.3 times faster than d3-chord 3.0.2 (Chromium 156, Firefox 158, WebKitGTK 2.52.6); the default is also 18 to 40% faster
 - 2026-11-20 · **netflow-circular** 1.4.1 · API 1: Chord layout is 3 to 4 times faster on dense charts (400 items, 80,000 links: 185 to 48 ms in Chromium); the drawing is the same
