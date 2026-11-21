@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.5.1 (API 1)
+ * Version 1.5.2 (API 1)
  * netflow-circular.js: the circular views of Netflow Map (Chord, Bundles). layout(view, G, o) returns a plain layout; scene(L, o, NS) turns it
  * into drawing lists for netflow-scene. Built on netflow-hierarchy (its tree, values and drawing frame): load netflow-hierarchy.js first,
  * or keep it next to this folder in Node. No page, no DOM.
@@ -34,9 +34,8 @@ var NetflowCircular = (function () {
     else for (i = 0; i < n; i++) { entOf[i] = i; ent.push({ label: G.nodes[i].label, group: G.nodes[i].group || '', items: [i], item: i }); }
     /* typed:true (since 1.5.0) keeps the bands as typed arrays (chart.flowsT) and makes no object for each band; the default makes the same bands as objects (chart.flows) */
     var K = ent.length, flows = new Map(), eN = G.edges.length, tab = K * K <= 8 * eN + 4096 ? new Int32Array(K * K).fill(-1) : null;   /* a table of places for the pairs when edges are dense, else a Map */
-    var typed = true, wantT = !!o.typed, fl = null, flowsT = null, nF = 0, fi, fq, sF, tF, vF, headE, tailE, nextE, cntE;
+    var wantT = !!o.typed, flowsT = null, nF = 0, fi, fq, sF, tF, vF, headE, tailE, nextE, cntE;
     var out = new Float64Array(K), inn = new Float64Array(K), tot = 0;
-    if (typed) {
       sF = new Int32Array(eN); tF = new Int32Array(eN); vF = new Float64Array(eN); headE = new Int32Array(eN); tailE = new Int32Array(eN); nextE = new Int32Array(eN).fill(-1); cntE = new Int32Array(eN);
       G.edges.forEach(function (e, ei) {
         var a = idx.get(e.from), b = idx.get(e.to); if (a === undefined || b === undefined) return;
@@ -46,28 +45,16 @@ var NetflowCircular = (function () {
         vF[fi] += v; nextE[tailE[fi]] = ei; tailE[fi] = ei; cntE[fi]++;
       });
       for (fq = 0; fq < nF; fq++) { out[sF[fq]] += vF[fq]; inn[tF[fq]] += vF[fq]; tot += vF[fq] * 2; }
-    } else {
-      fl = [];
-      G.edges.forEach(function (e, ei) {
-        var a = idx.get(e.from), b = idx.get(e.to); if (a === undefined || b === undefined) return;
-        var s = entOf[a], t = entOf[b], v = linkValue(e); if (!(v > 0)) return;
-        var key = s * K + t, f = tab ? (tab[key] < 0 ? undefined : fl[tab[key]]) : flows.get(key);
-        if (!f) { f = { s: s, t: t, v: v, edges: [ei], sa0: 0, sa1: 0, ta0: 0, ta1: 0 }; if (tab) tab[key] = fl.length; else flows.set(key, f); fl.push(f); return; }
-        f.v += v; f.edges.push(ei);
-      });
-      nF = fl.length;
-      fl.forEach(function (f) { out[f.s] += f.v; inn[f.t] += f.v; tot += f.v * 2; });
-    }
     /* order around the circle: start by group, then move each one toward the middle of what it is joined to; keep the order with the fewest crossings */
     var ord = []; for (i = 0; i < K; i++) ord.push(i);
     ord.sort(function (a, b) { return ent[a].group < ent[b].group ? -1 : ent[a].group > ent[b].group ? 1 : a - b; });
     var adj = null;   /* the lists of neighbours are only used by the order search (chordOrder 'fewest') */
-    if (o.chordOrder === 'fewest') { adj = new Array(K); for (i = 0; i < K; i++) adj[i] = []; for (fq = 0; fq < nF; fq++) { var fa = fl ? fl[fq] : null, as = fa ? fa.s : sF[fq], at0 = fa ? fa.t : tF[fq]; if (as !== at0) { var av = fa ? fa.v : vF[fq]; adj[as].push(at0, av); adj[at0].push(as, av); } } }
+    if (o.chordOrder === 'fewest') { adj = new Array(K); for (i = 0; i < K; i++) adj[i] = []; for (fq = 0; fq < nF; fq++) { var as = sF[fq], at0 = tF[fq]; if (as !== at0) { var av = vF[fq]; adj[as].push(at0, av); adj[at0].push(as, av); } } }
     /* chords cross when their ends interleave around the circle; counted for up to 3,000 bands. Bands are bucketed by their first end, so each band only meets the bands that start inside it; stop counting once past the best so far */
-    var mC = 0; if (fl) { for (fq = 0; fq < nF; fq++) if (fl[fq].s !== fl[fq].t) mC++; } else for (fq = 0; fq < nF; fq++) if (sF[fq] !== tF[fq]) mC++;
+    var mC = 0; for (fq = 0; fq < nF; fq++) if (sF[fq] !== tF[fq]) mC++;
     var mS = mC > 3000 ? 0 : mC;   /* over 3,000 bands the crossings are not counted, so the tables stay empty */
     var cS = new Int32Array(mS), cT = new Int32Array(mS), cV = new Float64Array(mS), cA = new Int32Array(mS), cB = new Int32Array(mS), cW = new Float64Array(mS), cHo = new Int32Array(mS), cStart = new Int32Array(K + 1), cFill = new Int32Array(K);
-    if (mS) { mS = 0; for (fq = 0; fq < nF; fq++) { var fb = fl ? fl[fq] : null, bs = fb ? fb.s : sF[fq], bt = fb ? fb.t : tF[fq]; if (bs !== bt) { cS[mS] = bs; cT[mS] = bt; cV[mS++] = fb ? fb.v : vF[fq]; } } }
+    if (mS) { mS = 0; for (fq = 0; fq < nF; fq++) { var bs = sF[fq], bt = tF[fq]; if (bs !== bt) { cS[mS] = bs; cT[mS] = bt; cV[mS++] = vF[fq]; } } }
     /* the same sum, counted by weight: going from the heaviest band down, a band adds its own weight once for each heavier band it crosses
        (the lighter of two crossing bands sets their cost), and the heavier bands are counted in a 2D Fenwick table of (near end, far end) */
     var byW = null, bit = null;
@@ -141,7 +128,6 @@ var NetflowCircular = (function () {
       a0 += len + pad;
     });
     /* slots: what an arc sends, sorted by where it lands (going round from this arc), then what it gets, sorted by where it comes from */
-    if (typed) {
     var posA = new Int32Array(K), slotF = new Int32Array(K).fill(-1), lk, fo, kk, sSt = new Int32Array(K + 1), gSt = new Int32Array(K + 1), sIx = new Int32Array(nF), gIx = new Int32Array(nF);
     var sa0 = new Float64Array(nF), sa1 = new Float64Array(nF), ta0 = new Float64Array(nF), ta1 = new Float64Array(nF);
     for (i = 0; i < K; i++) posA[ord[i]] = i;
@@ -166,35 +152,12 @@ var NetflowCircular = (function () {
       }
     }
     flowsT = { n: nF, s: sF, t: tF, v: vF, sa0: sa0, sa1: sa1, ta0: ta0, ta1: ta1, firstEdge: headE, nextEdge: nextE, count: cntE };
-    } else {
-    var sendList = new Array(K), getList = new Array(K), posA = new Int32Array(K), slotF = new Array(K), lk, fo, kk;
-    for (i = 0; i < K; i++) posA[ord[i]] = i;
-    var scale = tot > 0 ? span / tot : 0;
-    /* around the circle the arcs' middles grow with the place, so "sorted by where it lands, going round from this arc" is the place distance (this arc itself first, then the arcs behind it, nearest first): one band per pair, so each list is placed straight into a table of K places, no sort */
-    for (i = 0; i < K; i++) { sendList[i] = []; getList[i] = []; }
-    fl.forEach(function (f) { sendList[f.s].push(f); getList[f.t].push(f); });
-    for (i = 0; i < K; i++) {
-      var A = arcs[i], at = A.a0, pi1 = posA[i];
-      var lst = sendList[i], m1 = lst.length;
-      if (m1 > 1) {
-        for (lk = 0; lk < m1; lk++) { fo = lst[lk]; kk = pi1 - posA[fo.t]; slotF[kk < 0 ? kk + K : kk] = fo; }
-        for (lk = 0, kk = 0; lk < m1; kk++) if ((fo = slotF[kk]) !== undefined) { slotF[kk] = undefined; lst[lk++] = fo; }
-      }
-      for (lk = 0; lk < m1; lk++) { fo = lst[lk]; fo.sa0 = at; at += fo.v * scale; fo.sa1 = at; }
-      lst = getList[i]; m1 = lst.length;
-      if (m1 > 1) {
-        for (lk = 0; lk < m1; lk++) { fo = lst[lk]; kk = pi1 - posA[fo.s]; slotF[kk < 0 ? kk + K : kk] = fo; }
-        for (lk = 0, kk = 0; lk < m1; kk++) if ((fo = slotF[kk]) !== undefined) { slotF[kk] = undefined; lst[lk++] = fo; }
-      }
-      for (lk = 0; lk < m1; lk++) { fo = lst[lk]; fo.ta0 = at; at += fo.v * scale; fo.ta1 = at; }
-    }
-    }
     var nodes = G.nodes.slice();
     nodes.forEach(function (nd, q) {
       var A = arcs[entOf[q]], r = R + th / 2, w = byGroup ? 6 : Math.max(8, th);
       nd.cx = cx + Math.cos(A.mid) * r; nd.cy = cy + Math.sin(A.mid) * r; nd.w = nd.h = w; nd.x = nd.cx - w / 2; nd.y = nd.cy - w / 2;
     });
-    var res = { kind: 'chord', dir: 'none', nodes: nodes, edges: G.edges, chart: { type: 'chord', cx: cx, cy: cy, R: R, th: th, arcs: arcs, flows: fl, byGroup: byGroup, crossings: bestC, total: tot / 2 }, width: cx * 2, height: cy * 2 };
+    var res = { kind: 'chord', dir: 'none', nodes: nodes, edges: G.edges, chart: { type: 'chord', cx: cx, cy: cy, R: R, th: th, arcs: arcs, flows: null, byGroup: byGroup, crossings: bestC, total: tot / 2 }, width: cx * 2, height: cy * 2 };
     if (wantT) { res.chart.flowsT = flowsT; delete res.chart.flows; }
     else {   /* default: chart.flows is the same list of band objects as before, made when first read (most callers draw from the arrays and never read it) */
       var chartObj = res.chart; TYPED_OF.set(chartObj, flowsT);
