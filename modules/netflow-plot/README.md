@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.20.1 · API 2**
+**Version 2.21.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (speed race in all three, one at a time); 751 module checks pass
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (small file: 108 charts identical to the full files in each, and a speed race against uPlot, one browser at a time); 757 module checks pass
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -51,6 +51,24 @@ containerDiv.innerHTML = NetflowPlot.toSvg({ day: days, sales: sales }, { type: 
 ```
 
 The chart is the same as from the same table given as rows. With the type and columns named, nothing is turned into rows, so a long line is quicker: 100,000 points build in about 4 ms in Chromium 156 against 5 from rows. The chart picked for you, flows, trees and the takeaway text read rows, so for those the columns are turned into rows first. Nothing is written on your arrays, and `get` is not used with columns.
+
+### The small lines-only file (since 2.21.0)
+
+`netflow-plot-line.min.js` is one file that draws line charts only: 51.7 KB, 21.6 KB gzipped as `netflow-plot-line.min.js`, against 22.0 KB for uPlot 1.6.32's minified script (22.8 KB with its style sheet). It needs no other file, not even netflow-scene.
+
+```html
+<script src="netflow-plot-line.min.js"></script>
+<script>
+  el.innerHTML = NetflowLine.toSvg(rows, { x: 'day', y: 'sales' });                 // rows, or columns: { day: [...], sales: Float64Array }
+  el.innerHTML = NetflowLine.toSvg(rows, { x: 'day', y: 'sales', color: 'region', title: 'Sales by region', theme: 'dark' });
+</script>
+```
+
+`NetflowLine.toSvg(data, options)` takes the same data and the same line options as `NetflowPlot.toSvg` (x, y, color, agg, top, index, zero, smooth, highlight, palette, theme, width, height, title, subtitle, source, clean, percent, get) and returns the same SVG text, character for character. The type is always a line. Anything else, such as another chart type's option or `title: 'auto'`, throws an error that says to use `netflow-plot.js` with `netflow-scene.js`.
+
+It is made by a script, `test/make-line.js`, from `netflow-plot.js` and `netflow-scene.js`: the script draws 2,712 line charts, keeps the functions that ran and empties the rest, then minifies. The tests draw 1,472 more line charts on other data with both and fail if one differs or if the small file was not rebuilt after a change.
+
+**After any change to `netflow-plot.js`, rebuild the small file** or the tests fail: `TERSER=/path/to/terser node modules/netflow-plot/test/make-line.js` (terser 5; `--check` only says whether the file is current). A change to `netflow-scene.js` needs a rebuild only when the tests say a line chart's picture differs.
 
 ### The chart picked for you (since 2.9.0)
 

@@ -302,6 +302,14 @@ t('prestigeGain follows the known curves, and round trips with prestigeNeeded', 
   assert.strictEqual(I.prestigeNeeded(0, 1e12, 3), 0); assert.ok(ok(I.prestigeNeeded(1e300, 1, 9, 1)) && ok(I.prestigeGain(Infinity, 1, 2)));
   [NaN, 'x', null, undefined, -3, 0].forEach(function (v) { assert.ok(ok(I.prestigeGain(1e9, v, v, v)) && ok(I.prestigeNeeded(5, v, v, v))); });
 });
+t('big prices are exact to the coin (values from an exact-fraction check, the old code was one coin low on each)', function () {
+  [[7000000000000, 10, 12, 0.9, 19772098773343], [100000000, 75, 21, 1, 12699862602024], [100000000, 75, 24, 1, 68063326132719], [10, 10, 288, 1, 8338603536726]].forEach(function (c) {
+    var P = I.upgradeCost(c[0], c[1], c[2], c[3]); assert.strictEqual(P, c[4], c.join());
+    assert.strictEqual(I.maxAffordable(c[0], c[1], c[2], c[4], c[3]), 1, 'money = the price buys one'); assert.strictEqual(I.maxAffordable(c[0], c[1], c[2], c[4] - 1, c[3]), 0, 'a coin short buys none');
+    assert.strictEqual(I.costOfMany(c[0], c[1], c[2], 1, c[3]), c[4]); assert.strictEqual(I.buyPlan(c[0], c[1], c[2], c[3], c[4], 1, 100).n, 1);
+  });
+  assert.strictEqual(I.upgradeCost(1e300, -99, 600, 1e300) >= 0, true);   // a product that overflows then shrinks (Infinity * 0) is not a price
+});
 t('fastForward runs the game step in chunks and stops at a time budget', function () {
   var calls = 0, total = 0, out = I.fastForward(function (dt) { calls++; total += dt; }, 3600, { chunk: 5 });
   assert.strictEqual(calls, 720); assert.ok(Math.abs(total - 3600) < 1e-6); assert.strictEqual(out.skipped, 0); assert.ok(Math.abs(out.simulated - 3600) < 1e-6);

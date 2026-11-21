@@ -1,5 +1,18 @@
 # netflow-plot developer changelog
 
+## 2.21.0 · API 2 · 2026-11-21
+
+### Quick
+New file netflow-plot-line.min.js (global NetflowLine, toSvg(data, options)): line charts only, self-contained, 21.6 KB gzipped. Built by test/make-line.js from netflow-plot.js and netflow-scene.js. netflow-plot.js itself is unchanged. Nothing breaks.
+
+### Details
+Size: 51,730 bytes, 21,638 gzipped (gzip -9), against uPlot 1.6.32 uPlot.iife.min.js 22,009 (plus uPlot.min.css 772) and Chart.js 4.6.1 70.9 KB; the full pair is 62.6 KB.
+Speed, 100,000-point line, steady redraw per chart from rows (ms): Chromium 156 3.4 to 3.8 against uPlot 11.0 to 11.6; Firefox 158 2.5 to 2.9 against 7.4 to 8.7; WebKitGTK 2.52.6 7.0 to 7.6 against 15.9 to 18.4. From columns: Chromium 1.7 to 2.0, Firefox 1.9. One chart from the call to the shown frame: Chromium 12.1 to 13.1 rows, 10.2 to 11.3 columns, uPlot 22.6 to 24.3; Firefox 21 to 22 rows, 10 to 20 columns, uPlot 21 to 22. Same speed as the full files within noise.
+Options kept: x, y, color, agg, top, index, zero, smooth, highlight, palette, theme, width, height, title, subtitle, source, clean, percent, get; rows or columns. Left out: every other chart type, auto(), guess(), takeaway(), title: 'auto', make().
+
+### Deep
+Requested by the owner on a card (2026-11-21): a lines-only small file to beat uPlot on size. test/make-line.js joins netflow-scene.js and netflow-plot.js inside one function, draws the 2,712 line charts of test/line-uses.js while the engine's precise coverage counts which functions and braced blocks run, replaces each one that never ran with a call that throws a plain error, checks that every one of those charts is still identical, minifies with terser (ecma 2020, 3 passes) and checks the minified file again. 211 functions and 20 blocks are emptied. The header carries a build stamp (a hash of netflow-plot.js, line-uses.js and make-line.js); run.js fails when the stamp is old, when any of 1,472 line charts on other random data differs from the full files, when the version differs, or when the file reaches uPlot's 22,009 bytes gzipped. 10,848 more charts on four other seeds were identical. A newer netflow-scene.js alone does not make the file stale; the picture check catches a scene change that alters a line chart. A first race seemed 1 ms slower from rows in Chromium; that was the test page's own sameness check running before the timing, and without it the small file and the full files time the same.
+
 ## 2.20.1 · API 2 · 2026-11-21
 
 ### Quick
