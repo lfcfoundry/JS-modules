@@ -4,12 +4,12 @@
 
 Determine whether the automatic compression tuner can reduce end-to-end work on realistic text inputs while retaining its ratio advantage on structured logs. Treat the smaller sample/hash-table candidate as a hypothesis to qualify, not as an accepted production change.
 
-The shared implementation is \`modules/zstd-kit/src/zstd-core.js\`; LFC-pack embeds it. Keep source-of-truth edits in the module source, then regenerate outputs through the supported build. Do not patch generated bundles by hand.
+The shared implementation is `modules/zstd-kit/src/zstd-core.js`; LFC-pack embeds it. Keep source-of-truth edits in the module source, then regenerate outputs through the supported build. Do not patch generated bundles by hand.
 
 ## P0 — Reproduce and audit
 
-1. Read repository \`AGENTS.md\`, module build instructions, and the current zstd-kit and LFC-pack test commands.
-2. Confirm the current \`main\` source and existing generated artifacts are in sync using the supported build.
+1. Read repository `AGENTS.md`, module build instructions, and the current zstd-kit and LFC-pack test commands.
+2. Confirm the current `main` source and existing generated artifacts are in sync using the supported build.
 3. Reproduce the current tuner path and record:
    - input eligibility and sampling locations/lengths
    - candidate parameter tuples and selection metric
@@ -78,8 +78,8 @@ Do not pool browser results until per-browser regressions are understood.
 
 ## P3 — Secondary candidates (only after tuner work)
 
-- **Decoder context reuse:** compare the one-shot \`ZSTD_decompress\` path with a persistent \`ZSTD_DCtx\` using repeated small, mixed, random, and multi-megabyte decode calls. Measure reset/retained-memory cost and lifecycle correctness. Keep only if the browser gain repeats and memory remains within budget.
-- **Compiler flags/SIMD:** use the project’s pinned compiler and required browser compatibility. Measure full and decoder-only Wasm size alongside speed; the tested Clang 21 \`-O3\` builds grew 20–30% with no broad host win. Do not make this a default change without an agreed size budget and browser evidence.
+- **Decoder context reuse:** compare the one-shot `ZSTD_decompress` path with a persistent `ZSTD_DCtx` using repeated small, mixed, random, and multi-megabyte decode calls. Measure reset/retained-memory cost and lifecycle correctness. Keep only if the browser gain repeats and memory remains within budget.
+- **Compiler flags/SIMD:** use the project’s pinned compiler and required browser compatibility. Measure full and decoder-only Wasm size alongside speed; the tested Clang 21 `-O3` builds grew 20–30% with no broad host win. Do not make this a default change without an agreed size budget and browser evidence.
 - **Upstream update:** check the official release notes and changelog first; update only to a stable, pinned release, then run the full compatibility matrix.
 
 ## P4 — Implement and integrate only a qualified winner

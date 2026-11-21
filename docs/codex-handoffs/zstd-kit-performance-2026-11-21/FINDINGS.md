@@ -2,7 +2,7 @@
 
 ## Scope and implementation
 
-The reviewed module is \`modules/zstd-kit\`, currently using upstream Zstandard 1.5.7. Its Wasm build is size-oriented (\`-Os\`). Compression keeps a reusable \`ZSTD_CCtx\` and uses \`ZSTD_compress2\`; decompression currently calls the one-shot \`ZSTD_decompress\`.
+The reviewed module is `modules/zstd-kit`, currently using upstream Zstandard 1.5.7. Its Wasm build is size-oriented (`-Os`). Compression keeps a reusable `ZSTD_CCtx` and uses `ZSTD_compress2`; decompression currently calls the one-shot `ZSTD_decompress`.
 
 The JavaScript wrapper has an automatic tuning path for default/level-3 compression. For input at or above 256 KiB, a printable-text classifier samples the data. If at least 85% of sampled characters are printable, the wrapper compares a default configuration with fast-strategy candidates. The reviewed source uses a 128 KiB sample cap, centered within the input, and candidates with hashLog 18 and minMatch 6 or 7. It compresses a sample to choose settings and then compresses the complete input. This means the tuner can improve ratio on structured text, but also does extra work on text-like inputs whose tuned parameters do not help.
 
@@ -40,17 +40,17 @@ The next design question is not simply whether the tuner is “fast.” Measure 
 
 ### Reused decompression context
 
-An isolated C candidate retained a \`ZSTD_DCtx\` and called \`ZSTD_decompressDCtx\`, releasing the decoder context alongside the compressor context. It passed the zstd-kit suite. In a 21-round focused run, 4 MiB random decompression moved from about 2.549 ms to 2.437 ms (about 4.4% faster); small and typical inputs were neutral, and 4 MiB text was about neutral. An earlier larger result did not repeat. Treat this as inconclusive until it wins repeatedly in approved browsers and realistic repeated-call workloads.
+An isolated C candidate retained a `ZSTD_DCtx` and called `ZSTD_decompressDCtx`, releasing the decoder context alongside the compressor context. It passed the zstd-kit suite. In a 21-round focused run, 4 MiB random decompression moved from about 2.549 ms to 2.437 ms (about 4.4% faster); small and typical inputs were neutral, and 4 MiB text was about neutral. An earlier larger result did not repeat. Treat this as inconclusive until it wins repeatedly in approved browsers and realistic repeated-call workloads.
 
 ### Compiler flags
 
-Temp builds used the pinned Zstandard 1.5.7 source with Clang 21.1.8. Compared with \`-Os\`, \`-O3\` increased full/decoder Wasm from 374,601 / 57,702 bytes to 478,692 / 69,491 bytes (+27.8% / +20.4%). \`-O3 -msimd128\` produced 485,200 / 72,982 bytes (+29.5% / +26.5%). Focused host profiles showed no reliable broad performance gain. Keep these flags out of the main proposal unless browser profiles show a worthwhile speed improvement within an explicit bundle-size budget.
+Temp builds used the pinned Zstandard 1.5.7 source with Clang 21.1.8. Compared with `-Os`, `-O3` increased full/decoder Wasm from 374,601 / 57,702 bytes to 478,692 / 69,491 bytes (+27.8% / +20.4%). `-O3 -msimd128` produced 485,200 / 72,982 bytes (+29.5% / +26.5%). Focused host profiles showed no reliable broad performance gain. Keep these flags out of the main proposal unless browser profiles show a worthwhile speed improvement within an explicit bundle-size budget.
 
 The checked-in artifacts were built with Clang 18; the review host only had Clang 21. Do not use these alternate compiler outputs as a byte-for-byte reproducibility check for the committed artifacts.
 
 ## Research implications
 
-The official C API describes level- and source-size-dependent parameter selection, recommends context reuse for repeated work, and identifies \`ZSTD_compress2\` for advanced parameter use. The memory-constrained-environment guide also makes the memory/parameter tradeoff explicit. Those references support testing size- and workload-aware tuning, context reuse, and memory cost together. They do not establish that any specific candidate wins in zstd-kit.
+The official C API describes level- and source-size-dependent parameter selection, recommends context reuse for repeated work, and identifies `ZSTD_compress2` for advanced parameter use. The memory-constrained-environment guide also makes the memory/parameter tradeoff explicit. Those references support testing size- and workload-aware tuning, context reuse, and memory cost together. They do not establish that any specific candidate wins in zstd-kit.
 
 Zstandard 1.5.7 is already the module baseline. Review the [official release notes](https://github.com/facebook/zstd/releases) before proposing an upstream upgrade; do not infer a newer stable release from development-branch documentation.
 

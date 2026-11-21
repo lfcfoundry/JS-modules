@@ -1,8 +1,8 @@
 # Zstandard performance review handoff
 
-**Purpose:** Give Claude a measured, testable plan for improving \`modules/zstd-kit\` without weakening compatibility or making synthetic Node timings look like browser results.
+**Purpose:** Give Claude a measured, testable plan for improving `modules/zstd-kit` without weakening compatibility or making synthetic Node timings look like browser results.
 
-**Source baseline:** \`main\` at \`c4c6b3a2ec6bce937b6017c427ff23c4e996cff2\` (2026-11-21). The repository worktree was clean at review time. No production source or build artifact was changed during this review.
+**Source baseline:** `main` at `c4c6b3a2ec6bce937b6017c427ff23c4e996cff2` (2026-11-21). The repository worktree was clean at review time. No production source or build artifact was changed during this review.
 
 ## Recommendation
 
@@ -20,7 +20,7 @@ Deprioritize compiler optimization and decoder-context reuse for now. The tested
 
 ## Shared-code warning
 
-\`modules/zstd-kit/src/zstd-core.js\` is also embedded by LFC-pack. Any implementation change must be qualified through both modules and their build outputs. The temp candidate in this review passed both existing suites, but no browser measurements were available on the review host.
+`modules/zstd-kit/src/zstd-core.js` is also embedded by LFC-pack. Any implementation change must be qualified through both modules and their build outputs. The temp candidate in this review passed both existing suites, but no browser measurements were available on the review host.
 
 ## Research references
 
