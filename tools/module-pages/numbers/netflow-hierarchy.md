@@ -12,10 +12,10 @@ Compared: netflow-hierarchy against d3-hierarchy 3.1.3 (layout of 100,000 items,
 | Sunburst | d3-hierarchy | 100 | 100 | 100 |
 |  | netflow-hierarchy | 72 | 37 | 49 |
 | Circle pack | d3-hierarchy | 100 | 100 | 100 |
-|  | netflow-hierarchy | 41 | 44 | 40 |
+|  | netflow-hierarchy | 50 | 33 | 32 |
 | Tree | d3-hierarchy | 100 | 100 | 100 |
 |  | netflow-hierarchy | 44 | 35 | 48 |
 
-The lead is smaller on smaller charts. At 10,000 items netflow-hierarchy takes 43 to 94% of d3-hierarchy's time, and at 1,000 items 53 to 86%; in no view and no browser is it behind. Cloud test browsers only; laptop numbers are still to come.
+The lead is smaller on smaller charts. At 10,000 items netflow-hierarchy takes 43 to 94% of d3-hierarchy's time, and at 1,000 items 53 to 86%; in no view and no browser is it behind. Circle pack was measured again at version 1.8.2 on a mixed tree. On a tree with two children per item, a shape where earlier versions were slower than d3-hierarchy, circle pack now takes 0.60 to 0.70, 0.55 and 0.55 of d3-hierarchy's time at 1,000, 10,000 and 100,000 items in Chromium, 0.95, 0.67 and 0.66 in Firefox, and 0.71, 0.56 and 0.53 in WebKitGTK. Cloud test browsers only; laptop numbers are still to come.
 
-Size is the one place d3-hierarchy is smaller, and the two are not the same job. d3-hierarchy 3.1.3 minified is 14.8 KB (5.8 KB gzipped) and does layout only. netflow-hierarchy ships a minified copy of 31.7 KB (14.1 KB gzipped) that does layout and drawing in one file (the readable file is 22.6 KB gzipped), and its layout part alone is about 16.3 KB (7.4 KB gzipped). So d3-hierarchy is smaller and no size win is claimed.
+Size is the one place d3-hierarchy is smaller, and the two are not the same job. d3-hierarchy 3.1.3 minified is 14.8 KB (5.8 KB gzipped) and does layout only. netflow-hierarchy ships a minified copy of 32.5 KB (14.6 KB gzipped) that does layout and drawing in one file (the readable file is 22.6 KB gzipped), and its layout part alone is about 16.3 KB (7.4 KB gzipped). So d3-hierarchy is smaller and no size win is claimed.
