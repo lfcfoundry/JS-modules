@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.21.0 · API 2**
+**Version 2.22.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (small file: 108 charts identical to the full files in each, and a speed race against uPlot, one browser at a time); 757 module checks pass
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (speed and picture match in all three, one at a time); 772 module checks pass
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -52,9 +52,24 @@ containerDiv.innerHTML = NetflowPlot.toSvg({ day: days, sales: sales }, { type: 
 
 The chart is the same as from the same table given as rows. With the type and columns named, nothing is turned into rows, so a long line is quicker: 100,000 points build in about 4 ms in Chromium 156 against 5 from rows. The chart picked for you, flows, trees and the takeaway text read rows, so for those the columns are turned into rows first. Nothing is written on your arrays, and `get` is not used with columns.
 
+### A line from a file's summaries (since 2.22.0)
+
+A packed file can keep, for every number column, the lowest and highest value of each run of rows (lfc-pack's pyramids: one pair per 256 rows). A line chart can be drawn from those alone, so the column is never unpacked:
+
+```js
+var svg = NetflowPlot.toSvg({
+  t: { n: 1000000, bin: 256 },                                   // x is the row number: row count and rows per run are enough
+  v: { min: lows, max: highs, first: 0.12, last: -345.2 }        // y: one low and one high per run (plain or typed arrays), and the column's first and last value
+}, { type: 'line', x: 't', y: 'v' });
+```
+
+x may also be a summary of its own (`{ min, max }`, the first and last x of each run for a rising column). `first` and `last` put the right values at the line's two ends; without them the ends come from the first and last run. A run with no numbers has NaN for both. The summaries are read, never changed.
+
+A 1,000,000-point line takes 2.2 to 2.5 ms in Chromium 156 against 14 from the two full columns (Firefox 158: 3 against 15 to 17; WebKitGTK 2.52.6: 4 to 6 against 17 to 19), and 5,000,000 points take 2.8 ms against 57. The picture matches the one from all the values on 99.26% of pixels (99.76% in WebKitGTK): highest, lowest, first and last are exact, and inside a run the line is its low-to-high band. It suits long columns, about two runs or more per pixel of chart width (500,000 rows at 256 rows per run on a 900 px chart); for shorter ones unpack the column. Summaries draw line charts only: another type, a color column, `auto()`, `guess()` and `takeaway()` throw a plain error. The small lines-only file leaves summaries out to stay under uPlot's size; use the full files for them.
+
 ### The small lines-only file (since 2.21.0)
 
-`netflow-plot-line.min.js` is one file that draws line charts only: 51.7 KB, 21.6 KB gzipped as `netflow-plot-line.min.js`, against 22.0 KB for uPlot 1.6.32's minified script (22.8 KB with its style sheet). It needs no other file, not even netflow-scene.
+`netflow-plot-line.min.js` is one file that draws line charts only: 52.2 KB, 21.8 KB gzipped as `netflow-plot-line.min.js`, against 22.0 KB for uPlot 1.6.32's minified script (22.8 KB with its style sheet). It needs no other file, not even netflow-scene.
 
 ```html
 <script src="netflow-plot-line.min.js"></script>
@@ -64,7 +79,7 @@ The chart is the same as from the same table given as rows. With the type and co
 </script>
 ```
 
-`NetflowLine.toSvg(data, options)` takes the same data and the same line options as `NetflowPlot.toSvg` (x, y, color, agg, top, index, zero, smooth, highlight, palette, theme, width, height, title, subtitle, source, clean, percent, get) and returns the same SVG text, character for character. The type is always a line. Anything else, such as another chart type's option or `title: 'auto'`, throws an error that says to use `netflow-plot.js` with `netflow-scene.js`.
+`NetflowLine.toSvg(data, options)` takes the same data and the same line options as `NetflowPlot.toSvg` (x, y, color, agg, top, index, zero, smooth, highlight, palette, theme, width, height, title, subtitle, source, clean, percent, get) and returns the same SVG text, character for character. The type is always a line. Anything else, such as another chart type's option, `title: 'auto'` or a table of summaries, throws an error that says to use `netflow-plot.js` with `netflow-scene.js`.
 
 It is made by a script, `test/make-line.js`, from `netflow-plot.js` and `netflow-scene.js`: the script draws 2,712 line charts, keeps the functions that ran and empties the rest, then minifies. The tests draw 1,472 more line charts on other data with both and fail if one differs or if the small file was not rebuilt after a change.
 
