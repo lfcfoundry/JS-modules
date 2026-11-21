@@ -349,7 +349,12 @@
       out[keys[j]] = { kind: 'dict', labels: { bytes: bs, start: st, end: en }, ids: ids }; any = true; }
     return any ? out : obj;
   }
-  function packColumnsParallel(obj, opts) {
+  function packColumnsParallel(obj, opts) {   // since 0.17.0: graph: { from, to, weight?, directed?, reverse?, nodes? } adds the graph section (23) after the save
+    if (!opts || !opts.graph) return packColumnsParallel0(obj, opts);
+    var gb; try { gb = graphBuild(opts.graph, obj); } catch (e) { return Promise.reject(e); }
+    return packColumnsParallel0(obj, Object.assign({}, opts, { graph: null })).then(function (b) { return addGraph(b, gb); });
+  }
+  function packColumnsParallel0(obj, opts) {
     var t = colTable(obj, 'packColumnsParallel'), so;
     if (t instanceof Error) return Promise.reject(t);
     try { so = sortOpt(opts); } catch (e) { return Promise.reject(e); }

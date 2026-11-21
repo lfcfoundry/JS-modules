@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.17.0 · API 0 · 2026-11-21
+- Graphs stored ready to use: a graph option keeps the links as CSR arrays that graph() reads as typed views with no parse or build.
+
 ## 0.16.0 · API 0 · 2026-11-21
 - Sorted saves (sortBy, keepOrder with original order back), chart bins doubled to 4,096 with an optional full() for wide charts, and column tables with empty number cells save 3 to 4 times faster.
 
