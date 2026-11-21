@@ -37,7 +37,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [text-columns](modules/text-columns/README.md) | 0.7.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.5.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.1 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
@@ -71,6 +71,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-hierarchy** 1.8.2 · API 1: Circle pack is faster, most of all on trees where items have two children; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
+- 2026-11-21 · **netflow-engine** 2.5.0 · API 2: New quickNetwork(graph): a rough first picture of a partly read map in 5 to 6 ms for 10,000 items (24 to 60 ms for 50,000), to draw while the rest arrives.
 - 2026-11-21 · **guess-gate** 1.0.1 · API 1: Guesses now use at most 5% of the time so far by default (was 10%); at 10% an import was 8 to 12% slower in WebKitGTK, at 5% all three browsers match no guesses.
 - 2026-11-21 · **guess-gate** 1.0.0 · API 1: New module: a time-boxed scheduler for first guesses during an import; guesses use only 10% of the time so far, so a progressive import takes about as long as one without guesses.
 - 2026-11-21 · **netflow-chord** 1.0.0 · API 1: New module: the chord layout of Netflow Map as one small file with nothing to load first, 1.6 KB gzipped; it takes 0.46 to 0.68 of d3-chord's time in Chromium, Firefox and WebKitGTK.
