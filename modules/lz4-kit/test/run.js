@@ -74,7 +74,7 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
 }
 (async () => {
   let threw = false; try { K.compress(new Uint8Array(1)); } catch (e) { threw = /init\(\)/.test(e.message); } ok(threw, 'calls before init() say so');
-  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.1.0', 'version labels');
+  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.1.1', 'version labels');
   const sizes = [0, 1, 7, 13, 100, 4096, 65537, 300000, 2100000];
   for (const n of sizes) for (const kind of ['random', 'text', 'pattern']) {
     const b = sample(n, kind);
@@ -129,6 +129,61 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
     const keep = K.compressBlock(vb, 0), other = sample(300000, 'pattern'); K.compressBlock(other, 0, 1, { view: true }); ok(eq(keep, cp), 'a copy is not changed by later calls');
     ok(eq(K.compressBlock(vb, 0, 1, {}), cp) && eq(K.compressBlock(vb, 0, 1, null), cp) && eq(K.compressBlock(vb, 0, 1, { view: false }), cp), 'empty or false options give the copy');
     ok(t(() => K.decompressBlock(new Uint8Array([1, 2, 3]), 10, { view: true }), /damaged/), 'view calls throw on damaged input too');
+  }
+  // the kit's own fast block compressor (1.1.1): default speed, inputs of 64 KiB and more. Its blocks must be standard LZ4 (both decoders and the end-of-block rules),
+  // depend on the input alone, stay within the bound, and hand hard data over to LZ4 in the middle of a block without a seam.
+  {
+    const rules = (blk, n) => {   // every sequence but the last has a match; the last is literals only, at least 5 of them; the last match starts 12 or more bytes before the end
+      let ip = 0, op = 0, lastMatchStart = -1, lastLits = -1;
+      while (ip < blk.length) {
+        const tk = blk[ip++]; let ll = tk >> 4; if (ll === 15) { let x; do { x = blk[ip++]; ll += x; } while (x === 255); }
+        ip += ll; op += ll; if (ip >= blk.length) { lastLits = ll; break; }
+        const off = blk[ip] | (blk[ip + 1] << 8); ip += 2; let ml = tk & 15; if (ml === 15) { let x; do { x = blk[ip++]; ml += x; } while (x === 255); } ml += 4;
+        if (off === 0 || off > op) return false; lastMatchStart = op; op += ml;
+      }
+      return ip === blk.length && op === n && (n < 13 ? lastMatchStart < 0 : lastLits >= 5 && (lastMatchStart < 0 || lastMatchStart <= n - 12));
+    };
+    const logs = (n, seed) => { let q = seed >>> 0; const r = () => (q = (Math.imul(q, 1103515245) + 12345) >>> 0) / 4294967296, out = []; let tot = 0, i = 0;
+      while (tot < n) { const l = '{"ts":"2026-11-' + (10 + i % 9) + 'T' + ('0' + i % 24).slice(-2) + ':' + ('0' + i * 7 % 60).slice(-2) + 'Z","ip":"10.' + (r() * 255 | 0) + '.' + (r() * 255 | 0) + '.' + (r() * 255 | 0) + '","path":"/api/v1/items' + (r() * 1000 | 0) + '","status":' + [200, 304, 404, 500][r() * 4 | 0] + ',"ua":"Mozilla/5.0 (X11; Linux x86_64)"}\n'; out.push(l); tot += l.length; i++; }
+      return new TextEncoder().encode(out.join('')).subarray(0, n); };
+    const cat = (...parts) => { const o = new Uint8Array(parts.reduce((a, x) => a + x.length, 0)); let at = 0; for (const x of parts) { o.set(x, at); at += x.length; } return o; };
+    const check = (b, name) => {
+      const blk = K.compressBlock(b, 0), n = b.length;
+      ok(eq(refBlock(blk, n), b), 'own compressor: independent decoder reads ' + name);
+      ok(eq(K.decompressBlock(blk, n), b), 'own compressor: LZ4 reads ' + name);
+      ok(rules(blk, n), 'own compressor: end-of-block rules hold for ' + name);
+      ok(blk.length <= n + Math.floor(n / 255) + 16, 'own compressor: within the bound for ' + name);
+      return blk;
+    };
+    for (const n of [65535, 65536, 65537, 65548, 65549, 70001, 131072, 1048579]) {
+      check(logs(n, 7), 'logs ' + n); check(sample(n, 'random'), 'random ' + n); check(sample(n, 'text'), 'text ' + n); check(sample(n, 'pattern'), 'pattern ' + n); check(new Uint8Array(n), 'zeros ' + n);
+    }
+    const L = logs(400000, 3), R = sample(400000, 'random');
+    check(cat(L, R), 'logs then random'); check(cat(R, L), 'random then logs'); check(cat(L.subarray(0, 5000), R), 'a short easy start then random');
+    check(cat(L.subarray(0, 48000), R.subarray(0, 48000), L.subarray(48000, 96000), R.subarray(48000, 96000), L.subarray(96000, 300000)), 'alternating easy and hard');
+    check(cat(L, R.subarray(0, 200000), L), 'easy, hard, easy again');
+    check(cat(R.subarray(0, 3000), R.subarray(0, 3000), R.subarray(0, 70000), R.subarray(100, 70000), new Uint8Array(40000).fill(65), R.subarray(0, 5)), 'long literal runs and long matches');
+    check(cat(L, L.subarray(0, 11)), 'a match that runs to the end'); check(cat(L, new Uint8Array(4)), 'four zero bytes at the end'); check(cat(new Uint8Array(70000).fill(9), R.subarray(0, 12)), 'a run then 12 new bytes');
+    // built from random pieces: new bytes, copies of earlier bytes (near and up to 70,000 back), runs of one byte
+    for (let k = 0; k < 120; k++) {
+      const n = 65536 + (rnd() * (k % 10 === 0 ? 900000 : 150000) | 0), b = new Uint8Array(n); let p = 0; const easy = rnd() < 0.6;
+      while (p < n) { const kind = rnd(), len = Math.min(n - p, 1 + (rnd() * (rnd() < 0.1 ? 3000 : 40) | 0));
+        if (kind < (easy ? 0.15 : 0.6) || p < 8) for (let j = 0; j < len; j++) b[p++] = rnd() * 256;
+        else if (kind < 0.9) { const d = 1 + (rnd() * Math.min(p, rnd() < 0.5 ? 300 : 70000) | 0); for (let j = 0; j < len; j++, p++) b[p] = b[p - d]; }
+        else { const v = rnd() * 256 | 0; for (let j = 0; j < len; j++) b[p++] = v; } }
+      const blk = K.compressBlock(b, 0), good = eq(refBlock(blk, n), b) && eq(K.decompressBlock(blk, n), b) && rules(blk, n) && blk.length <= n + Math.floor(n / 255) + 16;
+      ok(good, 'own compressor: random pieces case ' + k + ' (' + n + ' bytes)');
+    }
+    // the same input gives the same bytes whatever was packed before
+    const first = K.compressBlock(L, 0); K.compressBlock(R, 0); K.compressBlock(sample(90000, 'text'), 0); K.compressBlock(L.subarray(1), 0);
+    ok(eq(K.compressBlock(L, 0), first), 'own compressor: output does not depend on earlier calls');
+    ok(eq(K.compressBlock(L, 0, 1), first) && eq(K.compressBlock(L, 0, 1, { view: true }), first), 'own compressor: acceleration 1 and view give the same bytes');
+    ok(K.compressBlock(L, 0, 2).length > first.length, 'acceleration 2 still goes to LZ4 and is larger');
+    const big = logs(4 << 20, 7), bb = K.compressBlock(big, 0); ok(bb.length < big.length * 0.25, 'own compressor: 4 MiB of logs pack below 25% (' + (100 * bb.length / big.length).toFixed(1) + '%)');
+    // positions wrap after about 4 GB of input in one page: the table is cleared and the output stays the same
+    const z = new Uint8Array(96 << 20); for (let k = 0; k < 46; k++) K.compressBlock(z, 0, 1, { view: true });
+    ok(eq(K.compressBlock(L, 0), first), 'own compressor: same bytes after more than 4 GB of input');
+    check(cat(L, R.subarray(0, 100000)), 'logs then random after the wrap');
   }
   K.release(); ok(eq(K.decompress(K.compress(small)), small), 'works again after release()');
   console.log('lz4-kit checks: ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

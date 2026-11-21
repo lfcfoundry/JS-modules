@@ -34,7 +34,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.14.4 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
-| [lz4-kit](modules/lz4-kit/README.md) | 1.1.0 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
+| [lz4-kit](modules/lz4-kit/README.md) | 1.1.1 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
@@ -70,6 +70,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-20 · **netflow-circular** 1.5.1 · API 1: The default chord layout is about twice as fast (400 items, 80,000 links: 32 to 18 ms in Chromium, 28 to 14 in Firefox, 34 to 23 in WebKitGTK); the band objects in chart.flows are now made the first time they are read. Same output.
 - 2026-11-20 · **netflow-circular** 1.5.0 · API 1: New option typed: true lays out a dense chord (400 items, 80,000 links) in 15 to 24 ms, 1.5 to 2.3 times faster than d3-chord 3.0.2 (Chromium 156, Firefox 158, WebKitGTK 2.52.6); the default is also 18 to 40% faster
 - 2026-11-20 · **netflow-circular** 1.4.1 · API 1: Chord layout is 3 to 4 times faster on dense charts (400 items, 80,000 links: 185 to 48 ms in Chromium); the drawing is the same
+- 2026-11-20 · **lz4-kit** 1.1.1 · API 1: Default-speed blocks of data that packs well (64 KiB and more per call) compress 20 to 22% faster and 6 to 12% smaller: 4 MiB of logs in 5.2 to 5.5 ms against 7.3 to 9.5 for gorhill/lz4-wasm (Chromium 156, Firefox 158, WebKitGTK 2.52.6).
 - 2026-11-20 · **lz4-kit** 1.1.0 · API 1: New last argument `{ view: true }` on the compress and decompress calls: no copy, valid until the next call. 4 MiB of logs: decompress 1.5 to 1.7 ms against 3.0 to 4.4 for other LZ4 libraries (Chromium 156, Firefox 158, WebKitGTK 2.52.6). New test page `bench/laptop-tester.html`: speed against gzip and four other LZ4 libraries, plus cross-reading checks, with a Copy results button.
 - 2026-11-20 · **lfc-pack** 0.14.3 · API 0: Number columns of decimals (like 12.35) find their whole-number form in wasm instead of a JavaScript loop; same bytes. Not yet timed in browsers.
 - 2026-11-20 · **lfc-pack** 0.14.2 · API 0: text: 'bytes' also returns date columns as byte views (fixed width): 1,500,000 taxi timestamps read in about half the time in Chromium, Firefox and WebKitGTK; the default read is unchanged
