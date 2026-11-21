@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.7.1 · API 1 · 2026-11-20
+
+### Quick
+The tree behind every view is built in typed lists with about half the passes; child lists, names and groups are made only when read. Same layout and same SVG as 1.7.0. Old code keeps working.
+
+### Details
+hierarchy(): one working list instead of ten; child lists kept as kidOff/kidList (the plain kids, label, group and idx are made on first read); only the names links use go into the lookup table, and a link that ends at the next item in the list needs no lookup. sums() and the partition read typed lists. New fields on the tree: kidOff, kidList, at, F, cap, szOk, ownV. One edge case differs: when two items share a name (not valid input), a link may now end at the item in its place in the list instead of the last item of that name.
+
+### Deep
+Icicle layout from rows (building nodes and links, then layout), median ms, against d3-hierarchy 3.1.3 doing the same job (stratify, sum, sort, partition). Chromium 156: 1,000 items 0.26 vs d3 0.29; 10,000 2.53 vs 3.18; 100,000 43.6 vs 66.2. Firefox 158: 0.25 vs 0.38; 2.25 vs 4.50; 35 vs 99. WebKitGTK 2.52.6: 0.20 vs 0.28; 2.25 vs 3.50; 36 vs 84. Version 1.7.0 on the same race took 1.11/1.06/0.98 (Chromium), 1.10/1.04/0.83 (Firefox) and 1.17/1.33/1.06 (WebKitGTK) of d3's time. Without sorting on both sides it is ahead in Firefox and WebKitGTK at every size and in Chromium from 10,000 items; Chromium at 1,000 items without sorting is still behind d3 (0.24 vs 0.20 ms), open. Treemap, sunburst, pack and tree at 1,000 and 10,000 items: 0.6 to 0.9 of the time in all three browsers (tree at 1,000 in WebKitGTK even, within the 0.025 ms clock step). Same layout: 24,192 comparisons against 1.7.0 (every view, nest mode, sort on and off, item numbers and names, loops, start items, bad links); same SVG: 896 pictures.
+
 ## 1.7.0 · API 1 · 2026-11-15
 
 ### Quick
