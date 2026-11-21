@@ -1,5 +1,16 @@
 # netflow-circular developer changelog
 
+## 1.5.2 · API 1 · 2026-11-21
+
+### Quick
+Removed the dead object-form Chord path (`typed` was a constant true since 1.5.0, so the `else` branches that built a band object per link and slotted object bands never ran). Output and speed unchanged; minified and gzipped (esbuild, gzip -9) 6,769 to 6,443 bytes, terser 6,242 to 6,184.
+
+### Details
+Chord layout, slot assignment and the order-search inputs read the typed arrays only; `chart.flows` is still the lazy list of band objects from `flowsT`. 991 checks pass, including 40 charts where typed and default output are equal. No browser timing: the removed code was unreachable.
+
+### Deep
+Size by part (terser, gzip -9, parts minified alone): chord layout and crossing search about 3.1 KB, ribbon drawing 1.7 KB, Bundles 1.2 KB, header and rest 0.7 KB. Terser options (passes, unsafe, ecma 2020) gain 0.5 to 1.5%, so only removing or splitting features can reach d3-chord's size (1,611 bytes gzipped, 2,718 with d3-path, d3-chord 3.0.1 and d3-path 3.1.0 min files from jsDelivr, measured 2026-11-21).
+
 ## 1.5.1 · API 1 · 2026-11-20
 
 ### Quick
