@@ -44,7 +44,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.22.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.23.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
 | [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **text-columns** 0.7.1 · API 0: Using onPiece now costs the whole read about 0 to 10% (it was 10 to 30%): the helpers keep joining their number columns and send the page a copy for the piece only.
 - 2026-11-21 · **text-columns** 0.7.0 · API 0: New opts.onPiece on parseParallel: each piece's columns reach your function as soon as its helper answers (about 30 ms in on 15 MB), so a first picture can draw before the whole table is joined. Opt-in; without it nothing changes.
 - 2026-11-21 · **netflow-scene** 1.14.2 · API 1: Charts that draw their own shapes (treemap, icicle, sunburst) are set up faster; same picture.
+- 2026-11-21 · **netflow-plot** 2.23.0 · API 2: A table of summaries can carry all the values too (full): the chart draws from the summaries by default while they are fine enough for its width (runs at most half a pixel wide), and precision 'high' draws from every value.
 - 2026-11-21 · **netflow-plot** 2.22.0 · API 2: New: a line chart straight from a packed file's summaries (lowest and highest value of every run of rows), with no column unpacked; a 1,000,000-point line takes 2.5 ms in Chromium 156 instead of 14 The picture matches the one from all the values on 99.3% of pixels; highest, lowest, first and last values are exact
 - 2026-11-21 · **netflow-plot** 2.21.0 · API 2: New: netflow-plot-line.min.js, one small file that draws line charts only and needs nothing else: 21.6 KB gzipped, against 22.0 KB for uPlot's script Same line charts, character for character, as the full files; anything else gives a plain error
 - 2026-11-21 · **netflow-plot** 2.20.1 · API 2: A long line builds faster with exactly the same picture: a finished 100,000-point chart costs 3.2 ms in Chromium 156 (was 3.7 to 4.0); in Firefox 158 one chart alone reaches the screen in 14 to 20 ms (was 23 to 24)
