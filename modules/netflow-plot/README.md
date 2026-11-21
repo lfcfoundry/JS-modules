@@ -1,8 +1,8 @@
 # netflow-plot
 
-**Version 2.18.1 · API 2**
+**Version 2.19.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (one at a time, cloud machine); Node checks 655 of 655
+**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (one at a time, cloud machine); Node checks 741 of 741
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -41,6 +41,16 @@ svgElement.outerHTML = NetflowPlot.toSvg(rows, { type: 'line', x: 'day', y: 'sal
 ```
 
 Name your own columns in the same options: `{ type: 'bar', x: 'Region', y: 'Sales', color: 'Channel' }` (rows straight from a CSV work; numbers written as text are read as numbers). `toSvg` returns SVG text (a string): put it in the page with `element.outerHTML = ...` or save it as a `.svg` file. `title` is optional: it draws a bold title above the picture and names the picture for screen readers; leave it out for none.
+
+### A table as columns (since 2.19.0)
+
+The table can also be given as columns, one array per column name, plain or typed, which is the shape `LfcPack.unpackColumns` returns:
+
+```js
+containerDiv.innerHTML = NetflowPlot.toSvg({ day: days, sales: sales }, { type: 'line', x: 'day', y: 'sales' });   // days, sales: arrays or Float64Array
+```
+
+The chart is the same as from the same table given as rows. With the type and columns named, nothing is turned into rows, so a long line is quicker: 100,000 points build in about 4 ms in Chromium 156 against 5 from rows. The chart picked for you, flows, trees and the takeaway text read rows, so for those the columns are turned into rows first. Nothing is written on your arrays, and `get` is not used with columns.
 
 ### The chart picked for you (since 2.9.0)
 

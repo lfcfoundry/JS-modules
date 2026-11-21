@@ -377,6 +377,44 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const down = rows.map((q, i) => ({ t: n - i, v: q.v })), up2 = down.slice().reverse();
   ok(J(P.make(down, sp, {}, NS).curves.map((q) => q.P.length)) === J(P.make(up2, sp, {}, NS).curves.map((q) => q.P.length)), 'rows that run right to left draw the same line as the same rows sorted');
 }
+/* 2.19.0: a table given as columns ({ name: array }) draws the same chart as the same table given as rows */
+{
+  const NS = global.NetflowScene, J = (S) => JSON.stringify(S, (k, x) => (k === 'ms' ? undefined : x));
+  const toCols = (rows) => { const c = { id: [], label: [] }; rows.forEach((r, i) => { c.id.push(r.id); c.label.push(r.label); for (const k in r.attrs) { (c[k] = c[k] || new Array(rows.length))[i] = r.attrs[k]; } }); return c; };
+  for (const [n, seed] of [[7, 3], [300, 6], [2500, 4]]) {
+    const rows = table(n, seed), cols = toCols(rows), flat = rows.map((r) => Object.assign({ id: r.id, label: r.label }, r.attrs));
+    for (const type of Object.keys(SPECS)) {
+      if (n > 300 && (type === 'splom' || type === 'voronoi' || type === 'words')) continue;
+      const sp = Object.assign({ type: type }, SPECS[type]);
+      ok(J(P.make(cols, sp, {}, NS)) === J(P.make(flat, sp, {}, NS)), type + ' from columns draws the same as from rows (' + n + ' rows)');
+    }
+    const o = Object.assign({ width: 600, height: 360, type: 'line' }, SPECS.line);
+    ok(P.toSvg(cols, o) === P.toSvg(flat, o), 'toSvg from columns writes the same SVG (' + n + ' rows)');
+    ok(P.toSvg(cols, {}) === P.toSvg(flat, {}), 'the chart picked for you is the same from columns (' + n + ' rows)');
+    ok(P.toSvg(cols, { type: 'sankey', from: 'region', to: 'kind', value: 'sales' }) === P.toSvg(flat, { type: 'sankey', from: 'region', to: 'kind', value: 'sales' }), 'a flow from columns is the same');
+    ok(J(P.guess(cols)) === J(P.guess(flat)) && P.takeaway(cols, { type: 'bar', x: 'region', y: 'sales' }).text === P.takeaway(flat, { type: 'bar', x: 'region', y: 'sales' }).text, 'guess and takeaway read columns (' + n + ' rows)');
+  }
+  const r = rnd(11), n = 20000, t = new Float64Array(n), v = new Float64Array(n), v32 = new Float32Array(n), ti = new Int32Array(n), rows = [], rows32 = []; let y = 0;
+  for (let i = 0; i < n; i++) { y += r() - 0.5; t[i] = i * 0.5; ti[i] = i; v[i] = i % 997 === 5 ? NaN : Math.round(y * 1000) / 1000; v32[i] = v[i]; rows.push({ t: t[i], v: v[i] }); rows32.push({ t: ti[i], v: v32[i] }); }
+  const sp = { type: 'line', x: 't', y: 'v' }, a = J(P.make(rows, sp, {}, NS));
+  ok(J(P.make({ t: t, v: v }, sp, {}, NS)) === a, 'a 20,000-point line from two Float64Array columns draws the same as from rows');
+  ok(J(P.make({ t: Array.from(t), v: Array.from(v) }, sp, {}, NS)) === a, 'the same from plain array columns');
+  ok(J(P.make({ t: ti, v: v32 }, sp, {}, NS)) === J(P.make(rows32, sp, {}, NS)), 'the same from Int32Array and Float32Array columns');
+  ok(Object.keys(t).length === n && Object.keys(v).length === n && t.st === undefined && v.st === undefined && t.up === undefined, 'nothing is written on the caller\'s columns');
+  v[100] = 1e6; const b = J(P.make({ t: t, v: v }, sp, {}, NS)); ok(b !== a && b === J(P.make(rows.map((q, i) => (i === 100 ? { t: q.t, v: 1e6 } : q)), sp, {}, NS)), 'a changed value in a column is seen by the next chart');
+  ok(J(P.make({ t: t.subarray(0, 50), v: v }, sp, {}, NS)).length > 100 && J(P.make({}, sp, {}, NS)).length > 100 && P.toSvg({ t: [], v: [] }, Object.assign({ width: 300, height: 200 }, sp)).length > 100, 'columns of unequal length, no columns and empty columns still draw');
+}
+/* 2.19.0: a Voronoi chart with an infinite value returns (before, -Infinity made the neighbor walk endless) */
+{
+  const NS = global.NetflowScene, base = []; for (let i = 0; i < 401; i++) base.push({ t: i, v: Math.sin(i) * 10 });
+  const clean = JSON.stringify(P.make(base, { type: 'voronoi', x: 't', y: 'v' }, {}, NS).curves.length);
+  for (const [k, val] of [['v', -Infinity], ['v', Infinity], ['t', -Infinity], ['t', Infinity]]) {
+    const rows = base.map((q, i) => (i === 7 ? Object.assign({}, q, { [k]: val }) : q)), S = P.make(rows, { type: 'voronoi', x: 't', y: 'v' }, {}, NS);
+    ok(S.curves.length > 0 && finite(S).filter((b) => b === 'curve' || b === 'poly').length === 0, 'a Voronoi chart with ' + val + ' in ' + (k === 'v' ? 'y' : 'x') + ' returns and draws only finite lines (' + S.curves.length + ' lines; ' + clean + ' without it)');
+  }
+  const c = P.voronoiCells([10, 10, -Infinity, 5, 50, 50, NaN, 3], 0, 0, 100, 100);
+  ok(c.length === 4 && c[1].length === 0 && c[3].length === 0 && c[0].length >= 6 && c[2].length >= 6, 'voronoiCells gives an empty cell for a point that is not finite');
+}
 /* 2.17.0: rest identity, row and value conservation, and wedge area after SVG rounding */
 require('./rest-and-wedges.js')(P, global.NetflowScene, ok);
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : checks + ' checks passed');

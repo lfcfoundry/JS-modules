@@ -1,5 +1,17 @@
 # netflow-plot developer changelog
 
+## 2.19.0 · API 2 · 2026-11-20
+
+### Quick
+New input: toSvg(), make(), auto(), guess() and takeaway() also take a table of columns ({ name: array }, plain or typed arrays). Same drawing lists as the same table given as rows, for all 22 types. make() and toSvg() with type and columns named read the columns directly; the chart picked for you, flows, trees and the takeaway turn them into rows first. Rows input is unchanged (200 random charts against 2.18.0, 0 differences). Fix: voronoiCells() gives an empty cell for a point that is not finite; before, -Infinity made the neighbor walk endless. Nothing breaks.
+
+### Details
+100,000-point line from two Float64Array columns against the same from rows, 2 passes each (ms): call with the SVG in the page and layout, Chromium 156 3.8 against 5, Firefox 158 5 against 6 to 7 (1 ms clock), WebKitGTK 2.52.6 8 to 11 against 13 to 14. Warm stage split, make() only: 0.94 against 2.84 (Chromium), 1.12 against 2.38 (Firefox), 0.87 against 2.2 (WebKitGTK). One chart to the shown frame in Chromium: 15.3 to 16 against 18 to 18.8 (uPlot 1.6.32: 22.6 to 23.6); Firefox 22 for all three (one screen refresh). Steady redraw per chart is unchanged within noise (Chromium 5.3 to 5.5 against 4.9 to 5.1, Firefox 2.9 to 3.7 against 3.0 to 3.2, WebKitGTK 4.3 to 5.2 against 4.5 to 4.7): there the browser's painting of the line path is the limit, not the script.
+A Float64Array column is used through a view of its own (subarray), so the facts kept on a column never land on the caller's array and a changed value is seen by the next chart. Other typed arrays are copied to Float64Array; plain arrays are read value by value like row values (text numbers and dates work). Columns of unequal length: the table is as long as the longest, missing values are empty. get is not used with columns.
+
+### Deep
+Owner approved the new input on a card (2026.11.20, 'Yes, add columns input'); the shape follows lfc-pack's unpackColumns so Workbench can hand its columns over without making rows.\ncolsOf() tells a table of columns from rows (an object, not an array, no numeric length, every own value an array or typed array); colReader() is the reader over it (raw, num, cat, label, an empty pre); rowsOf() makes rows for the row-by-row paths.\nChecks added: all 22 types from columns against rows at 7, 300 and 2,500 rows (drawing lists as JSON), toSvg, the picked chart, a flow, guess and takeaway; a 20,000-point line from Float64Array, plain arrays, Int32Array with Float32Array; nothing written on the caller's arrays; a changed value is seen; unequal, missing and empty columns draw.\nVoronoi: a -Infinity value mapped to an infinite pixel, floor() of it gave an infinite grid cell and the ring walk around it never moved. Such a point now has no place on the grid and an empty cell. Other chart types returned already. An infinite value still stretches the axis as before (not changed here).
+
 ## 2.18.1 · API 2 · 2026-11-20
 
 ### Quick
