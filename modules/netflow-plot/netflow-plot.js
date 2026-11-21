@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.19.0 (API 2)
+ * Version 2.20.1 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -346,7 +346,7 @@ var NetflowPlot = (function () {
       },
       /** Two number columns of a long table read in one walk of the rows (since 2.18.1): each row is visited once instead of twice. Only when both are plain numbers all the way; otherwise nothing is kept and num() reads them as before. */
       pre: function (k1, k2) {
-        var nr = rows.length, i, r, a, v, w, g1 = 0, g2 = 0;
+        var nr = rows.length, i, r, a, v, w, g1 = 0, g2 = 0, p1 = -Infinity, u1 = true;
         if (nr <= 400 || o.get || k1 === k2 || cache.has('n' + k1) || cache.has('n' + k2) || cache.has('r' + k1) || cache.has('r' + k2)) return;
         var c1 = new Float64Array(nr), c2 = new Float64Array(nr);
         for (i = 0; i < nr; i++) {
@@ -354,7 +354,9 @@ var NetflowPlot = (function () {
           if (a) { v = HAS.call(a, k1) ? a[k1] : r[k1]; w = HAS.call(a, k2) ? a[k2] : r[k2]; } else { v = r[k1]; w = r[k2]; }
           if (typeof v !== 'number' || typeof w !== 'number') return;
           c1[i] = v; c2[i] = w; if (v === v) g1++; if (w === w) g2++;
+          if (!(v > p1)) u1 = false; p1 = v;   /* does the first column rise all the way? (what colUp() asks, answered in the same walk since 2.20.1) */
         }
+        c1.up = u1;
         if (g1 >= 0.8 * nr) { if (/year|^yr$/i.test(k1)) c1.yearName = true; cache.set('n' + k1, c1); }
         if (g2 >= 0.8 * nr) { if (/year|^yr$/i.test(k2)) c2.yearName = true; cache.set('n' + k2, c2); }
       },
@@ -592,6 +594,54 @@ var NetflowPlot = (function () {
     }
     return out;
   }
+  /** A thinned line as a band (since 2.20.0): for each whole-pixel column its lowest and highest point, widened to reach half way to the
+      neighbor columns' joining points, and grown 1 px up and down (the 2 px stroke). Columns that are not neighbors (a gap) are joined through
+      the two joining points themselves. c: the columns from bandCols() or lineCols(). Returns { xs, top, bot } for F.band. */
+  function lineBand(c) {
+    var K = c.K, FX = c.FX, FY = c.FY, LX = c.LX, LY = c.LY, MN = c.MN, MX = c.MX, n = K.length, xs = [], top = [], bot = [], i, a, b, m, nearP, nearQ;
+    for (i = 0; i < n; i++) {
+      a = MN[i]; b = MX[i]; nearP = i > 0 && K[i - 1] === K[i] - 1; nearQ = i + 1 < n && K[i + 1] === K[i] + 1;
+      if (nearP) { m = (LY[i - 1] + FY[i]) / 2; if (m < a) a = m; if (m > b) b = m; }
+      if (nearQ) { m = (LY[i] + FY[i + 1]) / 2; if (m < a) a = m; if (m > b) b = m; }
+      if (i > 0 && !nearP) { xs.push(FX[i]); top.push(FY[i] - 1); bot.push(FY[i] + 1); }
+      xs.push(i === 0 ? FX[i] : i === n - 1 ? LX[i] : K[i] + 0.5); top.push(a - 1); bot.push(b + 1);
+      if (i + 1 < n && !nearQ) { xs.push(LX[i]); top.push(LY[i] - 1); bot.push(LY[i] + 1); }
+    }
+    for (i = 1; i < xs.length; i++) if (xs[i] < xs[i - 1]) xs[i] = xs[i - 1];
+    return { xs: xs, top: top, bot: bot };
+  }
+  /** The pixel columns of thinned points (x,y pairs): for each, its column number, first and last point, lowest and highest y. Null when x ever runs backward (the caller strokes the line). */
+  function bandCols(pts) {
+    var n = pts.length / 2, K = [], FX = [], FY = [], LX = [], LY = [], MN = [], MX = [], q = -1, i, x, y, k;
+    for (i = 0; i < n; i++) {
+      x = pts[i * 2]; y = pts[i * 2 + 1]; k = Math.floor(x); if (q >= 0 && k < K[q]) return null;
+      if (q < 0 || K[q] !== k) { q++; K[q] = k; FX[q] = LX[q] = x; FY[q] = LY[q] = MN[q] = MX[q] = y; } else { LX[q] = x; LY[q] = y; if (y < MN[q]) MN[q] = y; if (y > MX[q]) MX[q] = y; }
+    }
+    return { K: K, FX: FX, FY: FY, LX: LX, LY: LY, MN: MN, MX: MX };
+  }
+  /** The same columns straight from two number columns whose x rises (since 2.20.1): the end of each pixel column is found on x alone, and the
+      lowest and highest value are found on the values before any is mapped to pixels, so 100,000 points cost two short walks. mx, my: axis maps
+      from linear(), mx rising. Gives exactly what bandCols(linePts(...)) gives. */
+  function lineCols(xs, ys, mx, my) {
+    var n = xs.length, xa = mx.a, xl = mx.lo, xk = mx.k, ya = my.a, yl = my.lo, yk = my.k, whole = colStat(ys).n === n;
+    var K = [], FX = [], FY = [], LX = [], LY = [], MN = [], MX = [], q = 0, i = 0, j, k, col, xt, lo, hi, a, e, v, p, r;
+    while (i < n) {
+      col = Math.floor(xa + (xs[i] - xl) * xk); xt = xl + (col + 1 - xa) / xk;
+      j = i + 1; k = 1; while (j + k < n && xs[j + k] < xt) { j += k; k += k; }                /* x rises: the end is found by doubling steps, then halving */
+      while (k > 1) { k >>= 1; if (j + k < n && xs[j + k] < xt) j += k; }
+      if (j < n && xs[j] < xt) j++;
+      while (j < n && xa + (xs[j] - xl) * xk < col + 1) j++;                 /* the exact end, by the same sum the points are mapped with */
+      while (j - 1 > i && !(xa + (xs[j - 1] - xl) * xk < col + 1)) j--;
+      if (whole) { a = i; e = j - 1; lo = hi = ys[i]; for (k = i + 1; k < j; k++) { v = ys[k]; lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+      else { a = -1; e = -1; lo = Infinity; hi = -Infinity; for (k = i; k < j; k++) { v = ys[k]; if (v !== v) continue; if (a < 0) a = k; e = k; if (v < lo) lo = v; if (v > hi) hi = v; } }
+      if (a >= 0) {
+        p = ya + (lo - yl) * yk; r = ya + (hi - yl) * yk;
+        K[q] = col; FX[q] = xa + (xs[a] - xl) * xk; FY[q] = ya + (ys[a] - yl) * yk; LX[q] = xa + (xs[e] - xl) * xk; LY[q] = ya + (ys[e] - yl) * yk; MN[q] = p < r ? p : r; MX[q] = p < r ? r : p; q++;
+      }
+      i = j;
+    }
+    return { K: K, FX: FX, FY: FY, LX: LX, LY: LY, MN: MN, MX: MX };
+  }
   CH.line = function (F, R, sp) {
     var s = series(F, R, sp, true), allX = [], allY = [], whole = s.list.length === 1 && s.list[0].xs instanceof Float64Array && s.list[0].ys instanceof Float64Array;   /* one plain line: the columns themselves, not copies */
     if (whole) { allX = s.list[0].xs; allY = s.list[0].ys; } else s.list.forEach(function (l) { allX = allX.concat(l.xs); allY = allY.concat(l.ys); }); if (sp.x && R.num(sp.x).yearName) allX.yearName = true;
@@ -609,15 +659,22 @@ var NetflowPlot = (function () {
     F.axes(ax, ay, sp.x, sp.index ? sp.y + ' (first value = 100)' : sp.y || 'Rows');
     var many = s.list.reduce(function (a, l) { return a + l.xs.length; }, 0), tags = [], starts = [];
     s.list.forEach(function (l) {
-      var pts, pn = 0, col = F.color(l.ci);
-      if (whole && ax.map.k !== undefined && ay.map.k !== undefined) pts = linePts(l.xs, l.ys, ax.map, ay.map);
+      var pts, pn = 0, col = F.color(l.ci), thin = false, bc = null;
+      if (whole && ax.map.k !== undefined && ay.map.k !== undefined) {
+        thin = colStat(l.ys).n * 2 > 10000;
+        if (thin && ax.map.k > 0 && ax.map.k < Infinity && ay.map.k === ay.map.k && colUp(l.xs)) { bc = lineCols(l.xs, l.ys, ax.map, ay.map); var bq = bc.K.length - 1; pts = bq >= 0 ? [bc.FX[0], bc.FY[0], bc.LX[bq], bc.LY[bq]] : []; }   /* since 2.20.1: no thinned points are made, only the first and last (the labels use them) */
+        else pts = linePts(l.xs, l.ys, ax.map, ay.map);
+      }
       else {
         pts = new Array(l.xs.length * 2);
         for (var j = 0; j < l.xs.length; j++) { if (l.ys[j] !== l.ys[j]) continue; pts[pn++] = ax.map(l.xs[j]); pts[pn++] = ay.map(l.ys[j]); }
         pts.length = pn;
-        if (pn > 10000) pts = pixelColumns(pts);
+        if (pn > 10000) { pts = pixelColumns(pts); thin = true; }
       }   /* since 2.18.0: over 5,000 points, each pixel column keeps its first, lowest, highest and last point, in order (the drawn line looks the same; 100,000 points build in a fifth of the time) */
-      F.line(pts, 2, col);
+      if (thin && !bc && pts.length >= 4) bc = bandCols(pts);
+      var bd = bc && bc.K.length ? lineBand(bc) : null;
+      if (bd) F.band(bd.xs, bd.top, bd.bot, col);   /* since 2.20.0: a thinned line is drawn as a band, which a browser paints several times faster than the zigzag stroke */
+      else F.line(pts, 2, col);
       if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
       if (F.clean && pts.length) {   /* values on the line: first point to the left of the plot, last point after the name (or alone for one line) */
         var fi = 0; while (l.ys[fi] !== l.ys[fi]) fi++;

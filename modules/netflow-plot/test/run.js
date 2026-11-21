@@ -335,22 +335,50 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const keep = global.NetflowScene; delete global.NetflowScene; const off = P.warm(); global.NetflowScene = keep;
   ok(off === false, 'warm() returns false when NetflowScene is missing');
 }
-/* 2.18.0: a line over 5,000 points keeps each pixel column's first, lowest, highest and last point (in order); smaller lines are unchanged */
+/* 2.18.0: a line over 5,000 points keeps each pixel column's lowest and highest point; smaller lines are unchanged. Since 2.20.0 the thinned line is drawn as a filled band, one piece per pixel column */
 {
   const r = rnd(5), mk = (n) => { const rows = []; let y = 0; for (let i = 0; i < n; i++) { y += r() - 0.5; rows.push({ t: i, v: y }); } return rows; };
-  const big = mk(20000), S = P.make(big, { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene);
-  let c = S.curves[0]; S.curves.forEach((q) => { if (q.P.length > c.P.length) c = q; });
-  const pts = (c.P.length - 2) / 6 + 1, xs = [], ys = [];
-  for (let k = 0; k < pts; k++) { xs.push(k ? c.P[2 + (k - 1) * 6 + 4] : c.P[0]); ys.push(k ? c.P[2 + (k - 1) * 6 + 5] : c.P[1]); }
-  ok(pts < 20000 / 4 && pts > 400, 'a 20,000-point line draws one to four points per pixel column (' + pts + ')');
+  const quads = (S) => S.polys.filter((q) => q.pts.length === 8 && q.stroke[3] === 0);
+  const big = mk(20000), S = P.make(big, { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene), Q = quads(S);
+  ok(Q.length > 400 && Q.length < 20000 / 4, 'a 20,000-point line draws about one band piece per pixel column (' + Q.length + ')');
+  ok(S.curves.every((c) => c.P.length < 200), 'a 20,000-point line no longer draws a long stroked curve');
   const full = P.make(big.slice(0, 5000), { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene); let f = full.curves[0]; full.curves.forEach((q) => { if (q.P.length > f.P.length) f = q; });
-  ok((f.P.length - 2) / 6 + 1 === 5000, 'a 5,000-point line keeps every point');
-  let sorted = true; for (let k = 1; k < pts; k++) if (Math.floor(xs[k]) < Math.floor(xs[k - 1])) sorted = false;
-  ok(sorted, 'the kept points still run left to right');
-  const spiky = big.map((q, i) => ({ t: q.t, v: i === 12345 ? 1000 : q.v })), SP = P.make(spiky, { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene); let h = SP.curves[0]; SP.curves.forEach((q) => { if (q.P.length > h.P.length) h = q; });
-  const hp = (h.P.length - 2) / 6 + 1; let kmin = 0, hx = [], hy = []; for (let k = 0; k < hp; k++) { hx.push(k ? h.P[2 + (k - 1) * 6 + 4] : h.P[0]); hy.push(k ? h.P[2 + (k - 1) * 6 + 5] : h.P[1]); if (hy[k] < hy[kmin]) kmin = k; }
-  const xSpike = hx[0] + (hx[hp - 1] - hx[0]) * 12345 / 19999;
-  ok(Math.abs(hx[kmin] - xSpike) < 1.5 && hy[kmin] < hy[0] - 50, 'a one-point spike in a 20,000-point line is kept (the lowest kept point is at the spike)');
+  ok((f.P.length - 2) / 6 + 1 === 5000 && quads(full).length === 0, 'a 5,000-point line keeps every point and stays a stroked line');
+  let sorted = true, joined = true, thick = true; for (let k = 0; k < Q.length; k++) { const p = Q[k].pts; if (p[2] < p[0]) sorted = false; if (k && (Q[k - 1].pts[2] !== p[0] || Q[k - 1].pts[3] !== p[1] || Q[k - 1].pts[5] !== p[7])) joined = false; if (p[7] - p[1] < 2 - 1e-9 || p[5] - p[3] < 2 - 1e-9) thick = false; }
+  ok(sorted, 'the band pieces run left to right');
+  ok(joined, 'each band piece starts where the one before it ends');
+  ok(thick, 'the band is never thinner than the 2-pixel line it replaces');
+  /* the band covers every point of the line */
+  { const C = P.make(big.slice(0, 5000).concat(big.slice(5000)), { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene), x0 = Q[0].pts[0], x1 = Q[Q.length - 1].pts[2]; let lo = Infinity, hi = -Infinity; big.forEach((q) => { if (q.v < lo) lo = q.v; if (q.v > hi) hi = q.v; });
+    let top = Infinity, bot = -Infinity; Q.forEach((q) => { top = Math.min(top, q.pts[1], q.pts[3]); bot = Math.max(bot, q.pts[5], q.pts[7]); });
+    let miss = 0, k = 0; const yOf = (v) => bot - 1 - (v - lo) / (hi - lo) * (bot - top - 2);
+    for (let i = 0; i < big.length; i += 7) { const x = x0 + (x1 - x0) * i / 19999, y = yOf(big[i].v); while (k + 1 < Q.length && Q[k].pts[2] < x) k++; const p = Q[k].pts, u = p[2] > p[0] ? (x - p[0]) / (p[2] - p[0]) : 0, t = p[1] + (p[3] - p[1]) * u, b = p[7] + (p[5] - p[7]) * u; if (y < Math.min(p[1], p[3]) - 1.01 || y > Math.max(p[5], p[7]) + 1.01) miss++; }
+    ok(miss === 0 && C.polys.length === S.polys.length, 'every sampled point of the line lies inside the band (' + miss + ' outside)'); }
+  const spiky = big.map((q, i) => ({ t: q.t, v: i === 12345 ? 1000 : q.v })), SP = P.make(spiky, { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene), H = quads(SP);
+  let kmin = 0; for (let k = 0; k < H.length; k++) if (Math.min(H[k].pts[1], H[k].pts[3]) < Math.min(H[kmin].pts[1], H[kmin].pts[3])) kmin = k;
+  const hx0 = H[0].pts[0], hx1 = H[H.length - 1].pts[2], xSpike = hx0 + (hx1 - hx0) * 12345 / 19999, hm = H[kmin].pts;
+  ok(Math.abs((hm[1] < hm[3] ? hm[0] : hm[2]) - xSpike) < 1.5 && Math.min(hm[1], hm[3]) < H[0].pts[1] - 50, 'a one-point spike in a 20,000-point line is kept (the band reaches its highest at the spike)');
+  /* a line whose x runs backward stays a stroked line; the same chart drawn twice is the same */
+  const back = big.map((q, i) => ({ t: 19999 - i, v: q.v })), SB = P.make(back, { type: 'line', x: 't', y: 'v' }, {}, global.NetflowScene);
+  ok(SB.curves.length + SB.polys.length > 0, 'a 20,000-point line given right to left still draws');
+  ok(P.toSvg(big, { type: 'line', x: 't', y: 'v' }) === P.toSvg(big, { type: 'line', x: 't', y: 'v' }) && P.toSvg({ t: big.map((q) => q.t), v: big.map((q) => q.v) }, { type: 'line', x: 't', y: 'v' }) === P.toSvg(big, { type: 'line', x: 't', y: 'v' }), 'the band chart is the same every time, from rows or from columns');
+}
+/* 2.20.1: a long line whose x rises builds its band straight from the two columns (no thinned points); uneven x steps, gaps and repeated x give the same band as before */
+{
+  const r = rnd(21), n = 30000, quads = (S) => S.polys.filter((q) => q.pts.length === 8 && q.stroke[3] === 0);
+  const mk = (step, gap) => { const rows = []; let y = 0, x = -500; for (let i = 0; i < n; i++) { y += r() - 0.5; x += step(i); rows.push({ t: x, v: gap(i) ? null : Math.round(y * 1000) / 1000 || 0 }); } return rows; };
+  const uneven = mk(() => r() * r() * 10 + 1e-6, () => false), jumps = mk(() => (r() < 0.01 ? 400 : 1), (i) => i > 9000 && i < 12000), rep = mk((i) => (i % 3 ? 1 : 0), () => false);
+  [['uneven x steps', uneven], ['x jumps and a run of empty values', jumps], ['repeated x values', rep]].forEach((c) => {
+    const rows = c[1], cols = { t: Float64Array.from(rows, (q) => q.t), v: Float64Array.from(rows, (q) => (q.v === null ? NaN : q.v)) }, sp = { type: 'line', x: 't', y: 'v' };
+    const S = P.make(rows, sp, {}, global.NetflowScene), Q = quads(S), a = P.toSvg(rows, sp), b = P.toSvg(cols, sp);
+    let ok2 = Q.length > 100 && a === b && a.indexOf('NaN') < 0, k;
+    for (k = 0; k < Q.length; k++) { const p = Q[k].pts; if (!(p[2] >= p[0]) || p[7] - p[1] < 2 - 1e-9 || p[5] - p[3] < 2 - 1e-9) ok2 = false; }
+    ok(ok2, 'a 30,000-point line with ' + c[0] + ' draws a band, the same from rows and columns (' + Q.length + ' pieces)');
+  });
+  /* a column end that falls exactly on a whole pixel: x = 0..n-1 over a plot whose width divides evenly still puts each point in one column */
+  const even = []; for (let i = 0; i < 20001; i++) even.push({ t: i, v: Math.sin(i / 50) });
+  const SE = P.make(even, { type: 'line', x: 't', y: 'v' }, { width: 1080 }, global.NetflowScene), QE = quads(SE); let mono = QE.length > 100; for (let k = 1; k < QE.length; k++) if (QE[k].pts[0] !== QE[k - 1].pts[2]) mono = false;
+  ok(mono, 'band pieces stay joined when points land exactly on pixel edges');
 }
 /* 2.18.1: a long plain line reads its two number columns in one walk of the rows and builds its points straight from the columns; the drawing lists are the same whichever way the numbers arrive */
 {

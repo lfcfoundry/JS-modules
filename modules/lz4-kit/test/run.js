@@ -74,7 +74,7 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
 }
 (async () => {
   let threw = false; try { K.compress(new Uint8Array(1)); } catch (e) { threw = /init\(\)/.test(e.message); } ok(threw, 'calls before init() say so');
-  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.1.1', 'version labels');
+  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.1.2', 'version labels');
   const sizes = [0, 1, 7, 13, 100, 4096, 65537, 300000, 2100000];
   for (const n of sizes) for (const kind of ['random', 'text', 'pattern']) {
     const b = sample(n, kind);
@@ -180,6 +180,21 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
     ok(eq(K.compressBlock(L, 0, 1), first) && eq(K.compressBlock(L, 0, 1, { view: true }), first), 'own compressor: acceleration 1 and view give the same bytes');
     ok(K.compressBlock(L, 0, 2).length > first.length, 'acceleration 2 still goes to LZ4 and is larger');
     const big = logs(4 << 20, 7), bb = K.compressBlock(big, 0); ok(bb.length < big.length * 0.25, 'own compressor: 4 MiB of logs pack below 25% (' + (100 * bb.length / big.length).toFixed(1) + '%)');
+    // fast frames of 64 KiB and more (1.1.2) are written by the kit: independent blocks of up to 4 MiB through the same compressor, content size and checksum as before
+    {
+      const frameOk = (b, name) => { const fr = K.compress(b, 0);
+        ok(eq(K.decompress(fr), b) && eq(K.decompress(fr, b.length), b), 'own frame: LZ4 reads ' + name);
+        ok(eq(refFrames(fr), b), 'own frame: independent parser reads ' + name + ' and its checksum');
+        ok(fr.length <= b.length + 15 + 8 + 4 * (Math.floor(b.length / (4 << 20)) + 1), 'own frame: never more than the input plus the frame fields for ' + name);
+        return fr; };
+      for (const n of [65535, 65536, 65537, 300001, (4 << 20) - 1, 4 << 20, (4 << 20) + 1, (4 << 20) + 65536, (9 << 20) + 7]) { frameOk(logs(n, 5), 'logs ' + n); if (n < (5 << 20)) frameOk(sample(n, 'random'), 'random ' + n); }
+      frameOk(cat(L, R, L), 'easy, hard, easy'); frameOk(cat(R, logs(5 << 20, 9)), 'random then 5 MiB of logs'); frameOk(new Uint8Array(6 << 20), '6 MiB of zeros');
+      const f1 = K.compress(L, 0); ok(f1[4] === 0x6C && f1[5] === 0x70, 'own frame: flags say independent blocks of up to 4 MiB, size and checksum');
+      K.compress(R, 0); K.compressBlock(R, 0); ok(eq(K.compress(L, 0), f1) && eq(K.compress(L, 0, { view: true }), f1), 'own frame: same bytes whatever was packed before, and with view');
+      ok(K.compress(big, 0).length < K.compressBlock(big, 0).length + 40, 'own frame: 4 MiB of logs is the block plus the frame fields');
+      const tA = sample(1000, 'text'), tB = R.subarray(0, 70000); ok(eq(K.decompress(cat(K.compress(L, 0), K.compress(tA, 0), K.compress(tB, 3))), cat(L, tA, tB)), 'own frames join with LZ4F frames');
+      const bad2 = f1.slice(); bad2[bad2.length - 2] ^= 4; let thr = false; try { K.decompress(bad2); } catch (e) { thr = /damaged/.test(e.message); } ok(thr, 'own frame: a wrong content checksum throws');
+    }
     // positions wrap after about 4 GB of input in one page: the table is cleared and the output stays the same
     const z = new Uint8Array(96 << 20); for (let k = 0; k < 46; k++) K.compressBlock(z, 0, 1, { view: true });
     ok(eq(K.compressBlock(L, 0), first), 'own compressor: same bytes after more than 4 GB of input');

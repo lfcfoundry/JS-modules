@@ -6,7 +6,7 @@
 
 [**Pick a module**](#pick-a-piece) · [**Live demos**](https://lfcfoundry.github.io/JS-modules/demos.html) · [**Changelog**](CHANGELOG.md) · [**Credits**](CREDITS.md)
 
-![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 53](https://img.shields.io/badge/modules%20and%20tools-53-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
+![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 54](https://img.shields.io/badge/modules%20and%20tools-54-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
 
 </div>
 
@@ -66,7 +66,7 @@ MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built
 
 Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
-**Modules & Tools (53)**
+**Modules & Tools (54)**
 
 - Device and browser adaptation: [env-probes](modules/env-probes/README.md), [field-report](modules/field-report/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [image-decode](modules/image-decode/README.md), [slow-note](modules/slow-note/README.md)
 - Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
@@ -77,7 +77,7 @@ Every piece in one place, by name. The tables below give the version, the sizes 
 - Games - Testing: [canvas-probe](tools/canvas-probe/README.md), [firefox-stand-in](tools/firefox-stand-in/README.md), [fuzz-kit](tools/fuzz-kit/README.md), [speed-guard](tools/speed-guard/README.md), [speed-lab](tools/speed-lab/README.md), [storage-probe](tools/storage-probe/README.md), [test-isolation](tools/test-isolation/README.md), [test-runner](tools/test-runner/README.md), [webkit-driver](tools/webkit-driver/README.md)
 - App - Efficiency: [elias-fano](modules/elias-fano/README.md), [lfc-pack](modules/lfc-pack/README.md), [lz4-kit](modules/lz4-kit/README.md), [memory-compression](modules/memory-compression/README.md), [single-file-tools](tools/single-file-tools/README.md), [text-columns](modules/text-columns/README.md), [zstd-kit](modules/zstd-kit/README.md)
 - Graphs and simulation: [graph-walk](modules/graph-walk/README.md), [walker-sim](modules/walker-sim/README.md)
-- Visualization: [clip-writer](modules/clip-writer/README.md), [gif-writer](modules/gif-writer/README.md), [netflow-circular](modules/netflow-circular/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-hierarchy](modules/netflow-hierarchy/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-plot](modules/netflow-plot/README.md), [netflow-sankey](modules/netflow-sankey/README.md), [netflow-scene](modules/netflow-scene/README.md)
+- Visualization: [clip-writer](modules/clip-writer/README.md), [gif-writer](modules/gif-writer/README.md), [netflow-chord](modules/netflow-chord/README.md), [netflow-circular](modules/netflow-circular/README.md), [netflow-engine](modules/netflow-engine/README.md), [netflow-hierarchy](modules/netflow-hierarchy/README.md), [netflow-layers](modules/netflow-layers/README.md), [netflow-plot](modules/netflow-plot/README.md), [netflow-sankey](modules/netflow-sankey/README.md), [netflow-scene](modules/netflow-scene/README.md)
 - Size and packaging: [lzma-decode](modules/lzma-decode/README.md), [lzma-pack](tools/lzma-pack/README.md), [pcodec-js](modules/pcodec-js/README.md), [ppmd-decode](modules/ppmd-decode/README.md), [ppmd-pack](tools/ppmd-pack/README.md), [zip-open](modules/zip-open/README.md)
 
 **Story editor packages (10)**
@@ -103,7 +103,7 @@ Grouped by what a piece does. The live page, with demos and a quick finder, is *
 **How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. Story Editor packages are measured on their built `global` file. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`.
 Every piece has a size.
 
-### Modules & Tools (53)
+### Modules & Tools (54)
 
 #### Device and browser adaptation
 
@@ -191,7 +191,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.1.2 | 115.0 | 39.0 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.14.7 | 679.8 | 295.5 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
-| [lz4-kit](modules/lz4-kit/README.md) | 1.1.1 | 135.7 | 49.3 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
+| [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 | 136.4 | 49.7 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 | 464.7 | 134.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.6.5 | 62.9 | 21.4 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
@@ -214,11 +214,12 @@ Draw maps, flow charts and animated pictures from data.
 |---|---|---:|---:|---|---|
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 | 30.9 | 9.7 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 | 45.8 | 17.7 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
+| [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 | 7.7 | 3.0 | A small chord layout: arcs and bands as typed lists, no dependencies. | — |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 | 28.7 | 10.3 | Chord and Bundles views for netflow-engine, drawn with netflow-scene. | — |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.4.1 | 209.9 | 65.9 | Netflow Map's engine as an adaptable module: nine views, network layouts, add-on hand-over. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-engine/demo.html) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.1 | 65.7 | 22.5 | Treemap, Sunburst, Icicle, Circle pack and Tree views for netflow-engine. | — |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 | 76.6 | 26.6 | Lays out a graph in rows, with tags for long links and tall maps cut into columns. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-layers/demo.html) |
-| [netflow-plot](modules/netflow-plot/README.md) | 2.19.0 | 138.7 | 44.3 | 22 plain chart types from a table, drawn with netflow-scene. | — |
+| [netflow-plot](modules/netflow-plot/README.md) | 2.20.1 | 143.5 | 45.8 | 22 plain chart types from a table, drawn with netflow-scene. | — |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 | 79.7 | 28.4 | Lays out a Sankey flow chart from a list of links, with an SVG drawer. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-sankey/demo.html) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.2 | 144.9 | 47.3 | Turns a laid-out map into plain drawing lists for Canvas, WebGL or SVG. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/netflow-scene/demo.html) |
 
