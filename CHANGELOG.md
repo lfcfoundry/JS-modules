@@ -41,7 +41,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [guess-gate](modules/guess-gate/README.md) | 1.0.1 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.8.2 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.9.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.23.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -73,6 +73,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-plot** 2.21.0 · API 2: New: netflow-plot-line.min.js, one small file that draws line charts only and needs nothing else: 21.6 KB gzipped, against 22.0 KB for uPlot's script Same line charts, character for character, as the full files; anything else gives a plain error
 - 2026-11-21 · **netflow-plot** 2.20.1 · API 2: A long line builds faster with exactly the same picture: a finished 100,000-point chart costs 3.2 ms in Chromium 156 (was 3.7 to 4.0); in Firefox 158 one chart alone reaches the screen in 14 to 20 ms (was 23 to 24)
 - 2026-11-21 · **netflow-plot** 2.20.0 · API 2: A line over 5,000 points is drawn as a filled band, one piece per pixel column, in place of a zigzag stroke; 97.5% of the pixels are the same and spikes are kept A finished 100,000-point line chart costs 3.3 to 4.0 ms in Chromium 156 and Firefox 158 (was 4.0 to 5.5); one chart reaches the screen in 12 to 13 ms in Chromium (was 17)
+- 2026-11-21 · **netflow-hierarchy** 1.9.0 · API 1: Items can name their own parent, with no list of links
 - 2026-11-21 · **netflow-hierarchy** 1.8.2 · API 1: Circle pack is faster, most of all on trees where items have two children; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 - 2026-11-21 · **netflow-engine** 2.6.0 · API 2: Big Network maps (Distances layout) build in 12 to 73% less time, most about 60% less, with the same or lower stress, fewer link crossings and no touching items. Items now spread more evenly instead of packing into a dense middle.

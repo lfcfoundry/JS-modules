@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.8.2 · API 1**
+**Version 1.9.0 · API 1**
 
-**Tested in:** ungoogled-chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** 1,799 checks in Node; same layout and drawing as a links list on 200 trees in all five views; Quick run of the tester in ungoogled-chromium 156, Firefox 158 and WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -31,7 +31,7 @@ Netflow Map draws these views from any map: a tree of links, or items grouped by
 
 ## Use
 
-Load `netflow-scene.js` first, then `netflow-hierarchy.js`. `netflow-hierarchy.min.js` is the same module minified (32.5 KB, 14.6 KB gzipped; same pictures), for pages that must stay small. One call, data only (links as `{ from, to, value }`, or `{ nodes, edges }`; each box is as big as what flows into it):
+Load `netflow-scene.js` first, then `netflow-hierarchy.js`. `netflow-hierarchy.min.js` is the same module minified (33.0 KB, 14.7 KB gzipped; same pictures), for pages that must stay small. One call, data only (links as `{ from, to, value }`, or `{ nodes, edges }`; each box is as big as what flows into it):
 
 ```js
 // netflow-scene.js, then netflow-hierarchy.js
@@ -54,6 +54,7 @@ svgElement.outerHTML = NetflowScene.toSvg(S, 'Treemap');
 ```
 
 - `G`: `{ nodes: [{ id, label, group, sizeV }], edges: [{ from, to, weight, count, widthV }] }` (edges from parent to child; `sizeV` is a box's own size, 1 when missing; a link's amount is `widthV` when given, else its flow, else `weight`, else `count`, the number of times it was taken; `nest: 'auto'` follows the links when they already form a tree, else boxes by `group` when there are 2 or more groups, else the links from the start), plus optional `eA` and `eB` (Int32Array item numbers of each link's ends; with them no id lookup is built).
+- `parentKey` (option, since 1.9.0): when each item already carries its parent's id in a field, name that field and leave `edges` out: `layout('icicle', { nodes: [{ id: 'b', up: 'a' }, ...] }, { nest: 'links', parentKey: 'up' })`. An item whose field is missing, `null`, empty, its own id or an id that is not in the list is a top item. The picture is the same as with the matching list of links, and no list is built unless something reads `edges` on the result (the drawing does). It saves building and reading the links: on the icicle layout with no sorting, 5 to 8% less time in ungoogled-chromium 156 and up to half in Firefox 158 at 100,000 items.
 - Speed tip: a layout writes seven fields onto each item (`x`, `y`, `w`, `h`, `cx`, `cy`, `hv`). Chromium is slow at adding fields to an object after it is made, so make each item with them already present: `{ id, label, sizeV, x: 0, y: 0, w: 0, h: 0, cx: 0, cy: 0, hv: 0 }`. Measured on the icicle layout in ungoogled-chromium 156: 12% less time at 1,000 items and 23% less at 100,000. Firefox 158 and WebKitGTK 2.52.6 do not change. The picture is the same either way.
 - Views: `treemap`, `sunburst`, `icicle`, `pack`, `tree` (`NetflowHierarchy.VIEWS`).
 - Options: `nest` (`auto`, `links` or `groups`), `sized` (box sizes from `sizeV`), `treeShape` (`tidy`, the default, `cluster`, `radial`, `radialCluster` or `indented`).

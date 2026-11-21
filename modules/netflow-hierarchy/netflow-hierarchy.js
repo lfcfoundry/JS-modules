@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.8.2 (API 1)
+ * Version 1.9.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -66,7 +66,7 @@ var NetflowHierarchy = (function () {
     /* Boxes are numbered in the order they are reached, so a parent always comes before its children and the drawing order is simply
        0..N-1. Everything is kept in a few typed lists: the children of box v are kidList[kidOff[v]] .. kidList[kidOff[v + 1] - 1], and
        the plain lists (kids, label, group, idx) are only made when they are first read. All working lists are pieces of one list S. */
-    var nodes = G.nodes, n = nodes.length, E = G.edges, ne = E.length, eA = G.eA, eB = G.eB, nest = o.nest, i, e, nd, a, b, w, m = 0, st = -1;
+    var nodes = G.nodes, n = nodes.length, pk = typeof o.parentKey === 'string' && o.parentKey ? o.parentKey : null, E = pk ? null : G.edges, ne = pk ? n : E.length, eA = pk ? null : G.eA, eB = pk ? null : G.eB, nest = o.nest, i, e, nd, a, b, w, m = 0, st = -1;
     var named = !(eA && eA.length === ne), need = 4 * n + 2 + (named ? 5 : 1) * ne, S;
     if (need > HS_MAX) S = new Int32Array(need); else { S = HS || (HS = new Int32Array(HS_MAX)); S.fill(0, 0, 3 * n + 2); }
     var OFF = n, PO = 2 * n + 2, QU = 3 * n + 2, NB = 4 * n + 2, PE = NB + ne, TB = PE + ne, NO = TB + ne;   /* S: links into each item, where each item's links start, parents, the walk's queue, link ends by start, then the name work */
@@ -85,6 +85,12 @@ var NetflowHierarchy = (function () {
          name is then asked for once. The end of a link is usually the next item in the list, which one comparison settles with no lookup.
          A full table of every name is only made for a list of links in no such order. */
       var M = new Map(), P = 0, g = 0, ls = S, lp = -1, miss = 0, fs, ts, pid, tv, full = false;
+      if (pk) for (i = 0; i < n; i++) {   /* each item names its parent itself (o.parentKey): no list of links to read, and the child is the item at hand */
+        fs = nodes[i][pk]; S[TB + i] = i;
+        if (fs === null || fs === undefined || fs === '') { S[PE + i] = -1; continue; }
+        if (fs === ls) pid = lp; else { pid = M.get(fs); if (pid === undefined) { pid = P++; M.set(fs, pid); } ls = fs; lp = pid; }
+        S[PE + i] = pid;
+      } else
       for (i = 0; i < ne; i++) {
         e = E[i]; fs = e.from; ts = e.to;
         if (g < n && nodes[g].id === ts) { tv = g; g++; }
@@ -105,7 +111,7 @@ var NetflowHierarchy = (function () {
           if (st < 0 && nd.start) st = i;
           w = nd.sizeV; if (typeof w !== 'number') { if (w !== undefined) szOk = false; w = NaN; } F[SZ + i] = w;
         } else for (i = 0; i < n; i++) { nd = nodes[i]; pid = M.get(nd.id); if (pid !== undefined) S[NO + pid] = i; if (st < 0 && nd.start) st = i; }
-        for (i = 0; i < ne; i++) { a = S[NO + S[PE + i]]; tv = S[TB + i]; b = tv >= 0 ? tv : S[NO - 1 - tv]; if (a < 0 || b < 0 || a === b) continue; FT[m] = a; FT[ne + m] = b; m++; S[b]++; S[OFF + a + 2]++; }
+        for (i = 0; i < ne; i++) { pid = S[PE + i]; if (pid < 0) continue; a = S[NO + pid]; tv = S[TB + i]; b = tv >= 0 ? tv : S[NO - 1 - tv]; if (a < 0 || b < 0 || a === b) continue; FT[m] = a; FT[ne + m] = b; m++; S[b]++; S[OFF + a + 2]++; }
       }
     }
     var mode = nest;
@@ -161,7 +167,8 @@ var NetflowHierarchy = (function () {
     }
     var kidOff = IA.subarray(KO, KO + N + 1), kidList = IA.subarray(KL, KL + Math.max(0, N - 1)), item = IA.subarray(cap, cap + N);
     var H = { N: N, par: IA.subarray(0, N), kids: kids, label: label, item: item, group: group, root: root, depth: IA.subarray(cap * 2, cap * 2 + N), order: IA.subarray(cap * 3, cap * 3 + N), mode: mode, extra: extra,
-      from: FT.subarray(0, m), to: FT.subarray(ne, ne + m), idx: idx, kidOff: kidOff, kidList: kidList, at: IA.subarray(AT, AT + n), F: F, cap: cap, szOk: szOk };   /* idx: null when the app gave item numbers */
+      from: FT.subarray(0, m), to: FT.subarray(ne, ne + m), idx: idx, kidOff: kidOff, kidList: kidList, at: IA.subarray(AT, AT + n), F: F, cap: cap, szOk: szOk };
+    if (pk) H.pk = pk;   /* idx: null when the app gave item numbers */
     if (!kids) {
       var topName = G.name || 'All';
       lazy(H, 'kids', function () { return kidArrays(N, kidOff, kidList); });
@@ -511,7 +518,11 @@ var NetflowHierarchy = (function () {
     }
     geo.type = type; geo.val = val; geo.N = H.N; geo.par = H.par; lazy(geo, 'kids', function () { return H.kids; }); geo.depth = H.depth; geo.item = H.item; lazy(geo, 'label', function () { return H.label; }); lazy(geo, 'group', function () { return H.group; }); geo.root = H.root; geo.order = H.order; geo.mode = H.mode;
     geo.extra = H.extra.length; geo.tree = { from: H.from, to: H.to, extraList: H.extra };
-    return { kind: type, dir: 'none', nodes: nodes, edges: G.edges, chart: geo, width: geo.W, height: geo.H };
+    if (!H.pk) return { kind: type, dir: 'none', nodes: nodes, edges: G.edges, chart: geo, width: geo.W, height: geo.H };
+    /* items that name their own parent came with no list of links: one is made only if somebody reads it (the drawing does, to style a link) */
+    var out = { kind: type, dir: 'none', nodes: nodes, chart: geo, width: geo.W, height: geo.H }, key = H.pk;
+    lazy(out, 'edges', function () { var es = [], q, p; for (q = 0; q < nn; q++) { p = nodes[q][key]; if (p !== null && p !== undefined && p !== '') es.push({ from: p, to: nodes[q].id }); } return es; });
+    return out;
   }
 
 
