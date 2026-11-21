@@ -416,6 +416,17 @@ EXPORT("tplbuild") u32 tplbuild(const u8*in,u32 len,u32 n,u8*tl,u32*ids,u32*sg,u
   res[0]=tlE; res[1]=G; res[2]=tO; res[3]=nO; res[4]=D; res[5]=ns; return 0;
 }
 
+// Since 0.14.9: the cut of a text column that text: 'bytes' returns. Finds the first cap zero bytes of B[0..len): end[c] = position, start[c+1] = position + 1 (the caller sets start[0] = 0 and the last end). Returns how many it found (fewer than cap: the block is damaged).
+EXPORT("nulpos") u32 nulpos(const u8*B,u32 len,int*st,int*en,u32 cap){
+  u32 c=0,i=0; if(!cap) return 0;
+#ifdef __wasm_simd128__
+  v128_t z=wasm_i8x16_splat(0);
+  for(;i+16<=len;i+=16){ u32 m=wasm_i8x16_bitmask(wasm_i8x16_eq(wasm_v128_load(B+i),z));
+    while(m){ u32 q=i+(u32)__builtin_ctz(m); en[c]=(int)q; st[c+1]=(int)q+1; m&=m-1; if(++c==cap) return c; } }
+#endif
+  for(;i<len;i++) if(B[i]==0){ en[c]=(int)i; st[c+1]=(int)i+1; if(++c==cap) return c; }
+  return c;
+}
 // byteCol kernel (from the text-columns research, folded in here): the byte-by-byte passes of byteCol for a text column given as bytes and value offsets.
 static u32 bc_tot;
 EXPORT("bctot") u32 bctot(void){ return bc_tot; }

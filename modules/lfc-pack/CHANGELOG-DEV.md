@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.9 · API 0 · 2026-11-21
+
+### Quick
+`cutNul` (flat.js) cuts the n values of a text column that `text: 'bytes'` returns with a new wasm kernel, `nulpos` in flatscan.c: one 16-byte-at-a-time pass records every zero byte, and `start`/`end` come straight out of wasm memory. The JavaScript loop (one `indexOf` per value) stays for small columns (under 8 KB of bytes), and the no-SIMD case (the decoder-only build carries the SIMD flat scanner, so it takes the wasm cut too). Same `{ bytes, start, end }`, same 'damaged block' error. No API change.
+
+### Details
+320,000 near-unique titles (about 7.3 MB), whole `unpackColumns(file, { text: 'bytes' })`, median of 15 in one page: Chromium 156 41 to 25 ms, WebKitGTK 2.52.6 40 to 26 ms, Firefox 158 32 to 31 ms (its `indexOf` is already quick). The cut alone, as a JavaScript loop over a byte buffer instead of `indexOf`: 21 to 17 ms, so the wasm pass is what pays.
+
+### Deep
+Kept: the copy `b = u.slice()` (the frame lives in decoder memory) and the one copy of it into the kernel's heap (about 1 ms per 7 MB). `nulpos` stops after n - 1 zero bytes, like the old loop, so extra zero bytes inside the last value are kept. Test: textbytes.cjs gained a 6,000-row column with empty and non-ASCII values (the wasm cut), next to the existing small columns (the JavaScript cut). The plain (no SIMD) flatscan build carries the scalar loop of the same function; the library only calls it when SIMD is present.
+
 ## 0.14.8 · API 0 · 2026-11-21
 
 ### Quick
