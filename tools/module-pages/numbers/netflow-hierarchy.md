@@ -18,4 +18,4 @@ Compared: netflow-hierarchy against d3-hierarchy 3.1.3 (layout of 100,000 items,
 
 The lead is smaller on smaller charts. At 10,000 items netflow-hierarchy takes 43 to 94% of d3-hierarchy's time, and at 1,000 items 53 to 86%; in no view and no browser is it behind. Cloud test browsers only; laptop numbers are still to come.
 
-Size is the one place d3-hierarchy is smaller, and the two are not the same job. d3-hierarchy 3.1.3 minified is 14.8 KB (5.8 KB gzipped) and does layout only. netflow-hierarchy as shipped is 66 KB (22.6 KB gzipped, not minified) and also draws the picture; minified it would be about 31.5 KB (13.8 KB gzipped), and its layout part alone 16.3 KB (7.4 KB gzipped). No minified build ships today.
+Size is the one place d3-hierarchy is smaller, and the two are not the same job. d3-hierarchy 3.1.3 minified is 14.8 KB (5.8 KB gzipped) and does layout only. netflow-hierarchy ships a minified copy of 31.7 KB (14.1 KB gzipped) that does layout and drawing in one file (the readable file is 22.6 KB gzipped), and its layout part alone is about 16.3 KB (7.4 KB gzipped). So d3-hierarchy is smaller and no size win is claimed.
