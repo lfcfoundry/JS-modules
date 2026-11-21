@@ -154,7 +154,8 @@ for (const extra of [{ linkStyle: rules }, { curve: 0.25 }, { linkStyle: rules, 
 /* long lines in pieces (since 1.10.4): a solid line over 8,000 segments is written as overlapping pieces of 2048; the pieces join up to the same points, and shorter or dashed lines stay one path */
 {
   global.NetflowScene = SC; const P = require('../../netflow-plot/netflow-plot.js');
-  const line = (n, o) => { const r = []; for (let i = 0; i < n; i++) r.push({ x: i, y: Math.sin(i / 50) * 40 + (i % 7) }); return SC.toSvg(P.make(r, Object.assign({ type: 'line', x: 'x', y: 'y' }, o), {}, SC)); };
+  /* plot 2.18.0 keeps over 5,000 points to one to four per pixel column, so the long line is built here: a plot's line with its points replaced by n straight cubic segments */
+  const line = (n, o) => { const r = []; for (let i = 0; i < 100; i++) r.push({ x: i, y: i % 7 }); const S = P.make(r, Object.assign({ type: 'line', x: 'x', y: 'y' }, o), {}, SC); const c = S.curves[1], Q = [0, 100]; const px = (i) => i * 400 / n, py = (i) => 100 - (Math.sin(i / 50) * 40 + (i % 7)); Q[1] = py(0); Q[0] = px(0); for (let i = 1; i <= n; i++) { const a = i - 1; Q.push(px(a) + (px(i) - px(a)) / 3, py(a) + (py(i) - py(a)) / 3, px(a) + (px(i) - px(a)) * 2 / 3, py(a) + (py(i) - py(a)) * 2 / 3, px(i), py(i)); } c.P = Q; return SC.toSvg(S); };
   const strokes = (s) => (s.match(/<path d="M[^"]*" fill="none" stroke="[^"]*" stroke-width/g) || []);
   const big = strokes(line(20000)), small = strokes(line(8000)), C = (a) => a.reduce((n, d) => n + (d.match(/[CL]/g) || []).length, 0);
   ok(big.length - small.length === 9, 'a 20,000-point line is 10 pieces where an 8,000-point line is one path (' + big.length + ' vs ' + small.length + ' stroked paths)');
