@@ -19,6 +19,17 @@ const J = require('../lfc-pack.js'), g = require('./gen.cjs');
   }
   { const rows = tables.numeric, f = J.packRows(rows, { blockBytes: 100000 }), C = await J.unpackColumnsParallel(f, { keys: ['x', 'id'], workers: 2 }); ok(same(rows, C, ['x', 'id']) === '', 'keys option'); }
   { const f = J.pack(Buffer.from(g.events(20000)), { blockBytes: 100000 }), c = await J.unpackColumnsParallel(f, { keys: ['id', 'type'] }), r = J.unpackRows(f); ok(c.id.length === r.length && r.every((x, k) => c.id[k] === x.id && c.type[k] === x.type), 'nested blocks are read as rows, then columns (0.10.28)'); }
+  { const rows = tables.labels, f = J.packRows(rows, { blockBytes: 100000 }), nb = J.stats(f).length, base = await J.unpackColumnsParallel(f, { workers: 2 });   // onBlock (since 0.14.11): once per block as it is read, the joined result as before
+    for (const call of ['first', 'second', 'third']) {
+      const seen = [], got = await J.unpackColumnsParallel(f, { workers: 2, onBlock: (b, i, c) => seen.push([i, c, b.n, Object.keys(b.cols).join()]) });
+      ok(seen.length === nb && nb > 2, 'onBlock ' + call + ': one call per block (' + seen.length + ' of ' + nb + ')');
+      ok(new Set(seen.map((x) => x[0])).size === nb && seen.every((x) => x[1] === nb), 'onBlock ' + call + ': every index once, count given');
+      ok(seen.reduce((a, x) => a + x[2], 0) === rows.length, 'onBlock ' + call + ': block rows add up');
+      ok(JSON.stringify(got) === JSON.stringify(base), 'onBlock ' + call + ': joined result unchanged');
+    }
+    let msg = ''; try { await J.unpackColumnsParallel(f, { workers: 2, onBlock: () => { throw new Error('stop here'); } }); } catch (e) { msg = e.message; } ok(msg === 'stop here', 'a throwing onBlock rejects the read: ' + msg);
+    msg = ''; try { await J.unpackColumnsParallel(f, { onBlock: 5 }); } catch (e) { msg = e.message; } ok(/onBlock must be a function/.test(msg), 'onBlock must be a function: ' + msg);
+  }
   J.trim && J.trim();
   console.log(bad ? 'b35: ' + bad + ' bad of ' + n : 'b35 ok, ' + n + ' checks'); process.exit(bad ? 1 : 0);
 })();

@@ -2,6 +2,55 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.12 · API 0 · 2026-11-21
+
+### Quick
+src/api.js: the `version` the library reports was left at '0.14.8' through 0.14.9 to 0.14.11; it is 0.14.12 now. Found by `versions.py check`. No other change.
+
+## 0.14.11 · API 0 · 2026-11-21
+
+### Quick
+`unpackColumnsParallel(bytes, { onBlock(block, index, count) })` (new, optional): called once per block as that block's columns are ready, in the order blocks finish, then the joined result resolves as before. On this thread the blocks are read one at a time with a yield between (through `open().columns(i)`), so the first call comes after one block, not after the last. With helpers it is called from the thread's continuation of each block as the helper answers. A throwing callback rejects the read; a non-function is refused. A file with a raw block (tiny table kept as text) is read in one go and the calls follow. Nothing changes without onBlock.
+
+### Details
+600,000 rows (37 blocks of about 1 MB), Chromium 156, whole read of five columns: first block reaches the callback after 3 to 20 ms, half of them after 19 to 87 ms, the read as a whole 79 to 135 ms against 95 ms without a callback (same page, noisy; no slower in the median). The helpers did not start in this headless page (no Worker made), so the on-this-thread path is the one measured.
+
+### Deep
+Why not unpackColumns itself: it returns all blocks at once and stays synchronous. A streaming callback needs a yield between blocks (b31Yield), which only the promise-returning reader can give. The joined result is built from the same block objects, so it is the same as before (b35.cjs compares it). Per-piece events in text-columns and zip-open are separate (not in this version).
+
+## 0.14.10 · API 0 · 2026-11-21
+
+### Quick
+pool.js: `colTable` makes its 256 preview rows (`CT[z]`) lazily, as getters that build the row when first read, unless a timestamp column is present (those keep the eager check that refuses a value that does not fit its fmt). `estCols` counts the characters of a whole number under 1e15 by comparing against powers of ten instead of `String(v).length`. `packRowsBlocks` skips the size estimate when the table has 1,024 rows or fewer and no head block is asked for (the estimate can only decide where the blocks are cut, and one block is made anyway). Same bytes; no API change.
+
+### Details
+Made-up wide table, interleaved in one page, median of 15, new against 0.14.9 (new time as a share of old): 120 columns x 700 rows, Chromium 156 0.62 to 0.70, Firefox 158 0.70, WebKitGTK 2.52.6 0.67; 120 columns x 1,400 rows Chromium 0.97 to 0.99, Firefox 0.98; 4,111 rows Firefox 0.96, Chromium 1.00 to 1.01 (no change). 703 columns x 700 rows Chromium 0.62, x 1,400 rows 0.92. Nothing slower than 5% in any browser tried.
+
+### Deep
+Idea, prototype and the 703-column probe: the DuckDB-on-exoplanets thread (files under lfc-workbench/exoplanets-wide-2026.11.21). Not done yet from the same report: a plain Array column makes `estCols` return 0 and the fallback `JSON.stringify(RA.slice(0, 1024))` builds 1,024 row objects (only reached above 1,024 rows now, or when a head block is asked for). Byte identity checked on mixed columns (Float64 with NaN, -0, 1e15+4 and whole numbers; plain arrays with nulls; byte columns; dictionary-like text; empty columns).
+
+## 0.14.9 · API 0 · 2026-11-21
+
+### Quick
+`cutNul` (flat.js) cuts the n values of a text column that `text: 'bytes'` returns with a new wasm kernel, `nulpos` in flatscan.c: one 16-byte-at-a-time pass records every zero byte, and `start`/`end` come straight out of wasm memory. The JavaScript loop (one `indexOf` per value) stays for small columns (under 8 KB of bytes), and the no-SIMD case (the decoder-only build carries the SIMD flat scanner, so it takes the wasm cut too). Same `{ bytes, start, end }`, same 'damaged block' error. No API change.
+
+### Details
+320,000 near-unique titles (about 7.3 MB), whole `unpackColumns(file, { text: 'bytes' })`, median of 15 in one page: Chromium 156 41 to 25 ms, WebKitGTK 2.52.6 40 to 26 ms, Firefox 158 32 to 31 ms (its `indexOf` is already quick). The cut alone, as a JavaScript loop over a byte buffer instead of `indexOf`: 21 to 17 ms, so the wasm pass is what pays.
+
+### Deep
+Kept: the copy `b = u.slice()` (the frame lives in decoder memory) and the one copy of it into the kernel's heap (about 1 ms per 7 MB). `nulpos` stops after n - 1 zero bytes, like the old loop, so extra zero bytes inside the last value are kept. Test: textbytes.cjs gained a 6,000-row column with empty and non-ASCII values (the wasm cut), next to the existing small columns (the JavaScript cut). The plain (no SIMD) flatscan build carries the scalar loop of the same function; the library only calls it when SIMD is present.
+
+## 0.14.8 · API 0 · 2026-11-21
+
+### Quick
+flatscan.c: a value is checked for NUL and high bytes with 16-byte loads (a value under 16 bytes with one masked load, a longer one in 16-byte steps plus one overlapping load), in `bcscan` (fallback loop) and `bcscanw`; `bcjoinw` copies whole 16-byte pieces instead of one memory.copy per value. Output is byte-identical; no API change.
+
+### Details
+packBlock of 320,000 generated near-unique titles (about 25 bytes, 2,389,045 bytes out) and of titles plus a 10-label column sharing one 9.8 MB buffer (2,525,369 bytes out), new against 0.14.7 taking turns in one page, median of 15 packs: Chromium 156 80.8 to 71.3 ms (-6.7%) and 101.2 to 88.3 (-9.1%); Firefox 158 78.1 to 71.2 (-6.1%) and 102.2 to 94.7 (-7.4%); WebKitGTK 2.52.6 90 to 81 (-9%) and 119 to 107 (-6.4%). 44 SBA-shaped columns (contiguous values): about -5%.
+
+### Deep
+Where a title pack goes (Chromium, per pack of 320,000 titles, about 62 ms): the zstd frame 38 to 48 ms (text frames use zstd's fast strategy at level 1 whatever level is passed, so levels 1, 3 and 5 give the same bytes and time), copy of the column into wasm 5, scan 6, join 6, candidate sizing 3, distinct test 3. The zstd wasm built at -O2, -O3 and with SIMD gave the same time (0.96 to 1.03x), so the compiler flags are not the limit; negative levels are slower or bigger. The scan finished each value with a byte loop and the join called memory.copy per value; both were per-value call and tail costs.
+
 ## 0.14.7 · API 0 · 2026-11-21
 
 ### Quick

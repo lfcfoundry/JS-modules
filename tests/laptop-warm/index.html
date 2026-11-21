@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Warm start tester</title>
+<style>
+:root { --bg: #ffffff; --fg: #1a1a1a; --mut: #5a5a5a; --line: #d4d4d4; --acc: #1d4ed8; --card: #f6f7f9; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #14161a; --fg: #ececec; --mut: #a0a4ab; --line: #34383f; --acc: #7aa2ff; --card: #1d2026; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 22px; margin: 0 0 6px; }
+p { margin: 6px 0; color: var(--mut); }
+button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button.go { background: var(--acc); color: #fff; border-color: var(--acc); font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+#bar { height: 8px; background: var(--card); border-radius: 4px; margin: 12px 0; overflow: hidden; }
+#bar i { display: block; height: 100%; width: 0; background: var(--acc); transition: width .2s; }
+#log { font: 13px/1.4 ui-monospace, Consolas, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 190px; overflow: auto; white-space: pre-wrap; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 14px; }
+th, td { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+.pics { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; }
+.pics figure { margin: 0; flex: 1 1 280px; }
+.pics canvas { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.pics figcaption { font-size: 13px; color: var(--mut); text-align: center; }
+h2 { font-size: 17px; margin: 18px 0 4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Warm start tester</h1>
+<p>One button. It runs the Network layout of four test drops the usual way and with a warm start (5 runs each), measures how good each picture is, draws them side by side, then checks the cost of the onPiece option in the CSV reader. It takes about 3 to 5 minutes; the page is busy while it runs, so leave it alone. The drops are test files (big50k is the real drop; the other three are made-up).</p>
+<p><button class="go" id="start">Start</button> <button id="copy" disabled>Copy results</button> <span id="state"></span></p>
+<div id="bar"><i></i></div>
+<div id="log"></div>
+<div id="out"></div>
+</main>
+<script src="engine-warm.js"></script>
+<script src="../../modules/text-columns/text-columns.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); }, logEl = $('log'), results = { ua: navigator.userAgent, cores: navigator.hardwareConcurrency, date: new Date().toISOString(), layout: [], onPiece: null }, text = '';
+  var tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
+  var log = function (s) { logEl.textContent += s + '\n'; logEl.scrollTop = logEl.scrollHeight; };
+  var prog = function (f) { $('bar').firstChild.style.width = Math.round(f * 100) + '%'; };
+  var med = function (a) { return a.slice().sort(function (x, y) { return x - y; })[a.length >> 1]; };
+  var DROPS = [['big50k (real drop)', 'data/big50k.csv'], ['shuffled50k (rows unordered)', 'data/shuffled50k.csv'], ['communities10k (made up)', 'data/communities10k.csv'], ['communities50k (made up)', 'data/communities50k.csv']];
+  var VARIANTS = [['today', null], ['warm', { f: 0.5, mul: 1 }], ['warm, longer polish', { f: 0.5, mul: 2 }]];
+  var OPTS = { view: 'network', arrange: 'stress', colorBy: 'found', widthBy: 'weight', agg: 'sum', lazyLinks: true, runs: 2000 };
+  var ST = NetflowEngine.STRESS, RUNS = 5;
+
+  function parseCsv(t) {
+    var lines = t.split('\n'), ids = new Map(), nodes = [], E = [], i, p, a, b;
+    var idOf = function (s) { var k = ids.get(s); if (k === undefined) { k = nodes.length; ids.set(s, k); nodes.push(s); } return k; };
+    for (i = 1; i < lines.length; i++) { if (!lines[i]) continue; p = lines[i].split(','); a = idOf(p[0]); b = idOf(p[1]); E.push({ a: a, b: b, w: +p[2] || 1 }); }
+    return { ids: ids, nodes: nodes, E: E };
+  }
+  function graphOf(D, nr) {
+    var ed = D.E.slice(0, nr), seen = new Set(), i;
+    for (i = 0; i < ed.length; i++) { seen.add(ed[i].a); seen.add(ed[i].b); }
+    var nn = Array.from(seen).sort(function (x, y) { return x - y; });
+    return { nodes: nn.map(function (k) { return { id: D.nodes[k] }; }), edges: ed.map(function (e) { return { from: D.nodes[e.a], to: D.nodes[e.b], weight: e.w }; }) };
+  }
+  function warmPositions(D, f, rnd) {
+    var N = D.nodes.length, G = graphOf(D, Math.floor(D.E.length * f)), t0 = performance.now(), L = NetflowEngine.build(G, Object.assign({ previewOnly: true }, OPTS));
+    var pos = new Float64Array(2 * N), have = new Uint8Array(N), i, pass, e;
+    L.nodes.forEach(function (x) { var k = D.ids.get(x.id); pos[2 * k] = x.cx; pos[2 * k + 1] = x.cy; have[k] = 1; });
+    for (pass = 0; pass < 4; pass++) for (i = 0; i < D.E.length; i++) { e = D.E[i];
+      if (have[e.a] && !have[e.b]) { pos[2 * e.b] = pos[2 * e.a] + (rnd() - 0.5) * 40; pos[2 * e.b + 1] = pos[2 * e.a + 1] + (rnd() - 0.5) * 40; have[e.b] = 1; }
+      else if (have[e.b] && !have[e.a]) { pos[2 * e.a] = pos[2 * e.b] + (rnd() - 0.5) * 40; pos[2 * e.a + 1] = pos[2 * e.b + 1] + (rnd() - 0.5) * 40; have[e.a] = 1; } }
+    for (i = 0; i < N; i++) if (!have[i]) { pos[2 * i] = (rnd() - 0.5) * 2000; pos[2 * i + 1] = (rnd() - 0.5) * 2000; }
+    return { pos: pos, ms: performance.now() - t0 };
+  }
+  // quality of a finished picture: stress over 200 breadth-first sources (every fifth item), items touching another item (%), crossings per sampled edge (2,000 edges against all)
+  function metrics(L) {
+    var n = L.nodes.length, idx = new Map(), adj = [], i, k, e, ea = [], eb = [];
+    L.nodes.forEach(function (x, j) { idx.set(x.id, j); adj.push([]); });
+    L.edges.forEach(function (ed) { var a = idx.get(ed.from), b = idx.get(ed.to); if (a === undefined || b === undefined || a === b) return; adj[a].push(b); adj[b].push(a); ea.push(a); eb.push(b); });
+    var cx = new Float64Array(n), cy = new Float64Array(n), sz = new Float64Array(n); L.nodes.forEach(function (x, j) { cx[j] = x.cx; cy[j] = x.cy; sz[j] = x.w || 20; });
+    var K = 200, d = new Int32Array(n), qq = new Int32Array(n), num = 0, den = 0, pr = [], src, h, t, u, w, ee;
+    for (k = 0; k < K; k++) { src = Math.floor((k + 0.5) * n / K); d.fill(-1); d[src] = 0; qq[0] = src; h = 0; t = 1;
+      while (h < t) { u = qq[h++]; for (i = 0; i < adj[u].length; i++) { w = adj[u][i]; if (d[w] < 0) { d[w] = d[u] + 1; qq[t++] = w; } } }
+      for (i = 0; i < n; i += 5) if (i !== src && d[i] > 0) { ee = Math.hypot(cx[src] - cx[i], cy[src] - cy[i]); num += ee * d[i]; den += d[i] * d[i]; pr.push(ee, d[i]); } }
+    var c = num / den, s2 = 0, e2 = 0; for (i = 0; i < pr.length; i += 2) { s2 += Math.pow(pr[i] - c * pr[i + 1], 2); e2 += pr[i] * pr[i]; }
+    var cell = 60, G = new Map(), key, a2; for (i = 0; i < n; i++) { key = Math.floor(cx[i] / cell) * 100003 + Math.floor(cy[i] / cell); a2 = G.get(key); if (!a2) G.set(key, a2 = []); a2.push(i); }
+    var touch = 0, gx, gy, dx, dy, hit, j, q;
+    for (i = 0; i < n; i++) { gx = Math.floor(cx[i] / cell); gy = Math.floor(cy[i] / cell); hit = false;
+      for (dx = -1; dx <= 1 && !hit; dx++) for (dy = -1; dy <= 1 && !hit; dy++) { a2 = G.get((gx + dx) * 100003 + gy + dy); if (!a2) continue; for (q = 0; q < a2.length; q++) { j = a2[q]; if (j !== i && Math.hypot(cx[i] - cx[j], cy[i] - cy[j]) < (sz[i] + sz[j]) / 2) { hit = true; break; } } }
+      if (hit) touch++; }
+    var m = ea.length, CS = 80, EG = new Map();
+    var cells = function (ed, fn) { var x0 = cx[ea[ed]], y0 = cy[ea[ed]], x1 = cx[eb[ed]], y1 = cy[eb[ed]], L2 = Math.hypot(x1 - x0, y1 - y0), st = Math.max(1, Math.ceil(L2 / 40)), last = -1, s, x, y, kk; for (s = 0; s <= st; s++) { x = x0 + (x1 - x0) * s / st; y = y0 + (y1 - y0) * s / st; kk = Math.floor(x / CS) * 100003 + Math.floor(y / CS); if (kk !== last) { fn(kk); last = kk; } } };
+    for (e = 0; e < m; e++) cells(e, function (kk) { var aa = EG.get(kk); if (!aa) EG.set(kk, aa = []); aa.push(e); });
+    var ori = function (ax, ay, bx, by, px, py) { return (bx - ax) * (py - ay) - (by - ay) * (px - ax); }, cr = 0, SM = Math.min(2000, m), z, seen, f2, ax, ay, bx, by, px, py, qx, qy;
+    for (z = 0; z < SM; z++) { e = Math.floor((z + 0.5) * m / SM); seen = new Set(); cells(e, function (kk) { var aa = EG.get(kk), r; if (aa) for (r = 0; r < aa.length; r++) seen.add(aa[r]); });
+      seen.forEach(function (f) { f2 = f; if (f2 === e || ea[f2] === ea[e] || ea[f2] === eb[e] || eb[f2] === ea[e] || eb[f2] === eb[e]) return;
+        ax = cx[ea[e]]; ay = cy[ea[e]]; bx = cx[eb[e]]; by = cy[eb[e]]; px = cx[ea[f2]]; py = cy[ea[f2]]; qx = cx[eb[f2]]; qy = cy[eb[f2]];
+        if (ori(ax, ay, bx, by, px, py) * ori(ax, ay, bx, by, qx, qy) < 0 && ori(px, py, qx, qy, ax, ay) * ori(px, py, qx, qy, bx, by) < 0) cr++; }); }
+    return { stress: s2 / e2, touchPct: 100 * touch / n, crossPerEdge: cr / SM };
+  }
+  function draw(L, canvas) {
+    var g = canvas.getContext('2d'), x0 = 1e18, y0 = 1e18, x1 = -1e18, y1 = -1e18, i, x, f, idx = {}, pal = ['#2563eb', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2', '#be185d', '#65a30d'], gm = new Map(), kk;
+    g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height);
+    for (i = 0; i < L.nodes.length; i++) { x = L.nodes[i]; if (x.cx < x0) x0 = x.cx; if (x.cx > x1) x1 = x.cx; if (x.cy < y0) y0 = x.cy; if (x.cy > y1) y1 = x.cy; idx[x.id] = x; }
+    f = Math.min((canvas.width - 40) / (x1 - x0), (canvas.height - 40) / (y1 - y0));
+    g.strokeStyle = 'rgba(100,100,100,0.12)'; g.lineWidth = 0.5; g.beginPath();
+    L.edges.forEach(function (e) { var a = idx[e.from], b = idx[e.to]; if (!a || !b) return; g.moveTo(20 + (a.cx - x0) * f, 20 + (a.cy - y0) * f); g.lineTo(20 + (b.cx - x0) * f, 20 + (b.cy - y0) * f); }); g.stroke();
+    L.nodes.forEach(function (n) { kk = n.group || 0; if (!gm.has(kk)) gm.set(kk, gm.size); g.fillStyle = pal[gm.get(kk) % pal.length]; g.fillRect(20 + (n.cx - x0) * f - 0.8, 20 + (n.cy - y0) * f - 0.8, 1.6, 1.6); });
+  }
+  function fmt(v, d) { return v === null || v === undefined ? '' : Number(v).toFixed(d === undefined ? 0 : d); }
+
+  async function runLayout(total, doneRef) {
+    var out = $('out'), di, vi, rep;
+    for (di = 0; di < DROPS.length; di++) {
+      var name = DROPS[di][0]; log('Loading ' + name + ' ...');
+      var D = parseCsv(await (await fetch(DROPS[di][1])).text()), full = D.E.length, rowsOut = [], pics = [];
+      log('  ' + D.nodes.length + ' items, ' + full + ' rows'); await tick();
+      for (vi = 0; vi < VARIANTS.length; vi++) {
+        var V = VARIANTS[vi], times = [], guess = [], layMs = [], M = null, L = null;
+        for (rep = 0; rep < RUNS; rep++) {
+          var s3 = 1000 + rep, rnd = function () { return (s3 = (Math.imul(s3, 1664525) + 1013904223) >>> 0) / 4294967296; }, t0, g0 = 0;
+          ST.warm = null;
+          if (!V[1]) { t0 = performance.now(); NetflowEngine.build(graphOf(D, full), Object.assign({ previewOnly: true }, OPTS)); L = NetflowEngine.build(graphOf(D, full), Object.assign({}, OPTS)); }
+          else { var w = warmPositions(D, V[1].f, rnd); g0 = w.ms; ST.warm = { pos: w.pos, mul: V[1].mul }; t0 = performance.now(); L = NetflowEngine.build(graphOf(D, full), Object.assign({}, OPTS)); ST.warm = null; }
+          times.push(performance.now() - t0); guess.push(g0); layMs.push(ST.layMs);
+          if (rep === 0) { M = metrics(L); var cv = document.createElement('canvas'); cv.width = 900; cv.height = 700; draw(L, cv); pics.push([V[0], cv]); }
+          doneRef.n++; prog(doneRef.n / total); await tick();
+        }
+        rowsOut.push({ drop: name, variant: V[0], items: D.nodes.length, rows: full, buildMs: Math.round(med(times)), guessMs: Math.round(med(guess)), runsMs: times.map(Math.round), stress: +M.stress.toFixed(4), touchPct: +M.touchPct.toFixed(2), crossPerEdge: +M.crossPerEdge.toFixed(2) });
+        log('  ' + V[0] + ': ' + Math.round(med(times)) + ' ms (runs ' + times.map(Math.round).join(', ') + '), stress ' + M.stress.toFixed(3));
+      }
+      results.layout = results.layout.concat(rowsOut);
+      var h = '<h2>' + name + ': ' + D.nodes.length + ' items</h2><table><tr><th>Layout</th><th>Build ms (median of ' + RUNS + ')</th><th>Guess ms (hidden in the read)</th><th>Stress (lower is better)</th><th>Touching items %</th><th>Crossings per edge</th></tr>';
+      rowsOut.forEach(function (r) { h += '<tr><td>' + r.variant + '</td><td>' + r.buildMs + '</td><td>' + (r.guessMs || '') + '</td><td>' + r.stress.toFixed(3) + '</td><td>' + r.touchPct.toFixed(2) + '</td><td>' + r.crossPerEdge.toFixed(1) + '</td></tr>'; });
+      h += '</table><div class="pics" id="pics' + di + '"></div>'; out.insertAdjacentHTML('beforeend', h);
+      pics.forEach(function (p) { var fg = document.createElement('figure'); fg.appendChild(p[1]); var fc = document.createElement('figcaption'); fc.textContent = p[0]; fg.appendChild(fc); $('pics' + di).appendChild(fg); });
+    }
+  }
+  async function runOnPiece() {
+    log('Checking the onPiece option of the CSV reader (15 pairs) ...'); await tick();
+    var N = 400000, rows = ['id,name,amt,city,note'], i; for (i = 0; i < N; i++) rows.push(i + ',n' + (i % 997) + ',' + (i * 0.25) + ',city' + (i % 50) + ',note ' + i);
+    var bytes = new TextEncoder().encode(rows.join('\n') + '\n'), A = [], B = [], F = [], rep, order, wi, t, fst;
+    TextColumns.warm(4); await new Promise(function (r) { setTimeout(r, 300); });
+    for (rep = 0; rep < 15; rep++) { order = rep % 2 ? ['b', 'a'] : ['a', 'b'];
+      for (wi = 0; wi < 2; wi++) { t = performance.now(); fst = -1;
+        if (order[wi] === 'a') await TextColumns.parseParallel(bytes, { workers: 4, minBytes: 0 });
+        else await TextColumns.parseParallel(bytes, { workers: 4, minBytes: 0, onPiece: function () { if (fst < 0) fst = performance.now() - t; } });
+        t = performance.now() - t; if (order[wi] === 'a') A.push(t); else { B.push(t); F.push(fst); } }
+      if (rep % 3 === 2) { await tick(); } }
+    results.onPiece = { plainMs: +med(A).toFixed(1), onPieceMs: +med(B).toFixed(1), ratio: +(med(B) / med(A)).toFixed(3), firstPieceMs: +med(F).toFixed(1), plainRuns: A.map(Math.round), onPieceRuns: B.map(Math.round) };
+    $('out').insertAdjacentHTML('beforeend', '<h2>CSV reader: onPiece cost (400,000 rows)</h2><table><tr><th>Plain read ms</th><th>With onPiece ms</th><th>Ratio</th><th>First piece after ms</th></tr><tr><td>' + results.onPiece.plainMs + '</td><td>' + results.onPiece.onPieceMs + '</td><td>' + results.onPiece.ratio + '</td><td>' + results.onPiece.firstPieceMs + '</td></tr></table>');
+    log('  plain ' + results.onPiece.plainMs + ' ms, onPiece ' + results.onPiece.onPieceMs + ' ms, ratio ' + results.onPiece.ratio);
+  }
+  $('start').onclick = async function () {
+    $('start').disabled = true; $('state').textContent = 'running ...'; var t0 = performance.now(), ref = { n: 0 }, total = DROPS.length * VARIANTS.length * RUNS + 1;
+    try { await runLayout(total, ref); await runOnPiece(); prog(1); $('state').textContent = 'done in ' + Math.round((performance.now() - t0) / 1000) + ' s'; results.seconds = Math.round((performance.now() - t0) / 1000);
+      text = 'Warm start tester results\n' + JSON.stringify(results); $('copy').disabled = false; log('Done. Press Copy results and paste them to the chat.'); }
+    catch (e) { $('state').textContent = 'stopped'; log('ERROR ' + (e && e.stack || e)); results.error = String(e && e.stack || e); text = 'Warm start tester results (error)\n' + JSON.stringify(results); $('copy').disabled = false; }
+  };
+  $('copy').onclick = function () {
+    var done = function () { $('state').textContent = 'copied'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { fallback(); }); else fallback();
+    function fallback() { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { $('state').textContent = 'copy failed: select the box and copy'; } }
+  };
+})();
+</script>
+</body>
+</html>

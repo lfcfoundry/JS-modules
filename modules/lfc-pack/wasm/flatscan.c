@@ -416,15 +416,45 @@ EXPORT("tplbuild") u32 tplbuild(const u8*in,u32 len,u32 n,u8*tl,u32*ids,u32*sg,u
   res[0]=tlE; res[1]=G; res[2]=tO; res[3]=nO; res[4]=D; res[5]=ns; return 0;
 }
 
+// Since 0.14.9: the cut of a text column that text: 'bytes' returns. Finds the first cap zero bytes of B[0..len): end[c] = position, start[c+1] = position + 1 (the caller sets start[0] = 0 and the last end). Returns how many it found (fewer than cap: the block is damaged).
+EXPORT("nulpos") u32 nulpos(const u8*B,u32 len,int*st,int*en,u32 cap){
+  u32 c=0,i=0; if(!cap) return 0;
+#ifdef __wasm_simd128__
+  v128_t z=wasm_i8x16_splat(0);
+  for(;i+16<=len;i+=16){ u32 m=wasm_i8x16_bitmask(wasm_i8x16_eq(wasm_v128_load(B+i),z));
+    while(m){ u32 q=i+(u32)__builtin_ctz(m); en[c]=(int)q; st[c+1]=(int)q+1; m&=m-1; if(++c==cap) return c; } }
+#endif
+  for(;i<len;i++) if(B[i]==0){ en[c]=(int)i; st[c+1]=(int)i+1; if(++c==cap) return c; }
+  return c;
+}
 // byteCol kernel (from the text-columns research, folded in here): the byte-by-byte passes of byteCol for a text column given as bytes and value offsets.
 static u32 bc_tot;
 EXPORT("bctot") u32 bctot(void){ return bc_tot; }
 // flags: 1 = an offset is outside the bytes, 2 = a NUL byte, 4 = a byte above 127. Stops at the first NUL or bad offset (same as the JavaScript loop).
+#ifdef __wasm_simd128__
+// Since 0.14.8: one value is checked with 16-byte loads (a value under 16 bytes with one load and a mask, a longer one in 16-byte steps and one overlapping load at its end), not byte by byte. Returns 1 when the value has no NUL (a byte over 127 sets 128 in *hi,
+// any other byte 1), 0 when it has one: the caller then runs the byte loop, which reports it as before. Reads at most 15 bytes past the value: B has 16 spare bytes after it (bkPrep).
+static inline int scanv(const u8*B,int s,int e,u32*hi){
+  int len=e-s;
+  if(len<=0)return 1;
+  v128_t z=wasm_i8x16_splat(0);
+  if(len<16){v128_t v=wasm_v128_load(B+s);u32 m=(1u<<len)-1;
+    if(wasm_i8x16_bitmask(wasm_i8x16_eq(v,z))&m)return 0;
+    *hi|=(wasm_i8x16_bitmask(v)&m)?128u:1u;return 1;}
+  v128_t hv=z;int k=s;
+  for(;k+16<=e;k+=16){v128_t v=wasm_v128_load(B+k);if(wasm_v128_any_true(wasm_i8x16_eq(v,z)))return 0;hv=wasm_v128_or(hv,v);}
+  if(k<e){v128_t v=wasm_v128_load(B+e-16);if(wasm_v128_any_true(wasm_i8x16_eq(v,z)))return 0;hv=wasm_v128_or(hv,v);}
+  *hi|=wasm_i8x16_bitmask(hv)?128u:1u;return 1;
+}
+#endif
 static u32 bcscan_slow(const u8*B,u32 blen,const int*S,const int*E,u32 n){
   u32 hi=0,t=0;
   for(u32 i=0;i<n;i++){
     int s=S[i],e=E[i];
     if(!(s>=0&&e>=s&&(u32)e<=blen)){bc_tot=t;return 1;}
+#ifdef __wasm_simd128__
+    if(scanv(B,s,e,&hi)){t+=(u32)(e-s);continue;}
+#endif
     for(int k=s;k<e;k++){u8 c=B[k];if(!c){bc_tot=t;return 2|(hi?4:0);}hi|=c;}
     t+=(u32)(e-s);
   }
@@ -489,9 +519,7 @@ EXPORT("bcscanw") u32 bcscanw(const u8*B,u32 blen,const int*S,const int*E,u32 n)
     if(!(s>=0&&e>=s&&(u32)e<=blen)){bc_tot=t;return 1;}
     int k=s;
 #ifdef __wasm_simd128__
-    if(e-k>=16){v128_t hv=wasm_i8x16_splat(0);
-      for(;k+16<=e;k+=16){v128_t v=wasm_v128_load(B+k);if(wasm_v128_any_true(wasm_i8x16_eq(v,wasm_i8x16_splat(0))))break;hv=wasm_v128_or(hv,v);}
-      if(wasm_v128_any_true(hv))hi|=wasm_i8x16_bitmask(hv)?128u:1u;}
+    if(scanv(B,s,e,&hi)){t+=(u32)(e-s);continue;}
 #endif
     for(;k<e;k++){u8 c=B[k];if(!c){bc_tot=t;return 2|(hi?4:0);}hi|=c;}
     t+=(u32)(e-s);
@@ -516,6 +544,13 @@ EXPORT("bcdictw") u32 bcdictw(const u8*B,const int*S,const int*E,u32 n,int*codes
 }
 EXPORT("bcjoinw") u32 bcjoinw(const u8*B,const int*S,const int*E,const int*idx,u32 cnt,u8*out){
   u32 p=0;
-  for(u32 j=0;j<cnt;j++){u32 r=idx?(u32)idx[j]:j;if(j)out[p++]=0;u32 x=(u32)S[r],y=(u32)E[r];if(y-x>=16){__builtin_memcpy(out+p,B+x,y-x);p+=y-x;continue;}while(x<y)out[p++]=B[x++];}
+  for(u32 j=0;j<cnt;j++){u32 r=idx?(u32)idx[j]:j;if(j)out[p++]=0;u32 x=(u32)S[r],y=(u32)E[r];
+#ifdef __wasm_simd128__
+    for(u32 k=0;k<y-x;k+=16)wasm_v128_store(out+p+k,wasm_v128_load(B+x+k));   // since 0.14.8: whole 16-byte pieces, up to 15 bytes past the value (the next value or the 16 spare bytes of out take them); reads stay in B's 16 spare bytes
+    p+=y-x;
+#else
+    if(y-x>=16){__builtin_memcpy(out+p,B+x,y-x);p+=y-x;continue;}while(x<y)out[p++]=B[x++];
+#endif
+  }
   return p;
 }

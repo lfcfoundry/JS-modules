@@ -2,6 +2,21 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.14.12 · API 0 · 2026-11-21
+- The version the library reports about itself now matches the release (it still said 0.14.8). No other change.
+
+## 0.14.11 · API 0 · 2026-11-21
+- New opts.onBlock on unpackColumnsParallel: each block's columns reach your function as soon as that block is read, so a first picture can draw while the rest reads. Same final result.
+
+## 0.14.10 · API 0 · 2026-11-21
+- Packing a table with many columns skips two per-column costs: preview rows are made only when read, and whole numbers are counted without making their text. 120 columns, 700 rows: 0.6 to 0.7 of the time in three browsers. Same bytes.
+
+## 0.14.9 · API 0 · 2026-11-21
+- Reading text columns as bytes (text: 'bytes') cuts the values apart in one wasm pass: a 320,000-row title column reads 1.6 times faster in Chromium 156 and WebKitGTK 2.52.6, Firefox 158 the same. Same values.
+
+## 0.14.8 · API 0 · 2026-11-21
+- Text columns with long, nearly all different values (page titles, URLs) pack 6 to 9% faster: the checking and joining of the values runs 16 bytes at a time in wasm. 320,000 titles, Chromium 156, Firefox 158, WebKitGTK 2.52.6. Same bytes.
+
 ## 0.14.7 · API 0 · 2026-11-21
 - Packing text columns scans and hashes short values faster in wasm: 0.96x (Chromium 156) and 0.91x (Firefox 158) the pack time, WebKitGTK 2.52.6 unchanged (44 columns, 20,000 rows). Same bytes.
 

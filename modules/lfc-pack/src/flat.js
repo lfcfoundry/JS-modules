@@ -397,8 +397,21 @@
   var TEXT_BYTES = false;
   function setTextBytes(v) { var o = TEXT_BYTES; TEXT_BYTES = v; return o; }
   function cutNul(u, n) {   // u: n values joined by 0 bytes -> { bytes (a copy), start, end }
-    var b = u.slice(), start = new Int32Array(n), end = new Int32Array(n), pos = 0, i, k;
-    for (i = 0; i < n; i++) { k = i === n - 1 ? b.length : b.indexOf(0, pos); if (k < 0) throw new Error('damaged block: text column cut off'); start[i] = pos; end[i] = k; pos = k + 1; }
+    var b = u.slice(), start, end, pos = 0, i, k, len = b.length, K, X, p, bp, sp, ep, buf, c;
+    if (n > 1 && len >= 8192 && hasSimd()) {   // since 0.14.9: one 16-byte-at-a-time pass in wasm (nulpos in flatscan.c) finds every cut, about 5 times faster than one indexOf per value
+      try {
+        K = sdw(); X = K.x; p = K.heap; bp = p; p = (p + len + 31) & ~15; sp = p; p = (p + n * 4 + 15) & ~15; ep = p; p = (p + n * 4 + 15) & ~15;
+        if (X.nulpos && p <= 1610612736) {
+          if (p > X.memory.buffer.byteLength) X.memory.grow(Math.ceil((p - X.memory.buffer.byteLength) / 65536));
+          buf = X.memory.buffer; new Uint8Array(buf, bp, len).set(b); c = X.nulpos(bp, len, sp, ep, n - 1);
+          if (c < n - 1) throw new Error('damaged block: text column cut off');
+          start = new Int32Array(buf, sp, n).slice(); end = new Int32Array(buf, ep, n).slice(); start[0] = 0; end[n - 1] = len;
+          return { bytes: b, start: start, end: end };
+        }
+      } catch (e) { if (e && /damaged block/.test(e.message)) throw e; }
+    }
+    start = new Int32Array(n); end = new Int32Array(n);
+    for (i = 0; i < n; i++) { k = i === n - 1 ? len : b.indexOf(0, pos); if (k < 0) throw new Error('damaged block: text column cut off'); start[i] = pos; end[i] = k; pos = k + 1; }
     return { bytes: b, start: start, end: end };
   }
   function dictBytes(frames, n, p) {

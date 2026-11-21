@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 2.20.1 (API 2)
+ * Version 2.22.0 (API 2)
  * netflow-plot.js: plain charts from a table's columns (bars, lines, areas, dots, donuts, box plots, histograms, density, hexbins, heat maps,
  * parallel lines, scatter matrix, Q-Q, Voronoi cells, word cloud). make(rows, spec, o, NS) returns drawing lists in the same shape as a map
  * picture (rects, dots, curves, polys, labels), so the same renderer, export and themes draw them. No page, no DOM, no dependencies.
@@ -306,6 +306,36 @@ var NetflowPlot = (function () {
   /* ---------------------------------------------------------------- reading the table */
   /** A table given as columns, { name: array, ... } (plain arrays or typed arrays, the shape lfc-pack's unpackColumns returns; since 2.19.0), or null
       when t is a list of rows. n is the longest column. */
+  /** A column given as its summary (since 2.22.0): { min, max } arrays holding the lowest and highest value of each run of rows (what a packed
+      file keeps so a chart needs no unpacking), with optional first and last (the column's end values), n (rows) and bin (rows per run). */
+  function isSum(c) { return !!c && typeof c === 'object' && !Array.isArray(c) && !ArrayBuffer.isView(c) && ((isList(c.min) && isList(c.max)) || (typeof c.n === 'number' && typeof c.bin === 'number')); }
+  function isList(a) { return !!a && (Array.isArray(a) || ArrayBuffer.isView(a)) && typeof a.length === 'number'; }
+  /** True when a table holds summaries: { name: summary }. */
+  function sumsOf(t) { if (!t || typeof t !== 'object' || Array.isArray(t) || typeof t.length === 'number') return false; var k, any = false; for (k in t) { if (!Object.prototype.hasOwnProperty.call(t, k)) continue; if (isSum(t[k])) any = true; } return any; }
+  var SUM_ERR = 'netflow-plot: a table of summaries ({ min, max } per column) draws a line chart only: give type "line", x and y, both as summaries of the same length, and no color';
+  /** Two point columns from the summaries of x and y: the first value, then for every run its low and high (in the order the line most
+      likely ran, a quarter and three quarters of the way across the run), then the last value. A long line is then drawn as its band. */
+  function sumCols(t, xk, yk) {
+    var sx = t[xk], sy = t[yk]; if (!isSum(sx) || !isSum(sy) || !isList(sy.min) || !isList(sy.max) || sy.min.length !== sy.max.length) throw new Error(SUM_ERR);
+    var nb = sy.min.length, xlo = sx.min, xhi = sx.max, b;
+    if (!isList(xlo) || !isList(xhi)) {   /* x is just the row number: made from n and bin */
+      if (!(sx.bin > 0) || !(sx.n >= 0)) throw new Error(SUM_ERR);
+      xlo = new Float64Array(nb); xhi = new Float64Array(nb); for (b = 0; b < nb; b++) { xlo[b] = b * sx.bin; xhi[b] = Math.max(xlo[b], Math.min(sx.n, (b + 1) * sx.bin) - 1); }
+    }
+    if (xlo.length !== nb || xhi.length !== nb) throw new Error(SUM_ERR);
+    var hasF = typeof sy.first === 'number' && sy.first === sy.first, hasL = typeof sy.last === 'number' && sy.last === sy.last, m = nb * 2 + (hasF ? 1 : 0) + (hasL ? 1 : 0);
+    var X = new Float64Array(m), Y = new Float64Array(m), o = 0, prev = hasF ? sy.first : NaN, lo, hi, x0, w, up;
+    if (hasF && nb) { X[o] = +xlo[0]; Y[o++] = sy.first; }
+    for (b = 0; b < nb; b++) {
+      lo = +sy.min[b]; hi = +sy.max[b]; x0 = +xlo[b]; w = +xhi[b] - x0;
+      up = !(Math.abs(prev - lo) > Math.abs(prev - hi));   /* the end nearer to where the line was comes first */
+      X[o] = x0 + w * 0.25; Y[o++] = up ? lo : hi; X[o] = x0 + w * 0.75; Y[o++] = up ? hi : lo;
+      if (hi === hi) prev = up ? hi : lo;
+    }
+    if (hasL && nb) { X[o] = +xhi[nb - 1]; Y[o++] = sy.last; }
+    var c = {}; c[xk] = X; c[yk] = Y; return { c: c, n: m };
+  }
+  var SUM = false;   /* while make() draws a line from summaries: always the band, never a dot per point */
   function colsOf(t) {
     if (!t || typeof t !== 'object' || Array.isArray(t) || typeof t.length === 'number') return null;
     var n = 0, any = false, k, c;
@@ -314,6 +344,7 @@ var NetflowPlot = (function () {
   }
   /** Rows made from a table of columns, for the paths that read rows one by one (the chart picked for you, flows, trees, the takeaway). */
   function rowsOf(t) {
+    if (sumsOf(t)) throw new Error(SUM_ERR);
     var co = colsOf(t); if (!co) return t;
     var keys = Object.keys(co.c), rows = new Array(co.n), i, j, r;
     for (i = 0; i < co.n; i++) { r = {}; for (j = 0; j < keys.length; j++) if (i < co.c[keys[j]].length) r[keys[j]] = co.c[keys[j]][i]; rows[i] = r; }
@@ -661,7 +692,7 @@ var NetflowPlot = (function () {
     s.list.forEach(function (l) {
       var pts, pn = 0, col = F.color(l.ci), thin = false, bc = null;
       if (whole && ax.map.k !== undefined && ay.map.k !== undefined) {
-        thin = colStat(l.ys).n * 2 > 10000;
+        thin = SUM || colStat(l.ys).n * 2 > 10000;
         if (thin && ax.map.k > 0 && ax.map.k < Infinity && ay.map.k === ay.map.k && colUp(l.xs)) { bc = lineCols(l.xs, l.ys, ax.map, ay.map); var bq = bc.K.length - 1; pts = bq >= 0 ? [bc.FX[0], bc.FY[0], bc.LX[bq], bc.LY[bq]] : []; }   /* since 2.20.1: no thinned points are made, only the first and last (the labels use them) */
         else pts = linePts(l.xs, l.ys, ax.map, ay.map);
       }
@@ -675,7 +706,7 @@ var NetflowPlot = (function () {
       var bd = bc && bc.K.length ? lineBand(bc) : null;
       if (bd) F.band(bd.xs, bd.top, bd.bot, col);   /* since 2.20.0: a thinned line is drawn as a band, which a browser paints several times faster than the zigzag stroke */
       else F.line(pts, 2, col);
-      if (many <= 400) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
+      if (many <= 400 && !SUM) for (var k = 0; k < l.xs.length; k++) if (l.ys[k] === l.ys[k]) F.dot(ax.map(l.xs[k]), ay.map(l.ys[k]), 2.5, col, { rows: l.rows[k], t: (l.name ? l.name + ' \u00b7 ' : '') + (s.time ? dayText(l.xs[k]) : ax.fmt ? ax.fmt(l.xs[k]) : fmtNum(l.xs[k])) + ': ' + fmtNum(l.ys[k]) });
       if (F.clean && pts.length) {   /* values on the line: first point to the left of the plot, last point after the name (or alone for one line) */
         var fi = 0; while (l.ys[fi] !== l.ys[fi]) fi++;
         if ((pts[0] <= F.L + 2 && (ends || s.list.length === 1 || !sp.color)) || s.list.length === 1) starts.push({ x: pts[0] - 6, y: pts[1] + 4, t: vt(l.ys[fi]), c: readable(col, F.T) });   /* in series order: the biggest series first */
@@ -1065,7 +1096,9 @@ var NetflowPlot = (function () {
   var NOKEYROW = { donut: 1, heat: 1, slope: 1, ridgeline: 1, splom: 1 };   /* these name their parts on the picture */
   function make(rows, spec, o, NS) {
     o = o || {}; spec = spec || {};
-    var cols = colsOf(rows); if (cols) rows = { length: cols.n };   /* a table of columns: read through the same reader, with no rows made (since 2.19.0) */
+    var sums = sumsOf(rows);
+    if (sums) { if (spec.type !== 'line' || !spec.x || !spec.y || spec.color) throw new Error(SUM_ERR); }
+    var cols = sums ? sumCols(rows, spec.x, spec.y) : colsOf(rows); if (cols) rows = { length: cols.n };   /* a table of columns: read through the same reader, with no rows made (since 2.19.0) */
     var F = frame(spec, o, NS), R = reader(rows, o, cols), type = CH[spec.type] ? spec.type : 'bar', t0 = Date.now();
     if (type === 'line' && spec.x && spec.y && !spec.color) R.pre(spec.x, spec.y);
     if ((type === 'bar' || type === 'dotplot') && spec.x && spec.y && rows.length && !mostlyNum(R, spec.y) && mostlyNum(R, spec.x)) {   /* x is the number and y the names: swap them and lay the bars sideways instead of drawing an empty chart */
@@ -1074,11 +1107,11 @@ var NetflowPlot = (function () {
     }
     var hl = o.highlight !== undefined && o.highlight !== null && o.highlight !== '' ? String(o.highlight) : undefined;
     HI = hl !== undefined && rows.length ? { name: hl, F: F, ck: spec.color ? R.cat(spec.color) : null, xk: spec.x ? R.cat(spec.x) : null } : null;
-    PCT = o.percent !== false && rows.length > 0 && fractionCol(R, spec, type);
+    PCT = o.percent !== false && rows.length > 0 && fractionCol(R, spec, type); SUM = !!sums;
     try {
       if (!rows.length) F.text(F.W / 2, F.H / 2, 'No rows to draw.', 14, F.T.muted);
       else { if (spec.color && !NOKEYROW[type] && !(F.clean && type === 'line')) { F.keyRow = true; F.Tp = 44; } CH[type](F, R, spec); }   /* since 2.12.0 bars and boxes use the same mauve-first colors as every other chart (owner card, 2026.11.07); the calm navy stays for bars that go below zero (navy and red pairs) */
-    } finally { HI = null; PCT = false; }
+    } finally { HI = null; PCT = false; SUM = false; }
     if (F.yName) {   /* the small axis name is left out when a value written on a mark would touch it */
       var yl = F.yName, x1 = yl.x + yl.t.length * CW + 4;
       if (F.S.labels.some(function (l) { if (l === yl) return false; var w = l.t.length * CW, lx = l.align === 'l' ? l.x : l.align === 'r' ? l.x - w : l.x - w / 2; return lx < x1 && lx + w > yl.x - 4 && l.y - l.size < yl.y + 4 && l.y + 3 > yl.y - yl.size; })) F.S.labels.splice(F.S.labels.indexOf(yl), 1);
@@ -1355,6 +1388,7 @@ var NetflowPlot = (function () {
    */
   function toSvg(rows, o) {
     o = o || {}; rows = rows || [];
+    if (sumsOf(rows)) { var ss = {}; SPEC_KEYS.forEach(function (k) { if (o[k] !== undefined) ss[k] = o[k]; }); if (!ss.type) ss.type = 'line'; if (o.title === 'auto') throw new Error(SUM_ERR); var NSm = sceneLib('netflow-plot'); return NSm.toSvg(make(rows, ss, o, NSm), o.title); }
     var tc = colsOf(rows);
     if (tc) {   /* a table of columns: a chart with its type and columns named is drawn straight from the columns; the paths that read row by row get rows */
       if (o.type === 'sankey' || o.type === 'treemap' || o.type === 'chord' || o.title === 'auto' || (o.type === undefined && o.x === undefined && o.y === undefined) || !o.x || (!o.y && !o.type)) return toSvg(rowsOf(rows), o);

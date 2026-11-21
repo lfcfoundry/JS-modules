@@ -380,6 +380,49 @@ ok(Math.abs(P.normInv(0.975) - 1.95996) < 1e-3, 'normal quantile');
   const SE = P.make(even, { type: 'line', x: 't', y: 'v' }, { width: 1080 }, global.NetflowScene), QE = quads(SE); let mono = QE.length > 100; for (let k = 1; k < QE.length; k++) if (QE[k].pts[0] !== QE[k - 1].pts[2]) mono = false;
   ok(mono, 'band pieces stay joined when points land exactly on pixel edges');
 }
+/* 2.21.0: netflow-plot-line.min.js, the lines-only small file (rebuild: test/make-line.js) */
+{
+  const fs = require('fs'), path = require('path'), crypto = require('crypto'), dir = path.join(__dirname, '..');
+  const src = fs.readFileSync(path.join(dir, 'netflow-plot.js'), 'utf8'), min = fs.readFileSync(path.join(dir, 'netflow-plot-line.min.js'), 'utf8');
+  const stamp = crypto.createHash('sha1').update(src).update(fs.readFileSync(path.join(__dirname, 'line-uses.js'), 'utf8')).update(fs.readFileSync(path.join(__dirname, 'make-line.js'), 'utf8')).digest('hex').slice(0, 12);
+  ok(min.indexOf('build ' + stamp + '.') >= 0, 'netflow-plot-line.min.js was built from this netflow-plot.js (rebuild it with test/make-line.js)');
+  const L = require('../netflow-plot-line.min.js'), U = require('./line-uses.js'); let n = 0, bad = 0, first = '';
+  U.each((d, o) => { n++; let b; try { b = L.toSvg(d, o); } catch (e) { b = 'error: ' + e.message; } if (b !== P.toSvg(d, o)) { bad++; if (!first) first = JSON.stringify(o).slice(0, 120) + ' ' + b.slice(0, 80); } }, 77, [0, 1, 3, 40, 401, 5001, 20000]);
+  ok(bad === 0 && n > 1000, 'the small file draws ' + n + ' line charts exactly as netflow-plot.js with netflow-scene.js does (' + bad + ' differ' + (first ? ': ' + first : '') + ')');
+  ok(L.version === /Version (\d+\.\d+\.\d+)/.exec(src)[1], 'the small file says the same version');
+  ok(L.toSvg([{ a: 1, b: 2 }, { a: 2, b: 3 }], { type: 'bar', x: 'a', y: 'b' }) === P.toSvg([{ a: 1, b: 2 }, { a: 2, b: 3 }], { type: 'line', x: 'a', y: 'b' }), 'the small file always draws a line, whatever type is asked for');
+  let msg = ''; try { L.toSvg([{ a: 1, b: 2 }, { a: 2, b: 3 }], { x: 'a', y: 'b', title: 'auto' }); } catch (e) { msg = e.message; }
+  ok(/line charts only/.test(msg) && /netflow-plot\.js/.test(msg), 'a feature left out of the small file gives a plain error that names the full files');
+  ok(require('zlib').gzipSync(min, { level: 9 }).length < 22009, 'the small file is under 22,009 bytes gzipped (uPlot 1.6.32 minified is 22,009)');
+}
+/* 2.22.0: a line chart from the summaries of its two columns (lowest and highest value of every run of rows), with no column of values at all */
+{
+  const U = require('./line-uses.js'), rr = rnd(31), n = 600000, rows = []; let y = 0;
+  for (let i = 0; i < n; i++) { y += rr() - 0.5; rows.push({ t: i, v: Math.round(y * 1000) / 1000 || 0, u: i * 2.5 }); }
+  const S = U.sums(rows, 256), sp = { type: 'line', x: 't', y: 'v' }, quads = (Sc) => Sc.polys.filter((q) => q.pts.length === 8 && q.stroke[3] === 0);
+  const full = P.make({ t: Float64Array.from(rows, (q) => q.t), v: Float64Array.from(rows, (q) => q.v) }, sp, {}, global.NetflowScene), sum = P.make(S, sp, {}, global.NetflowScene);
+  const QF = quads(full), QS = quads(sum), txt = (Sc) => Sc.labels.map((l) => l.t).join('|');
+  ok(QS.length > 400 && sum.curves.every((c) => c.P.length < 200), 'a 600,000-row line from summaries draws a band (' + QS.length + ' pieces)');
+  ok(txt(full) === txt(sum), 'its labels (axis, first, last, highest, lowest) read the same as from all the values');
+  /* the band from summaries stays within 1.5 px of the band from all values, column by column */
+  { const at = (Q) => { const m = new Map(); Q.forEach((q) => { const k = Math.round((q.pts[0] + q.pts[2]) / 2); const a = m.get(k) || [Infinity, -Infinity]; a[0] = Math.min(a[0], q.pts[1], q.pts[3]); a[1] = Math.max(a[1], q.pts[5], q.pts[7]); m.set(k, a); }); return m; };
+    const A = at(QF), B = at(QS); let worst = 0, seen = 0, lo = Infinity, hi = -Infinity; A.forEach((a) => { lo = Math.min(lo, a[0]); hi = Math.max(hi, a[1]); });
+    B.forEach((b, k) => { const a = A.get(k); if (!a) return; seen++; const p = A.get(k - 1) || a, q = A.get(k + 1) || a; const top = Math.min(a[0], p[0], q[0]), bot = Math.max(a[1], p[1], q[1]); worst = Math.max(worst, top - b[0], b[1] - bot); });
+    let lo2 = Infinity, hi2 = -Infinity; B.forEach((b) => { lo2 = Math.min(lo2, b[0]); hi2 = Math.max(hi2, b[1]); });
+    ok(seen > 400 && worst <= 1.5, 'the band from summaries never reaches more than 1.5 px past the band from all values and its neighbor columns (' + worst.toFixed(2) + ' px over ' + seen + ' columns)');
+    ok(Math.abs(lo - lo2) < 1e-9 && Math.abs(hi - hi2) < 1e-9, 'the highest and lowest points of the line are exactly where all the values put them'); }
+  ok(P.toSvg(S, { x: 't', y: 'v' }) === P.toSvg(S, sp), 'toSvg draws a line from summaries when no type is given');
+  ok(P.toSvg({ t: { n: n, bin: 256 }, v: S.v }, sp) === P.toSvg(S, sp), 'x given only as its row count and run length is the row number');
+  const few = U.sums(rows.slice(0, 20000), 256), sf = P.make(few, sp, {}, global.NetflowScene);
+  ok(sf.dots === undefined || sf.dots.length === 0 || !sf.dots.some((d) => d.rows), 'a short table from summaries draws no dot per point');
+  const noEnds = P.toSvg({ t: S.t, v: { min: S.v.min, max: S.v.max } }, sp);
+  ok(noEnds.indexOf('NaN') < 0 && noEnds.length > 5000, 'summaries without first and last values still draw');
+  const before = Array.from(S.v.min.subarray(0, 50)).join(), keys = Object.keys(S.v).join(); P.toSvg(S, sp);
+  ok(Array.from(S.v.min.subarray(0, 50)).join() === before && Object.keys(S.v).join() === keys && Object.keys(S.v.min).length === S.v.min.length, 'the caller\'s summaries are not changed');
+  [['a bar chart', () => P.toSvg(S, { type: 'bar', x: 't', y: 'v' })], ['a color column', () => P.toSvg(S, { type: 'line', x: 't', y: 'v', color: 'u' })], ['a missing y', () => P.toSvg(S, { type: 'line', x: 't', y: 'nope' })], ['summaries mixed with a plain column', () => P.toSvg({ t: [1, 2, 3], v: S.v }, sp)], ['the chart picked for you', () => P.auto(S, {})], ['unequal lengths', () => P.toSvg({ t: U.sums(rows, 512).t, v: S.v }, sp)]].forEach((c) => {
+    let msg = ''; try { c[1](); } catch (e) { msg = e.message; } ok(/summaries/.test(msg) && /line chart only/.test(msg), 'summaries with ' + c[0] + ' give a plain error');
+  });
+}
 /* 2.18.1: a long plain line reads its two number columns in one walk of the rows and builds its points straight from the columns; the drawing lists are the same whichever way the numbers arrive */
 {
   const r = rnd(9), n = 20000, rows = [], srows = [], arows = []; let y = 0;

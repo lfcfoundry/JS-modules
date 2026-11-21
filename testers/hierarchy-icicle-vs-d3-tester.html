@@ -3,9 +3,9 @@
 <title>Nested views tester</title>
 <style>:root{color-scheme:light dark}body{font:16px/1.4 system-ui,sans-serif;margin:16px;max-width:40rem}button{font:inherit;padding:12px 16px;margin:6px 6px 6px 0;min-height:48px}pre{white-space:pre-wrap;word-break:break-word;font:13px/1.4 ui-monospace,monospace;padding:10px;border:1px solid #8886}</style></head><body>
 <h1>Nested views tester</h1>
-<p>Times <b>netflow-hierarchy</b> (LFC Foundry, loaded from this site) against <b>d3-hierarchy 3.1.3</b> (loaded from jsDelivr) on all five nested views: icicle, treemap, sunburst, circle pack and tree. Each view runs on five made-up trees (mixed, two children per item, a few huge folders, long path-like names, rows in shuffled order) at 1,000, 10,000 and 100,000 items. Both libraries do the same job from the same rows and take turns; children are sorted biggest first on both sides, and icicle is also timed with no sorting on either side. Measure only; nothing is sent anywhere.</p>
+<p>Times <b>netflow-hierarchy</b> (LFC Foundry, loaded from this site) against <b>d3-hierarchy 3.1.3</b> (loaded from jsDelivr) on all five nested views: icicle, treemap, sunburst, circle pack and tree. Each view runs on five made-up trees (mixed, two children per item, a few huge folders, long path-like names, rows in shuffled order) at 1,000, 10,000 and 100,000 items. Both libraries do the same job from the same rows and take turns; children are sorted biggest first on both sides, and icicle is also timed with no sorting on either side. <b>Quick run</b> races only the closest cells (23 of the 90) and takes about 2 minutes. <b>Stop</b> ends any run early and keeps what is done. Measure only; nothing is sent anywhere.</p>
 <p>Close other tabs first and keep the screen on. Plug in if you can.</p>
-<button id="go">Run (about 5 minutes)</button><button id="long">Long run (about 12 minutes)</button><button id="copy" disabled>Copy results</button>
+<button id="quick">Quick run (about 2 minutes)</button><button id="go">Full run (about 5 minutes)</button><button id="long">Long run (about 12 minutes)</button><button id="stop" disabled>Stop</button><button id="copy" disabled>Copy results</button>
 <p id="st">Ready.</p>
 <pre id="out"></pre>
 <script src="https://cdn.jsdelivr.net/npm/d3-hierarchy@3.1.3/dist/d3-hierarchy.min.js"></script>
@@ -23,16 +23,19 @@ function makeRows(N,shape){var r=rng(11),pre=shape==='long names'?'src/component
 function med(a){a=a.slice().sort(function(x,y){return x-y;});return a[a.length>>1];}
 function tick(){return new Promise(function(r){setTimeout(r,20);});}
 var LANES=['icicle','icicle, no sorting','treemap','sunburst','circle pack','tree'];
-async function run(budget,label){
- var b1=document.getElementById('go'),b2=document.getElementById('long');b1.disabled=b2.disabled=true;report=[];
+var stopped=false;
+/* the quick run: every tree at 1,000 items for the four closest views, plus the three bigger cells that were close or behind */
+function wanted(quick,N,shape,li){if(!quick)return true;if(N===1000)return li===1||li===3||li===4||li===5;return shape==='two children'&&(li===4||(li===3&&N===100000));}
+async function run(budget,label,quick){
+ var b1=document.getElementById('go'),b2=document.getElementById('long'),b0=document.getElementById('quick'),bs=document.getElementById('stop');b0.disabled=b1.disabled=b2.disabled=true;bs.disabled=false;stopped=false;report=[];var maxR=quick?201:61;
  var ver='(version not read)';try{var vm=/Version (\d+\.\d+\.\d+)/.exec(await (await fetch('../modules/netflow-hierarchy/netflow-hierarchy.js')).text());if(vm)ver=vm[1];}catch(e){}
  report.push('NESTED VIEWS vs d3-hierarchy ('+label+') | '+navigator.userAgent+' | cores '+(navigator.hardwareConcurrency||'?')+' | netflow-hierarchy '+ver+' | d3-hierarchy 3.1.3');
  report.push('each line: view: d3 median ms, netflow-hierarchy median ms, ratio (under 1.00 = netflow-hierarchy faster), rounds it was faster');show();
  var ahead=0,cells=0,worst=0,worstAt='',best=9,bestAt='',T0=performance.now();
  try{
   var NH=window.NetflowHierarchy;if(!NH||!window.d3)throw new Error('a library did not load (NetflowHierarchy '+!!NH+', d3 '+!!window.d3+')');
-  var sizes=[1000,10000,100000],total=sizes.length*SHAPES.length*LANES.length;
-  for(var si=0;si<sizes.length;si++)for(var hi=0;hi<SHAPES.length;hi++){let N=sizes[si],shape=SHAPES[hi],rows=makeRows(N,shape);
+  var sizes=[1000,10000,100000],total=0;sizes.forEach(function(N){SHAPES.forEach(function(sh){for(var q=0;q<LANES.length;q++)if(wanted(quick,N,sh,q))total++;});});
+  for(var si=0;si<sizes.length&&!stopped;si++)for(var hi=0;hi<SHAPES.length&&!stopped;hi++){let N=sizes[si],shape=SHAPES[hi],any=false;for(var q0=0;q0<LANES.length;q0++)if(wanted(quick,N,shape,q0))any=true;if(!any)continue;let rows=makeRows(N,shape);
    var strat=function(){return d3.stratify().id(function(d){return d.id;}).parentId(function(d){return d.parent;})(rows);},big=function(a,b){return b.value-a.value;},val=function(d){return d.value;};
    var mk=function(){var nodes=new Array(N),edges=[],i,x;for(i=0;i<N;i++){x=rows[i];nodes[i]={id:x.id,label:x.id,sizeV:x.value};if(x.parent)edges.push({from:x.parent,to:x.id,weight:1,widthV:1});}return {nodes:nodes,edges:edges};};
    var D=[function(){var r=strat();r.sum(val).sort(big);d3.partition().size([1000,600])(r);return r;},
@@ -48,23 +51,25 @@ async function run(budget,label){
     function(){return NH.layout('pack',mk(),{nest:'links',sized:true});},
     function(){return NH.layout('tree',mk(),{nest:'links',sized:true});}];
    var line=[];
-   for(var li=0;li<LANES.length;li++){var fd=D[li],fo=O[li],t0,t1,k,rr,a=[],b=[],wins=0;
+   for(var li=0;li<LANES.length&&!stopped;li++){if(!wanted(quick,N,shape,li))continue;var fd=D[li],fo=O[li],t0,t1,k,rr,a=[],b=[],wins=0;
     st.textContent=label+': '+N+' items, '+shape+', '+LANES[li]+' ('+(cells+1)+' of '+total+')';await tick();
     fd();fo();t0=performance.now();fd();fo();t1=(performance.now()-t0)/2;
     var REP=Math.max(1,Math.min(200,Math.ceil(10/Math.max(t1,0.01)))),warm=Math.min(3*REP,Math.ceil(150/Math.max(t1,0.01)));
     for(k=0;k<warm;k++){fd();fo();}
     var start=performance.now();
-    for(k=0;k<61&&(k<9||performance.now()-start<budget);k++){var x,y;
+    for(k=0;k<maxR&&!stopped&&(k<9||performance.now()-start<budget);k++){var x,y;
      if(k&1){t0=performance.now();for(rr=0;rr<REP;rr++)fo();y=(performance.now()-t0)/REP;t0=performance.now();for(rr=0;rr<REP;rr++)fd();x=(performance.now()-t0)/REP;}
      else{t0=performance.now();for(rr=0;rr<REP;rr++)fd();x=(performance.now()-t0)/REP;t0=performance.now();for(rr=0;rr<REP;rr++)fo();y=(performance.now()-t0)/REP;}
      a.push(x);b.push(y);if(y<x)wins++;if(k%4===3)await tick();}
     var md=med(a),mo=med(b),ratio=mo/md,at=N+' '+shape+' '+LANES[li];cells++;if(ratio<1)ahead++;if(ratio>worst){worst=ratio;worstAt=at;}if(ratio<best){best=ratio;bestAt=at;}
     line.push(LANES[li]+': '+md.toFixed(3)+', '+mo.toFixed(3)+', '+ratio.toFixed(2)+', '+wins+' of '+a.length);}
-   report.push(N+' items, '+shape+' | '+line.join(' | '));show();}
-  report.push('SUMMARY: netflow-hierarchy faster in '+ahead+' of '+cells+' cells | best '+best.toFixed(2)+' ('+bestAt+') | worst '+worst.toFixed(2)+' ('+worstAt+') | took '+Math.round((performance.now()-T0)/1000)+' s');show();
+   if(line.length)report.push(N+' items, '+shape+' | '+line.join(' | '));show();}
+  report.push((stopped?'STOPPED EARLY, results so far. ':'')+'SUMMARY: netflow-hierarchy faster in '+ahead+' of '+cells+' cells | best '+best.toFixed(2)+' ('+bestAt+') | worst '+worst.toFixed(2)+' ('+worstAt+') | took '+Math.round((performance.now()-T0)/1000)+' s');show();
  }catch(e){report.push('ERROR '+(e&&e.stack||e));show();}
- st.textContent='Done. Tap Copy results.';document.getElementById('copy').disabled=false;b1.disabled=b2.disabled=false;}
-document.getElementById('go').onclick=function(){run(2200,'short run');};
+ st.textContent=(stopped?'Stopped. ':'Done. ')+'Tap Copy results.';document.getElementById('copy').disabled=false;b0.disabled=b1.disabled=b2.disabled=false;bs.disabled=true;}
+document.getElementById('quick').onclick=function(){run(4200,'quick run',true);};
+document.getElementById('stop').onclick=function(){stopped=true;st.textContent='Stopping after this round...';};
+document.getElementById('go').onclick=function(){run(2200,'full run');};
 document.getElementById('long').onclick=function(){run(6500,'long run');};
 document.getElementById('copy').onclick=function(){var t=document.createElement('textarea');t.value=report.join('\n');document.body.appendChild(t);t.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(report.join('\n'));document.body.removeChild(t);this.textContent='Copied';};
 </script></body></html>

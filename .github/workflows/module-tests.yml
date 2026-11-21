@@ -1,0 +1,30 @@
+# Runs the Node pass/fail suite of every module a pull request changes (lfc-pack and zstd-kit have their own workflow, lfc-pack-tests). No speed numbers, no browsers.
+# It runs the steps of tests/kits.js whose name starts with a changed module's name (a module with no step is skipped, and the step list is the place to add one).
+# Cost: a few seconds to about 20 seconds per changed module, plus runner start and checkout.
+name: module-tests
+on:
+  pull_request:
+    paths:
+      - 'modules/**'
+      - 'tests/kits.js'
+      - '.github/workflows/module-tests.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Run the suites of the changed modules
+        run: |
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep '^modules/' | cut -d/ -f2 | sort -u | grep -v -x -e lfc-pack -e zstd-kit || true)
+          if [ -z "$changed" ]; then echo "no module with its own suite changed"; exit 0; fi
+          re=$(echo "$changed" | paste -sd'|' -)
+          echo "modules: $re"
+          node tests/kits.js --quick --only "^($re)( |\$)"
