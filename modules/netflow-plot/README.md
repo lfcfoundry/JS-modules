@@ -68,6 +68,8 @@ The chart is the same as from the same table given as rows. With the type and co
 
 It is made by a script, `test/make-line.js`, from `netflow-plot.js` and `netflow-scene.js`: the script draws 2,712 line charts, keeps the functions that ran and empties the rest, then minifies. The tests draw 1,472 more line charts on other data with both and fail if one differs or if the small file was not rebuilt after a change.
 
+**After any change to `netflow-plot.js`, rebuild the small file** or the tests fail: `TERSER=/path/to/terser node modules/netflow-plot/test/make-line.js` (terser 5; `--check` only says whether the file is current). A change to `netflow-scene.js` needs a rebuild only when the tests say a line chart's picture differs.
+
 ### The chart picked for you (since 2.9.0)
 
 With no `type`, `x` or `y`, `toSvg(rows)` looks at the columns and picks the chart a person would most likely pick:
