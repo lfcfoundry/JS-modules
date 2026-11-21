@@ -91,10 +91,10 @@
   },
   {
    "label": "lz4-kit compress vs browser gzip (low end)",
-   "x": 4.7,
+   "x": 6.6,
    "module": "lz4-kit",
    "proof": [
-    "lz4-kit compresses 4 MiB of logs in 7.2 to 7.3 ms against 34 to 43 for the browser's gzip"
+    "lz4-kit compresses 4 MiB of logs in 6.7 to 7.1 ms against 47 to 52 for the browser's gzip"
    ]
   },
   {

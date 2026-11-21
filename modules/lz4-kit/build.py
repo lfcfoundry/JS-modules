@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 1.1.0 (API 1)
+# Version 1.1.1 (API 1)
 # Joins src/head.js and src/api.js into lz4-kit.js with wasm/lz4.wasm embedded as base64.
 # Rebuild the WebAssembly with sh wasm/build.sh (clang 18+). Run from anywhere.
 import base64, os

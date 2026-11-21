@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.8.1 · API 1 · 2026-11-21
+
+### Quick
+The text-color math for treemap and icicle tiles is worked out once per pair of colors instead of once per tile. Same SVG. Old code keeps working.
+
+### Details
+scene(): what a fill shows over the box under it, and the ink that reads on it, are kept per (under, fill) pair of color arrays; sibling tiles of one color share them. Names over several tiles are still counted box by box (one copy of the color per sampled box), so the one-sixth rule gives the same answer. relLum no longer makes a function per call.
+
+### Deep
+Scene step for a treemap, 1.8.1 as a share of 1.8.0, medians of 31 paired rounds, two runs each: Firefox 158 50,000 items 0.87 and 0.92, 1,000 items 0.73 and 1.00; WebKitGTK 2.52.6 50,000 items 0.86 and 0.85, 1,000 items 0.85 and 0.81; Chromium 156 50,000 items 0.98 and 1.05 (no change within noise; sunburst, whose code did not change, moved between 0.94 and 1.09 on the same pages). Icicle 0.95 to 1.06 (draws 6,306 of 50,000 tiles, within noise). Same SVG as 1.7.0 on 896 pictures and in each browser on every timed chart.
+
 ## 1.8.0 · API 1 · 2026-11-20
 
 ### Quick
