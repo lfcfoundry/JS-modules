@@ -47,7 +47,7 @@
         sv = new Float64Array(Math.min(SUM_QS - j, Math.ceil(c * SUM_QS / N) + 2)); t = 0;   // positions rise by at least one slice each, so the block holds at most this many
         for (; j < SUM_QS && (p = sposAt(j, N)) < a0 + c; j++) { x = r[p - a0]; if (x - x === 0) sv[t++] = x; } sv = sv.subarray(0, t); }
       sortF64(sv); svn = sv.length;
-      if (N > SUM_QS && svn > SUM_KEEP) { var kp = new Float64Array(SUM_KEEP), z; for (z = 0; z < SUM_KEEP; z++) kp[z] = sv[Math.round(z * (svn - 1) / (SUM_KEEP - 1))]; sv = kp; }   // a long block keeps SUM_KEEP evenly spaced order statistics of its sample, each standing for svn / SUM_KEEP values
+      if (N > SUM_QS && svn > SUM_KEEP && c < N) { var kp = new Float64Array(SUM_KEEP), z; for (z = 0; z < SUM_KEEP; z++) kp[z] = sv[Math.round(z * (svn - 1) / (SUM_KEEP - 1))]; sv = kp; }   // a long block keeps SUM_KEEP evenly spaced order statistics of its sample, each standing for svn / SUM_KEEP values
       G = R.G; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= a0 && G[j] < a0 + c) gv.push(G[j], r[G[j] - a0]);
       if (mx - mn <= SUM_CNT && mn === Math.floor(mn)) { cnt = new Int32Array(mx - mn + 1); for (i = 0; i < c; i++) { x = r[i]; if (x - x !== 0) continue; if (x !== Math.floor(x)) { cnt = null; break; } cnt[x - mn]++; } }   // whole numbers close together: counted
     }

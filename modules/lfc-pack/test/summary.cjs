@@ -49,6 +49,20 @@ const J = require('../lfc-pack.js'), assert = require('assert');
   // whole numbers within 4,096 of each other are counted exactly, even unordered and long
   { const M = 300000, v = new Float64Array(M); for (let i = 0; i < M; i++) v[i] = (i * 7919) % 4000; const c = J.summary(await J.packColumnsParallel({ v }, {})).cols[0];
     ok(!c.qSample && !c.qExact && JSON.stringify(c.q) === JSON.stringify(exactQ(Float64Array.from(v).sort())), 'counted grid'); }
+  // line-chart pyramids (footer section 21): min, max and count of every run of `bin` rows, first and last value; empty bins NaN
+  { const M = 100000, up2 = new Float64Array(M), rnd = new Float64Array(M), gap = new Array(M), tsv = new Array(M); let sd = 11;
+    for (let i = 0; i < M; i++) { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; up2[i] = i * 2; rnd[i] = i >= 40000 && i < 40100 ? NaN : (sd / 4294967296) * 1000 - 500; gap[i] = i % 3 === 0 || (i >= 60000 && i < 61000) ? null : i * 0.5; tsv[i] = new Date(1.7e12 + i * 60000).toISOString().slice(0, 19); }
+    const fp = await J.packColumnsParallel({ up2, rnd, gap, tsv }, {}), P = J.pyramids(fp), bin = Math.ceil(M / 2048), bins = Math.ceil(M / bin);
+    ok(P && Object.keys(P).join() === 'up2,rnd,gap,tsv', 'pyramid keys ' + (P && Object.keys(P).join()));
+    const vals = { up2: Array.from(up2), rnd: Array.from(rnd), gap: gap.map((x) => (x === null ? NaN : x)), tsv: tsv.map((s) => Date.parse(s + 'Z')) };
+    for (const k of Object.keys(vals)) { const p = P[k], v = vals[k]; let good = p.n === M && p.bin === bin && p.min.length === bins && p.min instanceof Float64Array && p.count instanceof Uint32Array;
+      for (let b = 0; b < bins && good; b++) { let mn = Infinity, mx = -Infinity, c = 0; for (let i = b * bin; i < Math.min(M, (b + 1) * bin); i++) { const x = v[i]; if (x === x) { c++; if (x < mn) mn = x; if (x > mx) mx = x; } }
+        if (p.count[b] !== c || (c ? p.min[b] !== mn || p.max[b] !== mx : p.min[b] === p.min[b] || p.max[b] === p.max[b])) { good = false; console.log('  bin', k, b, p.min[b], mn, p.max[b], mx, p.count[b], c); } }
+      const fin = v.filter((x) => x === x); ok(good && p.first === fin[0] && p.last === fin[fin.length - 1], k + ' pyramid bins'); }
+    const R2 = await J.open(fp); ok(R2.pyramids('rnd').max[3] === P.rnd.max[3] && R2.pyramids('nope') === null, 'open().pyramids');
+    ok(J.pyramids(await J.packColumnsParallel({ up2, rnd }, { pyramids: false })) === null && J.summary(await J.packColumnsParallel({ up2 }, { pyramids: false })) !== null, 'pyramids: false');
+    ok(J.pyramids(await J.packColumnsParallel({ a: new Float64Array(5000) }, {})) === null, 'no pyramid under 4 rows a bin');
+    const p64 = J.pyramids(await J.packColumnsParallel({ up2 }, { pyramids: { bins: 512 } }), 'up2'); ok(p64.bin === Math.ceil(M / 512) && p64.max[0] === (p64.bin - 1) * 2, 'pyramids: { bins }'); }
   // the file itself is the same with and without the section: every block byte equal, values equal
   const g = await J.packColumnsParallel(cols, { blockBytes: 100000, summary: false });
   ok(J.summary(g) === null && J.open && true, 'summary: false writes none');
