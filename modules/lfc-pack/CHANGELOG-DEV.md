@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.17.0 · API 0 · 2026-11-21
+
+### Quick
+Footer section 23 (graph): packColumnsParallel graph option { from, to, weight?, directed?, reverse?, nodes?, labels?, nodeIds?
+
+### Deep
+Footer section 23 (graph): packColumnsParallel graph option { from, to, weight?, directed?, reverse?, nodes?, labels?, nodeIds? } (column names or arrays) builds CSR by counting sort (links keep their given order per node; undirected stored both ways, self links once) into a raw region after the blocks (8-byte aligned, crc32), plus addGraph(file, g) for any file. Readers graph(bytes[, { verify }]) and open().graph(): Uint32 offsets/targets, Float32 weights, optional reverse index, as views on the file bytes (one copy only when the bytes are not 4-byte aligned). Measured 200,000 nodes, 1,000,000 weighted links, median of 5, 4-core cloud: graph() 9.3/8.5/8 ms with checksum, 0.7/0.8/1 ms verify:false vs 77/58/111 ms unpackColumnsParallel plus CSR build (Chromium 156/Firefox 158/WebKitGTK 2.52.6); save 163->231, 159->206, 141->172 ms; file 5.8 -> 14.6 MB (raw region, no zstd, by spec). Old readers skip section 23 (flags 0).
+
 ## 0.16.0 · API 0 · 2026-11-21
 
 ### Quick
