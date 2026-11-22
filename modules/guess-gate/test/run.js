@@ -3,7 +3,7 @@
 var assert = require('assert'), G = require('../guess-gate.js'), fail = 0, pass = 0;
 function t(name, fn) { try { fn(); pass++; console.log('  ok   ' + name); } catch (e) { fail++; console.log('  FAIL ' + name + '\n       ' + String(e && e.stack || e).split('\n').slice(0, 3).join('\n       ')); } }
 function clock() { var c = { t: 1000, now: function () { return c.t; }, tick: function (ms) { c.t += ms; } }; return c; }
-t('version and api', function () { assert.strictEqual(G.version, '1.0.1'); assert.strictEqual(G.api, 1); });
+t('version and api', function () { assert.strictEqual(G.version, '1.0.2'); assert.strictEqual(G.api, 1); });
 t('nothing is allowed before start, before minMs, or after finish', function () {
   var c = clock(), g = G.create({ now: c.now, minMs: 40 });
   assert.strictEqual(g.allowed(), false); assert.strictEqual(g.run(function () { throw new Error('no'); }), false);
@@ -37,5 +37,16 @@ t('bad options are refused', function () {
 });
 t('start again resets the counts; the default clock works', function () {
   var g = G.create({ minMs: 0 }).start(); assert.strictEqual(g.run(function () {}), true); g.start(); assert.strictEqual(g.stats().guesses, 0);
+});
+t('elapsed stops at finish (since 1.0.2)', function () {
+  var c = clock(), g = G.create({ now: c.now, minMs: 0 }).start(); c.tick(10); var s = g.finish(); c.tick(500);
+  assert.strictEqual(s.elapsed, 10); assert.strictEqual(g.stats().elapsed, 10); assert.strictEqual(g.finish().elapsed, 10);
+});
+t('best effort: a long first guess with no estimate runs once, then guesses wait until the total is back under the share', function () {
+  var c = clock(), g = G.create({ now: c.now, share: 0.05, minMs: 40 }).start(); c.tick(40);
+  assert.strictEqual(g.run(function () { c.tick(1000); }), true);
+  assert.strictEqual(g.allowed(), false); assert.strictEqual(g.allowed(0), false);
+  assert.ok(Math.abs(g.nextIn(0) - (1000 / 0.05 - 1040)) < 1e-9);
+  assert.strictEqual(g.run(function () { c.tick(10); }, 10), false);
 });
 console.log(fail ? 'guess-gate: ' + fail + ' FAILED' : 'guess-gate: all ' + pass + ' checks passed'); process.exit(fail ? 1 : 0);

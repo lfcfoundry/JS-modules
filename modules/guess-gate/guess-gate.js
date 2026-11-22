@@ -1,7 +1,7 @@
 /*!
  * guess-gate.js: decides when a page may draw a first guess while data is still arriving, so the guesses never cost more than a set share of the import.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules. Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.0.1 (API 1)
+ * Version 1.0.2 (API 1)
  *
  *   var gate = GuessGate.create({ share: 0.05 });     // guesses may use up to 5% of the import time so far (the default)
  *   gate.start();                                     // the import begins
@@ -17,8 +17,8 @@ var GuessGate = (function () {
     var share = opts.share === undefined ? 0.05 : +opts.share, minMs = opts.minMs === undefined ? 40 : +opts.minMs, now = typeof opts.now === 'function' ? opts.now : (typeof performance === 'object' && performance && performance.now ? function () { return performance.now(); } : Date.now);
     if (!(share > 0 && share <= 1)) throw new Error('GuessGate: share must be more than 0 and at most 1');
     if (!(minMs >= 0)) throw new Error('GuessGate: minMs must be 0 or more');
-    var t0 = -1, spent = 0, guesses = 0, skipped = 0, done = false, last = 0;
-    function elapsed() { return t0 < 0 ? 0 : now() - t0; }
+    var t0 = -1, spent = 0, guesses = 0, skipped = 0, done = false, last = 0, end = 0;
+    function elapsed() { return t0 < 0 ? 0 : done ? end - t0 : now() - t0; }   // since 1.0.2: stops at finish()
     /** true when a guess may run now: the import has run for minMs, and the guesses so far plus this one would use no more than share of the time since start. est: what this guess will cost in ms (default: what the last one cost, 0 before the first) */
     function allowed(est) { if (t0 < 0 || done) return false; var e = now() - t0; return e >= minMs && spent + (est === undefined ? last : +est) <= share * e; }
     /** milliseconds until a guess is allowed, if nothing else is spent meanwhile (0 when allowed now) */
@@ -32,12 +32,12 @@ var GuessGate = (function () {
       return true;
     }
     return {
-      start: function () { t0 = now(); spent = 0; guesses = 0; skipped = 0; done = false; last = 0; return this; },
+      start: function () { t0 = now(); spent = 0; guesses = 0; skipped = 0; done = false; last = 0; end = 0; return this; },
       allowed: allowed, nextIn: nextIn, run: run,
       stats: function () { return { elapsed: elapsed(), spent: spent, guesses: guesses, skipped: skipped, share: share }; },
-      finish: function () { var s = this.stats(); done = true; return s; }
+      finish: function () { if (t0 >= 0 && !done) end = now(); var s = this.stats(); done = true; return s; }
     };
   }
-  return { version: '1.0.1', api: 1, create: create };
+  return { version: '1.0.2', api: 1, create: create };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = GuessGate;
