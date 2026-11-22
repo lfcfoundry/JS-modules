@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.9.0 (API 1)
+ * Version 1.10.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -62,7 +62,12 @@ var NetflowHierarchy = (function () {
     return kids;
   }
   var HS = null, HS_MAX = 180002;   /* the working list of hierarchy(), reused up to 20,000 items and links (720 KB held) */
-  function hierarchy(G, o) {
+  /* Small lists are cut from a shared block instead of asked for one by one (a browser takes about as long to hand out an empty list as to
+     lay out three items). A block is never handed out twice, so every list still starts at zero and belongs to one layout only. */
+  var SLI = null, SLIp = 0, SLF = null, SLFp = 0;
+  function intList(len) { if (len > 2048) return new Int32Array(len); if (SLI === null || SLIp + len > 16384) { SLI = new Int32Array(16384); SLIp = 0; } var a = SLI.subarray(SLIp, SLIp + len); SLIp += len; return a; }
+  function fltList(len) { if (len > 2048) return new Float64Array(len); if (SLF === null || SLFp + len > 16384) { SLF = new Float64Array(16384); SLFp = 0; } var a = SLF.subarray(SLFp, SLFp + len); SLFp += len; return a; }
+  function hierarchy(G, o, xf) {
     /* Boxes are numbered in the order they are reached, so a parent always comes before its children and the drawing order is simply
        0..N-1. Everything is kept in a few typed lists: the children of box v are kidList[kidOff[v]] .. kidList[kidOff[v + 1] - 1], and
        the plain lists (kids, label, group, idx) are only made when they are first read. All working lists are pieces of one list S. */
@@ -70,12 +75,20 @@ var NetflowHierarchy = (function () {
     var named = !(eA && eA.length === ne), need = 4 * n + 2 + (named ? 5 : 1) * ne, S;
     if (need > HS_MAX) S = new Int32Array(need); else { S = HS || (HS = new Int32Array(HS_MAX)); S.fill(0, 0, 3 * n + 2); }
     var OFF = n, PO = 2 * n + 2, QU = 3 * n + 2, NB = 4 * n + 2, PE = NB + ne, TB = PE + ne, NO = TB + ne;   /* S: links into each item, where each item's links start, parents, the walk's queue, link ends by start, then the name work */
-    var FT = new Int32Array(ne * 2), szOk = true, mkIdx = function () { var M = new Map(); for (var q = 0; q < n; q++) M.set(nodes[q].id, q); return M; }, idx = null;
+    var FT = null, IA = null, szOk = true, mkIdx = function () { var M = new Map(); for (var q = 0; q < n; q++) M.set(nodes[q].id, q); return M; }, idx = null;
     var grouped = nest === 'groups', gcount = 0, groups = null, groupsOf = function () { if (!groups) { groups = new Map(); for (var q = 0; q < n; q++) { var g = nodes[q].group || ''; if (!groups.has(g)) groups.set(g, groups.size); } } return groups; };
     if (grouped) gcount = groupsOf().size;
-    var F = null, SZ = 0, mkF = function (cap) { F = new Float64Array(cap * 2 + n); SZ = cap * 2; };   /* totals, own values, and each item's size in item order */
+    /* one list holds the box lists and the links (asking the browser for a list costs far more than its size at 1,000 items) */
+    i = (n + 1 + gcount) * 6 + 1 + n;
+    if ((nest === 'groups' || nest === 'links') && i + ne * 2 <= 2048) { IA = intList(i + ne * 2); FT = IA.subarray(i); } else FT = intList(ne * 2);
+    var F = null, SZ = 0, FX = -1, mkF = function (cap) { var len = cap * 2 + n, x = (xf | 0) * cap; if (x && len + x <= 2048) { FX = len; len += x; } F = fltList(len); SZ = cap * 2; };   /* a small tree's layout numbers (xf for each box) ride at the end of the same list */   /* totals, own values, and each item's size in item order */
     if (nest === 'groups' || nest === 'links') mkF(n + 1 + gcount);
-    var sizes = function () { for (var q = 0; q < n; q++) { var x = nodes[q].sizeV; if (typeof x !== 'number') { if (x !== undefined) szOk = false; x = NaN; } F[SZ + q] = x; } };
+    var sk = typeof o.sizeKey === 'string' && o.sizeKey && o.sizeKey !== 'sizeV' ? o.sizeKey : null;   /* o.sizeKey: the field that holds each item's size, when it is not sizeV */
+    var sizes = function () {
+      var q, x;
+      if (sk) { szOk = true; for (q = 0; q < n; q++) { x = nodes[q][sk]; if (typeof x !== 'number') { if (x !== undefined) szOk = false; x = NaN; } F[SZ + q] = x; } }
+      else for (q = 0; q < n; q++) { x = nodes[q].sizeV; if (typeof x !== 'number') { if (x !== undefined) szOk = false; x = NaN; } F[SZ + q] = x; }
+    };
     if (!named) {   /* the app gives each link's item numbers: no lookup by name */
       for (i = 0; i < ne; i++) { a = eA[i]; b = eB[i]; if (a === b) continue; FT[m] = a; FT[ne + m] = b; m++; S[b]++; S[OFF + a + 2]++; }
       for (i = 0; i < n; i++) if (nodes[i].start) { st = i; break; }
@@ -114,6 +127,7 @@ var NetflowHierarchy = (function () {
         for (i = 0; i < ne; i++) { pid = S[PE + i]; if (pid < 0) continue; a = S[NO + pid]; tv = S[TB + i]; b = tv >= 0 ? tv : S[NO - 1 - tv]; if (a < 0 || b < 0 || a === b) continue; FT[m] = a; FT[ne + m] = b; m++; S[b]++; S[OFF + a + 2]++; }
       }
     }
+    if (sk && F && named && !full) sizes();   /* the pass above read sizeV along the way; the sizes are in another field */
     var mode = nest;
     if (!F) {
       var isForest = true;
@@ -123,7 +137,8 @@ var NetflowHierarchy = (function () {
       mkF(n + 1 + gcount); sizes();
     }
     var cap = n + 1 + gcount, N = 0, KO = cap * 4, KL = cap * 5 + 1, AT = cap * 6 + 1;
-    var IA = new Int32Array(cap * 6 + 1 + n), label = null, group = null, kids = null;   /* parents, items, depths, drawing order, where each box's children start (N + 1), the children, each item's box */
+    if (!IA) IA = intList(cap * 6 + 1 + n);
+    var label = null, group = null, kids = null;   /* parents, items, depths, drawing order, where each box's children start (N + 1), the children, each item's box */
     var root = 0, extra = [], v, p, k, u;
     if (grouped) {
       label = new Array(cap); group = new Array(cap); kids = new Array(cap);
@@ -167,15 +182,22 @@ var NetflowHierarchy = (function () {
     }
     var kidOff = IA.subarray(KO, KO + N + 1), kidList = IA.subarray(KL, KL + Math.max(0, N - 1)), item = IA.subarray(cap, cap + N);
     var H = { N: N, par: IA.subarray(0, N), kids: kids, label: label, item: item, group: group, root: root, depth: IA.subarray(cap * 2, cap * 2 + N), order: IA.subarray(cap * 3, cap * 3 + N), mode: mode, extra: extra,
-      from: FT.subarray(0, m), to: FT.subarray(ne, ne + m), idx: idx, kidOff: kidOff, kidList: kidList, at: IA.subarray(AT, AT + n), F: F, cap: cap, szOk: szOk };
+      from: FT.subarray(0, m), to: FT.subarray(ne, ne + m), idx: idx, kidOff: kidOff, kidList: kidList, at: IA.subarray(AT, AT + n), F: F, cap: cap, szOk: szOk, fx: FX, sk: sk, nw: o.write === false };
     if (pk) H.pk = pk;   /* idx: null when the app gave item numbers */
     if (!kids) {
       var topName = G.name || 'All';
+      if (N <= 32) {   /* a small tree: making these three lists now costs less than setting them up to be made on demand */
+        H.kids = kidArrays(N, kidOff, kidList);
+        var Ll = new Array(N), Lg = new Array(N), q0, it0;
+        for (q0 = 0; q0 < N; q0++) { it0 = item[q0]; if (it0 >= 0) { Ll[q0] = nodes[it0].label; Lg[q0] = nodes[it0].group || ''; } else { Ll[q0] = topName; Lg[q0] = ''; } }
+        H.label = Ll; H.group = Lg;
+      } else {
       lazy(H, 'kids', function () { return kidArrays(N, kidOff, kidList); });
       lazy(H, 'label', function () { var L = new Array(N); for (var q = 0; q < N; q++) L[q] = item[q] >= 0 ? nodes[item[q]].label : topName; return L; });
       lazy(H, 'group', function () { var L = new Array(N); for (var q = 0; q < N; q++) L[q] = item[q] >= 0 ? nodes[item[q]].group || '' : ''; return L; });
+      }
     }
-    if (named && !idx) lazy(H, 'idx', mkIdx);
+    if (named && !idx) { if (n <= 8) H.idx = mkIdx(); else lazy(H, 'idx', mkIdx); }
     return H;
   }
   /** Sums: value[i] = own value (leaves, or every item when sized) + what its children hold. Children are sorted biggest first (o.sort !== false). */
@@ -205,7 +227,7 @@ var NetflowHierarchy = (function () {
       it = item[v];
       if (it >= 0 && (sized || a === b)) {
         if (szOk) { w = F[SZ + it]; if (!(w > 0)) w = 1; s += w; }
-        else { w = nodes[it].sizeV; if (!(w === w && w > 0)) w = 1; s = s + w; }   /* a size that is not a plain number: read as before */
+        else { w = H.sk ? nodes[it][H.sk] : nodes[it].sizeV; if (!(w === w && w > 0)) w = 1; s = s + w; }   /* a size that is not a plain number: read as before */
       }
       own[v] = w; val[v] = s;
     }
@@ -219,7 +241,7 @@ var NetflowHierarchy = (function () {
       if (moved && Object.getOwnPropertyDescriptor(H, 'kids').get === undefined) H.kids = kidArrays(N, kidOff, kidList);   /* plain lists that were already made follow the new order */
     }
     H.ownV = own;
-    H.own = function (v) { return H.item[v] >= 0 && (sized || !H.kids[v].length) ? itemValue(G.nodes[H.item[v]]) : 0; };
+    H.own = function (v) { return H.item[v] >= 0 && (sized || !H.kids[v].length) ? (H.sk ? itemValue({ sizeV: G.nodes[H.item[v]][H.sk] }) : itemValue(G.nodes[H.item[v]])) : 0; };
     return val;
   }
 
@@ -253,7 +275,7 @@ var NetflowHierarchy = (function () {
     }
   }
   function treemap(G, o) {
-    var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, R = new Float64Array(N * 4);
+    var H = hierarchy(G, o, 4), val = sums(G, H, o), N = H.N, R = H.fx >= 0 ? H.F.subarray(H.fx, H.fx + N * 4) : new Float64Array(N * 4);
     var total = val[H.root] || 1, side = Math.max(600, Math.min(4000, Math.sqrt(H.N) * 70)), W = side * 1.5, Ht = side;
     if (o.width > 0 && o.height > 0) { W = Math.max(160, o.width - 60); Ht = Math.max(120, o.height - 60); }   /* width and height given (since 1.5.0): lay the boxes out at that size; the picture keeps its 30-unit margin, so the SVG is exactly that size */
     R[H.root * 4] = 0; R[H.root * 4 + 1] = 0; R[H.root * 4 + 2] = W; R[H.root * 4 + 3] = Ht;
@@ -268,7 +290,7 @@ var NetflowHierarchy = (function () {
   }
   /** Partition: depth across, value along (icicle), or the same in rings (sunburst). */
   function partition(G, o, radial) {
-    var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, R = new Float64Array(N * 4), maxD = 0, v, own = H.ownV, kidOff = H.kidOff, kidList = H.kidList, depth = H.depth;
+    var H = hierarchy(G, o, 4), val = sums(G, H, o), N = H.N, R = H.fx >= 0 ? H.F.subarray(H.fx, H.fx + N * 4) : new Float64Array(N * 4), maxD = 0, v, own = H.ownV, kidOff = H.kidOff, kidList = H.kidList, depth = H.depth;
     var skipRoot = H.item[H.root] < 0 ? 1 : 0;
     R[H.root * 4 + 1] = 0; R[H.root * 4 + 3] = 1;
     for (v = 0; v < N; v++) {   /* a parent always comes before its children */
@@ -395,7 +417,7 @@ var NetflowHierarchy = (function () {
       for (j = 0; j < n; j++) { c = kidList[j0 + j]; SX[c] = cs[j].x; SY[c] = cs[j].y; }
     }
     var root = H.root, want = Math.max(300, Math.min(3000, Math.sqrt(N) * 40)), scale = PR[root] > 0 ? want / PR[root] : 1;
-    var X = new Float64Array(N), Y = new Float64Array(N), Rr = new Float64Array(N);
+    var X = fltList(N), Y = fltList(N), Rr = fltList(N);
     X[root] = want + 40; Y[root] = want + 40; Rr[root] = want;
     for (i = 0; i < order.length; i++) {
       var u = order[i], xu = X[u], yu = Y[u];
@@ -409,7 +431,7 @@ var NetflowHierarchy = (function () {
    */
   function tree(G, o) {
     var H = hierarchy(G, o), val = NOVAL, N = H.N, shape = o.treeShape || 'tidy', i;
-    var X = new Float64Array(N), Y = new Float64Array(N), maxD = 0;
+    var X = fltList(N), Y = fltList(N), maxD = 0;
     for (i = 0; i < N; i++) if (H.depth[i] > maxD) maxD = H.depth[i];
     var skipRoot = H.item[H.root] < 0 ? 1 : 0;
     if (shape === 'indented') {
@@ -497,9 +519,9 @@ var NetflowHierarchy = (function () {
   }
 
   /** The common result of the nested views: G's items placed where the shape put them (for picking and names), plus the shape itself. */
-  function nestedOut(type, G, H, val, geo) {
-    var nodes = G.nodes.slice(), nn = nodes.length, at = H.at, i;
-    var R = geo.R, ch = geo;
+  /* writes each item's place (x, y, w, h, cx, cy and its box number hv) onto the item, from the shape's lists */
+  function placeItems(type, nodes, at, ch) {
+    var R = ch.R, nn = nodes.length, i;
     if (type === 'icicle') {
       var cw = ch.colW, hh = ch.H;
       for (i = 0; i < nn; i++) {
@@ -516,12 +538,24 @@ var NetflowHierarchy = (function () {
       else { x0 = ch.X[v] - 5; x1 = ch.X[v] + 5; y0 = ch.Y[v] - 5; y1 = ch.Y[v] + 5; }
       nd.x = x0; nd.y = y0; nd.w = Math.max(0, x1 - x0); nd.h = Math.max(0, y1 - y0); nd.cx = (x0 + x1) / 2; nd.cy = (y0 + y1) / 2; nd.hv = v;
     }
-    geo.type = type; geo.val = val; geo.N = H.N; geo.par = H.par; lazy(geo, 'kids', function () { return H.kids; }); geo.depth = H.depth; geo.item = H.item; lazy(geo, 'label', function () { return H.label; }); lazy(geo, 'group', function () { return H.group; }); geo.root = H.root; geo.order = H.order; geo.mode = H.mode;
+  }
+  /** After a layout made with write: false: puts the places onto the items now (the drawing calls this itself). Does nothing otherwise. */
+  function placeAll(L) {
+    var ch = L && L.chart;
+    if (ch && ch.placed === false) { placeItems(ch.type, L.nodes, ch.at, ch); ch.placed = true; }
+    return L;
+  }
+  function nestedOut(type, G, H, val, geo) {
+    var nodes = G.nodes.slice(), nn = nodes.length, at = H.at;
+    /* write: false leaves the items alone (the places are in the shape's lists; at[i] is item i's box) until place() or the drawing asks */
+    if (H.nw) { geo.at = at; geo.placed = false; } else placeItems(type, nodes, at, geo);
+    geo.type = type; geo.val = val; geo.N = H.N; geo.par = H.par; var small = H.N <= 32; if (small) geo.kids = H.kids; else lazy(geo, 'kids', function () { return H.kids; }); geo.depth = H.depth; geo.item = H.item; if (small) { geo.label = H.label; geo.group = H.group; } else { lazy(geo, 'label', function () { return H.label; }); lazy(geo, 'group', function () { return H.group; }); } geo.root = H.root; geo.order = H.order; geo.mode = H.mode;
     geo.extra = H.extra.length; geo.tree = { from: H.from, to: H.to, extraList: H.extra };
     if (!H.pk) return { kind: type, dir: 'none', nodes: nodes, edges: G.edges, chart: geo, width: geo.W, height: geo.H };
     /* items that name their own parent came with no list of links: one is made only if somebody reads it (the drawing does, to style a link) */
     var out = { kind: type, dir: 'none', nodes: nodes, chart: geo, width: geo.W, height: geo.H }, key = H.pk;
-    lazy(out, 'edges', function () { var es = [], q, p; for (q = 0; q < nn; q++) { p = nodes[q][key]; if (p !== null && p !== undefined && p !== '') es.push({ from: p, to: nodes[q].id }); } return es; });
+    var mkEdges = function () { var es = [], q, p; for (q = 0; q < nn; q++) { p = nodes[q][key]; if (p !== null && p !== undefined && p !== '') es.push({ from: p, to: nodes[q].id }); } return es; };
+    if (nn <= 32) out.edges = mkEdges(); else lazy(out, 'edges', mkEdges);
     return out;
   }
 
@@ -564,6 +598,7 @@ var NetflowHierarchy = (function () {
    */
   /** ext (from netflow-circular): { draw(type, C) draws the shapes of its own views and returns true, note(L) the line under the picture }. */
   function scene(L, o, NS, ext) {
+    placeAll(L);
     var ch = L.chart, type = ch.type;
     var showDots = type === 'pack' || type === 'tree' || type === 'bundles';
     /* the scene module gets its own copy of each item (plain objects of one shape, so reading them stays fast); the copies are kept on the layout and filled in again for the next picture, so a look change makes no new ones */
@@ -837,7 +872,7 @@ var NetflowHierarchy = (function () {
     toSvg(rows); toSvg(rows, { type: 'sunburst' });
     return true;
   }
-  return { warm: warm, VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, asGraph: asGraph, sceneLib: sceneLib, hierarchy: hierarchy, sums: sums, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
+  return { warm: warm, VIEWS: VIEWS, IS: IS, NESTED: NESTED, layout: layout, scene: scene, toSvg: toSvg, asGraph: asGraph, sceneLib: sceneLib, hierarchy: hierarchy, sums: sums, place: placeAll, packSiblings: packSiblings, enclose: enclose, linkValue: linkValue, itemValue: itemValue,
     tmpI: tmpI, tmpF: tmpF, sector: sector, pushSector: pushSector, lumi: lumi };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NetflowHierarchy;

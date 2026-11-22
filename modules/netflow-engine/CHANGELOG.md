@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.2 · API 2 · 2026-11-21
+- Big Network maps (Distances layout) build in about a tenth less time again (up to 31% less), with exactly the same picture as 2.6.1. The saving is in the work around the layout.
+
 ## 2.6.1 · API 2 · 2026-11-21
 - Big Network maps (Distances layout) build in about a fifth less time again (up to 47% less), with exactly the same picture as 2.6.0.
 

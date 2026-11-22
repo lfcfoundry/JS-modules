@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.10.0 · API 1 · 2026-11-21
+
+### Quick
+New options sizeKey and write: false lay out existing rows with no copy and nothing written onto them; place() writes the places when wanted.
+
+### Details
+Small trees (up to about 300 items) cut their lists from shared memory blocks and tiny trees get their plain lists at once. Nothing changes for layouts that do not use the new options, apart from speed on small trees.
+
+### Deep
+Rows as they are (approved by the owner): sizeKey names the size field, write: false keeps places in the chart lists (chart.at, chart.placed) until place() or scene() asks. Small-tree fix: shared memory blocks for lists up to 2,048 numbers, eager kids/label/group up to 32 boxes, eager idx up to 8 items. Same output as 1.9.0 on 1,200 compared cases. Found while racing d3-hierarchy 3.1.3 on trees under 300 items.
+
 ## 1.9.0 · API 1 · 2026-11-21
 
 ### Quick
