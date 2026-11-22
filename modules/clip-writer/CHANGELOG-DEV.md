@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-22
+
+### Quick
+New writeWebmBlob(); createWriter's blob path uses it. Bytes match writeWebm exactly.
+
+### Deep
+New writeWebmBlob() returns the WebM as a Blob assembled from the existing frame buffers, so saving a clip no longer joins every frame into one big array first. createWriter's blob output uses it. The bytes match writeWebm exactly (tested). Found in an outside code review (round 3).
+
 ## 1.3.0 · API 1 · 2026-10-30
 
 ### Quick

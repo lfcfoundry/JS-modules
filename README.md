@@ -115,7 +115,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 | [field-report](modules/field-report/README.md) | 1.1.1 | 22.7 | 8.0 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 | 38.9 | 12.1 | Frame pacing for canvas games: smooth frame time, effect governor, job pump, frame meter. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/frame-kit/demo.html) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 | 6.2 | 2.5 | Steps visual effects down when the device cannot keep up; never back up mid-play. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/fx-governor/demo.html) |
-| [image-decode](modules/image-decode/README.md) | 1.2.2 | 22.0 | 7.7 | Loads pictures with no freeze at first draw, the right way per browser, plus WebP/AVIF checks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/image-decode/demo.html) |
+| [image-decode](modules/image-decode/README.md) | 1.2.3 | 22.3 | 7.8 | Loads pictures with no freeze at first draw, the right way per browser, plus WebP/AVIF checks. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/image-decode/demo.html) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 | 9.7 | 3.7 | A short private note of errors, slow taps and long frames, copyable as text. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/slow-note/demo.html) |
 
 #### Saving and data safety
@@ -191,12 +191,12 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.1.3 | 121.5 | 40.5 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 | 3.4 | 1.4 | Lets a page draw first guesses during an import without slowing it. | — |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.24.0 | 794.7 | 331.1 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.24.1 | 794.9 | 331.2 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 | 136.4 | 49.7 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 | 464.7 | 134.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.7.1 | 65.2 | 22.0 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
-| [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 | 499.9 | 154.3 | Zstandard compress and decompress, XXH64 and CRC-32, in WebAssembly. | — |
+| [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 | 500.0 | 154.4 | Zstandard compress and decompress, XXH64 and CRC-32, in WebAssembly. | — |
 
 #### Graphs and simulation
 
@@ -205,7 +205,7 @@ Walk graphs (shortest paths, centrality, communities) and simulate random walker
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 | 99.1 | 31.2 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
-| [walker-sim](modules/walker-sim/README.md) | 2.4.2 | 73.6 | 24.1 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
+| [walker-sim](modules/walker-sim/README.md) | 2.5.0 | 75.8 | 24.6 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
 
 #### Visualization
 
@@ -213,7 +213,7 @@ Draw maps, flow charts and animated pictures from data.
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [clip-writer](modules/clip-writer/README.md) | 1.3.0 | 30.9 | 9.7 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
+| [clip-writer](modules/clip-writer/README.md) | 1.4.0 | 33.5 | 10.0 | Turns pictures into an MP4 or WebM video file. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/clip-writer/demo.html) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 | 45.8 | 17.7 | Writes animated GIFs from canvas frames with one shared palette. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/gif-writer/demo.html) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 | 7.7 | 3.0 | A small chord layout: arcs and bands as typed lists, no dependencies. | — |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 | 28.7 | 10.3 | Chord and Bundles views for netflow-engine, drawn with netflow-scene. | — |

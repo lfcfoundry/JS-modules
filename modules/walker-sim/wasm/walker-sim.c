@@ -5,7 +5,7 @@ typedef unsigned char u8; typedef unsigned int u32; typedef int i32; typedef dou
 #define EXPORT __attribute__((visibility("default")))
 EXPORT i32 walk(u32 count, i32 start, i32 s0, i32 cap, const i32 *os, const f64 *cumN, const i32 *tg, const u8 *halt, const u8 *lut,
                 f64 *moves, f64 *tab, const i32 *epOf, f64 *tcount, u32 *stuck) {
-  u32 stuckHere = 0, x = (u32)s0;
+  u32 stuckHere = 0, x = (u32)s0; i32 lastEp = -1;
   for (u32 w = 0; w < count; w++) {
     i32 v = start, steps = 0;
     while (halt[v] == 0 && steps < cap) {
@@ -20,9 +20,9 @@ EXPORT i32 walk(u32 count, i32 start, i32 s0, i32 cap, const i32 *os, const f64 
       moves[sl] += 1.0; v = tg[sl]; steps++;
     }
     tab[steps] += 1.0;
-    i32 ep = epOf[v];
+    i32 ep = epOf[v]; lastEp = ep;
     if (ep >= 0) tcount[ep] += 1.0; else stuckHere++;
   }
-  *stuck = stuckHere;
+  stuck[0] = stuckHere; stuck[1] = (u32)lastEp;     /* the end the last walker reached (-1: stuck), so a trial of one walker can say which end it counted */
   return (i32)x;
 }

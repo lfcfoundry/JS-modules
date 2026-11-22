@@ -41,6 +41,7 @@ const J = require('../lfc-pack.js');
     const lg = cols.logn, srt = Float64Array.from(lg).sort(), ex = (p) => { const R = p * (N - 1), lo = Math.floor(R); return lo + 1 < N ? srt[lo] + (R - lo) * (srt[lo + 1] - srt[lo]) : srt[lo]; }, c = S.cols.find((x) => x.key === 'logn');
     ok(Array.isArray(c.qt) && c.qt.length === 40 && c.q.length === 257, 'qt: 40 tail values beside the 257 steps');
     let worst = 0; for (const p of [0.001, 0.003, 0.997, 0.999, 0.9995]) worst = Math.max(worst, Math.abs(S.quantile('logn', p) / ex(p) - 1)); ok(worst < 0.05, 'tail quantiles within 5% (worst ' + (worst * 100).toFixed(2) + '%)');
+    { const x99 = ex(0.99), a99 = N - srt.findIndex((v) => v > x99), got = S.countAbove('logn', x99); ok(Math.abs(got - a99) <= a99 * 0.04, 'sampled grid not biased in the tail: countAbove at the 99th percentile within 4% (' + got + ' vs ' + a99 + ')'); }
     const x = ex(0.999), above = N - srt.findIndex((v) => v > x); ok(Math.abs(S.countAbove('logn', x) - above) <= above * 0.15, 'countAbove at the 99.9th percentile within 15% (' + S.countAbove('logn', x) + ' vs ' + above + ')');
   }
   console.log(bad ? bad + ' of ' + n + ' quantile checks FAILED' : 'quantile: all ' + n + ' checks pass');

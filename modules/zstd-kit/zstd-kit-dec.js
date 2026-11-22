@@ -1,7 +1,7 @@
 /*!
  * zstd-kit-dec.js: Zstandard decompression in the browser and Node, plus XXH64 and CRC-32, from one WebAssembly build.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
- * Version 1.0.0 (API 1)
+ * Version 1.0.1 (API 1)
  * Copyright (c) 2026 LFC Foundry. MIT License (this wrapper and wasm/zstd-glue.c).
  * The WebAssembly inside is Zstandard 1.5.7 by Yann Collet and Meta Platforms, compiled unchanged, BSD-3-Clause:
  * https://facebook.github.io/zstd/ (see NOTICE-zstd.txt). XXH64 is the copy inside Zstandard (Yann Collet, https://xxhash.com/).
@@ -69,10 +69,10 @@
         if (X.is_error(r)) throw new Error('zstd: compress failed');
         return view(outP, r).slice();
       };
-      // text-like frames at the default level: level 3 against two finer settings (fast strategy, 2^18 hash, shortest match 6 or 7).
-      // A frame over 256 KB is judged on its middle 128 KB and compressed once with the winner; a smaller one is compressed all three ways and the smallest kept.
+      // text-like frames at the default level: level 3 against two finer settings (fast strategy, 2^17 hash, shortest match 6 or 7; 2^18 until 1.1.0).
+      // A frame over 256 KB is judged on its middle 32 KB (128 KB until 1.1.0: since then 4% to 33% quicker, output 0.1% to 0.4% bigger on logs and CSV) and compressed once with the winner; a smaller one is compressed all three ways and the smallest kept.
       // Logs 3.6% smaller, FHIR 1.0%, events 0.4%, pack time unchanged; the reader needs nothing new (plain zstd frames).
-      var TUNES = [[0, 0, 0, 0], [1, 18, 0, 6], [1, 18, 0, 7]], SAMPLE = 131072, MIN_SAMPLED = 262144;
+      var TUNES = [[0, 0, 0, 0], [1, 17, 0, 6], [1, 17, 0, 7]], SAMPLE = 32768, MIN_SAMPLED = 262144;
       var tuned = function (src, cap, lim, dcap) {
         var i, r, best = -1, size = Infinity, out = null;
         if (src.length >= MIN_SAMPLED) {
@@ -114,7 +114,7 @@
   }
   function hex64(h) { return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1); }
   return {
-    version: '1.0.0',
+    version: '1.0.1',
     decodeOnly: DEC_ONLY,
     init: init,
     ready: function () { return !!Z; },
