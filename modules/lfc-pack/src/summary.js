@@ -239,7 +239,7 @@
   // { sum: section 20 payload or null, pyr: section 21 payload or null }; cap is where the writer leaves each block's part (SUMCAP)
   function sumJobs(obj, n, opts) {
     opts = opts || {};
-    var so = opts._sort || null, keys = Object.keys(obj).filter(function (k) { return !(so && so.keep && k === SORT_ROW); }), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
+    var so = opts._sort || null, keys = Object.keys(obj).filter(function (k) { return !(so && so.keep && k === SORT_ROW) && !(so && so.hide && so.hide.indexOf(k) >= 0); }), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
     function one(k) { st[k] = 1; try { cols[k] = sumColumn(keys[k], obj[keys[k]], n, cap.cols[keys[k]], R); } catch (e) { bad = true; } }
     function next(early) {   // early (blocks still being written): only columns that are not plain arrays or typed numbers, since those wait for the parts every block leaves
       for (var k = 0; k < m; k++) if (!st[k] && !(early && (Array.isArray(obj[keys[k]]) || ArrayBuffer.isView(obj[keys[k]]) || isTsCol(obj[keys[k]])))) { one(k); return true; }
@@ -247,8 +247,8 @@
     function result() {
       if (bad) return { sum: null, pyr: null };
       var py = [], k, o; for (k = 0; k < m; k++) if (cols[k]._pyr) { py.push([keys[k], cols[k]._pyr]); delete cols[k]._pyr; }
-      o = { v: 1, rows: n }; if (so) { o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
-      o.cols = cols; if (cut) { o.colsCut = true; if (so && so.keep) o.keys = keys; }
+      o = { v: 1, rows: n }; if (so) { if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.hide) o.hidden = so.hide; if (so.keep) o.rowIndex = SORT_ROW; if (so.key !== null) for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
+      o.cols = cols; if (cut) { o.colsCut = true; if (so && (so.keep || so.hide)) o.keys = keys; }
       return { sum: te.encode(JSON.stringify(o)), pyr: py.length ? pyrPayload(py, n, R.bin) : null };
     }
     return { cap: cap, next: next, done: function () { while (next(false)); return Promise.resolve(result()); }, payload: function () { while (next(false)); return result(); } };

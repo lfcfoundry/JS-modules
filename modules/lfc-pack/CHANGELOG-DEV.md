@@ -2,6 +2,22 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.20.0 · API 0 · 2026-11-21
+
+### Quick
+geo: { x, y, bounds?
+
+### Deep
+geo: { x, y, bounds? } on packColumnsParallel: 16-bit quantized coordinates, 32-bit Hilbert key (four levels per lookup from a 1,024-entry table; 6.5x faster than the bit loop, same keys) in hidden column $hilbert (section 20 hidden: [...], sortedBy), stable 32-bit radix sort with missing coordinates last (geoPrep sorts, then the sortBy save path with _presort), 1 MB blocks by default, section 24 { x, y, key, bounds, bits, cells: 256, heat: sparse [cell, count] }. Readers: geo(bytes) / open().geo() -> heat Uint32Array(65536); open().bbox(x0, y0, x1, y1, { keys }) splits quads level by level (up to 1,024 edge quads, then whole runs), reads blocks whose $hilbert zone range meets a run, filters exactly; rows.blocksRead. Hidden columns: rowIndexOf now also reads section 20 hidden (key null when no keepOrder). Measured 1,000,000 clustered points (30 clusters) + fare, passengers, kind, median of 5, 4-core cloud: save plain -> geo 209 -> 560 ms Chromium 156, 177 -> 410 Firefox 158, 227 -> 599 WebKitGTK 2.52.6 (first draft 5x: small 8,192-row blocks and the bit-loop key; usual-size blocks were 1.9 to 2.5x but box reads only 1.7 to 4.9x faster); box with 10% of rows 16 of 100 blocks, 40 / 44.5 / 34 ms vs plain read + filter 125 / 96 / 229 ms; box with 19% of rows 84 / 62 / 44 vs 118 / 95 / 209 ms; file +9% (15.8 -> 17.3 MB). New test geo.cjs (35 checks: boxes equal a full scan, prefix property via the heat grid, hidden in every reader, keepOrder, summary false, bounds clamp, errors).
+
+## 0.19.0 · API 0 · 2026-11-21
+
+### Quick
+scramble: true | seed on packColumnsParallel, packRows, packRowsParallel: Fisher-Yates over mulberry32 before blocks are cut (src/sort.js scramblePerm, the sortBy path with no key).
+
+### Deep
+scramble: true | seed on packColumnsParallel, packRows, packRowsParallel: Fisher-Yates over mulberry32 before blocks are cut (src/sort.js scramblePerm, the sortBy path with no key). No row-position column: unpack / unpackRows { original: true } rebuild the given order from the seed and row count (saved row i is given row P[i]); section 20 says scrambled: { seed } (also with summary: false). Refused with sortBy, keepOrder, exact, base. open().progressive(keys, onStep, { by }): blocks in order, running { n, sum, mean, min, max, estSum } per key and per label of by; onStep returning false stops. Measured 1,000,000 rows x 6 columns (taxi-like: id 0..n-1, fare, distance with 2% missing, passengers, 40 skewed zones, 4 payment kinds), median of 5, 4-core cloud: save 202 -> 308 ms Chromium 156, 206 -> 307 Firefox 158, 194 -> 284 WebKitGTK 2.52.6; first progressive step (1 of 6 blocks, by zone) 11.9 / 18.4 / 9 ms vs all blocks 63 / 100 / 45 ms; first-step mean 0.10% off, worst mean of a zone with at least 1% of rows 1.39% off. Size 4.13 -> 6.63 MB with the sequential id column, 4.11 -> 4.11 MB without it (Chromium run): only columns that follow the row order lose. First draft stored a $row column (keepOrder style): 9.1 MB, dropped for the seed. New test scramble.cjs (27 checks).
+
 ## 0.18.0 · API 0 · 2026-11-21
 
 ### Quick
