@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.2 (API 2)
+ * Version 2.3.0 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -13,6 +13,7 @@
  *   set.getMany([2, 0, 2]) -> { offsets: Uint32Array(4), values: Uint32Array } : several lists in one call, cut out in WebAssembly (an id that is not a list gives an empty list)
  *   var bl = EliasFano.openBlocks(EliasFano.buildBlocks(ids));  EliasFano.intersect([bl, other]);  bl.containsMany(xs)   // block lists (2.1.0): bitmaps where dense, fast to intersect
  *   var t = EliasFano.openTiny(EliasFano.buildTiny([3, 8, 8, 20]));  t.nextGEQ(9)   // tiny lists (2.2.0): 63 values or fewer in about 0.2x the bytes; buildAuto/openAuto pick tiny or flat
+ *   list.view()   // view (2.3.0): the values with no copy, valid only until the next elias-fano call; copy with view().slice() to keep them
  *   EliasFano.open(bytes, { pin: true })   // pin (2.2.0, off by default): a list of 64 to 1,023 values keeps a plain copy for quicker lookups (4 bytes a value)
  */
 
@@ -72,6 +73,10 @@
   function done(p, n) { if (p !== SCR) release(p, n); }
   function putQ(xs, ip, k) { if (xs instanceof Uint32Array) u32.set(xs, ip >>> 2); else { var b = ip >>> 2; for (var t = 0; t < k; t++) u32[b + t] = xs[t]; } }   // the same ToUint32 as Uint32Array.from
   function copyOut(r, op, k) { var b = op >>> 2, j; if (k <= 256) { for (j = 0; j < k; j++) r[j] = u32[b + j]; } else r.set(u32.subarray(b, b + k)); }
+  /* view() (since 2.3.0): the decoded values as a Uint32Array over the module's memory, with no copy. Short-lived: the next elias-fano call (any list) may overwrite,
+     move or empty it, so read it right away or copy it (view().slice()). One buffer, the size of the largest list viewed, is kept until trim(). */
+  var VIEW = 0, VIEWN = 0;
+  function viewBuf(n) { n = (n + 7) & ~7; if (n > VIEWN) { if (VIEW) release(VIEW, VIEWN); VIEW = 0; VIEWN = n; VIEW = alloc(VIEWN); } return VIEW; }
   function start() {
     if (readyPromise) return readyPromise;
     if (typeof WebAssembly !== 'object' || !WASM_B64) return (readyPromise = Promise.resolve(false));
@@ -269,6 +274,7 @@
     if (this._wasm()) { var op = alloc(n * 4 + 32); W.ef_decode_fast(this._ptr, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + n)); release(op, n * 4 + 32); return r; }
     return this._decodeJS(r);
   };
+  P.view = function () { var n = this.length; if (n === 0) return new Uint32Array(0); if (!this._wasm()) return this.toArray(); var op = viewBuf(n * 4 + 32); W.ef_decode_fast(this._ptr, op); return u32.subarray(op >>> 2, (op >>> 2) + n); };   // short-lived, see viewBuf
   P.slice = function (a, b, out) {   // values a up to (not including) b as a Uint32Array; out: optional Uint32Array of exactly b - a to fill
     var n = this.length; a = Math.max(0, a | 0); b = Math.min(n, b === undefined ? n : b | 0); if (b <= a) return new Uint32Array(0);
     var r = outOf(out, b - a), H = this._hi, sp = this._sel1(a), i = a, w = sp >>> 5, x = (H[w] & (-1 << (sp & 31))) >>> 0, pw = this._pw, bit;
@@ -723,6 +729,7 @@
     var l = this._info[k] >>> 8, h0 = this._h0[k], lo = d >>> 2, i = 0;
     for (w = 0; i < c; w++) { x = W32[h0 + w]; while (x !== 0 && i < c) { out[o + i] = base + ((((w * 32 + 31 - Math.clz32(x & -x)) - i) << l) | efLow(W32, lo, l, i)); i++; x &= x - 1; } }
   };
+  BP.view = function () { var n = this.length; if (n === 0) return new Uint32Array(0); if (!this._wasm()) return this.toArray(); var op = viewBuf(n * 4 + 32); W.bl_decode(this._ptr, op); return u32.subarray(op >>> 2, (op >>> 2) + n); };   // short-lived, see viewBuf
   BP.toArray = function (out) {
     var n = this.length, r = outOf(out, n), k; if (n === 0) return r;
     if (this._wasm()) { var op = alloc(n * 4 + 32); W.bl_decode(this._ptr, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + n)); release(op, n * 4 + 32); return r; }
@@ -898,14 +905,16 @@
     },
     getMany: function (idx, out) { checkIdx(idx, this.length); var k = idx.length, r = out || new Uint32Array(k), a = this._pin; for (var j = 0; j < k; j++) r[j] = a[idx[j]]; return r; },
     toArray: function (out) { var n = this.length, r = outOf(out, n); r.set(this._pin); return r; },
+    view: function () { return this._pin.slice(); },
     slice: function (a, b, out) { var n = this.length; a = Math.max(0, a | 0); b = Math.min(n, b === undefined ? n : b | 0); if (b <= a) return new Uint32Array(0); var r = outOf(out, b - a); r.set(this._pin.subarray(a, b)); return r; }
   };
   function pin(on) {   // true when the list is now pinned; false when off or when the list is outside 64 to 1,023 values (it then stays compressed only)
-    var names = ['get', 'nextGEQ', 'lowerBound', 'nextGEQMany', 'getMany', 'toArray', 'slice'], k;
+    var names = ['get', 'nextGEQ', 'lowerBound', 'nextGEQMany', 'getMany', 'toArray', 'slice', 'view'], k;
     if (on === false || !(this.length >= PIN_MIN && this.length <= PIN_MAX)) { if (this._pin) { this._pin = null; for (k = 0; k < names.length; k++) delete this[names[k]]; } return false; }
     if (!this._pin) { var a = this.toArray(new Uint32Array(this.length)); this._pin = a; for (k = 0; k < names.length; k++) this[names[k]] = PINNED[names[k] === 'lowerBound' ? 'nextGEQ' : names[k]]; }
     return true;
   }
+  PP.view = function () { return this.toArray(); }; TP.view = function () { return this.toArray(); };   // no zero-copy path for these kinds: a fresh array
   P.pin = pin; PP.pin = pin; P.pinned = PP.pinned = function () { return !!this._pin; };
   var freeFlat = P.free; P.free = PP.free = function () { if (this._pin) this.pin(false); return freeFlat.call(this); };
   // buildAuto / openAuto: a tiny list for 63 values or fewer, a flat list otherwise (longer tiny lists were smaller but 2 to 6 times slower to read); openAuto opens any single list blob
@@ -952,13 +961,13 @@
     if (!W || !MOD || typeof WeakRef !== 'function') return null;   // without WeakRef the compacted lists cannot be found again, so the memory stays
     var before = mem.buffer.byteLength, old = u8, x = new WebAssembly.Instance(MOD, {}).exports, moved = [];
     LIVE.forEach(function (ref) { var l = ref.deref(); if (!l || !l._wm || l._gen !== GEN || l.bytes) { LIVE.delete(ref); if (l) l._ref = null; return; } moved.push(l); });
-    GEN++; SCR = 0; SCRN = 0; W = x; mem = x.memory; views(); heapEnd = x.__heap_base; blocks = [];
+    GEN++; SCR = 0; SCRN = 0; VIEW = 0; VIEWN = 0; W = x; mem = x.memory; views(); heapEnd = x.__heap_base; blocks = [];
     moved.forEach(function (l) { var p = alloc(l._blen); u8.set(old.subarray(l._ptr, l._ptr + l._blen), p); l._ptr = p; l._gen = GEN; });
     return { before: before, after: mem.buffer.byteLength, moved: moved.length };
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.2.2', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    version: '2.3.0', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
     buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },

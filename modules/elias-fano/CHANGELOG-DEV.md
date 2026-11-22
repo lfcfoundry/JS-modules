@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.0 · API 2 · 2026-11-22
+
+### Quick
+New view() on every list kind: zero-copy for flat and block lists in WebAssembly, a fresh array elsewhere. Short-lived; copy with view().slice().
+
+### Details
+Real lists, view() / toArray(), Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: mid lists (64 to 1,023 values) 0.12 / 0.41 / 0.38, long lists (1,024+) 0.18 / 0.33 / 0.43.
+
+### Deep
+New list.view() (owner-approved, documented as short-lived): returns the decoded values as a Uint32Array over the module's memory with no copy, for flat and block lists when WebAssembly is in use; partitioned, tiny and pinned lists and the JavaScript backend return a fresh array. The next elias-fano call (any list) may overwrite, move or empty it (memory growth detaches it), so read it right away or keep a copy with view().slice(). One buffer, the size of the largest list viewed, is kept until trim(). On real lists from five files, view() against toArray() (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6): mid lists 0.12 / 0.41 / 0.38 of the time, long lists 0.18 / 0.33 / 0.43. New test/view.js: 1,824 checks across every kind and both backends, the stale-after-next-view behavior, trim() and memory growth. Idea from the Elias-Fano research thread.
+
 ## 2.2.2 · API 2 · 2026-11-22
 
 ### Quick
