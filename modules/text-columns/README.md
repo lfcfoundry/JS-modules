@@ -16,7 +16,7 @@ Reads CSV or TSV text straight into typed columns. Decimal columns come out as `
 
 ## Why it exists
 
-Usual parsers build a string for every cell and an object for every row, which costs time and memory on big tables. Pages that import a table usually want columns for charts or for [lfc-pack](../lfc-pack/README.md). On the laptop in Firefox 160 it read 200,000 rows in 46 ms against Papa Parse's 158 ms.
+Usual parsers build a string for every cell and an object for every row, which costs time and memory on big tables. Pages that import a table usually want columns for charts or for [lfc-pack](../lfc-pack/README.md). On real 8 MB files (retail, SEC and SBA tables) in the three test browsers it is 0.94 to 4.9 times as fast as Papa Parse with typed rows: SEC numbers 1.8 to 4.9 times, retail 1.0 to 1.9 times, and the 116-column SBA text file 1.2 to 1.5 times, except in Firefox where Papa Parse is 6% faster.
 
 **Where it helps**
 
@@ -79,18 +79,15 @@ A text column that repeats a few values (a city, a status) used to hold one stri
 - The WebAssembly memory grows to fit the biggest file you read and stays that size; the returned columns do not point into it.
 
 ## How it compares
-200,000 rows by 6 columns (3 number columns, 3 text columns), 7.4 MB, from bytes, medians in milliseconds, lower is better. Measured in the cloud container, one browser at a time, taking turns, not noise-guarded; browser versions: Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6.
+Three real tables, the first 8 MB of each, from bytes, medians of 5 runs in a fresh page, milliseconds, lower is better. Cloud container, one browser at a time: ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (2026.11.22). Files: the retail e-commerce table (95,607 rows x 8 columns, Latin-1), the SEC 2026 Q1 numbers file (54,712 rows x 9 columns, tab separated) and the SBA assistance file (3,206 rows x 116 columns, mostly text). Papa Parse 5 gets the decoded text with `header` and `dynamicTyping`; text-columns gets the bytes and returns columns.
 
-| What | Firefox | Chromium | WebKitGTK |
-|---|---:|---:|---:|
-| text-columns, columns out (WebAssembly SIMD) | 48 | 38 | 39 |
-| text-columns, columns out (plain JavaScript path) | 109 | 99 | 87 |
-| split lines, split cells, `Number()` by hand | 100 | 174 | 157 |
-| text-columns, row objects out (`toRows()`) | 103 | 93 | 62 |
-| d3-dsv 3.0.1 `csvParse` with `autoType` (row objects) | 213 | 192 | 234 |
-| Papa Parse 5.4.1 with `header` and `dynamicTyping` (row objects) | 339 | 440 | 382 |
+| File | text-columns (Chromium / Firefox / WebKitGTK) | Papa Parse (Chromium / Firefox / WebKitGTK) | Papa Parse time / ours |
+|---|---|---|---|
+| Retail | 165 / 107 / 141 | 261 / 206 / 145 | 1.58 / 1.93 / 1.03 |
+| SEC numbers | 29 / 68 / 32 | 143 / 125 / 118 | 4.86 / 1.84 / 3.69 |
+| SBA, 116 columns | 74 / 80 / 75 | 113 / 75 / 93 | 1.54 / 0.94 / 1.24 |
 
-Papa Parse and d3-dsv are fuller parsers (type guessing for dates and booleans, streaming, error recovery, other delimiters); text-columns does less on purpose. On a laptop (Firefox 160, 16 cores, 200,000 rows x 6 columns): text-columns 46 to 52 ms, d3-dsv arrays 80 to 82, Papa Parse typed rows 158 to 166 (lower is better; two runs, see Numbers).
+Papa Parse and d3-dsv are fuller parsers (type guessing for dates and booleans, streaming, error recovery, other delimiters); text-columns does less on purpose. A wide text-heavy file is close to level, and Firefox is 6% slower than Papa Parse on the SBA file. d3-dsv, the plain-JavaScript path, the WebAssembly share and `toRows()` were measured on generated 200,000-row tables earlier and have not been re-measured on real files; those figures were removed from this page. The harness and raw results are in `tools/real-corpus`.
 
 ## Limits
 - One-character delimiter below 128 other than a quote or a line break.

@@ -1,8 +1,20 @@
+**Measured on real game frames: cloud Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, one browser at a time, 2026.11.22.** 30 real screenshots (400 x 300) of the shipped Fancy Banana game, taken 100 ms apart and 300 ms apart (about 7 percent of the pixels change from one frame to the next). Each library gets the same 30 frames and a palette built from the same 8 spread frames. Median of 5 runs in a fresh page; times are Chromium / Firefox / WebKitGTK. This replaces the earlier generated captures. The Pineapple Defense start screen was a static card (no frame changed), so it was left out. gif.js was not re-run.
+
+Compared: gif-writer against gifenc 1.0.3 on real game frames (whole animation, ms and bytes).
+
+<!-- title: On real game frames, gif-writer's file is 27% to 29% of gifenc's size and it writes it 3.3 to 5.7 times faster -->
+| frames | gif-writer ms | gifenc ms | gif-writer bytes | gifenc bytes |
+|---|---|---|---|---|
+| Banana, 100 ms apart | 82.5 / 95 / 80 | 342.7 / 543 / 314 | 207,855 | 782,433 |
+| Banana, 300 ms apart | 83 / 103 / 92 | 345.6 / 523 / 305 | 224,544 | 775,767 |
+
+gifenc was 3.3 to 5.7 times slower. Both files come from the same frames; the pictures were not compared side by side here (gif-writer's own test checks every pixel). Harness: `tools/real-corpus` (needs the game repository beside this one).
+
 **Measured on a real laptop: Firefox 160 (Windows), 16 cores, 2026.10.30, 7:09 PM.** Medians; lower is better for every time, size and ratio. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
 
 Compared: gif-writer against gifenc and gif.js (30 frames of 320 x 240).
 
-<!-- title: On a typical capture, gif-writer is at least 5 times smaller and 6 to 31 times faster than gifenc and gif.js -->
+<!-- title: On generated captures (earlier laptop run), gif-writer is at least 5 times smaller and 6 to 31 times faster than gifenc and gif.js -->
 | animation | writer | ms | bytes |
 |---|---|---:|---:|
 | typical capture (sprite over still background) | gif-writer (one palette) | 10 | 40,098 |

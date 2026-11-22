@@ -99,7 +99,7 @@ The same default file loaded on a page whose policy forbids WebAssembly decoded 
 
 ## How it compares
 
-Measured against the npm `lzma` package (LZMA-JS), the best-known LZMA decoder for pages, in the three test browsers: this module unpacks 14 to 30 times faster with WebAssembly and 4 to 19 times faster in plain JavaScript, and it is readable in one sitting. It only decodes; LZMA-JS also compresses.
+Measured on real files (the first 3 MB of the retail, SEC and SBA tables, 2026.11.22, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6, output identical byte for byte), this module unpacks 26 to 184 times faster than the npm `lzma` package (LZMA-JS) with WebAssembly. The older measurement on repository text, against the same package, in the three test browsers: this module unpacks 14 to 30 times faster with WebAssembly and 4 to 19 times faster in plain JavaScript, and it is readable in one sitting. It only decodes; LZMA-JS also compresses.
 
 **The test.** The same 3 MB of text (JS, Markdown and HTML files from this repository), packed with Python's `lzma` (lc 3, pb 2, 8 MB dictionary, preset 6) into 891,974 bytes, unpacked with each decoder in a fresh page, 15 pages per decoder taking turns, median in ms (lower is better). First column: the first 400 KB file after the page loads; second: the 3 MB file right after. Every output was checked byte for byte against the original. LZMA-JS is called the way its README shows (`LZMA.decompress(bytes, callback)`), so it hands back a string and the time runs until its callback. It does its work in timed slices, which costs it some time; the times below are what a page sees.
 

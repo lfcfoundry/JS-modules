@@ -1,18 +1,23 @@
-**Measured on a real laptop: Firefox 160 (Windows), 16 cores, 2026.10.30, 7:09 PM and 8:50 PM.** Medians; lower is better for every time, size and ratio. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
+**Measured on real files: cloud Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, one browser at a time, 2026.11.22.** Medians of 5 runs inside a fresh page; lower is better. The files are the first 8 MB of three real tables: the retail e-commerce file (95,607 rows, 8 columns, Latin-1), the SEC 2026 Q1 numbers file (54,712 rows, 9 columns, tab separated) and the SBA assistance file (3,206 rows, 116 columns, mostly text). Papa Parse is given the decoded text with a header and typed values. This replaces the earlier generated 200,000-row table; d3-dsv was not re-run on real files.
 
-Compared: text-columns against Papa Parse and d3-dsv (200,000 rows x 6 columns, 7.9 MB, ms).
+Compared: text-columns against Papa Parse on real files (ms).
 
-<!-- title: text-columns reads 200,000 CSV rows into columns 3.4 times faster than Papa Parse with typed rows, and 1.8 times faster than d3-dsv's arrays -->
-| library and output | ms |
-|---|---:|
-| text-columns (columns out) | 46 |
-| text-columns (row objects) | 64 |
-| Papa Parse (rows, typed) | 158 |
-| d3-dsv csvParseRows (arrays, text only) | 82 |
+<!-- title: text-columns reads real CSV files 0.9 to 4.9 times as fast as Papa Parse with typed rows, and loses in Firefox on a 116-column text file -->
+| real file and browser | text-columns ms | Papa Parse ms |
+|---|---:|---:|
+| Retail, Chromium | 165 | 261 |
+| Retail, Firefox | 107 | 206 |
+| Retail, WebKitGTK | 141 | 145 |
+| SEC, Chromium | 29 | 143 |
+| SEC, Firefox | 68 | 125 |
+| SEC, WebKitGTK | 32 | 118 |
+| SBA, Chromium | 74 | 113 |
+| SBA, Firefox | 80 | 75 |
+| SBA, WebKitGTK | 75 | 93 |
 
-Papa Parse with typed rows takes 3.4x as long as text-columns columns. d3-dsv csvParse builds its reader with `new Function`, which a strict content security policy forbids, so only its arrays reader is timed.
+Ratios (Papa Parse time / text-columns time): retail 1.58 / 1.93 / 1.03, SEC 4.86 / 1.84 / 3.69, SBA 1.54 / 0.94 / 1.24 in Chromium / Firefox / WebKitGTK. Numeric tables gain most; a wide text-heavy table is close to level, and Firefox is slower than Papa Parse on it (0.94). Harness and raw results: `tools/real-corpus` and the project folder `js-modules-research/audit-synthetic-claims-2026.11.22`.
 
-**WebAssembly line scan.** On the same 200,000 rows the WebAssembly scan takes 52 ms against 122 ms for plain JavaScript.
+**WebAssembly line scan (generated rows, not re-measured on real files).** On 200,000 generated rows the WebAssembly scan takes 52 ms against 122 ms for plain JavaScript.
 
 
 **Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
@@ -34,7 +39,7 @@ Same values from both. At this size the plain parse is within about 10% of 0.1.1
 | parse 0.5.0 | 44 |
 | parseParallel 0.5.0, 4 helpers | 44 |
 
-Same values. Plain parse is level with 0.1.1 and `parseParallel` does not help at this size. Against other libraries in Firefox 160 (200,000 rows x 6 columns, 7.9 MB): text-columns columns 52 ms, row objects 59 ms, Papa Parse typed rows 166 ms (3.2x), Papa Parse arrays 86 ms, d3-dsv arrays 80 ms.
+Same values. Plain parse is level with 0.1.1 and `parseParallel` does not help at this size.
 
 
 **New in 0.5.1:** once helpers are running, parallel reading starts at 4 MB instead of 32 MB, taking about 0.6 to 0.9 of the time on mid-size files. Smaller files stay on one thread.

@@ -1,15 +1,15 @@
-**Measured on a real laptop: Firefox 160 (Windows), 16 cores, 2026.10.30, 7:09 PM.** Medians; lower is better for every time, size and ratio. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
+**Measured on real files: cloud Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, one browser at a time, 2026.11.22.** Medians of 3 to 5 runs inside a fresh page. The zip holds 400 real CSV files: the first 8 MB of the retail e-commerce table cut into 400 equal pieces (each with the header row), zipped by fflate at level 6 (1,838,778 bytes). Every library opens the zip and reads every file as text. This replaces the earlier generated 400-file zip measured on the laptop.
 
-Compared: zip-open against fflate and JSZip (400 CSV files, 2.45 MB zip, ms).
+Compared: zip-open against fflate and JSZip 3.10 (400 real CSV files, ms; Chromium / Firefox / WebKitGTK).
 
-<!-- title: zip-open expands 400 CSV files about 1.4 times faster than fflate and 1.9 times faster than JSZip, while also checking every checksum and refusing zip bombs -->
-| library | ms |
-|---|---:|
-| zip-open expand (safe, text out) | 34 |
-| fflate | 49 |
-| JSZip | 66 |
+<!-- title: zip-open expands 400 real CSV files 1.3 to 3.3 times faster than fflate and 2.8 to 4.7 times faster than JSZip, while also checking every checksum and refusing zip bombs -->
+| library | ms (Chromium / Firefox / WebKitGTK) |
+|---|---|
+| zip-open expand (safe, text out) | 34.8 / 40 / 33 |
+| fflate (unzip, then decode) | 56.4 / 57 / 108 |
+| JSZip | 137.7 / 110 / 156 |
 
-zip-open also checks every checksum and size limit and refuses zip bombs; the others do the plain work.
+Two runs of the same test gave fflate / zip-open ratios of 1.62 and 1.59 (Chromium), 1.43 and 1.29 (Firefox), 3.27 and 2.48 (WebKitGTK); the range above covers both. zip-open also checks every checksum and size limit and refuses zip bombs; the others do the plain work. Harness: `tools/real-corpus`.
 
 
 **Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.

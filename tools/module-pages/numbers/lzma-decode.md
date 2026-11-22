@@ -1,3 +1,16 @@
+**Measured on real files: cloud Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, one browser at a time, 2026.11.22.** The first 3 MB of the retail e-commerce CSV, the SEC 2026 Q1 numbers file and the SBA assistance CSV, each packed with Python's `lzma` (lc 3, lp 0, pb 2, 8 MB dictionary, preset 6) into 229,999, 184,520 and 90,292 bytes. Median of 5 warm decodes in one page; every output was checked byte for byte against the original. LZMA-JS (npm `lzma`, decoder-only build) hands back a string through its callback; the time runs to the callback. The default WebAssembly decoder ran in every case.
+
+Compared: lzma-decode against LZMA-JS on real text (warm decode of 3 MB, ms; Chromium / Firefox / WebKitGTK).
+
+<!-- title: lzma-decode unpacks 3 MB of real data 26 to 184 times as fast as the npm LZMA decoder, with identical output -->
+| real file | lzma-decode | LZMA-JS | LZMA-JS / lzma-decode |
+|---|---|---|---|
+| Retail CSV | 18.3 / 16 / 17 | 481.9 / 595 / 1554 | 26x / 37x / 91x |
+| SEC numbers | 12.6 / 12 / 12 | 455.5 / 664 / 1349 | 36x / 55x / 112x |
+| SBA CSV | 7.8 / 8 / 9 | 481.5 / 536 / 1660 | 62x / 67x / 184x |
+
+First decode on a page (load and warm-up included) gave 27 to 55 times in the three browsers on the retail file (17.7 / 22 / 25 ms against 527 / 597 / 1,367). The earlier game-page and repository-text figures below are older measurements. Harness and raw results: `tools/real-corpus`.
+
 **Measured on a real laptop.** Laptop (Windows, 16 cores, screen scale 1.25), single runs with apps open, 2026.10.31 11:10 PM ET. First decode in a fresh frame, load and wasm compile included, median of 7. The input is a 569,513-byte slice of the current Pineapple Defense page, with 193,108 bytes of LZMA. That is newer than the README's page (141,872 bytes of LZMA), so the times are not directly comparable. Lower is better.
 
 | Browser | Plain JS | Default (wasm) | Times as fast |

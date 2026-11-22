@@ -1,0 +1,129 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    APPLICATION : real-data benchmark page
+    FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset=utf-8><title>real-data audit</title>
+<script src="papaparse.min.js"></script><script src="fflate.js"></script><script src="fzstd.js"></script><script src="jszip.min.js"></script><script src="d3h.js"></script><script src="ge.js"></script><script src="gif-writer.js"></script><script src="pcodec-js-pack.js"></script><script src="lzmajs.js"></script><script src="lzma-decode-with-wasm.js"></script><script src="netflow-hierarchy.js"></script><script src="msgpackr.js"></script><script src="gl.js"></script>
+<script src="dagre.min.js"></script><script src="d3s.js"></script><script src="netflow-layers.js"></script><script src="netflow-sankey.js"></script><script src="zip-open.js"></script><script src="text-columns.js"></script><script src="lz4-kit.js"></script><script src="zstd-kit.js"></script><script src="memory-compression.js"></script><script src="graph-walk.js"></script>
+<script>
+const med=a=>{a=a.slice().sort((x,y)=>x-y);return a[a.length>>1]};
+const T=(f,reps=5)=>{const t=[];let r;for(let i=0;i<reps;i++){const s=performance.now();r=f();t.push(performance.now()-s)}return {ms:+med(t).toFixed(2),r}};
+const TA=async(f,reps=5)=>{const t=[];let r;for(let i=0;i<reps;i++){const s=performance.now();r=await f();t.push(performance.now()-s)}return {ms:+med(t).toFixed(2),r}};
+const get=async u=>new Uint8Array(await (await fetch(u)).arrayBuffer());
+async function gz(b){const cs=new Blob([b]).stream().pipeThrough(new CompressionStream('gzip'));return new Uint8Array(await new Response(cs).arrayBuffer())}
+async function gunz(b){const ds=new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'));return new Uint8Array(await new Response(ds).arrayBuffer())}
+const tests={
+ async csv(){const out={};for(const [n,u,d,enc] of [['retail','retail.csv',',','latin1'],['sec','sec.tsv','\t','utf-8'],['sba','sba.csv',',','utf-8']]){
+   const b=await get(u);const tc=T(()=>TextColumns.parse(b,{delimiter:d}));
+   const pp=T(()=>{const s=new TextDecoder(enc).decode(b);return Papa.parse(s,{delimiter:d,header:true,dynamicTyping:true,skipEmptyLines:true})});
+   out[n]={mb:+(b.length/1e6).toFixed(1),rows:tc.r.count,textcolumns_ms:tc.ms,papa_ms:pp.ms,ratio_papa_over_tc:+(pp.ms/tc.ms).toFixed(2)}}return out},
+ async comp(){const out={};await Lz4Kit.init();await ZstdKit.init();for(const [n,u] of [['retail','retail.csv'],['sec','sec.tsv'],['sba','sba.csv'],['fhir_training','fhir.ndjson']]){
+   const full=await get(u);const b=full.subarray(0,4194304);
+   const l=T(()=>Lz4Kit.compress(b));const z=T(()=>ZstdKit.compress(b,3));const g=await TA(()=>gz(b),3);const ff=T(()=>fflate.gzipSync(b),3);
+   const ld=T(()=>Lz4Kit.decompress(l.r));const zd=T(()=>ZstdKit.decompress(z.r));const gd=await TA(()=>gunz(g.r),3);const fz=T(()=>fzstd.decompress(z.r),3);
+   out[n]={bytes:b.length,size:{lz4:l.r.length,zstd3:z.r.length,gzip:g.r.length},compress_ms:{lz4:l.ms,zstd3:z.ms,browser_gzip:g.ms,fflate_gzip:ff.ms},decompress_ms:{lz4:ld.ms,zstd3:zd.ms,browser_gzip:gd.ms,fzstd:fz.ms},
+     lz4_vs_gzip_compress_speedup:+(g.ms/l.ms).toFixed(2)}}return out},
+ async mem(){const R=await (await fetch('recs.json')).json();R.fhir_training=await (await fetch('recs-fhir.json')).json();const out={};const enc=new TextEncoder();
+   for(const n of ['retail','sec','fhir_training']){const rows=R[n];const jb=enc.encode(JSON.stringify(rows));
+    const m=T(()=>MemoryCompression.pack(rows,{mode:'fast'}),3);const mu=T(()=>MemoryCompression.unpack(m.r),3);
+    const sr=new msgpackr.Packr({useRecords:true});const p=T(()=>sr.pack(rows),3);const pu=T(()=>sr.unpack(p.r),3);
+    const fg=T(()=>fflate.gzipSync(jb),1);const fu=T(()=>fflate.gunzipSync(fg.r),3);
+    out[n]={rows:rows.length,json_bytes:jb.length,size:{memcomp_fast:m.r.length,msgpackr_records:p.r.length,fflate_gzip_json:fg.r.length},pack_ms:{memcomp:m.ms,msgpackr:p.ms,fflate:fg.ms},unpack_ms:{memcomp:mu.ms,msgpackr:pu.ms,fflate_plus_none:fu.ms}}}return out},
+ 
+ async layers(){const Lg=await (await fetch('layers.json')).json();const out={};
+  for(const k of ['n300','n1000']){const g=Lg[k];const n=g.nodes.length;const edges=g.edges.sort((a,b)=>b.count-a.count).slice(0,2*n);
+   const root=g.nodes[0];
+   const nl=T(()=>NetflowLayers.layout({root,nodes:g.nodes.map(id=>({id,w:140,h:44})),edges:edges.map(e=>({from:e.from,to:e.to,count:e.count}))},{dir:'TB',tagLen:8}),k==='n3000'?2:3);
+   const dg=T(()=>{const G=new dagre.graphlib.Graph();G.setGraph({rankdir:'TB'});G.setDefaultEdgeLabel(()=>({}));g.nodes.forEach(id=>G.setNode(id,{width:140,height:44}));edges.forEach(e=>G.setEdge(e.from,e.to));dagre.layout(G);return G},k==='n3000'?1:3);
+   out[k]={nodes:n,links:edges.length,netflow_layers_ms:nl.ms,dagre_ms:dg.ms,speedup:+(dg.ms/nl.ms).toFixed(1)}}return out},
+ async sankey(){const S=await (await fetch('sankey.json')).json();const out={};
+  for(const k of Object.keys(S)){const links=S[k];
+   const a=T(()=>NetflowSankey.layoutFlows({links:links.map(l=>({from:l.from,to:l.to,value:l.value}))},{height:600}),3);
+   let b;try{b=T(()=>{const ids=[...new Set(links.flatMap(l=>[l.from,l.to]))];const idx=new Map(ids.map((x,i)=>[x,i]));const nodes=ids.map(id=>({id}));const ls=links.map(l=>({source:idx.get(l.from),target:idx.get(l.to),value:l.value}));return D3S.sankey().nodeWidth(15).nodePadding(8).extent([[0,0],[900,600]])({nodes,links:ls})},3)}catch(e){b={ms:'error '+e.message}}
+   out[k]={links:links.length,netflow_sankey_ms:a.ms,d3_sankey_ms:b.ms,loops:a.r.loops&&a.r.loops.length,speedup:typeof b.ms==='number'?+(b.ms/a.ms).toFixed(2):null}}return out},
+ async zip(){const b=await get('retail.csv');const txt=new TextDecoder('latin1').decode(b);const lines=txt.split('\n');const head=lines[0];const files={};const per=Math.floor((lines.length-1)/400);
+   for(let i=0;i<400;i++){files['f'+i+'.csv']=new TextEncoder().encode(head+'\n'+lines.slice(1+i*per,1+(i+1)*per).join('\n'))}
+   const z=fflate.zipSync(files,{level:6});
+   const a=await TA(()=>ZipOpen.expand(z),5);const f=T(()=>{const u=fflate.unzipSync(z);let n=0;for(const k in u){n+=new TextDecoder().decode(u[k]).length}return n},5);
+   const j=await TA(async()=>{const x=await JSZip.loadAsync(z);let n=0;for(const k of Object.keys(x.files)){n+=(await x.files[k].async('string')).length}return n},3);return {zip_bytes:z.length,files:400,zip_open_ms:a.ms,fflate_ms:f.ms,jszip_ms:j.ms,speedup_vs_fflate:+(f.ms/a.ms).toFixed(2),speedup_vs_jszip:+(j.ms/a.ms).toFixed(2)}}
+,
+ async sankeyq(){const S=await (await fetch('sankey.json')).json();const out={};
+  for(const k of Object.keys(S)){const links=S[k].map(l=>({from:l.from,to:l.to,value:l.value}));
+   const a=T(()=>NetflowSankey.layoutFlows({links},{height:600,quick:true}),5),b=T(()=>NetflowSankey.layoutFlows({links},{height:600}),5);
+   const c=T(()=>{const ids=[...new Set(links.flatMap(l=>[l.from,l.to]))];const idx=new Map(ids.map((x,i)=>[x,i]));return D3S.sankey().nodeWidth(15).nodePadding(8).extent([[0,0],[900,600]])({nodes:ids.map(id=>({id})),links:links.map(l=>({source:idx.get(l.from),target:idx.get(l.to),value:l.value}))})},5);
+   out[k]={links:links.length,quick_ms:a.ms,default_ms:b.ms,d3_ms:c.ms}}return out},
+ async floats(){const out={};for(const [n,u] of [['sec_values','floats-sec.bin'],['sba_award_amounts','floats-sba.bin'],['fhir_observation_values_training','floats-fhir.bin']]){
+   const b=await get(u);const f=new Float64Array(b.buffer,b.byteOffset,b.length/8);const raw=new Uint8Array(f.buffer);
+   const m=T(()=>MemoryCompression.pack(f),3),mu=T(()=>MemoryCompression.unpack(m.r),3);const bl=T(()=>MemoryCompression.pack(f,{mode:'balanced'}),3),blu=T(()=>MemoryCompression.unpack(bl.r),3);
+   const g=T(()=>fflate.gzipSync(raw,{level:6}),1),gu=T(()=>fflate.gunzipSync(g.r),3);
+   out[n]={values:f.length,raw_bytes:raw.length,memcomp:{bytes:m.r.length,pack_ms:m.ms,unpack_ms:mu.ms},memcomp_balanced:{bytes:bl.r.length,pack_ms:bl.ms,unpack_ms:blu.ms},fflate_gzip6:{bytes:g.r.length,pack_ms:g.ms,unpack_ms:gu.ms}}}return out},
+ async hier(){const Tr=await (await fetch('trees.json')).json();const out={};const NH=window.NetflowHierarchy;
+  const names=['icicle','icicle (unsorted)','treemap','sunburst','pack','tree'];
+  for(const ds of Object.keys(Tr))for(const k of Object.keys(Tr[ds])){const rows=Tr[ds][k];
+   const strat=()=>d3.stratify().id(d=>d.id).parentId(d=>d.parent)(rows),big=(a,b)=>b.value-a.value,val=d=>d.value;
+   const D=[()=>{const r=strat();r.sum(val).sort(big);d3.partition().size([1000,600])(r);return r},()=>{const r=strat();r.sum(val);d3.partition().size([1000,600])(r);return r},()=>{const r=strat();r.sum(val).sort(big);d3.treemap().size([1500,1000]).padding(3)(r);return r},()=>{const r=strat();r.sum(val).sort(big);d3.partition().size([6.283185307179586,800])(r);return r},()=>{const r=strat();r.sum(val).sort(big);d3.pack().size([1500,1500]).padding(3)(r);return r},()=>{const r=strat();d3.tree().size([1500,1000])(r);return r}];
+   const mk=()=>({nodes:rows}),o={nest:'links',sized:true,parentKey:'parent',sizeKey:'value',write:false};
+   const O=[()=>NH.layout('icicle',mk(),o),()=>NH.layout('icicle',mk(),Object.assign({},o,{sort:false})),()=>NH.layout('treemap',mk(),o),()=>NH.layout('sunburst',mk(),o),()=>NH.layout('pack',mk(),o),()=>NH.layout('tree',mk(),o)];
+   const one=f=>{f();const t0=performance.now();let c=0;do{f();c++}while(performance.now()-t0<8&&c<4000);return (performance.now()-t0)/c};
+   out[ds+' '+rows.length]={};
+   for(let i=0;i<6;i++){const a=[],b=[];for(let r=0;r<(rows.length>=100000?3:7);r++){if(r%2){a.push(one(D[i]));b.push(one(O[i]))}else{b.push(one(O[i]));a.push(one(D[i]))}}
+    out[ds+' '+rows.length][names[i]]={d3_ms:+med(a).toFixed(2),netflow_ms:+med(b).toFixed(2),ratio:+(med(b)/med(a)).toFixed(2)}}}
+  return out},
+ async lzma(){const out={};for(const n of ['retail','sec','sba','fhir']){const lz=await get(n+'-3mb.lzma'),orig=await get(n+'-3mb.txt');
+   const raw=lz.subarray(14);   /* 13-byte header, then the leading zero byte */
+   const mine=()=>lzmaDecode(raw,orig.length,{lc:3,lp:0,pb:2});
+   const theirs=()=>new Promise((res,rej)=>{LZMA.decompress(Array.from(lz),function(r,e){e?rej(e):res(r)})});
+   const t0=performance.now();const a1=mine();const first_mine=performance.now()-t0;
+   let ok=a1.length===orig.length&&a1.every((v,i)=>v===orig[i]);
+   const t1=performance.now();const b1=await theirs();const first_theirs=performance.now()-t1;
+   const m=T(mine,5);const th=await TA(theirs,5);
+   out[n]={compressed_bytes:lz.length,original_bytes:orig.length,identical:ok,engine:lzmaDecode.engine,first_ms:{lzma_decode:+first_mine.toFixed(1),lzma_js:+first_theirs.toFixed(1)},warm_ms:{lzma_decode:m.ms,lzma_js:th.ms},warm_speedup:+(th.ms/m.ms).toFixed(1)}}return out},
+ async pco(){const out={};const pco=await PcodecJS.load({warm:true});await ZstdKit.init();
+  for(const [n,u] of [['sec_values','floats-sec.bin'],['sba_award_amounts','floats-sba.bin'],['fhir_observation_values_training','floats-fhir.bin']]){
+   const b=await get(u);const f=new Float64Array(b.buffer,b.byteOffset,b.length/8);const raw=new Uint8Array(f.buffer);
+   const p8=T(()=>pco.pack(f,{level:8}),3),pu=T(()=>pco.unpack(p8.r),5);const ok=(()=>{const x=pco.unpack(p8.r);for(let i=0;i<f.length;i++)if(x[i]!==f[i]&&!(x[i]!==x[i]&&f[i]!==f[i]))return false;return true})();
+   const mc=T(()=>MemoryCompression.pack(f),3),mcu=T(()=>MemoryCompression.unpack(mc.r),5);
+   const g=T(()=>fflate.gzipSync(raw,{level:6}),1),gu=T(()=>fflate.gunzipSync(g.r),5);const z=T(()=>ZstdKit.compress(raw,3),3),zu=T(()=>ZstdKit.decompress(z.r),5);
+   out[n]={values:f.length,raw_bytes:raw.length,exact:ok,pcodec:{bytes:p8.r.length,pack_ms:p8.ms,unpack_ms:pu.ms},memcomp:{bytes:mc.r.length,pack_ms:mc.ms,unpack_ms:mcu.ms},fflate_gzip6:{bytes:g.r.length,pack_ms:g.ms,unpack_ms:gu.ms},zstd3:{bytes:z.r.length,pack_ms:z.ms,unpack_ms:zu.ms}}}return out},
+ async gif(){const out={};
+  for(const g of ['banana','banana300']){const pics=[];let w=0,h=0;
+   for(let i=0;i<30;i++){const bm=await createImageBitmap(await (await fetch('frame-'+g+'-'+String(i).padStart(2,'0')+'.png')).blob());w=bm.width;h=bm.height;const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.drawImage(bm,0,0);pics.push(x.getImageData(0,0,w,h).data)}
+   let changed=0;for(let i=1;i<30;i++){let d=0;for(let k=0;k<pics[i].length;k+=4)if(pics[i][k]!==pics[i-1][k]||pics[i][k+1]!==pics[i-1][k+1]||pics[i][k+2]!==pics[i-1][k+2])d++;changed+=d/(w*h)}
+   const spread=[0,4,8,12,16,20,24,29].map(i=>pics[i]);
+   const mine=()=>{const pal=GifWriter.makePalette(spread,255);const enc=GifWriter.createEncoder(w,h,pal,{loop:true});pics.forEach(p=>enc.add(p,100));return enc.finish()};
+   const theirs=()=>{const all=new Uint8Array(spread.length*w*h*4);spread.forEach((p,i)=>all.set(p,i*w*h*4));const pal=GE.quantize(all,256);const e=GE.GIFEncoder();pics.forEach(p=>{e.writeFrame(GE.applyPalette(p,pal),w,h,{palette:pal,delay:100})});e.finish();return e.bytes()};
+   const a=T(mine,5),b=T(theirs,5);
+   out[g]={frame:w+'x'+h,frames:30,avg_share_of_pixels_changed_per_frame:+(changed/29).toFixed(3),gif_writer:{bytes:a.r.length,ms:a.ms},gifenc:{bytes:b.r.length,ms:b.ms},size_ratio_gifwriter_over_gifenc:+(a.r.length/b.r.length).toFixed(2),speedup:+(b.ms/a.ms).toFixed(2)}}return out},
+ async graph(){const G=Object.assign(await (await fetch('graphs.json')).json(),await (await fetch('graphs-fhir.json')).json());const out={};
+   for(const [n,g] of Object.entries(G)){const f=Int32Array.from(g.f),t=Int32Array.from(g.t);
+    const w=T(()=>GraphWalk.csr(g.n,f,t),3);const gw=w.r;
+    const gl=T(()=>{const x=new GL.Graph({type:'directed',multi:false});for(let i=0;i<g.n;i++)x.addNode(i);for(let i=0;i<f.length;i++){try{x.addEdge(f[i],t[i])}catch(e){}}return x},1);const gr=gl.r;
+    const b1=T(()=>GraphWalk.bfs(gw,0),5),b2=T(()=>GL.bfs(gr,'0'),3);
+    const c1=T(()=>GraphWalk.components(gw),5),c2=T(()=>GL.connectedComponents(gr),3);
+    let s1=T(()=>GraphWalk.scc(gw),5),s2;try{s2=T(()=>GL.stronglyConnectedComponents(gr),3)}catch(e){s2={ms:'error '+e.message}}
+    out[n]={nodes:g.n,links:g.f.length,build_ms:{graph_walk:w.ms,graphology:gl.ms},bfs_ms:{graph_walk:b1.ms,graphology:b2.ms},components_ms:{graph_walk:c1.ms,graphology:c2.ms},scc_ms:{graph_walk:s1.ms,graphology:s2.ms},
+     bfs_speedup:+(b2.ms/b1.ms).toFixed(1),components_speedup:+(c2.ms/c1.ms).toFixed(1)}}return out}
+};
+window.runTest=async n=>{try{return await tests[n]()}catch(e){return {error:String(e&&e.stack||e)}}};
+</script>
