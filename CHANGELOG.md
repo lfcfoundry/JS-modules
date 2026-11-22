@@ -38,7 +38,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.6.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [guess-gate](modules/guess-gate/README.md) | 1.0.1 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
+| [guess-gate](modules/guess-gate/README.md) | 1.0.2 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.10.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
@@ -97,6 +97,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **lfc-pack** 0.14.11 · API 0: New opts.onBlock on unpackColumnsParallel: each block's columns reach your function as soon as that block is read, so a first picture can draw while the rest reads. Same final result.
 - 2026-11-21 · **lfc-pack** 0.14.10 · API 0: Packing a table with many columns skips two per-column costs: preview rows are made only when read, and whole numbers are counted without making their text. 120 columns, 700 rows: 0.6 to 0.7 of the time in three browsers. Same bytes.
 - 2026-11-21 · **idle-core** 1.3.0 · API 1: Prices of 1e10 and up are now exact to the coin and the same in every browser (before, from about 1e12 a price could be a coin low). Ordinary prices are as fast or a little faster.
+- 2026-11-21 · **guess-gate** 1.0.2 · API 1: README now says plainly that the share is a target: one unexpectedly long guess can go over, then guesses wait. stats().elapsed stops at finish().
 - 2026-11-21 · **guess-gate** 1.0.1 · API 1: Guesses use at most 5% of the time so far by default (was 10%): at 10% a progressive import ran 12% slower than none in WebKitGTK 2.52.6; at 5% Chromium 156, Firefox 158 and WebKitGTK are within noise of none.
 - 2026-11-21 · **guess-gate** 1.0.0 · API 1: New module: a time-boxed scheduler for first guesses during an import; guesses may use only a set share (10% by default) of the time so far, so a progressive import costs about the same total time as one without guesses.
 - 2026-11-21 · **elias-fano** 2.1.3 · API 2: "First value at or above" no longer crawls through long runs of one repeated value (24 to 42 times faster on a 100,000-copy run); same blobs and answers.
