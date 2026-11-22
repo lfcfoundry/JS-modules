@@ -107,3 +107,42 @@ EXPORT("numcol") u32 numcol(const u8*in, const u32*starts, const u32*ends, u32 n
   }
   return 1;
 }
+
+// u16map: turns the byte positions of the fields (starts[], ends[]; each rises: starts[0] <= ends[0] <= starts[1] ...) into UTF-16 positions of the same text decoded as UTF-8 (the browser's lenient decoder:
+// every bad sequence is one U+FFFD), in place, so the page decodes the text once and cuts substrings. Every position is next to a plain ASCII byte (a delimiter, a line end or a quote), so each run
+// of bytes of 128 or more decodes by itself. Returns 1 (nothing changed beyond what was written) when a run starts with a byte order mark (the page then decodes field by field), else 0.
+static u32 run_units(const u8*in, u32 a, u32 b) {   // UTF-16 units that the bytes a..b-1 (all >= 128) decode to
+  u32 n = 0, need = 0, lower = 0x80, upper = 0xBF, seq = 0, i = a;
+  while (i < b) {
+    u8 c = in[i];
+    if (need == 0) {
+      if (c >= 0xC2 && c <= 0xDF) { need = 1; seq = 1; }
+      else if (c >= 0xE0 && c <= 0xEF) { need = 2; seq = 2; if (c == 0xE0) lower = 0xA0; else if (c == 0xED) upper = 0x9F; }
+      else if (c >= 0xF0 && c <= 0xF4) { need = 3; seq = 3; if (c == 0xF0) lower = 0x90; else if (c == 0xF4) upper = 0x8F; }
+      else n++;
+      i++;
+    } else if (c < lower || c > upper) { n++; need = 0; lower = 0x80; upper = 0xBF; }   // the bad byte is read again
+    else { lower = 0x80; upper = 0xBF; need--; i++; if (need == 0) n += seq == 3 ? 2 : 1; }
+  }
+  if (need) n++;
+  return n;
+}
+EXPORT("u16map") u32 u16map(const u8*in, u32 len, u32*starts, u32*ends, u32 nf) {
+  u32 k = 0, cum = 0, base = 0, p, q, nb = 2 * nf, bom = 0;
+#define BND(j) (((j) & 1) ? ends[(j) >> 1] : starts[(j) >> 1])
+#define SETB(j, v) do { if ((j) & 1) ends[(j) >> 1] = (v); else starts[(j) >> 1] = (v); } while (0)
+#define RUN(p) do { q = (p); while (q < len && in[q] >= 128) q++; \
+    while (k < nb && BND(k) <= (p)) { SETB(k, BND(k) - cum); k++; } \
+    if (q - (p) >= 3 && in[p] == 0xEF && in[(p) + 1] == 0xBB && in[(p) + 2] == 0xBF) bom = 1; \
+    cum += (q - (p)) - run_units(in, (p), q); } while (0)
+#ifdef __wasm_simd128__
+  while (base + 16 <= len) {
+    u32 m = wasm_i8x16_bitmask(wasm_v128_load(in + base));
+    if (!m) { base += 16; continue; }
+    p = base + __builtin_ctz(m); RUN(p); base = q;
+  }
+#endif
+  for (p = base; p < len; ) { if (in[p] < 128) { p++; continue; } RUN(p); p = q; }
+  while (k < nb) { SETB(k, BND(k) - cum); k++; }
+  return bom;
+}

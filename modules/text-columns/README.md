@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.7.1 · API 0**
+**Version 0.8.0 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -17,6 +17,19 @@ Reads CSV or TSV text straight into typed columns. Decimal columns come out as `
 ## Why it exists
 
 Usual parsers build a string for every cell and an object for every row, which costs time and memory on big tables. Pages that import a table usually want columns for charts or for [lfc-pack](../lfc-pack/README.md). On the laptop in Firefox 160 it read 200,000 rows in 46 ms against Papa Parse's 158 ms.
+
+On real files (8 MB slices of public CSV and TSV files, Papa Parse given the decoded text with `header` and `dynamicTyping`), 0.8.0 is 2.1 to 5.8 times faster than Papa Parse in all three test browsers, including wide text files and files with accents, where 0.7.1 was barely ahead or behind. Text that is not plain ASCII is now decoded once and cut into substrings, instead of one decoder call per field.
+
+| Real file (8 MB slice) | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
+|---|---:|---:|---:|
+| Online retail invoices, 8 columns, Latin-1 | 5.0x | 5.8x | 3.7x |
+| SEC financial statement numbers (TSV), 10 columns | 5.4x | 4.9x | 4.6x |
+| SBA assistance awards, 116 columns, mostly text | 3.6x | 2.9x | 2.1x |
+| NFL play by play, 372 columns | 4.7x | 5.5x | 5.4x |
+| Airport codes, quoted fields | 2.9x | 2.6x | 2.6x |
+| World cities (UTF-8 and Latin-1 copies) | 3.7 to 4.0x | 3.9 to 4.7x | 2.4 to 2.6x |
+
+Time Papa Parse takes divided by time text-columns takes (higher is better); median of 5 to 9 runs on one page per browser. Papa Parse 5.4.1 from npm.
 
 **Where it helps**
 

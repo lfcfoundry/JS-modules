@@ -34,7 +34,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lfc-pack](modules/lfc-pack/README.md) | 0.24.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
-| [text-columns](modules/text-columns/README.md) | 0.7.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
+| [text-columns](modules/text-columns/README.md) | 0.8.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.6.5 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-11-22 · **zstd-kit** 1.0.1 · API 1: The encoder's setting search is smaller and quicker to run.
 - 2026-11-22 · **walker-sim** 2.5.0 · API 2: Single-walker trials run faster on sparse graphs.
+- 2026-11-22 · **text-columns** 0.8.0 · API 0: Files with accents or other non-ASCII text read 2 to 4 times faster (text is decoded once instead of per field); lazy columns stay lazy.
 - 2026-11-22 · **lfc-pack** 0.24.1 · API 0: Tail estimates from sampled summaries are no longer biased high.
 - 2026-11-22 · **image-decode** 1.2.3 · API 1: Uses the browser's built-in base64 decoder when it has one.
 - 2026-11-22 · **elias-fano** 2.2.1 · API 2: Tiny lists read faster.

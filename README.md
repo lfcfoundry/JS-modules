@@ -57,7 +57,7 @@ lfc-pack 0.4.0 on 260 MB of real FHIR records, measured 2026.10.31 in cloud Chro
 
 Since this run, 0.4.4 packs FHIR 10 to 15% faster, and 0.4.6 makes the same file 7.30 MB, 39% of Parquet's size.
 
-text-columns reads CSV 3 to 12 times faster than Papa Parse with typed rows: 3.2x on a laptop in Firefox 160, 7 to 12x in the cloud test browsers.
+text-columns reads CSV 2 to 6 times faster than Papa Parse with typed rows on real files (8 MB slices of public files, three test browsers), and 3.2x on a laptop in Firefox 160 with made-up rows.
 
 MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built with it. Keeping the license line is the only ask.
 
@@ -195,7 +195,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 | 136.4 | 49.7 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 | 464.7 | 134.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
-| [text-columns](modules/text-columns/README.md) | 0.7.1 | 65.2 | 22.0 | Reads CSV and TSV into number and text columns, 3 to 12 times faster than Papa Parse. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
+| [text-columns](modules/text-columns/README.md) | 0.8.0 | 70.8 | 24.0 | Reads CSV and TSV into number and text columns, 2 to 6 times faster than Papa Parse on real files. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 | 500.0 | 154.4 | Zstandard compress and decompress, XXH64 and CRC-32, in WebAssembly. | — |
 
 #### Graphs and simulation
