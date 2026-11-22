@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.19.1 · API 2 · 2026-11-22
+- Balanced and small modes trust the first blocks of a decimal column: SEC floats pack 1.0% smaller and 25% faster in Chromium.
+
 ## 2.19.0 · API 2 · 2026-11-22
 - A Float64Array in balanced or small mode packs about 40% smaller than gzip on real decimals; default mode is unchanged.
 

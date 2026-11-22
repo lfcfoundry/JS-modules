@@ -313,7 +313,7 @@
         } else for (i = 0; i < n; i++) { x = a[i]; y = 0; if (x !== 0) { q = Math.floor(x / 10); while (q * 10 === x) { x = q; y++; q = Math.floor(x / 10); } if (y) j++; } d[i] = x; g[i] = y; }
         if (j * 8 < n) return null;
         e1 = decPick(opt, 0, g, depth - 1); e2 = decPick(opt, 1, d, depth - 1);
-        w.bytes(e1); w.bytes(e2); return w.out();
+        w.need(e1.length + e2.length + 2); w.bytes(e1); w.bytes(e2); return w.out();
       }
       if (sch === IS.DELTA) {
         if (n < 4) return null;
@@ -470,7 +470,7 @@
       u32a[HI] = h; u32a[LO] = l; return f64a[0];
     }
     function encALP(a, depth, opt) {       // decimals as whole numbers; a value that is NOT exactly a decimal is stored as its distance in last-place steps from the decimal guess
-      var n = a.length, ef = alpParams(a), e = ef[0], f = ef[1], ints = new Float64Array(n), pos = [], near = [], raw = [], last = 0, i, v, d, code, d0, r, w, kw = KWC, ex = null, xi = 0, aP, iP, pP;
+      var n = a.length, ef = alpParams(a), e = ef[0], f = ef[1], ints = new Float64Array(n), pos = [], near = [], raw = [], last = 0, i, v, d, code, d0, r, w, kw = KWC, ex = null, xi = 0, aP, iP, pP, ix;
       if (kw && n >= 1024) {                                                  // the exact decimals in the wasm helper; only the rows that are not exact are looked at here
         aP = kw.base; iP = kal(aP + n * 8); pP = kal(iP + n * 8);
         if (kwRoom(pP + n * 4 - kw.base + 64)) {
@@ -495,7 +495,7 @@
         if (pos.length * 2 > n) return null;                  // more than half the values are not decimals: stop now
       }
       if (pos.length * 2 > n) return null;
-      w = new Wr(); w.u8(e); w.u8(f); w.vi(pos.length); w.bytes(encInts(ints, depth, opt));
+      w = new Wr(); ix = encInts(ints, depth, opt); w.need(ix.length + 16); w.u8(e); w.u8(f); w.vi(pos.length); w.bytes(ix);
       if (pos.length) {
         w.bytes(encInts(gapsOf(pos), depth - 1, opt)); w.bytes(encInts(Float64Array.from(near), depth - 1, opt));
         for (i = 0; i < raw.length; i++) w.f64(raw[i]);
@@ -747,7 +747,7 @@
       }
       if (only && !best) return encChunk(a, depth, opt, null);                          // none of the ways that won before applies to this block: try them all
       if (!best || best.length >= a.length * 8) { best = rawDoubles(a); bs = CS.RAWF; }
-      w = new Wr(); w.u8(bs); w.bytes(best); return w.out();
+      w = new Wr(); w.need(best.length + 1); w.u8(bs); w.bytes(best); return w.out();
     }
     function into1(out, at, n, got) { if (got.buffer !== out.buffer || got.byteOffset !== out.byteOffset + at * 8) out.set(got, at); }      // a block that was not decoded in place is copied in
     function decChunk(r, n, into) {
@@ -776,22 +776,25 @@
     var AUTO_MAX = 100000;
     function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
-      var autoQ = !!(opts && opts.auto), stable = false, prevBpn = 0, blk, qk;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
+      var autoQ = !!(opts && opts.auto), stable = false, stableD = false, prevBpn = 0, blk, qk;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
         k++; blk = a.subarray(i, Math.min(n, i + CHUNK));
         qk = o.quick || (autoQ && stable && n <= AUTO_MAX);
-        full = !(k > (qk ? 1 : 2) && k % (autoQ && stable ? 32 : 8) !== 0 && won.length);
+        full = !(k > (qk ? 1 : 2) && k % (autoQ && (stable || stableD) ? 32 : 8) !== 0 && won.length);
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
         part = encChunk(blk, 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
-        if (autoQ && !full && stable && prevBpn > 0 && part.length / blk.length > prevBpn * 99) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stable = false; }   // a block far worse than the one before: try every way again and stop skipping
+        if (autoQ && !full && stable && prevBpn > 0 && part.length / blk.length > prevBpn * 99) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stable = false; }
+        else if (autoQ && !full && stableD && prevBpn > 0 && part.length / blk.length > prevBpn * 1.5) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stableD = false; }   // since 2.19.0: a decimal column trusts the first blocks too (every 32nd block tries all), until a block comes out 1.5 times bigger   // a block far worse than the one before: try every way again and stop skipping
         prevBpn = part.length / blk.length;
         if (autoQ && k === 1) stable = part[0] === CS.INTS;
+        if (autoQ && k === 1 && !stable) stableD = part[0] === CS.ALP;
         if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
         if (part[0] === CS.INTS && wonInts.indexOf(part[1]) < 0 && part[1] !== IS.RAW) wonInts.push(part[1]);
         else if (part[0] === CS.ALP) { qk = alpInner(part); if (qk >= 0 && qk !== IS.RAW && wonInts.indexOf(qk) < 0) wonInts.push(qk); }     // since 2.19.0: the way that packed the whole numbers of a decimal block is also the only one the next blocks try (every 8th block tries all)
-        w.vi(part.length); w.bytes(part);
+        if (i === 0 && n > CHUNK) w.need(Math.ceil(part.length * (n / CHUNK) * 1.25) + 64);      // one buffer for the whole column, sized from the first block
+        w.need(part.length + 10); w.vi(part.length); w.bytes(part);
         if (opts && opts.labels) opts.labels.push(describe(part));
       }
       if (H) H.k = k;
