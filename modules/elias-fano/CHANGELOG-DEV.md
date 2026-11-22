@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.2 · API 2 · 2026-11-22
+
+### Quick
+The SIMD WebAssembly build decodes flat lists (16 or more values, up to 16 low bits) eight values at a time; same answers and format.
+
+### Details
+Real lists, 2.2.2 / 2.2.1, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: toArray on long lists (1,024+ values) 0.68 / 0.54 / 0.56, mid lists (64 to 1,023) 0.70 / 0.60 / 0.69.
+
+### Deep
+toArray on a flat list now uses ef_decode_fast in the SIMD WebAssembly build: a byte table turns 8 high bits into 8 positions and swizzle plus multiply cuts out the low bits, for lists of 16 or more values with up to 16 low bits; anything else, and the plain build, keeps the old decoder. Same blob format, same answers. On real lists from five files, 2.2.2 against 2.2.1 (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6): long lists (1,024 or more values) 0.68 / 0.54 / 0.56 of the time, mid lists (64 to 1,023) 0.70 / 0.60 / 0.69 (Chromium mid from a longer run; short runs there ranged 0.86 to 1.11). New test/simd-decode.js: 3,276 lists, 14.5 million values, low-bit widths 0 to 27 (the 16/17 edge included), lengths around multiples of 8, after trim() and in JavaScript. Decoder from the Elias-Fano research thread.
+
 ## 2.2.1 · API 2 · 2026-11-22
 
 ### Quick
