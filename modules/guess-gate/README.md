@@ -1,14 +1,14 @@
 # guess-gate
 
-**Version 1.0.1 · API 1**
+**Version 1.0.2 · API 1**
 
-**Tested in:** node tests (7 checks, fake clock); import timing in ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.
+**Tested in:** node tests (9 checks, fake clock); import timing in ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (unchanged since 1.0.1)
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
 ## What it is and how it works
 
-A small timer for apps that show a first guess while data is still arriving. You tell it when a guess would be drawn, and it says yes only when the guesses so far, plus this one, would use no more than a set share of the import time. The import stays about as fast as with no guesses at all, and the page still shows something early. No dependencies, one file.
+A small timer for apps that show a first guess while data is still arriving. You tell it when a guess would be drawn, and it says yes only when the guesses so far, plus this one's estimate, would use no more than a set share of the import time. The share is a target, not a hard stop: nothing can interrupt a guess that is already running, so one guess that takes far longer than expected (for example the very first one, whose estimate is 0 unless you pass one) can go over; after that no guess runs until the total is back under the share. The import stays about as fast as with no guesses at all, and the page still shows something early. No dependencies, one file.
 
 ## Why it exists
 
@@ -17,7 +17,7 @@ Showing a first guess while data is still arriving (a layout of the rows read so
 **Where it helps**
 
 - A progressive import that draws something early and the final picture later.
-- Any optional work that must never cost more than a set share of a longer job.
+- Any optional work that should cost no more than a set share of a longer job.
 
 **Not for:** work that must always run, or a page that needs a picture on every chunk.
 
@@ -34,10 +34,10 @@ var s = gate.finish();                         // { elapsed, spent, guesses, ski
 
 - `GuessGate.create({ share, minMs, now })`: `share` is the largest part of the elapsed time that guesses may use (more than 0, at most 1; default 0.05). `minMs` is how long the import runs before the first guess (default 40). `now` is a clock function in ms (default `performance.now`), for tests.
 - `gate.start()`: starts the clock and clears the counts; returns the gate.
-- `gate.run(fn, estimateMs)`: runs `fn` only when allowed, times it, and returns `true` when it ran. `estimateMs` is what this guess will cost; it defaults to what the last guess cost (0 before the first).
+- `gate.run(fn, estimateMs)`: runs `fn` only when allowed, times it, and returns `true` when it ran. `estimateMs` is what this guess will cost; it defaults to what the last guess cost (0 before the first, so pass an estimate for the first guess when it could be long). A guess that throws still counts its time, and the error is thrown on.
 - `gate.allowed(estimateMs)`: the same test without running anything.
 - `gate.nextIn(estimateMs)`: milliseconds until a guess is allowed (0 when allowed now), for a timer that wakes the page.
-- `gate.stats()` and `gate.finish()`: `{ elapsed, spent, guesses, skipped, share }`; `finish()` also stops further guesses.
+- `gate.stats()` and `gate.finish()`: `{ elapsed, spent, guesses, skipped, share }`; `finish()` also stops further guesses and the clock (since 1.0.2, `elapsed` stays at the finish time).
 
 ## How it compares
 
