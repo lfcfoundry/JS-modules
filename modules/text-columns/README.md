@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.8.0 · API 0**
+**Version 0.8.1 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6
+**Tested in:** node test/run.js, 15 checks; three browsers, real files
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

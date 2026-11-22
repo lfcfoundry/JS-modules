@@ -1,8 +1,8 @@
 # netflow-sankey
 
-**Version 2.14.0 · API 2**
+**Version 2.15.0 · API 2**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6; 144 + 10 equality checks against the full layout
+**Tested in:** node tests; Chromium, Firefox, WebKitGTK
 
 ## What it is and how it works
 

@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.14.0 (API 2)
+ * Version 2.15.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -818,6 +818,14 @@
     return warmP;
   }
 
+  /* Since 2.15.0 a page warms the layout itself: once the page is idle after this file loaded (requestIdleCallback, else a short timer; never in Node or a helper), warm() runs, so the first real
+     chart does not pay the cold start (about 5 ms of code not yet compiled, which was most of a small chart's time). Nothing is kept; pictures are the same. */
   compileEarly();
+  if (typeof window === 'object' && window && typeof document === 'object') {
+    try {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(function () { warm(); }, { timeout: 1500 });
+      else if (typeof setTimeout === 'function') setTimeout(function () { warm(); }, 200);
+    } catch (e) { /* no warm-up */ }
+  }
   return { warm: warm, wasmAvailable: function () { return !!wasmInstance(); }, wasmReady: function () { return compileEarly(); }, wasmModule: function () { return WM || null; }, layoutFlows: layoutFlows, toSvg: toSvg, fromLinks: fromLinks, layout: layout, apply: apply, options: options, layering: layering, crossWeight: crossWeight, roundPath: roundPath, toBezier: toBezier };
 }));
