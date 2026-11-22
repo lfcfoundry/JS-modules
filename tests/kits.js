@@ -59,6 +59,7 @@ var steps = [
   ['elias-fano long equal runs', 'node', ['modules/elias-fano/test/longruns.js']],
   ['elias-fano tiny lists and query scratch', 'node', ['modules/elias-fano/test/tiny.js']],
   ['elias-fano SIMD decode', 'node', ['modules/elias-fano/test/simd-decode.js']],
+  ['elias-fano view', 'node', ['modules/elias-fano/test/view.js']],
   ['gif-writer filters', 'node', ['modules/gif-writer/test/fx.js']],
   ['gif-writer filters, WebAssembly twin', 'node', ['modules/gif-writer/test/fx-wasm.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],

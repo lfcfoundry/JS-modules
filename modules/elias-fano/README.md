@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.2.2 · API 2**
+**Version 2.3.0 · API 2**
 
 **Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -198,6 +198,13 @@ Reads decode the list into one shared scratch array, so a tiny list keeps no mem
 **Many short lists read together:** a list set from `buildLists` was already about 4x smaller than one list each (156 KB against 609 KB on the same short lists), and `decodeAll` takes 0.22 to 0.25x the time of a loop over separate lists. Lists longer than about 64 values do better on their own, and on long lists a list set is about 2x bigger. Choose a list set when the lists are always read together, and tiny lists when each is read on its own. These list-set figures come from the research run that proposed tiny lists.
 
 **Faster decoding (since 2.2.2):** in browsers with WebAssembly SIMD, `toArray` on a flat list of 16 or more values with up to 16 low bits decodes eight values at a time. On the real lists it takes 0.68 / 0.54 / 0.56 of the time on long lists and 0.70 / 0.60 / 0.69 on mid-size lists (Chromium / Firefox / WebKitGTK). The format and answers are the same.
+
+**Zero-copy reads (since 2.3.0):** `list.view()` returns the values as a Uint32Array over the module's memory, with no copy, for flat and block lists when WebAssembly is in use. Other kinds return a fresh array. On the real lists it takes 0.12 to 0.18 of `toArray`'s time in Chromium, 0.33 to 0.41 in Firefox and 0.38 to 0.43 in WebKitGTK. **It is short-lived:** the next elias-fano call, on any list, may overwrite it, move it or leave it empty. Read it right away, or keep a copy with `view().slice()`. One buffer, the size of the largest list viewed, stays allocated until `trim()`.
+
+```js
+var v = list.view();            // read now: for (...) use(v[i]);
+var keep = list.view().slice(); // or copy it to keep it
+```
 
 **Batch calls reuse their scratch memory (since 2.2.0):** `getMany`, `nextGEQMany`, `rankMany`, `containsMany`, long `slice` and `intersect` now use one reusable region of WebAssembly memory instead of taking and giving back two pieces on every call. Same answers, and nothing measured slower. Batches of 50 on the real lists take 0.69 to 0.88 of the time on short lists, 0.82 to 0.92 on mid-size lists and 0.84 to 0.96 on long lists, across the three browsers. Batches over 1 MB still take their own memory, and `trim()` drops the region along with the old memory.
 
