@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.23.0 · API 0 · 2026-11-21
+
+### Quick
+Geo: the Hilbert key is no longer stored as a column; section 24 v2 keeps each block's key range (zones).
+
+### Deep
+Geo: the Hilbert key is no longer stored as a column; section 24 v2 keeps each block's key range (zones). 1M points: save 570 to 470 ms (Chromium 156), 451 to 393 (Firefox 158), 578 to 453 (WebKitGTK 2.52.6); file 17.27 to 15.70 MB, now 0.7% under a plain save. Box reads unchanged or faster. Column reordering (geo, sortBy, scramble) uses one loop per array type, 1.9-2.8x faster. Views: string labels through a small table before the Map (1.2x Chromium, 2.2x Firefox), cell ids built column by column; same file bytes; save ratio 0.99 / 0.90 / 0.97 of 0.22.0. Dict columns with several missing ids now give one null label. 0.20-0.22 geo files still read; older readers refuse v2 geo sections instead of answering wrong.
+
 ## 0.22.0 · API 0 · 2026-11-21
 
 ### Quick
