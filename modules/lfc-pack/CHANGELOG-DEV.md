@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.18.0 · API 0 · 2026-11-21
+
+### Quick
+S.quantile(key, p), S.countAbove(key, x), S.countBelow(key, x) on the object summary() and open().summary() return (not enumerable, so JSON is unchanged).
+
+### Deep
+S.quantile(key, p), S.countAbove(key, x), S.countBelow(key, x) on the object summary() and open().summary() return (not enumerable, so JSON is unchanged). Linear between ranks as the grid is built; a sampled grid's ends are replaced by the entry's min and max; exact on qExact entries (counts summed from qn) and on grids read from every value. Tests (quantile.cjs, 41 checks, 200,000 rows): lognormal, uniform, 70% zeros, negative, a quarter missing, constant, small and wide integers, ascending, all missing (null), dates; worst error under 0.6% of the values, exact entries exact. Measured 1,000,000-row lognormal column, 1,000 quantiles plus 1,000 counts including the footer read, median of 7: 1.8 ms Chromium 156, 2.1 ms Firefox 158, 3 ms WebKitGTK 2.52.6; decode plus sort of the column 204 / 169 / 133 ms. Not done: the quantiles: 1025 writer option from the spec draft; a finer grid would not lower the error, which comes from the 65,536-value sample (0.44% worst).
+
 ## 0.17.0 · API 0 · 2026-11-21
 
 ### Quick
