@@ -7,8 +7,20 @@
   // keepOrder: true adds the number column '$row' (each row's 0-based position before the sort); section 20 then says rowIndex: '$row', readers hide that column unless asked for it by name,
   // and unpack / unpackRows with { original: true } give the rows back in the order they were saved in.
   var SORT_ROW = '$row';
-  function sortOpt(opts) {   // -> null, or { key, desc, keep }
-    var s = opts && opts.sortBy, k, d = 'asc';
+  // since 0.18.0: scramble (true or a seed): rows saved in a seeded random order instead, so every block is a uniform sample of the table and a reader can stop early with good estimates
+  // (open().progressive). No row-position column is stored: the order comes back from the seed and the row count, so { original: true } gives the input order back. Section 20 says scrambled: { seed }.
+  var SCRAMBLE_SEED = 0x2545F491;
+  function sortOpt(opts) {   // -> null, or { key, desc, keep } (key null and scr the seed for scramble)
+    var s = opts && opts.sortBy, k, d = 'asc', sc = opts && opts.scramble, seed;
+    if (sc !== undefined && sc !== null && sc !== false) {
+      if (s !== undefined && s !== null && s !== false) throw new Error('LfcPack: scramble cannot be used with sortBy (pick one)');
+      seed = sc === true ? SCRAMBLE_SEED : sc;
+      if (typeof seed !== 'number' || seed !== Math.floor(seed) || seed < 0 || seed > 4294967295) throw new Error('LfcPack: scramble must be true or a seed (a whole number from 0 to 4294967295)');
+      if (opts.exact) throw new Error('LfcPack: scramble cannot be used with exact (an exact file keeps the input as it was)');
+      if (opts.base) throw new Error('LfcPack: scramble cannot be used with a delta save (base)');
+      if (opts.keepOrder) throw new Error('LfcPack: scramble keeps the order by itself (its seed); leave keepOrder out');
+      return { key: null, desc: false, keep: false, scr: seed >>> 0 };
+    }
     if (s === undefined || s === null || s === false) { if (opts && opts.keepOrder) throw new Error('LfcPack: keepOrder needs sortBy'); return null; }
     if (Array.isArray(s)) { k = s[0]; if (s.length > 1) d = s[1]; } else k = s;
     if (typeof k !== 'string' || !k) throw new Error("LfcPack: sortBy must be a column name or [name, 'asc' | 'desc']");
@@ -17,6 +29,13 @@
     if (opts.base) throw new Error('LfcPack: sortBy cannot be used with a delta save (base)');
     if (opts.keepOrder && k === SORT_ROW) throw new Error('LfcPack: sortBy cannot be ' + SORT_ROW + ' with keepOrder');
     return { key: k, desc: d === 'desc', keep: !!opts.keepOrder };
+  }
+  // the seeded shuffle (Fisher-Yates over mulberry32): the same seed and row count always give the same order
+  function scramblePerm(n, seed) {
+    var P = new Uint32Array(n), i, j, x, a = seed | 0, t;
+    for (i = 0; i < n; i++) P[i] = i;
+    for (i = n - 1; i > 0; i--) { a = a + 0x6D2B79F5 | 0; t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; j = Math.floor(((t ^ t >>> 14) >>> 0) / 4294967296 * (i + 1)); x = P[i]; P[i] = P[j]; P[j] = x; }
+    return P;
   }
   // stable LSD radix sort of positions 0..m-1 by 32-bit keys (H high, L low or null), 16-bit digits, passes whose digit is the same for every key skipped -> Uint32Array of positions
   function radixPerm(H, L, m) {
@@ -122,16 +141,16 @@
   function colLen(a) { return isTsCol(a) ? a.values.length : isDictCol(a) ? a.ids.length : isByteCol(a) ? a.start.length : a.length; }
   // the column table obj sorted (a new object; the caller's columns are not changed) -> { obj, P }; with keep, obj ends with SORT_ROW
   function sortTable(obj, so) {
-    if (!Object.prototype.hasOwnProperty.call(obj, so.key)) throw new Error('LfcPack: sortBy column "' + so.key + '" is not in the table');
+    if (so.key !== null && !Object.prototype.hasOwnProperty.call(obj, so.key)) throw new Error('LfcPack: sortBy column "' + so.key + '" is not in the table');
     if (so.keep && Object.prototype.hasOwnProperty.call(obj, SORT_ROW)) throw new Error('LfcPack: keepOrder adds the column ' + SORT_ROW + ', which the table already has');
-    var c = obj[so.key], n = colLen(c), P = sortPermCol(c, n, so.desc), out = {}, k, i, r;
+    var k0 = so.key !== null ? so.key : Object.keys(obj)[0], c = obj[k0], n = c === undefined ? 0 : colLen(c), P = so.key === null ? scramblePerm(n, so.scr) : sortPermCol(c, n, so.desc), out = {}, k, i, r;
     for (k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = permCol(obj[k], P);
     if (so.keep) { r = n < 2147483648 ? new Int32Array(n) : new Float64Array(n); for (i = 0; i < n; i++) r[i] = P[i]; out[SORT_ROW] = r; }
     return { obj: out, P: P };
   }
   // a row array sorted -> { rows, keys }: a new array of the same row objects; with keep, each row is a copy that ends with SORT_ROW, and keys lists every other key the rows carry
   function sortRowArray(rows, so) {
-    var n = rows.length, P = sortPermAny(function (i) { var r = rows[i]; return r !== null && typeof r === 'object' ? r[so.key] : undefined; }, n, so.desc), out = new Array(n), i, r, o, k, seen = so.keep ? new Set() : null;
+    var n = rows.length, P = so.key === null ? scramblePerm(n, so.scr) : sortPermAny(function (i) { var r = rows[i]; return r !== null && typeof r === 'object' ? r[so.key] : undefined; }, n, so.desc), out = new Array(n), i, r, o, k, seen = so.keep ? new Set() : null;
     for (i = 0; i < n; i++) {
       r = rows[P[i]];
       if (so.keep) { if (r === null || typeof r !== 'object' || Array.isArray(r)) throw new Error('LfcPack: keepOrder needs every row to be an object (row ' + P[i] + ')');
@@ -142,8 +161,22 @@
     return { rows: out, keys: seen ? Array.from(seen) : null };
   }
   // section 20 when the save sorted but wrote no summary (summary: false): which column, and the keys (so a reader can leave out SORT_ROW without reading a block)
-  function sortSection(so, n, keys) { var o = { v: 1, rows: n, sortedBy: so.key }; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
+  function sortSection(so, n, keys) { var o = { v: 1, rows: n }; if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
   // readers: { key, keys } when the file was saved with keepOrder (keys: the other keys, or null when the footer cannot say), else null. Only the start of section 20 is read unless it names rowIndex.
+  // readers: { seed, rows } when the file was saved with scramble, else null (only the start of section 20 is read)
+  function scrambleOf(file) {
+    var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], h, m, r;
+    if (!s) return null;
+    h = tdr.decode(s.subarray(0, Math.min(s.length, 512))); m = /"scrambled":\{"seed":(\d+)\}/.exec(h); r = /^\{"v":1,"rows":(\d+)/.exec(h);
+    return m && r ? { seed: +m[1], rows: +r[1] } : null;
+  }
+  // the rows of a scrambled file in the order they were given: saved row i was input row P[i]
+  function unscramble(rows, sc) {
+    var n = rows.length, P, out, i;
+    if (n !== sc.rows) throw new Error('LfcPack: original: true needs every row of the scrambled file (' + sc.rows + '), got ' + n);
+    P = scramblePerm(n, sc.seed); out = new Array(n); for (i = 0; i < n; i++) out[P[i]] = rows[i];
+    return out;
+  }
   function rowIndexOf(file) {
     var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], j, ks, i;
     if (!s) return null;

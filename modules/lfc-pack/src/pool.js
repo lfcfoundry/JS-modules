@@ -361,7 +361,7 @@
     if (so) {   // since 0.16.0: sortBy (and keepOrder): the table sorted first, then saved as any table; section 20 says which column (written even with summary: false)
       try { obj = sortTable(obj, so).obj; } catch (e) { return Promise.reject(e); }
       t = colTable(obj, 'packColumnsParallel'); if (t instanceof Error) return Promise.reject(t);
-      opts = Object.assign({}, opts, { _sort: so, sortBy: null, keepOrder: false });
+      opts = Object.assign({}, opts, { _sort: so, sortBy: null, keepOrder: false, scramble: null });
       if (opts.summary === false) { var ks = Object.keys(obj).filter(function (k) { return k !== SORT_ROW || !so.keep; }); return packRowsParallel(t.empty ? t.rowsOf(0, t.n) : t.CT, opts).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, t.n, ks)]]); }); }
     }
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
@@ -390,7 +390,7 @@
   function packRowsParallel(rows, opts) {
     var so; try { so = rows && rows.__ct ? null : sortOpt(opts); } catch (e) { return Promise.reject(e); }
     if (so) { var sr; try { sr = sortRowArray(rows, so); } catch (e) { return Promise.reject(e); }   // since 0.16.0: sortBy on a row array
-      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
+      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
     return init().then(function () {
       var pay = 1, po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
       if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(ctNaN(rows, rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows)) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);

@@ -3047,7 +3047,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     function result() {
       if (bad) return { sum: null, pyr: null };
       var py = [], k, o; for (k = 0; k < m; k++) if (cols[k]._pyr) { py.push([keys[k], cols[k]._pyr]); delete cols[k]._pyr; }
-      o = { v: 1, rows: n }; if (so) { o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
+      o = { v: 1, rows: n }; if (so) { if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; if (so.key !== null) for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
       o.cols = cols; if (cut) { o.colsCut = true; if (so && so.keep) o.keys = keys; }
       return { sum: te.encode(JSON.stringify(o)), pyr: py.length ? pyrPayload(py, n, R.bin) : null };
     }
@@ -3140,8 +3140,20 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   // keepOrder: true adds the number column '$row' (each row's 0-based position before the sort); section 20 then says rowIndex: '$row', readers hide that column unless asked for it by name,
   // and unpack / unpackRows with { original: true } give the rows back in the order they were saved in.
   var SORT_ROW = '$row';
-  function sortOpt(opts) {   // -> null, or { key, desc, keep }
-    var s = opts && opts.sortBy, k, d = 'asc';
+  // since 0.18.0: scramble (true or a seed): rows saved in a seeded random order instead, so every block is a uniform sample of the table and a reader can stop early with good estimates
+  // (open().progressive). No row-position column is stored: the order comes back from the seed and the row count, so { original: true } gives the input order back. Section 20 says scrambled: { seed }.
+  var SCRAMBLE_SEED = 0x2545F491;
+  function sortOpt(opts) {   // -> null, or { key, desc, keep } (key null and scr the seed for scramble)
+    var s = opts && opts.sortBy, k, d = 'asc', sc = opts && opts.scramble, seed;
+    if (sc !== undefined && sc !== null && sc !== false) {
+      if (s !== undefined && s !== null && s !== false) throw new Error('LfcPack: scramble cannot be used with sortBy (pick one)');
+      seed = sc === true ? SCRAMBLE_SEED : sc;
+      if (typeof seed !== 'number' || seed !== Math.floor(seed) || seed < 0 || seed > 4294967295) throw new Error('LfcPack: scramble must be true or a seed (a whole number from 0 to 4294967295)');
+      if (opts.exact) throw new Error('LfcPack: scramble cannot be used with exact (an exact file keeps the input as it was)');
+      if (opts.base) throw new Error('LfcPack: scramble cannot be used with a delta save (base)');
+      if (opts.keepOrder) throw new Error('LfcPack: scramble keeps the order by itself (its seed); leave keepOrder out');
+      return { key: null, desc: false, keep: false, scr: seed >>> 0 };
+    }
     if (s === undefined || s === null || s === false) { if (opts && opts.keepOrder) throw new Error('LfcPack: keepOrder needs sortBy'); return null; }
     if (Array.isArray(s)) { k = s[0]; if (s.length > 1) d = s[1]; } else k = s;
     if (typeof k !== 'string' || !k) throw new Error("LfcPack: sortBy must be a column name or [name, 'asc' | 'desc']");
@@ -3150,6 +3162,13 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     if (opts.base) throw new Error('LfcPack: sortBy cannot be used with a delta save (base)');
     if (opts.keepOrder && k === SORT_ROW) throw new Error('LfcPack: sortBy cannot be ' + SORT_ROW + ' with keepOrder');
     return { key: k, desc: d === 'desc', keep: !!opts.keepOrder };
+  }
+  // the seeded shuffle (Fisher-Yates over mulberry32): the same seed and row count always give the same order
+  function scramblePerm(n, seed) {
+    var P = new Uint32Array(n), i, j, x, a = seed | 0, t;
+    for (i = 0; i < n; i++) P[i] = i;
+    for (i = n - 1; i > 0; i--) { a = a + 0x6D2B79F5 | 0; t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; j = Math.floor(((t ^ t >>> 14) >>> 0) / 4294967296 * (i + 1)); x = P[i]; P[i] = P[j]; P[j] = x; }
+    return P;
   }
   // stable LSD radix sort of positions 0..m-1 by 32-bit keys (H high, L low or null), 16-bit digits, passes whose digit is the same for every key skipped -> Uint32Array of positions
   function radixPerm(H, L, m) {
@@ -3255,16 +3274,16 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   function colLen(a) { return isTsCol(a) ? a.values.length : isDictCol(a) ? a.ids.length : isByteCol(a) ? a.start.length : a.length; }
   // the column table obj sorted (a new object; the caller's columns are not changed) -> { obj, P }; with keep, obj ends with SORT_ROW
   function sortTable(obj, so) {
-    if (!Object.prototype.hasOwnProperty.call(obj, so.key)) throw new Error('LfcPack: sortBy column "' + so.key + '" is not in the table');
+    if (so.key !== null && !Object.prototype.hasOwnProperty.call(obj, so.key)) throw new Error('LfcPack: sortBy column "' + so.key + '" is not in the table');
     if (so.keep && Object.prototype.hasOwnProperty.call(obj, SORT_ROW)) throw new Error('LfcPack: keepOrder adds the column ' + SORT_ROW + ', which the table already has');
-    var c = obj[so.key], n = colLen(c), P = sortPermCol(c, n, so.desc), out = {}, k, i, r;
+    var k0 = so.key !== null ? so.key : Object.keys(obj)[0], c = obj[k0], n = c === undefined ? 0 : colLen(c), P = so.key === null ? scramblePerm(n, so.scr) : sortPermCol(c, n, so.desc), out = {}, k, i, r;
     for (k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = permCol(obj[k], P);
     if (so.keep) { r = n < 2147483648 ? new Int32Array(n) : new Float64Array(n); for (i = 0; i < n; i++) r[i] = P[i]; out[SORT_ROW] = r; }
     return { obj: out, P: P };
   }
   // a row array sorted -> { rows, keys }: a new array of the same row objects; with keep, each row is a copy that ends with SORT_ROW, and keys lists every other key the rows carry
   function sortRowArray(rows, so) {
-    var n = rows.length, P = sortPermAny(function (i) { var r = rows[i]; return r !== null && typeof r === 'object' ? r[so.key] : undefined; }, n, so.desc), out = new Array(n), i, r, o, k, seen = so.keep ? new Set() : null;
+    var n = rows.length, P = so.key === null ? scramblePerm(n, so.scr) : sortPermAny(function (i) { var r = rows[i]; return r !== null && typeof r === 'object' ? r[so.key] : undefined; }, n, so.desc), out = new Array(n), i, r, o, k, seen = so.keep ? new Set() : null;
     for (i = 0; i < n; i++) {
       r = rows[P[i]];
       if (so.keep) { if (r === null || typeof r !== 'object' || Array.isArray(r)) throw new Error('LfcPack: keepOrder needs every row to be an object (row ' + P[i] + ')');
@@ -3275,8 +3294,22 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     return { rows: out, keys: seen ? Array.from(seen) : null };
   }
   // section 20 when the save sorted but wrote no summary (summary: false): which column, and the keys (so a reader can leave out SORT_ROW without reading a block)
-  function sortSection(so, n, keys) { var o = { v: 1, rows: n, sortedBy: so.key }; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
+  function sortSection(so, n, keys) { var o = { v: 1, rows: n }; if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
   // readers: { key, keys } when the file was saved with keepOrder (keys: the other keys, or null when the footer cannot say), else null. Only the start of section 20 is read unless it names rowIndex.
+  // readers: { seed, rows } when the file was saved with scramble, else null (only the start of section 20 is read)
+  function scrambleOf(file) {
+    var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], h, m, r;
+    if (!s) return null;
+    h = tdr.decode(s.subarray(0, Math.min(s.length, 512))); m = /"scrambled":\{"seed":(\d+)\}/.exec(h); r = /^\{"v":1,"rows":(\d+)/.exec(h);
+    return m && r ? { seed: +m[1], rows: +r[1] } : null;
+  }
+  // the rows of a scrambled file in the order they were given: saved row i was input row P[i]
+  function unscramble(rows, sc) {
+    var n = rows.length, P, out, i;
+    if (n !== sc.rows) throw new Error('LfcPack: original: true needs every row of the scrambled file (' + sc.rows + '), got ' + n);
+    P = scramblePerm(n, sc.seed); out = new Array(n); for (i = 0; i < n; i++) out[P[i]] = rows[i];
+    return out;
+  }
   function rowIndexOf(file) {
     var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], j, ks, i;
     if (!s) return null;
@@ -3434,7 +3467,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   }
   var B26 = !(typeof globalThis !== 'undefined' && globalThis.__B26 === 0);
   function packRows(rows, opts) { var po = packOpts(opts), pay, so = sortOpt(opts);
-    if (so) { var sr = sortRowArray(rows, so); return addSections(packRows(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })), [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }   // since 0.16.0: sortBy on a row array
+    if (so) { var sr = sortRowArray(rows, so); return addSections(packRows(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })), [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }   // since 0.16.0: sortBy on a row array
     if (B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) && (pay = b18Pays(rows))) {   // B26: the row scatter checks the rest
       try { return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _b26: 1, _hb: pay === 2 })); } catch (e) { if (e !== B26_BAIL) throw e; return pack(rowsBytes(rows), opts); } }
     if (!B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && (pay = b18Pays(rows))) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _hb: pay === 2 })); return pack(rowsBytes(rows), opts); }
@@ -3823,6 +3856,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   function unpack(bytes, opts) {   // -> array of row objects
     var f0 = openFile(bytes);
     if (f0.footer.sec[SEC_DELTA]) { if (opts && (opts.equals || opts.range || opts.keys || opts.lazy)) throw new Error('LfcPack: a delta file reads whole (no equals, range, keys or lazy): rebuild the rows with unpackTables(file, { base }) first'); var dt = unpackDelta(bytes, opts), dn, dr = []; for (dn in dt) if (Array.isArray(dt[dn])) for (var di = 0; di < dt[dn].length; di++) dr.push(dt[dn][di]); return dr; }   // a delta: the rows of its tables, with { base }
+    if (opts && opts.original) { var sc0 = scrambleOf(f0); if (sc0) { if (opts.range || opts.equals || opts.positions || opts.table) throw new Error('LfcPack: original: true reads the whole table (no range, equals, positions or table)'); return unscramble(unpack(bytes, Object.assign({}, opts, { original: null, from: null, count: null })), sc0); } }   // since 0.18.0
     var ri = rowIndexOf(f0), want = null;   // since 0.16.0: a keepOrder file hides its row-position column unless asked for it by name; { original: true } gives the rows in the order they were saved in
     if (ri) { if (opts && opts.original) return originalRows(bytes, ri, opts); if (ri.keys && !(opts && opts.keys)) { if (opts) opts = Object.assign({}, opts, { keys: ri.keys }); else { want = {}; for (var wi = 0; wi < ri.keys.length; wi++) want[ri.keys[wi]] = 1; } } }
     else if (opts && opts.original) opts = Object.assign({}, opts, { original: null });
@@ -4055,7 +4089,8 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   // unpackRows(bytes, { from, count, table }): the rows from..from+count-1 (of the table, default the first) without decoding blocks outside that range. Files with raw blocks (their block row count includes blank lines) are read whole and cut.
   function unpackRows(bytes, opts) {
     opts = opts || {}; var from = opts.from || 0, count = opts.count == null ? Infinity : opts.count, file = openFile(bytes), tb = opts.table || 0, i, kd, start = 0, out = [], r, b, lo, hi, rn, rf, ri = rowIndexOf(file), want = null;
-    if (ri && opts.original) { r = originalRows(bytes, ri, { table: opts.table }); return r.slice(from, count === Infinity ? undefined : from + count); }   // since 0.16.0: rows in the order they were saved in, then cut
+    if (ri && opts.original) { r = originalRows(bytes, ri, { table: opts.table }); return r.slice(from, count === Infinity ? undefined : from + count); }
+    if (opts.original && scrambleOf(file)) { r = unpack(bytes, opts.keys ? { keys: opts.keys, original: true } : { original: true }); return r.slice(from, count === Infinity ? undefined : from + count); }   // since 0.18.0: a scrambled file   // since 0.16.0: rows in the order they were saved in, then cut
     if (ri && ri.keys) { want = {}; for (i = 0; i < ri.keys.length; i++) want[ri.keys[i]] = 1; }   // and without the row-position column
     for (i = 0; i < file.blocks.length; i++) if (file.blocks[i][4] === 'r') return unpackSome(bytes, { table: tb }).slice(from, count === Infinity ? undefined : from + count);
     rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))); rf = arenaReader(makeFlatReader(arenaZs(S.zdec)));
@@ -4242,6 +4277,34 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
             var z = file.zone && file.zone[i], h = fnvStr('.' + key), q; if (!z) return null;
             for (q = 0; q < z.length; q++) if (z[q][0] === h) return { min: z[q][1], max: z[q][2], count: z[q][3] };
             return null;
+          },
+          // progressive(keys, onStep, { by }) (since 0.18.0): reads the blocks in file order and after each one calls onStep({ block, blocks, rows, total, share, cols, groups }) with running numbers:
+          // cols[key] = { n, sum, mean, min, max, estSum } over the non-missing values read so far (estSum scales sum by total / rows); with by (a column key), groups is a Map from each label to
+          // { rows, estRows, cols } for that label. In a file saved with scramble every block is a uniform sample, so these are fair estimates from the first block on and exact after the last;
+          // in any other file they are only the totals of the rows read so far. onStep returning false stops early. Resolves with the last step. Flat-row blocks only (as columns()).
+          progressive: function (keys, onStep, po) {
+            if (typeof keys === 'string') keys = [keys];
+            if (!Array.isArray(keys) || !keys.length) return Promise.reject(new TypeError('LfcPack: progressive(keys, onStep): keys must be a column key or a list of them'));
+            var by = po && po.by != null ? String(po.by) : null, want = by && keys.indexOf(by) < 0 ? keys.concat([by]) : keys, me = this, total = file.header.rows, done = 0, k = 0, last = null;
+            var mk = function () { var c = {}, q; for (q = 0; q < keys.length; q++) c[keys[q]] = { n: 0, sum: 0, mean: NaN, min: Infinity, max: -Infinity, estSum: 0 }; return c; };
+            var cols = mk(), groups = by ? new Map() : null;
+            var add = function (c, v) { if (typeof v === 'number' && v === v) { c.n++; c.sum += v; if (v < c.min) c.min = v; if (v > c.max) c.max = v; } };
+            var step = function () {
+              if (k >= blocks.length) return last;
+              var i = k++;
+              return me.columns(i, { keys: want, nulls: 'NaN' }).then(function (b) {
+                var n = b.n, q, j, a, g, lab, gb = by ? b.cols[by] : null, sc;
+                for (q = 0; q < keys.length; q++) { a = b.cols[keys[q]]; if (!a) continue; for (j = 0; j < n; j++) add(cols[keys[q]], a[j]); }
+                if (gb) for (j = 0; j < n; j++) { lab = gb[j]; g = groups.get(lab); if (!g) { g = { rows: 0, estRows: 0, cols: mk() }; groups.set(lab, g); } g.rows++; for (q = 0; q < keys.length; q++) { a = b.cols[keys[q]]; if (a) add(g.cols[keys[q]], a[j]); } }
+                done += n; sc = done ? total / done : 0;
+                var fin = function (cs) { for (var key in cs) { var c = cs[key]; c.mean = c.n ? c.sum / c.n : NaN; c.estSum = c.sum * sc; } };
+                fin(cols); if (groups) groups.forEach(function (gg) { gg.estRows = gg.rows * sc; fin(gg.cols); });
+                last = { block: i, blocks: blocks.length, rows: done, total: total, share: total ? done / total : 1, cols: cols, groups: groups };
+                if (typeof onStep === 'function' && onStep(last) === false) return last;
+                return step();
+              });
+            };
+            return Promise.resolve().then(step);
           },
           rows: function (o) {
             o = o || {}; var from = o.from || 0, count = o.count == null ? Infinity : o.count, tb = o.table || 0, out = [], k = 0;
@@ -4809,7 +4872,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     if (so) {   // since 0.16.0: sortBy (and keepOrder): the table sorted first, then saved as any table; section 20 says which column (written even with summary: false)
       try { obj = sortTable(obj, so).obj; } catch (e) { return Promise.reject(e); }
       t = colTable(obj, 'packColumnsParallel'); if (t instanceof Error) return Promise.reject(t);
-      opts = Object.assign({}, opts, { _sort: so, sortBy: null, keepOrder: false });
+      opts = Object.assign({}, opts, { _sort: so, sortBy: null, keepOrder: false, scramble: null });
       if (opts.summary === false) { var ks = Object.keys(obj).filter(function (k) { return k !== SORT_ROW || !so.keep; }); return packRowsParallel(t.empty ? t.rowsOf(0, t.n) : t.CT, opts).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, t.n, ks)]]); }); }
     }
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
@@ -4838,7 +4901,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
   function packRowsParallel(rows, opts) {
     var so; try { so = rows && rows.__ct ? null : sortOpt(opts); } catch (e) { return Promise.reject(e); }
     if (so) { var sr; try { sr = sortRowArray(rows, so); } catch (e) { return Promise.reject(e); }   // since 0.16.0: sortBy on a row array
-      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
+      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
     return init().then(function () {
       var pay = 1, po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
       if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(ctNaN(rows, rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows)) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);

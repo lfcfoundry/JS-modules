@@ -76,7 +76,7 @@
   }
   var B26 = !(typeof globalThis !== 'undefined' && globalThis.__B26 === 0);
   function packRows(rows, opts) { var po = packOpts(opts), pay, so = sortOpt(opts);
-    if (so) { var sr = sortRowArray(rows, so); return addSections(packRows(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })), [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }   // since 0.16.0: sortBy on a row array
+    if (so) { var sr = sortRowArray(rows, so); return addSections(packRows(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })), [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }   // since 0.16.0: sortBy on a row array
     if (B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) && (pay = b18Pays(rows))) {   // B26: the row scatter checks the rest
       try { return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _b26: 1, _hb: pay === 2 })); } catch (e) { if (e !== B26_BAIL) throw e; return pack(rowsBytes(rows), opts); } }
     if (!B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && (pay = b18Pays(rows))) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _hb: pay === 2 })); return pack(rowsBytes(rows), opts); }
@@ -465,6 +465,7 @@
   function unpack(bytes, opts) {   // -> array of row objects
     var f0 = openFile(bytes);
     if (f0.footer.sec[SEC_DELTA]) { if (opts && (opts.equals || opts.range || opts.keys || opts.lazy)) throw new Error('LfcPack: a delta file reads whole (no equals, range, keys or lazy): rebuild the rows with unpackTables(file, { base }) first'); var dt = unpackDelta(bytes, opts), dn, dr = []; for (dn in dt) if (Array.isArray(dt[dn])) for (var di = 0; di < dt[dn].length; di++) dr.push(dt[dn][di]); return dr; }   // a delta: the rows of its tables, with { base }
+    if (opts && opts.original) { var sc0 = scrambleOf(f0); if (sc0) { if (opts.range || opts.equals || opts.positions || opts.table) throw new Error('LfcPack: original: true reads the whole table (no range, equals, positions or table)'); return unscramble(unpack(bytes, Object.assign({}, opts, { original: null, from: null, count: null })), sc0); } }   // since 0.18.0
     var ri = rowIndexOf(f0), want = null;   // since 0.16.0: a keepOrder file hides its row-position column unless asked for it by name; { original: true } gives the rows in the order they were saved in
     if (ri) { if (opts && opts.original) return originalRows(bytes, ri, opts); if (ri.keys && !(opts && opts.keys)) { if (opts) opts = Object.assign({}, opts, { keys: ri.keys }); else { want = {}; for (var wi = 0; wi < ri.keys.length; wi++) want[ri.keys[wi]] = 1; } } }
     else if (opts && opts.original) opts = Object.assign({}, opts, { original: null });
@@ -697,7 +698,8 @@
   // unpackRows(bytes, { from, count, table }): the rows from..from+count-1 (of the table, default the first) without decoding blocks outside that range. Files with raw blocks (their block row count includes blank lines) are read whole and cut.
   function unpackRows(bytes, opts) {
     opts = opts || {}; var from = opts.from || 0, count = opts.count == null ? Infinity : opts.count, file = openFile(bytes), tb = opts.table || 0, i, kd, start = 0, out = [], r, b, lo, hi, rn, rf, ri = rowIndexOf(file), want = null;
-    if (ri && opts.original) { r = originalRows(bytes, ri, { table: opts.table }); return r.slice(from, count === Infinity ? undefined : from + count); }   // since 0.16.0: rows in the order they were saved in, then cut
+    if (ri && opts.original) { r = originalRows(bytes, ri, { table: opts.table }); return r.slice(from, count === Infinity ? undefined : from + count); }
+    if (opts.original && scrambleOf(file)) { r = unpack(bytes, opts.keys ? { keys: opts.keys, original: true } : { original: true }); return r.slice(from, count === Infinity ? undefined : from + count); }   // since 0.18.0: a scrambled file   // since 0.16.0: rows in the order they were saved in, then cut
     if (ri && ri.keys) { want = {}; for (i = 0; i < ri.keys.length; i++) want[ri.keys[i]] = 1; }   // and without the row-position column
     for (i = 0; i < file.blocks.length; i++) if (file.blocks[i][4] === 'r') return unpackSome(bytes, { table: tb }).slice(from, count === Infinity ? undefined : from + count);
     rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))); rf = arenaReader(makeFlatReader(arenaZs(S.zdec)));
@@ -884,6 +886,34 @@
             var z = file.zone && file.zone[i], h = fnvStr('.' + key), q; if (!z) return null;
             for (q = 0; q < z.length; q++) if (z[q][0] === h) return { min: z[q][1], max: z[q][2], count: z[q][3] };
             return null;
+          },
+          // progressive(keys, onStep, { by }) (since 0.18.0): reads the blocks in file order and after each one calls onStep({ block, blocks, rows, total, share, cols, groups }) with running numbers:
+          // cols[key] = { n, sum, mean, min, max, estSum } over the non-missing values read so far (estSum scales sum by total / rows); with by (a column key), groups is a Map from each label to
+          // { rows, estRows, cols } for that label. In a file saved with scramble every block is a uniform sample, so these are fair estimates from the first block on and exact after the last;
+          // in any other file they are only the totals of the rows read so far. onStep returning false stops early. Resolves with the last step. Flat-row blocks only (as columns()).
+          progressive: function (keys, onStep, po) {
+            if (typeof keys === 'string') keys = [keys];
+            if (!Array.isArray(keys) || !keys.length) return Promise.reject(new TypeError('LfcPack: progressive(keys, onStep): keys must be a column key or a list of them'));
+            var by = po && po.by != null ? String(po.by) : null, want = by && keys.indexOf(by) < 0 ? keys.concat([by]) : keys, me = this, total = file.header.rows, done = 0, k = 0, last = null;
+            var mk = function () { var c = {}, q; for (q = 0; q < keys.length; q++) c[keys[q]] = { n: 0, sum: 0, mean: NaN, min: Infinity, max: -Infinity, estSum: 0 }; return c; };
+            var cols = mk(), groups = by ? new Map() : null;
+            var add = function (c, v) { if (typeof v === 'number' && v === v) { c.n++; c.sum += v; if (v < c.min) c.min = v; if (v > c.max) c.max = v; } };
+            var step = function () {
+              if (k >= blocks.length) return last;
+              var i = k++;
+              return me.columns(i, { keys: want, nulls: 'NaN' }).then(function (b) {
+                var n = b.n, q, j, a, g, lab, gb = by ? b.cols[by] : null, sc;
+                for (q = 0; q < keys.length; q++) { a = b.cols[keys[q]]; if (!a) continue; for (j = 0; j < n; j++) add(cols[keys[q]], a[j]); }
+                if (gb) for (j = 0; j < n; j++) { lab = gb[j]; g = groups.get(lab); if (!g) { g = { rows: 0, estRows: 0, cols: mk() }; groups.set(lab, g); } g.rows++; for (q = 0; q < keys.length; q++) { a = b.cols[keys[q]]; if (a) add(g.cols[keys[q]], a[j]); } }
+                done += n; sc = done ? total / done : 0;
+                var fin = function (cs) { for (var key in cs) { var c = cs[key]; c.mean = c.n ? c.sum / c.n : NaN; c.estSum = c.sum * sc; } };
+                fin(cols); if (groups) groups.forEach(function (gg) { gg.estRows = gg.rows * sc; fin(gg.cols); });
+                last = { block: i, blocks: blocks.length, rows: done, total: total, share: total ? done / total : 1, cols: cols, groups: groups };
+                if (typeof onStep === 'function' && onStep(last) === false) return last;
+                return step();
+              });
+            };
+            return Promise.resolve().then(step);
           },
           rows: function (o) {
             o = o || {}; var from = o.from || 0, count = o.count == null ? Infinity : o.count, tb = o.table || 0, out = [], k = 0;
