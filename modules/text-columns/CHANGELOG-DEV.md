@@ -8,7 +8,7 @@ What changed in each version, newest first, for developers, in three depths: Qui
 Faster text columns on wide files with many empty fields (the SBA file: 147,000 of 327,000 text fields are empty).
 
 ### Deep
-Faster text columns on wide files with many empty fields (the SBA file: 147,000 of 327,000 text fields are empty). Empty fields are filled in without cutting a substring, and the column loop walks the field table by a fixed step. In Node the 116-column SBA slice went from about 55 to 41 ms. Output is the same strings as 0.8.0.
+Faster text columns on wide files with many empty fields (the SBA file: 147,000 of 327,000 text fields are empty). Empty fields are filled in without cutting a substring, and the column loop walks the field table by a fixed step. In the three browsers the 116-column SBA slice parses in 46.8 / 29 / 38 ms (Chromium / Firefox / WebKitGTK), the fastest of four parsers raced. Output is the same strings as 0.8.0.
 
 ## 0.8.0 · API 0 · 2026-11-22
 

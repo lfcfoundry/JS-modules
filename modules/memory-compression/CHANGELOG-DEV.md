@@ -2,13 +2,21 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.19.1 · API 2 · 2026-11-22
+
+### Quick
+A decimal float column (ALP) now does what a whole-number column already did: the first block tries every way, later blocks only the winner, and every 32nd block tries all again (a block that comes out 1.5 times bigger than the one before…
+
+### Deep
+A decimal float column (ALP) now does what a whole-number column already did: the first block tries every way, later blocks only the winner, and every 32nd block tries all again (a block that comes out 1.5 times bigger than the one before also does). Before, every 8th block tried everything. The writers also reserve their size once. Real SEC numbers (8 MB): 1,010,924 B instead of 1,014,163 B; balanced mode in Chromium / Firefox / WebKitGTK 105 / 88 / 97 ms instead of 143 / 93 / 96 ms (the Firefox and WebKitGTK change is inside the noise). Against pcodec-js on the same file (1,189,546 B in 22 / 44 / 24 ms) this is 15% smaller but 2 to 5 times slower, and on the SBA floats (36,658 B in 85 / 57 / 65 ms against 62,326 B in 3 / 4 / 4 ms) 41% smaller but 14 to 28 times slower; a mode that also wins on speed needs the whole decimal path in one WebAssembly call, which this release does not have. Every value comes back identical in all three browsers.
+
 ## 2.19.0 · API 2 · 2026-11-22
 
 ### Quick
 New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten).
 
 ### Deep
-New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten). A Float64Array packed with mode balanced or small now tries the picker and keeps it when smaller (new tag T_TYPEDA); the default mode is unchanged and still the fastest. Decimal blocks remember which way packed their whole numbers, so later blocks try only that one (every 8th block tries all), and the entropy split runs in the WebAssembly helper (ent_split). Real decimal columns, 8 MB files, bytes and milliseconds, against the browser's own gzip (CompressionStream), Chromium / Firefox / WebKitGTK: SEC numbers balanced 1,014,163 B in 157 / 102 / 105 ms against gzip 1,661,447 B in 154 / 74 / 104 ms; small 963,670 B in 431 / 362 / 314 ms. SBA balanced 36,658 B in 91 / 57 / 64 ms against gzip 62,509 B in 18 / 11 / 8 ms. So these modes are about 40% smaller than gzip in every browser, level on time for the SEC file in Chromium and WebKitGTK, and slower than gzip on the SBA file (5 to 8 times) and on the SEC file in Firefox (1.4 times). In Node, gzip level 6 takes 169 ms on SEC (balanced 84 ms). The default mode (9 to 13 ms) is faster than gzip but larger than it on these columns. Every value comes back identical in all three browsers. File format 5 is needed to read these tags.
+New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten). A Float64Array packed with mode balanced or small now tries the picker and keeps it when smaller (new tag T_TYPEDA); the default mode is unchanged and still the fastest. Decimal blocks remember which way packed their whole numbers, so later blocks try only that one (every 8th block tries all), and the entropy split runs in the WebAssembly helper (ent_split). Real decimal columns, 8 MB files, bytes and milliseconds, against the browser's own gzip (CompressionStream), Chromium / Firefox / WebKitGTK: SEC numbers balanced 1,014,163 B in 157 / 102 / 105 ms against gzip 1,661,447 B in 154 / 74 / 104 ms; small 963,670 B in 431 / 362 / 314 ms. SBA balanced 36,658 B in 91 / 57 / 64 ms against gzip 62,509 B in 18 / 11 / 8 ms. So these modes are about 40% smaller than gzip in every browser, level on time for the SEC file in Chromium and WebKitGTK, and slower than gzip on the SBA file (5 to 8 times) and on the SEC file in Firefox (1.4 times). The default mode (9 to 13 ms) is faster than gzip but larger than it on these columns. Every value comes back identical in all three browsers. File format 5 is needed to read these tags.
 
 ## 2.18.1 · API 2 · 2026-11-19
 
