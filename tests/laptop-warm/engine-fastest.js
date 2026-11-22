@@ -1,8 +1,9 @@
+/*!
 /*! TESTER COPY of netflow-engine with the extra fitting pass turned off (refitMax: 0); only for tests/laptop-warm, see README.md there
  * netflow-engine.js: the engine of Netflow Map as a module you can adapt: reads links, lays the map out (layered rows, arcs, matrix, shapes, force, distances), and scores it. No page, no DOM; runs on the main thread or in a worker.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.6.1 (API 2)
+ * Version 2.6.2 (API 2)
  *
  *   var L = NetflowEngine.build({ nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] }, { view: 'network', colorBy: 'group' });   // L.nodes, L.edges: positions and sizes, ready to draw
  *   NetflowEngine.use('layers', NetflowLayers);      // optional: hand over the add-ons (they are also found on their own)
@@ -16,7 +17,7 @@
   else root.NetflowEngine = factory(null);
 }(typeof self !== 'undefined' ? self : this, function (REQ) {
   'use strict';
-  var VERSION = '2.6.1';
+  var VERSION = '2.6.2';
   var NFMColumns = (function () {
     'use strict';
 
@@ -507,7 +508,7 @@
         nodes.push(nd); no.push(i);
       }
       var n = nodes.length;
-      var f = [], t = [], w = [], eo = [], rw = [], me = opts.minEdge && opts.minEdge.ch ? opts.minEdge : null, st = opts.state, stEdges = null;
+      var ne0 = graph.edges.length, f = new Int32Array(ne0), t = new Int32Array(ne0), w = new Float64Array(ne0), eo = new Int32Array(ne0), rw = new Float64Array(ne0), m = 0, me = opts.minEdge && opts.minEdge.ch ? opts.minEdge : null, st = opts.state, stEdges = null;
       for (var k = 0; k < graph.edges.length; k++) {
         var e = graph.edges[k];
         if (hide.has(e.kind || '')) continue;
@@ -524,14 +525,15 @@
           if (!stEdges) stEdges = graph.edges.slice();
           stEdges[k] = Object.assign({}, e, { weight: sv, absent: gone });
         }
-        f.push(a); t.push(b); eo.push(k);
-        rw.push(isFinite(wt) ? wt : 1);
-        w.push(opts.weights && isFinite(wt) && wt > 0 ? wt : 1);
+        f[m] = a; t[m] = b; eo[m] = k;
+        rw[m] = isFinite(wt) ? wt : 1;
+        w[m] = opts.weights && isFinite(wt) && wt > 0 ? wt : 1;
+        m++;
       }
-      var m = f.length;
+      if (m < ne0) { f = f.slice(0, m); t = t.slice(0, m); w = w.slice(0, m); eo = eo.slice(0, m); rw = rw.slice(0, m); }
       var P = {
-        n: n, m: m, nodes: nodes, index: index, norig: Int32Array.from(no), rw: Float64Array.from(rw),
-        from: Int32Array.from(f), to: Int32Array.from(t), w: Float64Array.from(w), eorig: Int32Array.from(eo),
+        n: n, m: m, nodes: nodes, index: index, norig: new Int32Array(no), rw: rw,
+        from: f, to: t, w: w, eorig: eo,
         outStart: new Int32Array(n + 1), outEdge: new Int32Array(m), inStart: new Int32Array(n + 1), inEdge: new Int32Array(m),
         valence: new Int8Array(n), edges: stEdges || graph.edges, stated: !!stEdges
       };
@@ -578,12 +580,21 @@
       }
       if (!cands.length) for (i = 0; i < P.n; i++) cands.push(i);
       cands.sort(function (a, b) { return outdeg(P, b) - outdeg(P, a) || a - b; });
-      var best = cands[0], bestN = -1;
-      for (i = 0; i < Math.min(cands.length, 40); i++) {
-        var d = bfs(P, cands[i], -1), c = 0;
-        for (var j = 0; j < P.n; j++) if (d[j] >= 0) c++;
-        if (c > bestN) { bestN = c; best = cands[i]; }
+      /* How many items each of the first 40 candidates reaches, all at once: every item keeps one bit per candidate (two 32-bit words) and bits flow along the arrows
+       * until nothing changes. The counts are the ones a search from each candidate alone gives. */
+      var nc = Math.min(cands.length, 40), lo = new Int32Array(P.n), hi = new Int32Array(P.n), inq = new Uint8Array(P.n), q = new Int32Array(P.n), qh = 0, qt = 0, qn = 0, counts = new Int32Array(nc), n = P.n;
+      for (i = 0; i < nc; i++) { var cv = cands[i]; if (i < 32) lo[cv] |= 1 << i; else hi[cv] |= 1 << (i - 32); if (!inq[cv]) { inq[cv] = 1; q[qt++] = cv; if (qt === n) qt = 0; qn++; } }
+      while (qn) {
+        var v = q[qh++]; if (qh === n) qh = 0; qn--; inq[v] = 0;
+        var vl = lo[v], vh = hi[v];
+        for (var k2 = P.outStart[v]; k2 < P.outStart[v + 1]; k2++) {
+          var w = P.to[P.outEdge[k2]], nl = lo[w] | vl, nh = hi[w] | vh;
+          if (nl !== lo[w] || nh !== hi[w]) { lo[w] = nl; hi[w] = nh; if (!inq[w]) { inq[w] = 1; q[qt++] = w; if (qt === n) qt = 0; qn++; } }
+        }
       }
+      for (var j = 0; j < n; j++) { var bl = lo[j], bh = hi[j]; while (bl) { counts[31 - Math.clz32(bl & -bl)]++; bl &= bl - 1; } while (bh) { counts[63 - Math.clz32(bh & -bh)]++; bh &= bh - 1; } }
+      var best = cands[0], bestN = -1;
+      for (i = 0; i < nc; i++) if (counts[i] > bestN) { bestN = counts[i]; best = cands[i]; }
       return best;
     }
 
@@ -1091,23 +1102,26 @@
       var chapters = found ? found.list.filter(function (ch) { return ch.folded; }) : [];
       chapters.forEach(function (ch, ci) { ch.pages.forEach(function (id) { chOf[id] = ci; }); });
       if (opts.fold) runs.forEach(function (run, ri) { if (!(opts.open && opts.open[run[0]]) && !run.some(function (id) { return chOf[id] >= 0; })) run.forEach(function (id) { runOf[id] = ri; }); });
-      var nodes = [], groupOf = new Array(n);
+      var nodes = [], groupOf = new Array(n), groupIx = new Int32Array(n);   // groupIx: the same as groupOf, as the item's place in nodes
       for (i = 0; i < n; i++) {
         var ri2 = runOf[i], ci2 = chOf[i];
         if (ci2 >= 0 && chapters[ci2].pages[0] !== i) continue;
         if (ri2 >= 0 && runs[ri2][0] !== i) continue;
         var node = ci2 >= 0 ? { id: 'ch:' + i, pages: chapters[ci2].pages.slice(), run: false, chapter: true, chKey: chapters[ci2].key, part: chapters[ci2].kind === 'part' } : ri2 >= 0 ? { id: 'run:' + i, pages: runs[ri2].slice(), run: true } : { id: 'n' + i, pages: [i], run: false };
-        node.pages.forEach(function (pg) { groupOf[pg] = node.id; });
+        for (var gq = 0; gq < node.pages.length; gq++) { groupOf[node.pages[gq]] = node.id; groupIx[node.pages[gq]] = nodes.length; }
         nodes.push(node);
       }
-      var edges = [], seen = new Map();
+      var edges = [], merging = !!(opts.merge || (opts.mergeIfFolded && chapters.length)), seen = merging ? new Map() : null;   // the from>to table is only built when links are being merged
       for (e = 0; e < P.m; e++) {
         var a = groupOf[P.from[e]], b = groupOf[P.to[e]];
         if (a === b && P.from[e] !== P.to[e]) continue;
-        var key = a + '>' + b;
-        if ((opts.merge || (opts.mergeIfFolded && chapters.length)) && seen.has(key)) { seen.get(key).srcs.push(e); continue; }
-        var ed = { from: a, to: b, srcs: [e] };
-        seen.set(key, ed);
+        var ed;
+        if (merging) {
+          var key = groupIx[P.from[e]] * nodes.length + groupIx[P.to[e]], had = seen.get(key);   // one number per from>to pair instead of a text key
+          if (had) { had.srcs.push(e); continue; }
+          ed = { from: a, to: b, srcs: [e] };
+          seen.set(key, ed);
+        } else ed = { from: a, to: b, srcs: [e] };
         edges.push(ed);
       }
       return { nodes: nodes, edges: edges, groupOf: groupOf, runs: runs, imp: imp, chapters: chapters, chapterInfo: found };
@@ -1833,11 +1847,21 @@
     }
     /** The scale (positions times it) at which the page's distances best fit the hop counts times EDGE, from a few breadth-first searches. */
     function fitScale(X, k, off, nbr, EDGE) {
-      var dist = new Int32Array(k), queue = new Int32Array(k), num = 0, den = 0, ns = Math.min(8, k), s, t;
+      var dist = new Int32Array(k), queue = new Int32Array(k), num = 0, den = 0, ns = Math.min(8, k), s, t, m2 = off[k];
       for (s = 0; s < ns; s++) {
         var src = Math.floor(s * k / ns); dist.fill(-1); dist[src] = 0; queue[0] = src;
-        var h = 0, tl = 1;
-        while (h < tl) { var u = queue[h++]; for (var e = off[u]; e < off[u + 1]; e++) { var w = nbr[e]; if (dist[w] < 0) { dist[w] = dist[u] + 1; queue[tl++] = w; } } }
+        // level by level; once the newest level has more links than what is left, every item not yet reached looks for one link into it instead (the same hop counts, far fewer links read on dense maps)
+        var h = 0, tl = 1, level = 0, left = k - 1, mu = m2 - (off[src + 1] - off[src]), u, e, w, e1;
+        while (h < tl && left > 0) {
+          var end = tl, mf = 0;
+          for (var q = h; q < end; q++) { u = queue[q]; mf += off[u + 1] - off[u]; }
+          if (mf > mu) {
+            for (var v = 0; v < k; v++) if (dist[v] < 0) { for (e = off[v], e1 = off[v + 1]; e < e1; e++) if (dist[nbr[e]] === level) { dist[v] = level + 1; queue[tl++] = v; left--; mu -= e1 - off[v]; break; } }
+          } else {
+            for (q = h; q < end; q++) { u = queue[q]; for (e = off[u], e1 = off[u + 1]; e < e1; e++) { w = nbr[e]; if (dist[w] < 0) { dist[w] = level + 1; queue[tl++] = w; left--; mu -= off[w + 1] - off[w]; } } }
+          }
+          h = end; level++;
+        }
         for (t = 0; t < k; t += 3) if (t !== src && dist[t] > 0) { var fdx = X[2 * src] - X[2 * t], fdy = X[2 * src + 1] - X[2 * t + 1], ex = Math.sqrt(fdx * fdx + fdy * fdy) / (dist[t] * EDGE); num += ex; den += ex * ex; }
       }
       return den > 0 && num > 0 ? num / den : 1;
@@ -2142,28 +2166,32 @@
     function networkLayout(P, G, opts) {
       opts = opts || {};
       var nodes = G.nodes, nb = nodes.length, i, e;
-      var idxOf = {};
-      nodes.forEach(function (nd, k) { idxOf[nd.id] = k; });
-      var adj = nodes.map(function () { return []; });
-      G.edges.forEach(function (ed) {
-        var a = idxOf[ed.from], b = idxOf[ed.to];
-        if (a !== b) { adj[a].push(b); adj[b].push(a); }
-      });
-      var comp = new Int32Array(nb).fill(-1), comps = [];
+      /* Links as compressed rows of item numbers (aoff, anbr), each item's neighbors in link order: one typed list instead of a small array per item and a name lookup per use. */
+      var idxOf = new Map(), E = G.edges, ne = E.length, ea = new Int32Array(ne), eb = new Int32Array(ne), aoff = new Int32Array(nb + 1);
+      for (i = 0; i < nb; i++) idxOf.set(nodes[i].id, i);
+      for (e = 0; e < ne; e++) { var ed0 = E[e], a0 = idxOf.get(ed0.from), b0 = idxOf.get(ed0.to); ea[e] = a0; eb[e] = b0; if (a0 !== b0) { aoff[a0 + 1]++; aoff[b0 + 1]++; } }
+      for (i = 0; i < nb; i++) aoff[i + 1] += aoff[i];
+      var anbr = new Int32Array(aoff[nb]), afill = aoff.slice(0, nb);
+      for (e = 0; e < ne; e++) if (ea[e] !== eb[e]) { anbr[afill[ea[e]]++] = eb[e]; anbr[afill[eb[e]]++] = ea[e]; }
+      var adjLists = null, adjOf = function () {   // the same links as one small array per item, made only for the arrangements that still read them that way
+        if (!adjLists) { adjLists = new Array(nb); for (var g = 0; g < nb; g++) adjLists[g] = Array.prototype.slice.call(anbr.subarray(aoff[g], aoff[g + 1])); }
+        return adjLists;
+      };
+      var comp = new Int32Array(nb).fill(-1), comps = [], cq = new Int32Array(nb), ct = 0;
       for (i = 0; i < nb; i++) {
         if (comp[i] >= 0) continue;
-        var cid = comps.length, q = [i];
-        comp[i] = cid;
-        for (var h = 0; h < q.length; h++) adj[q[h]].forEach(function (w) { if (comp[w] < 0) { comp[w] = cid; q.push(w); } });
-        comps.push(q);
+        var cid = comps.length, c0 = ct;
+        comp[i] = cid; cq[ct++] = i;
+        for (var h = c0; h < ct; h++) { var cu = cq[h]; for (e = aoff[cu]; e < aoff[cu + 1]; e++) { var cw = anbr[e]; if (comp[cw] < 0) { comp[cw] = cid; cq[ct++] = cw; } } }
+        comps.push(cq.subarray(c0, ct));
       }
       var rnd = mulberry32(12345), EDGE = 130, locArr = new Int32Array(nb);
-      var size = function (nd) { if (nd.sizeK !== undefined) return 20 + 52 * nd.sizeK; return 26 + Math.min(26, 8 * Math.sqrt((nd.traffic || 0))) + Math.min(14, Math.sqrt(adj[idxOf[nd.id]].length) * 3); };
-      var sizeAt = function (g) { var nd = nodes[g]; if (nd.sizeK !== undefined) return 20 + 52 * nd.sizeK; return 26 + Math.min(26, 8 * Math.sqrt((nd.traffic || 0))) + Math.min(14, Math.sqrt(adj[g].length) * 3); };   // size() by item number: no name lookup
+      var sizeAt = function (g) { var nd = nodes[g]; if (nd.sizeK !== undefined) return 20 + 52 * nd.sizeK; return 26 + Math.min(26, 8 * Math.sqrt((nd.traffic || 0))) + Math.min(14, Math.sqrt(aoff[g + 1] - aoff[g]) * 3); };   // by item number: no name lookup
+      var size = function (nd) { return sizeAt(idxOf.get(nd.id)); };
       var arr = opts.arrange || 'stress';
       exactNow = arr === 'stressBest' || !!opts.exact;
       if (arr === 'stressBest') arr = 'stress';
-      if (arr !== 'stress' && arr !== 'force' && arr !== 'radial' && arr !== 'closeness') return globalNetwork(arr, nodes, G, adj, size, rnd, EDGE, idxOf);
+      if (arr !== 'stress' && arr !== 'force' && arr !== 'radial' && arr !== 'closeness') return globalNetwork(arr, nodes, G, adjOf(), size, rnd, EDGE, idxOf);
       var lk = opts.saveKey || null, sv = opts.saved;
       if (lk && sv && !opts.previewOnly && sv.key === lk && sv.xy && sv.xy.length === nb * 2) {   // the same map was laid out before: put every item where it was
         for (i = 0; i < nb; i++) {
@@ -2177,16 +2205,16 @@
       }
       var packs = [], roughAny = false;
       comps.forEach(function (members) {
-        var k = members.length, loc = new Map();
-        members.forEach(function (g, li) { loc.set(g, li); locArr[g] = li; });
+        var k = members.length, loc = arr === 'force' || arr === 'radial' ? new Map() : null, adj = arr === 'stress' ? null : adjOf();
+        for (var mi = 0; mi < k; mi++) { locArr[members[mi]] = mi; if (loc) loc.set(members[mi], mi); }
         var X = new Float64Array(k * 2), szL = new Float64Array(k);   // every item's size, worked out once per piece
         for (var zi = 0; zi < k; zi++) szL[zi] = sizeAt(members[zi]);
-        if (k === 1) { packs.push({ members: members, X: X, w: size(nodes[members[0]]) + 20, h: size(nodes[members[0]]) + 20 }); return; }
+        if (k === 1) { packs.push({ members: members, X: X, w: szL[0] + 20, h: szL[0] + 20 }); return; }
         /* start: a spiral in breadth-first order from the best-connected node, so neighbors begin close */
         var root = members[0], rbd = -1, rmi;
-        for (rmi = 0; rmi < k; rmi++) { var rg = members[rmi], rdg = adj[rg].length; if (rdg > rbd || (rdg === rbd && rg < root)) { rbd = rdg; root = rg; } }
+        for (rmi = 0; rmi < k; rmi++) { var rg = members[rmi], rdg = aoff[rg + 1] - aoff[rg]; if (rdg > rbd || (rdg === rbd && rg < root)) { rbd = rdg; root = rg; } }
         var oseen = new Uint8Array(k), order = new Int32Array(k), ot = 1, oi, oj; order[0] = root; oseen[locArr[root]] = 1;
-        for (oi = 0; oi < ot; oi++) { var olst = adj[order[oi]]; for (oj = 0; oj < olst.length; oj++) { var ow = olst[oj], ol = locArr[ow]; if (!oseen[ol]) { oseen[ol] = 1; order[ot++] = ow; } } }
+        for (oi = 0; oi < ot; oi++) { var og0 = order[oi]; for (oj = aoff[og0]; oj < aoff[og0 + 1]; oj++) { var ow = anbr[oj], ol = locArr[ow]; if (!oseen[ol]) { oseen[ol] = 1; order[ot++] = ow; } } }
         for (oi = 0; oi < ot; oi++) { var oa = oi * 2.399963, orad = EDGE * 0.6 * Math.sqrt(oi + 1), og = locArr[order[oi]]; X[og * 2] = orad * Math.cos(oa); X[og * 2 + 1] = orad * Math.sin(oa); }
         if (arr === 'force' || arr === 'radial') {
           if (arr === 'force') {
@@ -2212,7 +2240,11 @@
           closenessComponent(X, k, members, adj, locArr, root, EDGE, rnd);
         } else {
         STRESS.previewHit = false;
-        stressComponent(X, k, members, adj, locArr, root, EDGE, rnd);
+        var soff = new Int32Array(k + 1), sm = 0, sj0, sg;   // this piece's rows, in its own item numbers
+        for (sj0 = 0; sj0 < k; sj0++) { sg = members[sj0]; sm += aoff[sg + 1] - aoff[sg]; soff[sj0 + 1] = sm; }
+        var snbr = new Int32Array(sm), sq = 0;
+        for (sj0 = 0; sj0 < k; sj0++) { sg = members[sj0]; for (var se = aoff[sg]; se < aoff[sg + 1]; se++) snbr[sq++] = locArr[anbr[se]]; }
+        stressCsr(X, k, soff, snbr, locArr[root], EDGE, rnd, false);
         }
         var rough = STRESS.previewHit; STRESS.previewHit = false;   // this piece stopped at the early-preview stage: no clean-up, the final build does it
         /* push overlapping nodes apart (grid buckets, a few passes) */
@@ -2439,22 +2471,38 @@
     function communities(P) {
       var n = P.n, lab = new Int32Array(n), i, k;
       for (i = 0; i < n; i++) lab[i] = i;
-      var order = [];
-      for (i = 0; i < n; i++) order.push(i);
-      order.sort(function (a, b) { return outdeg(P, b) + indeg(P, b) - outdeg(P, a) - indeg(P, a) || a - b; });
+      var order = [], dg = new Int32Array(n);
+      for (i = 0; i < n; i++) { order.push(i); dg[i] = outdeg(P, i) + indeg(P, i); }
+      var dmax = 0; for (i = 0; i < n; i++) if (dg[i] > dmax) dmax = dg[i];
+      if (dmax < 4 * n + 1000) {   // most links first, then item number: a counting sort gives the order the comparison sort gave
+        var bstart = new Int32Array(dmax + 2); for (i = 0; i < n; i++) bstart[dmax - dg[i] + 1]++;
+        for (i = 0; i <= dmax; i++) bstart[i + 1] += bstart[i];
+        for (i = 0; i < n; i++) order[bstart[dmax - dg[i]]++] = i;
+      } else order.sort(function (a, b) { return dg[b] - dg[a] || a - b; });
       // the weight seen per label is tallied in typed lists (acc by label, seenAt marks this item's labels, touched keeps them in first-seen order): the same sums in the same order as a Map gave, without building one per item
       var acc = new Float64Array(n), seenAt = new Int32Array(n), touched = new Int32Array(n), mark = 0, nt, l, t2;
+      // each item's neighbors and link weights in one row (arrows out, then arrows in: the order the sums were always made in), and a flag per item: an item is looked at
+      // again only when its own label or a neighbor's changed since its last look (nothing else can change its answer), so later sweeps touch only the items still moving
+      var cst = new Int32Array(n + 1), tot = 0;
+      for (i = 0; i < n; i++) { tot += P.outStart[i + 1] - P.outStart[i] + P.inStart[i + 1] - P.inStart[i]; cst[i + 1] = tot; }
+      var cnb = new Int32Array(tot), cw = new Float64Array(tot), cp = 0, dirty = new Uint8Array(n).fill(1);
+      for (i = 0; i < n; i++) {
+        for (k = P.outStart[i]; k < P.outStart[i + 1]; k++) { var e = P.outEdge[k]; cnb[cp] = P.to[e]; cw[cp++] = P.w[e]; }
+        for (k = P.inStart[i]; k < P.inStart[i + 1]; k++) { var e2 = P.inEdge[k]; cnb[cp] = P.from[e2]; cw[cp++] = P.w[e2]; }
+      }
       for (var sweep = 0; sweep < 20; sweep++) {
         var changed = 0;
         for (var oi = 0; oi < n; oi++) {
           var v = order[oi];
+          if (!dirty[v]) continue;
+          dirty[v] = 0;
+          var c0 = cst[v], c1 = cst[v + 1];
+          if (c0 === c1) continue;
           mark++; nt = 0;
-          for (k = P.outStart[v]; k < P.outStart[v + 1]; k++) { var e = P.outEdge[k]; l = lab[P.to[e]]; if (seenAt[l] !== mark) { seenAt[l] = mark; acc[l] = 0; touched[nt++] = l; } acc[l] += P.w[e]; }
-          for (k = P.inStart[v]; k < P.inStart[v + 1]; k++) { var e2 = P.inEdge[k]; l = lab[P.from[e2]]; if (seenAt[l] !== mark) { seenAt[l] = mark; acc[l] = 0; touched[nt++] = l; } acc[l] += P.w[e2]; }
-          if (!nt) continue;
+          for (k = c0; k < c1; k++) { l = lab[cnb[k]]; if (seenAt[l] !== mark) { seenAt[l] = mark; acc[l] = 0; touched[nt++] = l; } acc[l] += cw[k]; }
           var bestL = lab[v], bestW = seenAt[bestL] === mark ? acc[bestL] || 0 : 0;
           for (t2 = 0; t2 < nt; t2++) { l = touched[t2]; var wt = acc[l]; if (wt > bestW + 1e-12 || (Math.abs(wt - bestW) <= 1e-12 && l < bestL)) { bestW = wt; bestL = l; } }
-          if (bestL !== lab[v]) { lab[v] = bestL; changed++; }
+          if (bestL !== lab[v]) { lab[v] = bestL; changed++; dirty[v] = 1; for (k = c0; k < c1; k++) dirty[cnb[k]] = 1; }
         }
         if (!changed) break;
       }
@@ -2701,7 +2749,12 @@
         var gi = nodeIdx++;
         var pg = P.nodes[n.pages[0]];
         n.traffic = 0; n.choke = false; n.visits = 0; n.pGood = 0; n.pBad = 0; n.pNeutral = 0;
-        n.pages.forEach(function (pi) {
+        var one = n.pages.length === 1, p0 = n.pages[0];   // most items stand for one page: no inner loops for those
+        if (one) {
+          if (imp.traffic[p0] > 0) n.traffic = imp.traffic[p0];
+          if (imp.choke[p0]) n.choke = true;
+          if (flow && flow.visits[p0] > 0) n.visits = flow.visits[p0];
+        } else n.pages.forEach(function (pi) {
           if (imp.traffic[pi] > n.traffic) n.traffic = imp.traffic[pi];
           if (imp.choke[pi]) n.choke = true;
           if (flow) { if (flow.visits[pi] > n.visits) n.visits = flow.visits[pi]; }
@@ -2722,7 +2775,8 @@
         n.unreached = imp.depth[n.pages[0]] < 0;
         n.deg = indeg(P, n.pages[0]) + outdeg(P, n.pages[0]);
         n.inN = 0; n.outN = 0; n.inW = 0; n.outW = 0;
-        n.pages.forEach(function (pi2) { n.inN += indeg(P, pi2); n.outN += outdeg(P, pi2); var q; for (q = P.inStart[pi2]; q < P.inStart[pi2 + 1]; q++) n.inW += P.rw[P.inEdge[q]]; for (q = P.outStart[pi2]; q < P.outStart[pi2 + 1]; q++) n.outW += P.rw[P.outEdge[q]]; });
+        if (one) { var q0, iw = 0, ow = 0; for (q0 = P.inStart[p0]; q0 < P.inStart[p0 + 1]; q0++) iw += P.rw[P.inEdge[q0]]; for (q0 = P.outStart[p0]; q0 < P.outStart[p0 + 1]; q0++) ow += P.rw[P.outEdge[q0]]; n.inN = indeg(P, p0); n.outN = outdeg(P, p0); n.inW = iw; n.outW = ow; }
+        else n.pages.forEach(function (pi2) { n.inN += indeg(P, pi2); n.outN += outdeg(P, pi2); var q; for (q = P.inStart[pi2]; q < P.inStart[pi2 + 1]; q++) n.inW += P.rw[P.inEdge[q]]; for (q = P.outStart[pi2]; q < P.outStart[pi2 + 1]; q++) n.outW += P.rw[P.outEdge[q]]; });
         n.ghost = !!pg.ghost;
         var k = 1;
         if (o.traffic) k = 1 + 0.45 * n.traffic;
@@ -2748,14 +2802,22 @@
         for (var gk = 0; gk < amountMass.length; gk++) { amountMass[gk] = Math.max(ins2[gk], outs2[gk]); if (amountMass[gk] > amountMax) amountMax = amountMass[gk]; }
       }
       G.edges.forEach(function (e) {
-        var gi = ei1++, labels = [], fw = 0, wsum = 0;
-        e.srcs.forEach(function (ei) {
-          var orig = P.edges[P.eorig[ei]];
-          if (orig.label && labels.length < 4) labels.push(orig.label);
-          if (flow) fw += flow.moves[ei];
-          wsum += P.w[ei];
-        });
-        e.label = labels.join(' / '); e.count = e.srcs.length; e.flow = fw; e.weight = wsum; e.orig = e.srcs.map(function (q) { return P.eorig[q]; });
+        var gi = ei1++, labels, fw = 0, wsum = 0;
+        if (e.srcs.length === 1) {   // most links stand for one source link: no small lists for those
+          var s0 = e.srcs[0], og = P.edges[P.eorig[s0]];
+          if (flow) fw += flow.moves[s0];
+          wsum += P.w[s0];
+          e.label = og.label ? [og.label].join(' / ') : ''; e.count = 1; e.flow = fw; e.weight = wsum; e.orig = [P.eorig[s0]];
+        } else {
+          labels = [];
+          e.srcs.forEach(function (ei) {
+            var orig = P.edges[P.eorig[ei]];
+            if (orig.label && labels.length < 4) labels.push(orig.label);
+            if (flow) fw += flow.moves[ei];
+            wsum += P.w[ei];
+          });
+          e.label = labels.join(' / '); e.count = e.srcs.length; e.flow = fw; e.weight = wsum; e.orig = e.srcs.map(function (q) { return P.eorig[q]; });
+        }
         if (P.stated) e.absent = e.srcs.every(function (q) { return P.edges[P.eorig[q]].absent === true; });
         e.widthV = widthV ? widthV[gi] : NaN; e.colorV = ecV ? ecV[gi] : NaN;
         e.colorC = ecT && !ecNum ? (C.catOf(P.edges[P.eorig[e.srcs[0]]], ecT) || '(none)') : '';
@@ -2766,8 +2828,9 @@
       var cls = {}, laneNames = [], laneOfBox = {};
       var useLanes = view === 'lanes' || true;
       var keyOf = function (n) { return o.laneBy === 'found' && found ? 'group ' + (found[n.pages[0]] + 1) : groupKey(P.nodes[n.pages[0]], o.laneBy || 'group'); };
-      G.nodes.forEach(function (n) { cls[n.id] = keyOf(n); });
-      var keys = Array.from(new Set(Object.keys(cls).map(function (id) { return cls[id]; })));
+      var kset = new Set();
+      G.nodes.forEach(function (n) { var kv = keyOf(n); cls[n.id] = kv; kset.add(kv); });
+      var keys = Array.from(kset);   // the groups in item order (item ids are never number-like, so this is the order the cls table lists them in)
       var meanDepth = new Map();   /* a Map, not {}: a group called __proto__ or constructor must not hit Object.prototype */
       G.nodes.forEach(function (n) { var k = cls[n.id], md = meanDepth.get(k); if (!md) meanDepth.set(k, md = [0, 0]); md[0] += Math.max(0, imp.depth[n.pages[0]]); md[1]++; });
       keys.sort(function (a, b) { var ma = meanDepth.get(a), mb = meanDepth.get(b); return ma[0] / ma[1] - mb[0] / mb[1] || (a < b ? -1 : 1); });
