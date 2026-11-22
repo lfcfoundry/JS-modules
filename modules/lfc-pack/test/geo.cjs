@@ -15,15 +15,15 @@ const J = require('../lfc-pack.js');
   ok(G && G.x === 'lon' && G.cells === 256 && G.heat.length === 65536 && G.heat.reduce((s, v) => s + v, 0) === N - Math.ceil(N / 997), 'geo(): heat counts every row with both coordinates');
   ok(S.sortedBy === '$hilbert' && Array.isArray(S.hidden) && S.hidden[0] === '$hilbert' && !S.cols.some((c) => c.key === '$hilbert'), 'section 20: sorted by the hidden key');
   const u = J.unpack(f); ok(u.length === N && !('$hilbert' in u[0]) && Object.keys(u[0]).join() === 'id,lon,lat,kind', 'reads leave $hilbert out');
-  ok(J.unpack(f, { keys: ['id', '$hilbert'] })[0].$hilbert >= 0, '$hilbert by name');
+  ok(!('$hilbert' in J.unpack(f, { keys: ['id', '$hilbert'] })[0]) && G.key === null, 'no key column stored (since 0.23.0)');
   const uc = J.unpackColumns(f); ok(!uc.some((b) => '$hilbert' in b.cols), 'unpackColumns leaves it out');
   const pc = await J.unpackColumnsParallel(f); ok(!('$hilbert' in pc) && pc.id.length === N, 'unpackColumnsParallel leaves it out');
   const pr = await J.unpackRowsParallel(f); ok(pr.length === N && !('$hilbert' in pr[0]), 'unpackRowsParallel leaves it out');
   ok(R.info.blocks >= 10, 'small blocks (' + R.info.blocks + ')');
-  // Hilbert prefix: every key's top 16 bits are its cell's level-8 index (checked through the heat grid: rows per run equal the heat of that cell)
-  const kc = J.unpack(f, { keys: ['lon', 'lat', '$hilbert'] }), b = G.bounds; let pre = true;
-  for (let i = 0; i < kc.length && pre; i += 37) { const x = kc[i]; if (x.lon === null) continue; const qx = Math.min(65535, Math.max(0, Math.floor((x.lon - b[0]) * 65536 / (b[2] - b[0])))), qy = Math.min(65535, Math.max(0, Math.floor((x.lat - b[1]) * 65536 / (b[3] - b[1])))); const top = Math.floor(x.$hilbert / 65536); const cnt = kc.filter((y) => y.$hilbert !== null && Math.floor(y.$hilbert / 65536) === top).length; if (cnt !== G.heat[(qy >> 8) * 256 + (qx >> 8)]) pre = false; }
-  ok(pre, 'a key\'s top 16 bits name its heat cell');
+  // block key ranges (since 0.23.0): one per block, rising and not overlapping, null only for the blocks of rows with a missing coordinate (last)
+  const Z = G.zones, kc = J.unpack(f, { keys: ['lon', 'lat'] }), b = G.bounds; let rise = Z && Z.length === R.info.blocks, seenNull = false;
+  for (let i = 0; rise && i < Z.length; i++) { if (Z[i] === null) { seenNull = true; continue; } if (seenNull || Z[i][0] > Z[i][1] || (i && Z[i - 1] && Z[i - 1][1] > Z[i][0])) rise = false; }
+  ok(rise, 'zones: one per block, rising');
   ok(kc.slice(-Math.ceil(N / 997)).every((x) => x.lon === null), 'rows with a missing coordinate go last');
   const boxes = [[-74.1, 40.6, -73.8, 40.9], [-0.2, 51.45, -0.05, 51.55], [100, -10, 150, 60], [-180, -90, 180, 90], [5, 5, 6, 6], [-73.99, 40.74, -73.97, 40.76], [b[0], b[1], b[0], b[1]]];
   for (const bx of boxes) {

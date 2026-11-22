@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.23.0 · API 0 · 2026-11-21
+- Geo saves 13-22% faster and 9% smaller; views saves up to 10% faster; sortBy reorder 2-3x faster
+
 ## 0.22.0 · API 0 · 2026-11-21
 - Two-way views (section 22): exact pair counts and sums read in about 2 ms
 

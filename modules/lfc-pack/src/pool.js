@@ -351,7 +351,7 @@
   }
   function packColumnsParallel(obj, opts) {   // since 0.17.0: graph: { from, to, weight?, directed?, reverse?, nodes? } adds the graph section (23) after the save
     if (opts && opts.views) { try { viewSpec(opts.views); } catch (e) { return Promise.reject(e); } return packColumnsParallel(obj, Object.assign({}, opts, { views: null, _views: opts.views })); }   // since 0.22.0: built inside the save (packColumnsParallel0)
-    if (opts && opts.geo) { var gp; try { gp = geoPrep(obj, opts); } catch (e) { return Promise.reject(e); } return packColumnsParallel(gp.obj, gp.opts).then(function (b) { return addSections(b, [[SEC_GEO, gp.sec]]); }); }   // since 0.20.0
+    if (opts && opts.geo) { var gp; try { gp = geoPrep(obj, opts); } catch (e) { return Promise.reject(e); } return packColumnsParallel(gp.obj, gp.opts).then(function (b) { return addSections(b, [[SEC_GEO, geoSection(gp, b)]]); }); }   // since 0.20.0
     if (!opts || !opts.graph) return packColumnsParallel0(obj, opts);
     var gb; try { gb = graphBuild(opts.graph, obj); } catch (e) { return Promise.reject(e); }
     return packColumnsParallel0(obj, Object.assign({}, opts, { graph: null })).then(function (b) { return addGraph(b, gb); });
