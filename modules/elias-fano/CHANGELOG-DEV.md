@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.1 · API 2 · 2026-11-22
+
+### Quick
+A leaner reader for tiny lists after open; open still checks every blob. Same answers.
+
+### Details
+Real short lists (five files), 2.2.1 / 2.2.0, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: decode 0.83 / 0.75 / 0.70, nextGEQMany 0.92 / 0.96 / 0.87, intersect pairs 0.86 / 0.89 / 0.82.
+
+### Deep
+Tiny lists keep the checked reader for open and use a leaner one afterwards: no per-call objects, integer steps for varints and bits, never past the end of the blob. On the short lists of five real files, 2.2.1 against 2.2.0 (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6): decode 0.83 / 0.75 / 0.70, nextGEQMany 0.92 / 0.96 / 0.87, intersect pairs 0.86 / 0.89 / 0.82; against flat lists, decode 0.57 / 0.44 / 0.35 and nextGEQMany 0.45 / 0.53 / 0.33. Same answers; test/tiny.js now also reads through the lean reader (50,000 extra random trials passed). Reader approach from the research thread's tiny2 prototype.
+
 ## 2.2.0 · API 2 · 2026-11-22
 
 ### Quick

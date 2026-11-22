@@ -13,11 +13,11 @@ function randList(n) {
 let checks = 0; const eq = (a, b, m) => { checks++; assert.strictEqual(a, b, m); };
 (async () => {
   await EF.ready();
-  const kinds = { 0x74: 0, 0x75: 0 };
+  const kinds = { 0x74: 0, 0x75: 0 }, Z0 = EF.openTiny(EF.buildTiny([7]));
   // 1: random lists, 0 to 63 values, every reader against the input
   for (let t = 0; t < 4000; t++) {
     const n = t < 4 ? [0, 1, 2, 63][t] : Math.floor(r() * 64), v = randList(n), b = EF.buildTiny(v), L = EF.openTiny(b);
-    kinds[b[0]]++; eq(L.length, n, 'length');
+    kinds[b[0]]++; eq(L.length, n, 'length'); Z0.get(0);   // another list read in between: the reads below take the fast reader, not the checked one open used
     const a = L.toArray(); for (let i = 0; i < n; i++) { eq(a[i], v[i], 'toArray ' + t + ' ' + i); eq(L.get(i), v[i], 'get'); }
     eq(L.get(n), undefined, 'get past the end');
     const xs = [0, 1, n ? v[0] : 5, n ? v[n - 1] : 9, n ? v[n - 1] + 1 : 10, 4294967295, 4294967296, -3, 2.5, NaN]; for (let q = 0; q < 6; q++) xs.push(Math.floor(r() * 4294967296));
