@@ -5,7 +5,7 @@
  * check against; what-if sweeps. Names and help texts for the random-number kinds are in the optional walker-sim-menu.js.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.2 (API 2)
+ * Version 2.5.0 (API 2)
  *
  *   var P = WalkerSim.graph({ links: [{ from: "start", to: "a", weight: 3 }, { from: "start", to: "b", weight: 1 }] });
  *   var sim = WalkerSim.create(P, { seed: 7, trials: 10000 }); sim.run(1e9, 1e9);   // run(max trials, max milliseconds)
@@ -395,6 +395,7 @@
       epPerTrial: [], epCosts: [], costs: [], costSeen: 0, stepTab: { a: new Float64Array(cap + 1), over: null }, trace: [], nextTrace: 10, lastRng: null, startedAt: 0, busyMs: 0
     };
     for (i = 0; i < K; i++) { st.epPerTrial.push({ a: new Float64Array(16), over: null }); st.epCosts.push([]); }
+    var sparseT = 0, sparseHit = new Float64Array(K), lastEpJS = -1, dirty = false;     // trials of one walker leave the zero bins of the per-trial tables implicit until export/snapshot (see flushZeros)
     var seen = new Int32Array(n).fill(-1), stamp = 0, trialCounts = new Float64Array(K), COST_CAP = 100000, EPCOST_CAP = 5000;
     var sampState = (seed ^ 0x5bd1e995) >>> 0;       // its own random numbers for thinning the cost samples, so the walkers' numbers are never touched
     function sampler() { sampState = (Math.imul(sampState, 1664525) + 1013904223) >>> 0; return sampState / 4294967296; }
@@ -428,6 +429,11 @@
       }
       return [Math.max(0, lo), Math.min(1, hi)];
     }
+    function flushZeros() {   // the deferred zeros: an end that was not reached in a one-walker trial came up 0 times that trial
+      if (!sparseT) return;
+      for (var k = 0; k < K; k++) { var d = sparseT - sparseHit[k]; if (d) { var pt = st.epPerTrial[k]; pt.a[0] += d; } sparseHit[k] = 0; }
+      sparseT = 0;
+    }
     function widest() { var w = 0; for (var k = 0; k < K; k++) { var r = rangeOf(k); if ((r[1] - r[0]) / 2 > w) w = (r[1] - r[0]) / 2; } return w; }
     function refreshTotals() {   // visits and moves are kept as counts of slots used; the item totals follow from them
       var v, k;
@@ -444,7 +450,7 @@
       hand = kernelMaker({ n: n, m: m, K: K, cap: cap, os: os, tg: tg, halt: halt, epOf: epOf, lut: LUT, cumN: cumN });
       if (!hand) return;
       hand.moves.set(movesCsr); hand.tab.set(st.stepTab.a);
-      movesCsr = hand.moves; st.stepTab.a = hand.tab; trialCounts = hand.counts; st.engine = 'wasm';
+      movesCsr = hand.moves; st.stepTab.a = hand.tab; trialCounts = hand.counts; st.engine = 'wasm'; dirty = true;
     }
     // The walkers of one trial for the common case (fixed weights, one start, no costs): the generator's state sits in a local variable (the same numbers as rng() gives),
     // and a lookup table per item picks the way on from the first 8 bits of the random number (255 = a boundary falls in that slice: scan like the loop below does).
@@ -464,10 +470,31 @@
           lMoves[sl]++; v = lTg[sl]; steps++;
         }
         lTab[steps]++;
-        if (isEnd[v]) trialCounts[lEp[v]]++; else stuck++;
+        if (isEnd[v]) { lastEpJS = lEp[v]; trialCounts[lastEpJS]++; } else { lastEpJS = -1; stuck++; }
       }
       rng.reseed(s0);
       return stuck;
+    }
+    function oneTrial(rng) {   // one walker: at most one end is reached, so only that end's tables change (the zeros of the others are added back by flushZeros); its own function, so the loop below stays small
+      var k, stuckHere;
+      if (dirty) { for (k = 0; k < K; k++) trialCounts[k] = 0; dirty = false; }
+      startCount[srcs[0].v]++;
+      stuckHere = (hand ? hand.walk : walkPlain)(rng, 1, srcs[0].v);
+      var ep1 = hand ? hand.last() : lastEpJS;
+      st.walkers += 1; st.stuck += stuckHere; sparseT++; st.shareTrials++;
+      if (ep1 >= 0) {
+        trialCounts[ep1] = 0;
+        st.epCount[ep1] += 1; st.epSum[ep1] += 1; st.epSumSq[ep1] += 1; st.epShareSum[ep1] += 1; st.epShareSq[ep1] += 1;
+        tabAdd(st.epPerTrial[ep1], 1); sparseHit[ep1]++;
+      }
+      st.trial++; st.nTrials++;
+      if (precision && st.walkers >= minWalkers && (st.nTrials & 7) === 0 && widest() < precision) { st.stoppedEarly = true; st.trial = T; }
+      if (st.walkers >= st.nextTrace || st.trial === T) {
+        var row1 = { walkers: st.walkers, trial: st.nTrials, shares: [] };
+        for (k = 0; k < K; k++) row1.shares.push(st.walkers ? st.epCount[k] / st.walkers : 0);
+        st.trace.push(row1); st.nextTrace = Math.ceil(st.walkers * 1.25) + 5;
+      }
+      if (st.walkers >= maxWalkers) st.trial = T;
     }
     st.run = function (maxTrials, budgetMs) {
       var t0 = Date.now(), done = 0;
@@ -479,6 +506,8 @@
         var count = Math.max(0, Math.round(dArr(rng, 0)));
         if (st.walkers + count > maxWalkers) count = Math.max(0, maxWalkers - st.walkers);
         var k, stuckHere = 0, plain = viaTable && !dCost && !dDwell;
+        if (plain && count === 1 && srcs.length === 1) { oneTrial(rng); done++; if (st.trial === T) break; continue; }
+        dirty = true;
         for (k = 0; k < K; k++) trialCounts[k] = 0;
         var inLoop = 0;
         if (plain && srcs.length === 1) { startCount[srcs[0].v] += count; stuckHere = (hand ? hand.walk : walkPlain)(rng, count, srcs[0].v); inLoop = count; count = 0; }     // the common case; count comes back below
@@ -537,6 +566,7 @@
     };
     /** Everything counted so far, as plain arrays and numbers that can be sent to another thread (structured clone) and added up with add() or merge(). */
     st.export = function () {
+      flushZeros();
       return {
         trials: st.nTrials, walkers: st.walkers, stuck: st.stuck, shareTrials: st.shareTrials, startCount: startCount.slice(), moves: movesCsr.slice(),
         epCount: st.epCount.slice(), epSum: st.epSum.slice(), epSumSq: st.epSumSq.slice(), epShareSum: st.epShareSum.slice(), epShareSq: st.epShareSq.slice(),
@@ -564,6 +594,7 @@
     };
     /** A plain copy of the results so far (typed arrays are copied, so the next batch does not change what you hold). */
     st.snapshot = function () {
+      flushZeros();
       var W0 = st.walkers || 1, eps = [], k;
       for (k = 0; k < K; k++) {
         var cnt = st.epCount[k], share = st.walkers ? cnt / st.walkers : 0, pt = st.epPerTrial[k], ptn = tabCount(pt);
@@ -1026,7 +1057,7 @@
  * Turn it off for one run with cfg.wasm = false. sim.engine says which loop a run used ('wasm' or 'js'); WalkerSim.wasm says whether this file found WebAssembly usable.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.2 (API 2)
+ * Version 2.5.0 (API 2)
  */
 
 (function (root, factory) {
@@ -1038,7 +1069,7 @@
   var mod = null, settled = false, early = null, bin = null;     // bin: the decoded program, kept only until it is compiled once
   function wasmBytes() {
     if (bin) return bin;
-    var src = /*WASM:BEGIN*/'AGFzbQEAAAABEwFgDn9/f39/f39/f39/f39/AX8CDwEDZW52Bm1lbW9yeQIAAgMCAQAGBwF/AUGAEAsHCAEEd2FsawAACv4GAfsGAgh/AnwCQCAADQAgDUEANgIAIAIPCwJAAkAgA0EBSA0AIAcgAWohDkEAIQ9BACEQA0ACQAJAIA4tAABFDQAgASERQQAhEgwBC0EAIRIgASERA0AgBCARQQJ0aigCACETAkACQCAIIBFBCHQgAkH1863pBmoiAkEPdiACcyACQQFybCIRQQd2IBFzIBFBPXJsIBFqIBFzIhRBGHZyai0AACIRQf8BRg0AIBMgEWohFQwBCyATQX9qIRUgBSATQQN0aiERIBRBDnYgFHO4RAAAAAAAAPA9oiEWA0AgFUEBaiEVIBErAwAhFyARQQhqIREgFyAWZQ0ACwsgCSAVQQN0aiIRIBErAwBEAAAAAAAA8D+gOQMAIBJBAWohEiAHIAYgFUECdGooAgAiEWotAAANASASIANIDQALCyAKIBJBA3RqIhUgFSsDAEQAAAAAAADwP6A5AwACQAJAIAsgEUECdGooAgAiEUEASA0AIAwgEUEDdGoiESARKwMARAAAAAAAAPA/oDkDAAwBCyAPQQFqIQ8LIBBBAWoiECAARw0ADAILCwJAIAsgAUECdGooAgAiEUEASA0AIAwgEUEDdGohESAAQQNxIRUCQCAAQQRJDQAgAEF8cSESA0AgCiAKKwMARAAAAAAAAPA/oDkDACARIBErAwBEAAAAAAAA8D+gOQMAIAogCisDAEQAAAAAAADwP6A5AwAgESARKwMARAAAAAAAAPA/oDkDACAKIAorAwBEAAAAAAAA8D+gOQMAIBEgESsDAEQAAAAAAADwP6A5AwAgCiAKKwMARAAAAAAAAPA/oDkDACARIBErAwBEAAAAAAAA8D+gOQMAIBJBfGoiEg0ACwtBACEPIBVFDQEDQCAKIAorAwBEAAAAAAAA8D+gOQMAIBEgESsDAEQAAAAAAADwP6A5AwAgFUF/aiIVDQAMAgsLIABBB3EhESAKKwMAIRcCQCAAQQhJDQAgAEF4cSEVA0AgF0QAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gIRcgFUF4aiIVDQALCwJAIBFFDQADQCAXRAAAAAAAAPA/oCEXIBFBf2oiEQ0ACwsgCiAXOQMAIAAhDwsgDSAPNgIAIAIL'/*WASM:END*/;
+    var src = /*WASM:BEGIN*/'AGFzbQEAAAABEwFgDn9/f39/f39/f39/f39/AX8CDwEDZW52Bm1lbW9yeQIAAgMCAQAGBwF/AUGAEAsHCAEEd2FsawAACoUHAYIHAgh/AnwCQAJAIAANAEEAIQ5BfyEPDAELAkAgA0EBSA0AIAcgAWohEEEAIQ5BACERA0ACQAJAIBAtAABFDQAgASESQQAhEwwBC0EAIRMgASESA0AgBCASQQJ0aigCACEUAkACQCAIIBJBCHQgAkH1863pBmoiAkEPdiACcyACQQFybCISQQd2IBJzIBJBPXJsIBJqIBJzIhVBGHZyai0AACISQf8BRg0AIBQgEmohDwwBCyAUQX9qIQ8gBSAUQQN0aiESIBVBDnYgFXO4RAAAAAAAAPA9oiEWA0AgD0EBaiEPIBIrAwAhFyASQQhqIRIgFyAWZQ0ACwsgCSAPQQN0aiISIBIrAwBEAAAAAAAA8D+gOQMAIBNBAWohEyAHIAYgD0ECdGooAgAiEmotAAANASATIANIDQALCyAKIBNBA3RqIg8gDysDAEQAAAAAAADwP6A5AwACQAJAIAsgEkECdGooAgAiD0EASA0AIAwgD0EDdGoiEiASKwMARAAAAAAAAPA/oDkDAAwBCyAOQQFqIQ4LIBFBAWoiESAARw0ADAILCwJAIAsgAUECdGooAgAiD0EASA0AIAwgD0EDdGohEiAAQQNxIRMCQCAAQQRJDQAgAEF8cSEUA0AgCiAKKwMARAAAAAAAAPA/oDkDACASIBIrAwBEAAAAAAAA8D+gOQMAIAogCisDAEQAAAAAAADwP6A5AwAgEiASKwMARAAAAAAAAPA/oDkDACAKIAorAwBEAAAAAAAA8D+gOQMAIBIgEisDAEQAAAAAAADwP6A5AwAgCiAKKwMARAAAAAAAAPA/oDkDACASIBIrAwBEAAAAAAAA8D+gOQMAIBRBfGoiFA0ACwtBACEOIBNFDQEDQCAKIAorAwBEAAAAAAAA8D+gOQMAIBIgEisDAEQAAAAAAADwP6A5AwAgE0F/aiITDQAMAgsLIABBB3EhEiAKKwMAIRcCQCAAQQhJDQAgAEF4cSETA0AgF0QAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gIRcgE0F4aiITDQALCwJAIBJFDQADQCAXRAAAAAAAAPA/oCEXIBJBf2oiEg0ACwsgCiAXOQMAIAAhDgsgDSAPNgIEIA0gDjYCACACCw=='/*WASM:END*/;
     if (typeof Uint8Array.fromBase64 === 'function') return (bin = Uint8Array.fromBase64(src));
     var txt = atob(src), bytes = new Uint8Array(txt.length);
     for (var i = 0; i < txt.length; i++) bytes[i] = txt.charCodeAt(i);
@@ -1075,10 +1106,11 @@
       var walk = new WebAssembly.Instance(mod, { env: { memory: mem } }).exports.walk, buf = mem.buffer;
       new Int32Array(buf, oOs, n + 1).set(a.os); new Int32Array(buf, oTg, m).set(a.tg); new Uint8Array(buf, oHalt, n).set(a.halt);
       new Int32Array(buf, oEp, n).set(a.epOf); new Uint8Array(buf, oLut, n * 256).set(a.lut); new Float64Array(buf, oCum, m).set(a.cumN);
-      var stuck = new Uint32Array(buf, oSt, 1), cap = a.cap;
+      var stuck = new Uint32Array(buf, oSt, 2), cap = a.cap;
       return {
         moves: new Float64Array(buf, oMoves, m), tab: new Float64Array(buf, oTab, cap + 1), counts: new Float64Array(buf, oTc, K),
-        walk: function (rng, count, start) { rng.reseed(walk(count, start, rng.state(), cap, oOs, oCum, oTg, oHalt, oLut, oMoves, oTab, oEp, oTc, oSt)); return stuck[0]; }
+        walk: function (rng, count, start) { rng.reseed(walk(count, start, rng.state(), cap, oOs, oCum, oTg, oHalt, oLut, oMoves, oTab, oEp, oTc, oSt)); return stuck[0]; },
+        last: function () { return stuck[1] | 0; }     // the end the last walker of the last walk reached (-1: stuck)
       };
     } catch (e) { return null; }
   });

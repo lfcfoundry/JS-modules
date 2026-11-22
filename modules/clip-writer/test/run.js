@@ -200,5 +200,6 @@ function readFmp4(f) {
     for (let i = 0; i < cnt && good; i++) { const e = sx.body + 24 + i * 12, size = be(si, e, 4), dur = be(si, e + 4, 4), want = t2.find((x, q) => x === frs[i]); const mdN = t2[t2.indexOf(frs[i]) + 1]; if (mdN.end - frs[i].start !== size) good = false; if (i === 0 && dur !== S.slice(0, S.findIndex((x, q) => q > 0 && x.key)).reduce((a, x) => a + x.ms, 0)) good = false; }
     ok(good && await same(si, C.writeFmp4(S, 640, 360, avcC, au, { sidx: true, blob: true })), 'sidx' + nm + ': one entry per piece with the right byte size and the first piece length; Blob equals array');
   }
+  { const kf = Array.from({ length: 120 }, (_, i) => ({ data: new Uint8Array(30 + (i * 29) % 900).fill(i & 255), ms: 33, key: i % 25 === 0 })), A = C.writeWebm(kf, 320, 180); const Bx = new Uint8Array(await C.writeWebmBlob(kf, 320, 180).arrayBuffer()); ok(A.length === Bx.length && A.every((v, i) => v === Bx[i]), 'writeWebmBlob (since 1.4.0): the same bytes as writeWebm, as a Blob'); }
   console.log(fails ? 'clip-writer: ' + fails + ' FAILED' : 'clip-writer: all passed'); process.exit(fails ? 1 : 0);
 })();

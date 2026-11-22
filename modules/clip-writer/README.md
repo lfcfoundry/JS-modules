@@ -1,8 +1,8 @@
 # clip-writer
 
-**Version 1.3.0 · API 1**
+**Version 1.4.0 · API 1**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Cut from Netflow Map, where it saves animations next to [gif-writer](../gif-writer/README.md).
 
@@ -39,7 +39,7 @@ ClipWriter.support(640, 360, 25).then(function (s) {          // which formats t
 });
 ```
 
-`add(buffer, ms, width)` returns a promise: wait for it, the encoder may be catching up. Sizes are rounded down to even numbers. `bitsPerPixel` (default 0.1) sets the quality and the size. `cancel()` stops and lets go of the encoder. `writeMp4(samples, w, h, avcC)`, `writeFmp4(samples, w, h, avcC)` and `writeWebm(samples, w, h)` are the file writers on their own (they work in Node), for encoded pictures you already have.
+`add(buffer, ms, width)` returns a promise: wait for it, the encoder may be catching up. Sizes are rounded down to even numbers. `bitsPerPixel` (default 0.1) sets the quality and the size. `cancel()` stops and lets go of the encoder. `writeMp4(samples, w, h, avcC)`, `writeFmp4(samples, w, h, avcC)`, `writeWebm(samples, w, h)` and `writeWebmBlob(samples, w, h)` (the same bytes as a Blob, without one big copy) are the file writers on their own (all but the Blob one work in Node), for encoded pictures you already have.
 
 **Fragmented MP4** (`format: 'fmp4'`, H.264 like `mp4`): a small start-up header, then one piece for every run of pictures that starts at a key picture. Each piece can be appended to a `MediaSource`, sent over a connection, or the whole file saved as one. `writeFmp4Segments(...)` returns `{ init, fragments }` as views into one buffer. With `createWriter({ ..., format: 'fmp4', onSegment: function (bytes, isInit) { ... } })` each piece is handed over as soon as the next key picture arrives and nothing is kept, so `finish()` resolves to `null`. Key pictures come every 50 pictures; `support()` also reports `fmp4`.
 

@@ -1,8 +1,8 @@
 # zstd-kit
 
-**Version 1.0.0 · API 1**
+**Version 1.0.1 · API 1**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6; Node 22 (tests)
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. The WebAssembly inside is Zstandard 1.5.7 (BSD-3-Clause, see [NOTICE-zstd.txt](NOTICE-zstd.txt)).
 

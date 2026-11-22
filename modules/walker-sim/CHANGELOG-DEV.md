@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-11-22
+
+### Quick
+Trials with one walker and one source now touch only the cells they visit; results match bit for bit.
+
+### Deep
+Single-walker, single-source trials now keep a sparse visit list and clear only touched cells between trials, in both the JavaScript and the WebAssembly paths (the Wasm reports its last step through stuck[1]). Results match the old path bit for bit. Found in an outside code review (round 3). Other trial shapes are unchanged: guard runs 0.98 to 1.01 in all three browsers.
+
 ## 2.4.2 · API 2 · 2026-11-06
 
 ### Quick

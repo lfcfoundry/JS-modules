@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.4.0 · API 1 · 2026-11-22
+- Blob output builds WebM from parts without one big copy.
+
 ## 1.3.0 · API 1 · 2026-10-30
 - New saving options: fastStart (MP4 index first), sidx (seek index for fragmented MP4) and output 'blob'. All off by default; existing files are unchanged.
 

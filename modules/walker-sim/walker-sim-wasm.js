@@ -9,7 +9,7 @@
  * Turn it off for one run with cfg.wasm = false. sim.engine says which loop a run used ('wasm' or 'js'); WalkerSim.wasm says whether this file found WebAssembly usable.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.2 (API 2)
+ * Version 2.5.0 (API 2)
  */
 
 (function (root, factory) {
@@ -21,7 +21,7 @@
   var mod = null, settled = false, early = null, bin = null;     // bin: the decoded program, kept only until it is compiled once
   function wasmBytes() {
     if (bin) return bin;
-    var src = /*WASM:BEGIN*/'AGFzbQEAAAABEwFgDn9/f39/f39/f39/f39/AX8CDwEDZW52Bm1lbW9yeQIAAgMCAQAGBwF/AUGAEAsHCAEEd2FsawAACv4GAfsGAgh/AnwCQCAADQAgDUEANgIAIAIPCwJAAkAgA0EBSA0AIAcgAWohDkEAIQ9BACEQA0ACQAJAIA4tAABFDQAgASERQQAhEgwBC0EAIRIgASERA0AgBCARQQJ0aigCACETAkACQCAIIBFBCHQgAkH1863pBmoiAkEPdiACcyACQQFybCIRQQd2IBFzIBFBPXJsIBFqIBFzIhRBGHZyai0AACIRQf8BRg0AIBMgEWohFQwBCyATQX9qIRUgBSATQQN0aiERIBRBDnYgFHO4RAAAAAAAAPA9oiEWA0AgFUEBaiEVIBErAwAhFyARQQhqIREgFyAWZQ0ACwsgCSAVQQN0aiIRIBErAwBEAAAAAAAA8D+gOQMAIBJBAWohEiAHIAYgFUECdGooAgAiEWotAAANASASIANIDQALCyAKIBJBA3RqIhUgFSsDAEQAAAAAAADwP6A5AwACQAJAIAsgEUECdGooAgAiEUEASA0AIAwgEUEDdGoiESARKwMARAAAAAAAAPA/oDkDAAwBCyAPQQFqIQ8LIBBBAWoiECAARw0ADAILCwJAIAsgAUECdGooAgAiEUEASA0AIAwgEUEDdGohESAAQQNxIRUCQCAAQQRJDQAgAEF8cSESA0AgCiAKKwMARAAAAAAAAPA/oDkDACARIBErAwBEAAAAAAAA8D+gOQMAIAogCisDAEQAAAAAAADwP6A5AwAgESARKwMARAAAAAAAAPA/oDkDACAKIAorAwBEAAAAAAAA8D+gOQMAIBEgESsDAEQAAAAAAADwP6A5AwAgCiAKKwMARAAAAAAAAPA/oDkDACARIBErAwBEAAAAAAAA8D+gOQMAIBJBfGoiEg0ACwtBACEPIBVFDQEDQCAKIAorAwBEAAAAAAAA8D+gOQMAIBEgESsDAEQAAAAAAADwP6A5AwAgFUF/aiIVDQAMAgsLIABBB3EhESAKKwMAIRcCQCAAQQhJDQAgAEF4cSEVA0AgF0QAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gIRcgFUF4aiIVDQALCwJAIBFFDQADQCAXRAAAAAAAAPA/oCEXIBFBf2oiEQ0ACwsgCiAXOQMAIAAhDwsgDSAPNgIAIAIL'/*WASM:END*/;
+    var src = /*WASM:BEGIN*/'AGFzbQEAAAABEwFgDn9/f39/f39/f39/f39/AX8CDwEDZW52Bm1lbW9yeQIAAgMCAQAGBwF/AUGAEAsHCAEEd2FsawAACoUHAYIHAgh/AnwCQAJAIAANAEEAIQ5BfyEPDAELAkAgA0EBSA0AIAcgAWohEEEAIQ5BACERA0ACQAJAIBAtAABFDQAgASESQQAhEwwBC0EAIRMgASESA0AgBCASQQJ0aigCACEUAkACQCAIIBJBCHQgAkH1863pBmoiAkEPdiACcyACQQFybCISQQd2IBJzIBJBPXJsIBJqIBJzIhVBGHZyai0AACISQf8BRg0AIBQgEmohDwwBCyAUQX9qIQ8gBSAUQQN0aiESIBVBDnYgFXO4RAAAAAAAAPA9oiEWA0AgD0EBaiEPIBIrAwAhFyASQQhqIRIgFyAWZQ0ACwsgCSAPQQN0aiISIBIrAwBEAAAAAAAA8D+gOQMAIBNBAWohEyAHIAYgD0ECdGooAgAiEmotAAANASATIANIDQALCyAKIBNBA3RqIg8gDysDAEQAAAAAAADwP6A5AwACQAJAIAsgEkECdGooAgAiD0EASA0AIAwgD0EDdGoiEiASKwMARAAAAAAAAPA/oDkDAAwBCyAOQQFqIQ4LIBFBAWoiESAARw0ADAILCwJAIAsgAUECdGooAgAiD0EASA0AIAwgD0EDdGohEiAAQQNxIRMCQCAAQQRJDQAgAEF8cSEUA0AgCiAKKwMARAAAAAAAAPA/oDkDACASIBIrAwBEAAAAAAAA8D+gOQMAIAogCisDAEQAAAAAAADwP6A5AwAgEiASKwMARAAAAAAAAPA/oDkDACAKIAorAwBEAAAAAAAA8D+gOQMAIBIgEisDAEQAAAAAAADwP6A5AwAgCiAKKwMARAAAAAAAAPA/oDkDACASIBIrAwBEAAAAAAAA8D+gOQMAIBRBfGoiFA0ACwtBACEOIBNFDQEDQCAKIAorAwBEAAAAAAAA8D+gOQMAIBIgEisDAEQAAAAAAADwP6A5AwAgE0F/aiITDQAMAgsLIABBB3EhEiAKKwMAIRcCQCAAQQhJDQAgAEF4cSETA0AgF0QAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gRAAAAAAAAPA/oEQAAAAAAADwP6BEAAAAAAAA8D+gIRcgE0F4aiITDQALCwJAIBJFDQADQCAXRAAAAAAAAPA/oCEXIBJBf2oiEg0ACwsgCiAXOQMAIAAhDgsgDSAPNgIEIA0gDjYCACACCw=='/*WASM:END*/;
     if (typeof Uint8Array.fromBase64 === 'function') return (bin = Uint8Array.fromBase64(src));
     var txt = atob(src), bytes = new Uint8Array(txt.length);
     for (var i = 0; i < txt.length; i++) bytes[i] = txt.charCodeAt(i);
@@ -58,10 +58,11 @@
       var walk = new WebAssembly.Instance(mod, { env: { memory: mem } }).exports.walk, buf = mem.buffer;
       new Int32Array(buf, oOs, n + 1).set(a.os); new Int32Array(buf, oTg, m).set(a.tg); new Uint8Array(buf, oHalt, n).set(a.halt);
       new Int32Array(buf, oEp, n).set(a.epOf); new Uint8Array(buf, oLut, n * 256).set(a.lut); new Float64Array(buf, oCum, m).set(a.cumN);
-      var stuck = new Uint32Array(buf, oSt, 1), cap = a.cap;
+      var stuck = new Uint32Array(buf, oSt, 2), cap = a.cap;
       return {
         moves: new Float64Array(buf, oMoves, m), tab: new Float64Array(buf, oTab, cap + 1), counts: new Float64Array(buf, oTc, K),
-        walk: function (rng, count, start) { rng.reseed(walk(count, start, rng.state(), cap, oOs, oCum, oTg, oHalt, oLut, oMoves, oTab, oEp, oTc, oSt)); return stuck[0]; }
+        walk: function (rng, count, start) { rng.reseed(walk(count, start, rng.state(), cap, oOs, oCum, oTg, oHalt, oLut, oMoves, oTab, oEp, oTc, oSt)); return stuck[0]; },
+        last: function () { return stuck[1] | 0; }     // the end the last walker of the last walk reached (-1: stuck)
       };
     } catch (e) { return null; }
   });

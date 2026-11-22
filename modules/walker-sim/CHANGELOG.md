@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.5.0 · API 2 · 2026-11-22
+- Single-walker trials run faster on sparse graphs.
+
 ## 2.4.2 · API 2 · 2026-11-06
 - Fixed: the demo page no longer freezes on a line with a long run of spaces (a pattern took minutes; now 2 ms for a megabyte).
 

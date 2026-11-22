@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.24.1 · API 0 · 2026-11-22
+- Tail estimates from sampled summaries are no longer biased high.
+
 ## 0.24.0 · API 0 · 2026-11-21
 - Quantile grid gets 40 tail points: 99.9th percentile within 5% (was 57-542% off); cheaper summaries for sorted and small-integer columns
 

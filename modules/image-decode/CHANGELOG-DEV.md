@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.2.3 · API 1 · 2026-11-22
+
+### Quick
+Uint8Array.fromBase64 is used when present and no atob is injected; otherwise the old path runs.
+
+### Deep
+When the browser has Uint8Array.fromBase64 and no atob is injected, embedded images decode their base64 with it instead of atob plus a byte loop. Older browsers keep the old path. Output bytes are identical. Found in an outside code review (round 3).
+
 ## 1.2.2 · API 1 · 2026-10-27
 
 ### Quick

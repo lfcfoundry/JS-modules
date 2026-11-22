@@ -19,20 +19,20 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [field-report](modules/field-report/README.md) | 1.1.1 · API 1 | [changelog](modules/field-report/CHANGELOG.md) |
 | [sprite-baker](modules/sprite-baker/README.md) | 1.11.0 · API 1 | [changelog](modules/sprite-baker/CHANGELOG.md) |
 | [pad-nav](modules/pad-nav/README.md) | 1.1.1 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
-| [image-decode](modules/image-decode/README.md) | 1.2.2 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
+| [image-decode](modules/image-decode/README.md) | 1.2.3 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.7.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.7.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
 | [cartoon-3d-kit](modules/cartoon-3d-kit/README.md) | 1.3.0 · API 1 | [changelog](modules/cartoon-3d-kit/CHANGELOG.md) |
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
-| [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
+| [clip-writer](modules/clip-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.1.3 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.24.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
-| [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.24.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.7.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
@@ -45,7 +45,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.23.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
-| [walker-sim](modules/walker-sim/README.md) | 2.4.2 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
+| [walker-sim](modules/walker-sim/README.md) | 2.5.0 · API 2 | [changelog](modules/walker-sim/CHANGELOG.md) |
 | [slow-note](modules/slow-note/README.md) | 1.0.0 · API 1 | [changelog](modules/slow-note/CHANGELOG.md) |
 | [grown-ups-door](modules/grown-ups-door/README.md) | 1.0.1 · API 1 | [changelog](modules/grown-ups-door/CHANGELOG.md) |
 | [spotlight-tour](modules/spotlight-tour/README.md) | 1.1.1 · API 1 | [changelog](modules/spotlight-tour/CHANGELOG.md) |
@@ -64,6 +64,11 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-22 · **zstd-kit** 1.0.1 · API 1: The encoder's setting search is smaller and quicker to run.
+- 2026-11-22 · **walker-sim** 2.5.0 · API 2: Single-walker trials run faster on sparse graphs.
+- 2026-11-22 · **lfc-pack** 0.24.1 · API 0: Tail estimates from sampled summaries are no longer biased high.
+- 2026-11-22 · **image-decode** 1.2.3 · API 1: Uses the browser's built-in base64 decoder when it has one.
+- 2026-11-22 · **clip-writer** 1.4.0 · API 1: Blob output builds WebM from parts without one big copy.
 - 2026-11-21 · **zip-open** 1.21.0 · API 1: New opts.onFile on expand() and expandBlob(): each file is handed to your function as soon as it is unpacked, so a first view can show while the rest opens. Same final result.
 - 2026-11-21 · **text-columns** 0.7.1 · API 0: onPiece read time against without it (15 MB): 0.96 in Chromium 156 (noisy, 0.92 to 1.20), 1.10 Firefox 158, 1.01 WebKitGTK 2.52.6; 0.7.0 was 1.09 in Chromium. Helpers send a copy of each number column for the piece.
 - 2026-11-21 · **text-columns** 0.7.0 · API 0: New opts.onPiece on parseParallel: each piece's columns reach your function as soon as its helper answers (about 30 ms in on 15 MB), so a first picture can draw before the whole table is joined. Opt-in; without it nothing changes.

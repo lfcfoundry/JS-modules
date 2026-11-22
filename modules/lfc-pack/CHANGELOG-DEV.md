@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.24.1 · API 0 · 2026-11-22
+
+### Quick
+Each block's summary sample keeps middle order statistics instead of endpoint-inclusive spacing; files stay readable by every reader.
+
+### Deep
+Sampled quantile grids no longer lean toward the block maximum. Each block keeps the sample values at midpoints (z + 0.5) of its kept ranks instead of spacing that includes both ends, which over-weighted the top. Test column: countAbove(50) 6,396 to 5,812 against an exact 5,805; p99 within 4%. Same file layout, same writer cost. 45 quantile checks.
+
 ## 0.24.0 · API 0 · 2026-11-21
 
 ### Quick

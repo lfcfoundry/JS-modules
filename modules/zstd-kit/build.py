@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 LFC Foundry. MIT License.
-# Version 1.0.0 (API 1)
+# Version 1.0.1 (API 1)
 # Joins src/head.js, src/zstd-core.js and src/api.js into zstd-kit.js (compress and decompress, wasm/zstd-full.wasm)
 # and zstd-kit-dec.js (decompress only, wasm/zstd-dec.wasm). src/zstd-core.js is also joined into lfc-pack.js by its build.py.
 # Rebuild the WebAssembly with sh wasm/build.sh (clang 18+). Run from anywhere.

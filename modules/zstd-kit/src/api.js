@@ -20,7 +20,7 @@
   }
   function hex64(h) { return (h[1] + 4294967296).toString(16).slice(1) + (h[0] + 4294967296).toString(16).slice(1); }
   return {
-    version: '1.0.0',
+    version: '1.0.1',
     decodeOnly: DEC_ONLY,
     init: init,
     ready: function () { return !!Z; },
