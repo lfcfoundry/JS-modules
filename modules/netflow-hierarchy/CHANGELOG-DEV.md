@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.10.1 · API 1 · 2026-11-21
+
+### Quick
+The tree view keeps its scratch lists between layouts and circle pack takes its lists from the shared blocks: 10-item trees 0.8 to 0.95 of the time in Chromium.
+
+### Details
+Same result as before. Big trees are unchanged (within 2%).
+
+### Deep
+Tree view: the last view of each scratch list is kept between layouts instead of cut again each time. Circle pack: its three working lists come from the shared memory blocks. Same output as 1.10.0 on 5,400 compared layouts. 10 items: tree 0.93 / 0.82 / 0.88, pack 0.81 / 1.03 / 1.00 of the time of 1.10.0 in Chromium / Firefox / WebKitGTK; 1,000 items and up unchanged.
+
 ## 1.10.0 · API 1 · 2026-11-21
 
 ### Quick

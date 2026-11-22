@@ -1,8 +1,8 @@
 # netflow-hierarchy
 
-**Version 1.10.0 · API 1**
+**Version 1.10.1 · API 1**
 
-**Tested in:** 3,262 checks in Node; same shape, places and drawing as the usual way in all five views; Quick run of the tester in ungoogled-chromium 156, Firefox 158 and WebKitGTK 2.52.6
+**Tested in:** 3,262 checks in Node; 5,400 tree, pack, treemap, sunburst and icicle layouts equal 1.10.0; timed against 1.10.0 in ungoogled-chromium 156, Firefox 158 and WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.10.0 (API 1)
+ * Version 1.10.1 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -40,16 +40,18 @@ var NetflowHierarchy = (function () {
   /* Scratch lists reused from one layout to the next. A new typed list costs 3 to 12 microseconds in Chromium even when small, and one layout used
      about 30 of them, which was a third of the time at 1,000 items. Only lists that do not leave the layout are reused, and only up to 20,000 items,
      so at most about 2 MB stays held. Each caller has its own slot (layouts never run inside each other). */
-  var SCR_I = [], SCR_F = [], SCR_MAX = 20000;
+  var SCR_I = [], SCR_F = [], SCR_IV = [], SCR_FV = [], SCR_MAX = 20000;   /* ...and the last view of each slot, kept: the same size comes round again and again */
   function tmpI(slot, n, v0) {
     if (n > SCR_MAX) { var a = new Int32Array(n); if (v0) a.fill(v0); return a; }
-    var b = SCR_I[slot]; if (!b || b.length < n) b = SCR_I[slot] = new Int32Array(Math.max(n, 256));
-    var w = b.subarray(0, n); w.fill(v0 || 0); return w;
+    var b = SCR_I[slot]; if (!b || b.length < n) { b = SCR_I[slot] = new Int32Array(Math.max(n, 256)); SCR_IV[slot] = null; }
+    var w = SCR_IV[slot]; if (!w || w.length !== n) w = SCR_IV[slot] = b.subarray(0, n);
+    w.fill(v0 || 0); return w;
   }
   function tmpF(slot, n) {
     if (n > SCR_MAX) return new Float64Array(n);
-    var b = SCR_F[slot]; if (!b || b.length < n) b = SCR_F[slot] = new Float64Array(Math.max(n, 256));
-    var w = b.subarray(0, n); w.fill(0); return w;
+    var b = SCR_F[slot]; if (!b || b.length < n) { b = SCR_F[slot] = new Float64Array(Math.max(n, 256)); SCR_FV[slot] = null; }
+    var w = SCR_FV[slot]; if (!w || w.length !== n) w = SCR_FV[slot] = b.subarray(0, n);
+    w.fill(0); return w;
   }
   /* A list that is only made when someone reads it (most layouts never read the child lists, names or groups of the tree: the drawing does, later). */
   function lazy(obj, key, make) {
@@ -395,7 +397,7 @@ var NetflowHierarchy = (function () {
   function pack(G, o) {
     var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, i, j, c, padR = 3, order = H.order, kidOff = H.kidOff, kidList = H.kidList, own = H.ownV;
     /* each box's own circle size and its place inside its parent, in plain number lists; one or two children need no packing at all */
-    var PR = new Float64Array(N), SX = new Float64Array(N), SY = new Float64Array(N), T0 = { x: 0, y: 0, r: 0 }, T1 = { x: 0, y: 0, r: 0 }, T2 = { x: 0, y: 0, r: 0 }, L3 = [T2, T1, T0];   /* the order the fixed shuffle gives three circles */
+    var PR = fltList(N), SX = fltList(N), SY = fltList(N), T0 = { x: 0, y: 0, r: 0 }, T1 = { x: 0, y: 0, r: 0 }, T2 = { x: 0, y: 0, r: 0 }, L3 = [T2, T1, T0];   /* the order the fixed shuffle gives three circles */
     for (i = order.length - 1; i >= 0; i--) {
       var v = order[i], j0 = kidOff[v], j1 = kidOff[v + 1], n = j1 - j0, ow = own[v];
       if (!n) { PR[v] = Math.sqrt(val[v] || 1) * 10; continue; }
