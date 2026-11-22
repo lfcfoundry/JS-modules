@@ -303,4 +303,31 @@
     t.set(u32le(nf.length), 0); t.set(u32le(crcJS(nf, 0)), 4); t.set(file.subarray(n - 8, n - 4), 8); t.set(MAGIC, 12);
     return concat([file.subarray(0, n - 16 - flen), nf, t]);
   }
-  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? JSON.parse(tdr.decode(s)) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded
+  // since 0.18.0: answers from the quantile grid with nothing decoded. quantile(key, p) -> the value at share p (0..1) of the column's non-missing values, linear between ranks (as the grid is built);
+  // countAbove(key, x) / countBelow(key, x) -> how many non-missing values are > x / < x. Exact when the entry is exact (qExact: the distinct values and their counts; or a grid read from every value
+  // at ranks that hit each value), otherwise an estimate within the grid's rank error (one grid step is 1/256 of the values). null when the column has no grid. Dates: x and the answer in epoch ms (a Date is taken too).
+  function sumEntry(s, key) { var cs = s.cols, i; for (i = 0; i < cs.length; i++) if (cs[i].key === key) return cs[i].q && cs[i].q.length ? cs[i] : null; return null; }
+  function sumGrid(c) { var q = c.q; if (c.qExact || q[0] === c.min && q[q.length - 1] === c.max || typeof c.min !== 'number') return q; q = q.slice(); q[0] = c.min; q[q.length - 1] = c.max; return q; }   // a sampled grid's ends are the sample's: the true ends are min and max
+  function sumX(x) { return x instanceof Date ? x.getTime() : +x; }
+  function sumQuantile(key, p) {
+    var c = sumEntry(this, key), q, m, r, lo, k, run, v, w; if (!c) return null; p = +p; if (!(p >= 0 && p <= 1)) throw new Error('LfcPack: quantile p must be from 0 to 1');
+    q = sumGrid(c); m = q.length;
+    if (c.qExact) { for (k = 0, run = 0; k < m; k++) run += c.qn[k]; r = p * (run - 1); lo = Math.floor(r);
+      for (k = 0, run = 0; k < m && run + c.qn[k] <= lo; k++) run += c.qn[k]; v = q[k]; if (r === lo || run + c.qn[k] > lo + 1) return v; w = q[k + 1]; return v + (r - lo) * (w - v); }
+    r = p * (m - 1); lo = Math.floor(r); return r === lo ? q[lo] : q[lo] + (r - lo) * (q[lo + 1] - q[lo]);
+  }
+  function sumCount(key, x, above) {   // non-missing values > x (above) or < x
+    var c = sumEntry(this, key), q, m, N, k, cnt, lo, hi, a, b, f; if (!c) return null; x = sumX(x); if (x !== x) return null; q = sumGrid(c); m = q.length; N = c.n - c.nulls;
+    if (c.qExact) { for (k = 0, cnt = 0; k < m; k++) if (above ? q[k] > x : q[k] < x) cnt += c.qn[k]; return cnt; }
+    if (above ? x < q[0] : x > q[m - 1]) return N; if (above ? x >= q[m - 1] : x <= q[0]) return 0;
+    // the fractional rank r where the grid reaches x: values at ranks 0..floor(r) are <= x (for above), ranks 0..ceil(r)-1 are < x (for below)
+    var s = (N - 1) / (m - 1), r;
+    if (above) { lo = 0; hi = m - 2; while (lo < hi) { k = (lo + hi + 1) >> 1; if (q[k] <= x) lo = k; else hi = k - 1; } r = (lo + (x - q[lo]) / (q[lo + 1] - q[lo])) * s; r = Math.round(r * 1e9) / 1e9; return N - Math.min(N, Math.floor(r) + 1); }
+    lo = 1; hi = m - 1; while (lo < hi) { k = (lo + hi) >> 1; if (q[k] >= x) hi = k; else lo = k + 1; } r = (lo - 1 + (x - q[lo - 1]) / (q[lo] - q[lo - 1])) * s; r = Math.round(r * 1e9) / 1e9; return Math.min(N, Math.ceil(r));
+  }
+  function sumAttach(s) {
+    if (s && Array.isArray(s.cols)) { var d = function (k, fn) { Object.defineProperty(s, k, { value: fn, enumerable: false, configurable: true, writable: true }); };
+      d('quantile', sumQuantile); d('countAbove', function (key, x) { return sumCount.call(this, key, x, true); }); d('countBelow', function (key, x) { return sumCount.call(this, key, x, false); }); }
+    return s;
+  }
+  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? sumAttach(JSON.parse(tdr.decode(s))) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded

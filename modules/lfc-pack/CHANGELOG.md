@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.18.0 · API 0 · 2026-11-21
+- summary() can now answer percentiles and counts above or below a value from the stored grid, with nothing decoded (about 100 times faster than decoding and sorting).
+
 ## 0.17.0 · API 0 · 2026-11-21
 - Graphs stored ready to use: a graph option keeps the links as CSR arrays that graph() reads as typed views with no parse or build.
 
