@@ -1,0 +1,46 @@
+# Creates a tag and a GitHub Release for every module whose version in modules.json has no tag yet.
+# Tag names look like netflow-engine-v2.6.5. The notes are that version's section of the module changelog.
+name: auto-release
+on:
+  push:
+    branches: [main]
+    paths: [modules.json, .github/workflows/auto-release.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag and release each new module version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          mods = json.load(open('modules.json'))['modules']
+          have = set(subprocess.run(['git', 'tag'], capture_output=True, text=True).stdout.split())
+          made = 0
+          for m in mods:
+              mid, ver = m['id'], m['version']
+              tag = f'{mid}-v{ver}'
+              if tag in have:
+                  continue
+              notes = ''
+              path = f'modules/{mid}/CHANGELOG.md'
+              if os.path.exists(path):
+                  text = open(path, encoding='utf-8').read()
+                  hit = re.search(r'^## ' + re.escape(ver) + r'\b.*?(?=^## |\Z)', text, re.S | re.M)
+                  if hit:
+                      notes = hit.group(0).split('\n', 1)[1].strip()
+              if not notes:
+                  notes = m.get('short', mid)
+              open('/tmp/notes.md', 'w', encoding='utf-8').write(notes + '\n')
+              subprocess.run(['gh', 'release', 'create', tag, '--target', os.environ['GITHUB_SHA'],
+                              '--title', f'{mid} {ver}', '--notes-file', '/tmp/notes.md'], check=True)
+              made += 1
+          print('Releases created:', made)
+          PY
