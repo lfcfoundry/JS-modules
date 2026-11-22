@@ -1,16 +1,22 @@
-**Measured on a real laptop: Firefox 160 (Windows), 16 cores, 2026.10.30, 7:09 PM.** Medians; lower is better for every time, size and ratio. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
+**Measured on real data: cloud Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, one browser at a time, 2026.11.22.** Medians of 3 runs; lower is better. Records: the first 60,000 rows of the retail e-commerce file (11.4 MB as JSON) and of the SEC 2026 Q1 numbers file (14.4 MB as JSON). Decimal columns: 413,875 real SEC statement values (3.3 MB as 64-bit numbers) and 147,846 real SBA award amounts (1.2 MB). fflate gzip level 6 is given the JSON text (records) or the number bytes (columns); its unpack time is the unzip only, with no JSON parsing. This replaces the earlier generated sensor array and 80,000 generated objects.
 
-Compared: memory-compression against fflate and pako (ms; packed bytes).
+Compared: memory-compression against fflate on real data (packed bytes; pack ms in Chromium / Firefox / WebKitGTK).
 
-<!-- title: memory-compression packs 8 MB of sensor data to about two thirds of fflate's size and 80,000 objects to about one fifth, 16 to 108 times faster -->
-| case | packed bytes | pack ms | unpack ms |
-|---|---:|---:|---:|
-| Float32 sensor data, 8 MB: memory-compression | 4,772,682 | 5 | 6 |
-| fflate 6 | 7,269,120 | 278 | 88 |
-| pako 6 | 7,329,598 | 540 | 66 |
-| list of 80,000 objects: memory-compression | 148,749 | 11 | 6 |
-| fflate 6 | 800,641 | 176 | 21 |
-| pako 6 | 769,526 | 199 | 19 |
+<!-- title: memory-compression packs 60,000 real rows to 0.66 to 0.84 of fflate's size, 5.1 to 9.7 times faster, but real decimal columns come out 1.15 to 2.2 times bigger than gzip -->
+| case | packed bytes | pack ms (Chromium / Firefox / WebKitGTK) | unpack ms (Chromium / Firefox / WebKitGTK) |
+|---|---:|---|---|
+| retail rows: memory-compression | 959,528 | 39 / 36 / 64 | 26 / 19 / 20 |
+| retail rows: fflate | 1,140,114 | 230 / 243 / 329 | 90 / 48 / 113 |
+| retail rows: msgpackr records | 4,830,828 | 32 / 23 / 29 | 44 / 33 / 64 |
+| SEC rows: memory-compression | 748,129 | 34 / 28 / 39 | 9.5 / 13 / 14 |
+| SEC rows: fflate | 1,132,736 | 331 / 335 / 260 | 70 / 47 / 120 |
+| SEC rows: msgpackr records | 8,108,780 | 64 / 48 / 45 | 55 / 66 / 92 |
+| SEC values (decimals): memory-compression | 1,919,892 | 9.6 / 10 / 18 | 4.4 / 5 / 5 |
+| SEC values (decimals): fflate | 1,664,838 | 191 / 161 / 159 | 44 / 33 / 46 |
+| SBA amounts (decimals): memory-compression | 134,774 | 2.4 / 2 / 2 | 2.6 / 1 / 1 |
+| SBA amounts (decimals): fflate | 60,886 | 61 / 55 / 47 | 5.4 / 3 / 9 |
+
+Rows: smaller than fflate (0.84x and 0.66x) and 5 to 10 times faster to pack; msgpackr is faster to pack but 5 to 11 times bigger. Real decimal columns are a **loss on size**: memory-compression is 1.15 times (SEC values) and 2.2 times (SBA amounts) the size of fflate, because real amounts repeat and gzip finds the repeats; `mode: 'balanced'` did not help (1,919,907 and 134,789 bytes). It stays 5 to 24 times faster to pack and 2 to 9 times faster to unpack. Harness and raw results: `tools/real-corpus` and `js-modules-research/audit-synthetic-claims-2026.11.22`.
 
 **New in 2.7.0: faster packing on request.** The opt-in setting `quickTries: true` makes the packer try every number coding on the first block only. Packing is 0 to 20% faster on lists with several number columns, and files are 0 to 1.1% bigger. It is off by default, and the default output is byte-identical to 2.6.6. These figures come from the code thread's test runs; the browser is not recorded on this page.
 

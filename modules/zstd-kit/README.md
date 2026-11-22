@@ -58,12 +58,11 @@ These numbers come from 4 MB of web-server log lines (JSON), on a fresh page eac
 | Size: browser gzip / zstd-kit level 3 | 726,865 / 804,889 | 750,097 / 804,889 | 768,375 / 804,889 |
 
 - **Where it wins:**
-  - Decompression is 2.6 to 3.5 times faster than fzstd and 2.4 to 2.6 times faster than the browser's own gzip.
-  - Compression is 1.8 to 3 times faster than the browser's gzip.
+  - On real files (retail, SEC and SBA tables, 4 MiB each, three test browsers, 2026.11.22): decompression is 1.9 to 6.4 times faster than fzstd and 1.9 to 4 times faster than the browser's own gzip; compression is 2.8 to 8 times faster than the browser's gzip.
   - It is the only one of these that does both Zstandard directions.
 - **Where it loses:**
   - Download size: fzstd is 3.8 KB gzipped against 34.0 KB for the decoder build. The browser's gzip is free.
-  - On these logs, level 3 frames are 5 to 10% bigger than the browser's gzip. Higher levels close that gap at more time.
+  - On the generated logs measured earlier, level 3 frames were 5 to 10% bigger than the browser's gzip; on the three real files they are smaller (0.60 to 0.94 of gzip's size).
   - @bokuweb/zstd-wasm was not measured yet.
 
 ## API

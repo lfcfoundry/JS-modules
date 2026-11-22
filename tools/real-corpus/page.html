@@ -24,7 +24,7 @@
     ===================================================================================
     -->
 <meta charset=utf-8><title>real-data audit</title>
-<script src="papaparse.min.js"></script><script src="fflate.js"></script><script src="msgpackr.js"></script><script src="gl.js"></script>
+<script src="papaparse.min.js"></script><script src="fflate.js"></script><script src="fzstd.js"></script><script src="jszip.min.js"></script><script src="msgpackr.js"></script><script src="gl.js"></script>
 <script src="dagre.min.js"></script><script src="d3s.js"></script><script src="netflow-layers.js"></script><script src="netflow-sankey.js"></script><script src="zip-open.js"></script><script src="text-columns.js"></script><script src="lz4-kit.js"></script><script src="zstd-kit.js"></script><script src="memory-compression.js"></script><script src="graph-walk.js"></script>
 <script>
 const med=a=>{a=a.slice().sort((x,y)=>x-y);return a[a.length>>1]};
@@ -41,8 +41,8 @@ const tests={
  async comp(){const out={};await Lz4Kit.init();await ZstdKit.init();for(const [n,u] of [['retail','retail.csv'],['sec','sec.tsv'],['sba','sba.csv']]){
    const full=await get(u);const b=full.subarray(0,4194304);
    const l=T(()=>Lz4Kit.compress(b));const z=T(()=>ZstdKit.compress(b,3));const g=await TA(()=>gz(b),3);const ff=T(()=>fflate.gzipSync(b),3);
-   const ld=T(()=>Lz4Kit.decompress(l.r));const zd=T(()=>ZstdKit.decompress(z.r));const gd=await TA(()=>gunz(g.r),3);
-   out[n]={bytes:b.length,size:{lz4:l.r.length,zstd3:z.r.length,gzip:g.r.length},compress_ms:{lz4:l.ms,zstd3:z.ms,browser_gzip:g.ms,fflate_gzip:ff.ms},decompress_ms:{lz4:ld.ms,zstd3:zd.ms,browser_gzip:gd.ms},
+   const ld=T(()=>Lz4Kit.decompress(l.r));const zd=T(()=>ZstdKit.decompress(z.r));const gd=await TA(()=>gunz(g.r),3);const fz=T(()=>fzstd.decompress(z.r),3);
+   out[n]={bytes:b.length,size:{lz4:l.r.length,zstd3:z.r.length,gzip:g.r.length},compress_ms:{lz4:l.ms,zstd3:z.ms,browser_gzip:g.ms,fflate_gzip:ff.ms},decompress_ms:{lz4:ld.ms,zstd3:zd.ms,browser_gzip:gd.ms,fzstd:fz.ms},
      lz4_vs_gzip_compress_speedup:+(g.ms/l.ms).toFixed(2)}}return out},
  async mem(){const R=await (await fetch('recs.json')).json();const out={};const enc=new TextEncoder();
    for(const n of ['retail','sec']){const rows=R[n];const jb=enc.encode(JSON.stringify(rows));
@@ -66,13 +66,18 @@ const tests={
    for(let i=0;i<400;i++){files['f'+i+'.csv']=new TextEncoder().encode(head+'\n'+lines.slice(1+i*per,1+(i+1)*per).join('\n'))}
    const z=fflate.zipSync(files,{level:6});
    const a=await TA(()=>ZipOpen.expand(z),5);const f=T(()=>{const u=fflate.unzipSync(z);let n=0;for(const k in u){n+=new TextDecoder().decode(u[k]).length}return n},5);
-   return {zip_bytes:z.length,files:400,zip_open_ms:a.ms,fflate_ms:f.ms,speedup:+(f.ms/a.ms).toFixed(2)}}
+   const j=await TA(async()=>{const x=await JSZip.loadAsync(z);let n=0;for(const k of Object.keys(x.files)){n+=(await x.files[k].async('string')).length}return n},3);return {zip_bytes:z.length,files:400,zip_open_ms:a.ms,fflate_ms:f.ms,jszip_ms:j.ms,speedup_vs_fflate:+(f.ms/a.ms).toFixed(2),speedup_vs_jszip:+(j.ms/a.ms).toFixed(2)}}
 ,
  async sankeyq(){const S=await (await fetch('sankey.json')).json();const out={};
   for(const k of Object.keys(S)){const links=S[k].map(l=>({from:l.from,to:l.to,value:l.value}));
    const a=T(()=>NetflowSankey.layoutFlows({links},{height:600,quick:true}),5),b=T(()=>NetflowSankey.layoutFlows({links},{height:600}),5);
    const c=T(()=>{const ids=[...new Set(links.flatMap(l=>[l.from,l.to]))];const idx=new Map(ids.map((x,i)=>[x,i]));return D3S.sankey().nodeWidth(15).nodePadding(8).extent([[0,0],[900,600]])({nodes:ids.map(id=>({id})),links:links.map(l=>({source:idx.get(l.from),target:idx.get(l.to),value:l.value}))})},5);
    out[k]={links:links.length,quick_ms:a.ms,default_ms:b.ms,d3_ms:c.ms}}return out},
+ async floats(){const out={};for(const [n,u] of [['sec_values','floats-sec.bin'],['sba_award_amounts','floats-sba.bin']]){
+   const b=await get(u);const f=new Float64Array(b.buffer,b.byteOffset,b.length/8);const raw=new Uint8Array(f.buffer);
+   const m=T(()=>MemoryCompression.pack(f),3),mu=T(()=>MemoryCompression.unpack(m.r),3);const bl=T(()=>MemoryCompression.pack(f,{mode:'balanced'}),3),blu=T(()=>MemoryCompression.unpack(bl.r),3);
+   const g=T(()=>fflate.gzipSync(raw,{level:6}),1),gu=T(()=>fflate.gunzipSync(g.r),3);
+   out[n]={values:f.length,raw_bytes:raw.length,memcomp:{bytes:m.r.length,pack_ms:m.ms,unpack_ms:mu.ms},memcomp_balanced:{bytes:bl.r.length,pack_ms:bl.ms,unpack_ms:blu.ms},fflate_gzip6:{bytes:g.r.length,pack_ms:g.ms,unpack_ms:gu.ms}}}return out},
  async graph(){const G=await (await fetch('graphs.json')).json();const out={};
    for(const [n,g] of Object.entries(G)){const f=Int32Array.from(g.f),t=Int32Array.from(g.t);
     const w=T(()=>GraphWalk.csr(g.n,f,t),3);const gw=w.r;

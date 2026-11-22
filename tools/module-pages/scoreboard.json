@@ -10,11 +10,11 @@
    ]
   },
   {
-   "label": "graph-walk vs graphology",
-   "x": 70,
+   "label": "graph-walk vs graphology, real purchase graph (low end)",
+   "x": 12,
    "module": "graph-walk",
    "proof": [
-    "70 to 390"
+    "12 to 330 times"
    ]
   },
   {
@@ -26,11 +26,11 @@
    ]
   },
   {
-   "label": "memory-compression vs fflate (low end)",
-   "x": 16,
+   "label": "memory-compression vs fflate, real rows, pack (low end)",
+   "x": 5.1,
    "module": "memory-compression",
    "proof": [
-    "16 to 108"
+    "5.1 to 9.7 times"
    ]
   },
   {
@@ -82,19 +82,19 @@
    ]
   },
   {
-   "label": "zstd-kit decompress vs fzstd (low end)",
-   "x": 2.6,
+   "label": "zstd-kit decompress vs fzstd, real files (low end)",
+   "x": 1.9,
    "module": "zstd-kit",
    "proof": [
-    "zstd-kit decompresses 4 MB of logs in 7 to 9 ms against 24 to 26"
+    "1.9 to 6.4 times faster than fzstd"
    ]
   },
   {
-   "label": "lz4-kit compress vs browser gzip (low end)",
-   "x": 6.6,
+   "label": "lz4-kit compress vs browser gzip, real files (low end)",
+   "x": 4.2,
    "module": "lz4-kit",
    "proof": [
-    "lz4-kit compresses 4 MiB of logs in 6.7 to 7.1 ms against 47 to 52 for the browser's gzip"
+    "4.2 to 13 times faster than the browser"
    ]
   },
   {
@@ -114,11 +114,11 @@
    ]
   },
   {
-   "label": "zip-open vs fflate",
-   "x": 1.4,
+   "label": "zip-open vs fflate, 400 real CSV files (low end)",
+   "x": 1.3,
    "module": "zip-open",
    "proof": [
-    "1.4 times"
+    "1.3 to 3.3 times faster than fflate"
    ]
   },
   {
