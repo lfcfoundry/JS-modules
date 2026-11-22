@@ -28,7 +28,7 @@
     if (opts.exact) throw new Error('LfcPack: sortBy cannot be used with exact (an exact file keeps the input as it was)');
     if (opts.base) throw new Error('LfcPack: sortBy cannot be used with a delta save (base)');
     if (opts.keepOrder && k === SORT_ROW) throw new Error('LfcPack: sortBy cannot be ' + SORT_ROW + ' with keepOrder');
-    return { key: k, desc: d === 'desc', keep: !!opts.keepOrder };
+    var so = { key: k, desc: d === 'desc', keep: !!opts.keepOrder }; if (opts._hide) so.hide = opts._hide; return so;
   }
   // the seeded shuffle (Fisher-Yates over mulberry32): the same seed and row count always give the same order
   function scramblePerm(n, seed) {
@@ -161,7 +161,7 @@
     return { rows: out, keys: seen ? Array.from(seen) : null };
   }
   // section 20 when the save sorted but wrote no summary (summary: false): which column, and the keys (so a reader can leave out SORT_ROW without reading a block)
-  function sortSection(so, n, keys) { var o = { v: 1, rows: n }; if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
+  function sortSection(so, n, keys) { var o = { v: 1, rows: n }; if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.hide) o.hidden = so.hide; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
   // readers: { key, keys } when the file was saved with keepOrder (keys: the other keys, or null when the footer cannot say), else null. Only the start of section 20 is read unless it names rowIndex.
   // readers: { seed, rows } when the file was saved with scramble, else null (only the start of section 20 is read)
   function scrambleOf(file) {
@@ -177,13 +177,15 @@
     P = scramblePerm(n, sc.seed); out = new Array(n); for (i = 0; i < n; i++) out[P[i]] = rows[i];
     return out;
   }
-  function rowIndexOf(file) {
-    var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], j, ks, i;
+  function rowIndexOf(file) {   // since 0.19.0 also for columns section 20 lists as hidden (geo's $hilbert): key is then null unless keepOrder named one
+    var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], j, ks, i, h, hid;
     if (!s) return null;
-    if (tdr.decode(s.subarray(0, Math.min(s.length, 512))).indexOf('"rowIndex"') < 0) return null;
+    h = tdr.decode(s.subarray(0, Math.min(s.length, 512))); if (h.indexOf('"rowIndex"') < 0 && h.indexOf('"hidden"') < 0) return null;
     try { j = JSON.parse(tdr.decode(s)); } catch (e) { return null; }
-    if (typeof j.rowIndex !== 'string') return null;
+    hid = Array.isArray(j.hidden) ? j.hidden : [];
+    if (typeof j.rowIndex !== 'string' && !hid.length) return null;
     ks = Array.isArray(j.keys) ? j.keys.slice() : (!j.colsCut && Array.isArray(j.cols) && j.cols.length ? j.cols.map(function (c) { return c.key; }) : null);
-    if (ks) { i = ks.indexOf(j.rowIndex); if (i >= 0) ks.splice(i, 1); }
-    return { key: j.rowIndex, keys: ks };
+    if (ks) ks = ks.filter(function (k) { return k !== j.rowIndex && hid.indexOf(k) < 0; });
+    return { key: typeof j.rowIndex === 'string' ? j.rowIndex : null, keys: ks, hidden: hid };
   }
+
