@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.0 · API 2 · 2026-11-22
+
+### Quick
+New tiny lists (buildTiny/openTiny, buildAuto/openAuto), list.pin() and open(bytes, { pin: true }) (off by default), reusable scratch for batch calls. Old blobs and answers unchanged.
+
+### Details
+Tiny lists: 0 to 63 values, gap bytes or sample-free Elias-Fano, whichever is smaller; intersect mixes them with every kind. Real short lists (five files): 122 KB vs 609 KB for the best older kind (0.20x); decode 0.63 / 0.65 / 0.55, nextGEQMany 0.39 / 0.45 / 0.35, intersect pairs 0.52 / 0.58 / 0.73 of flat (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6). Scratch: batch calls 0.69-0.88 on short lists, 0.82-0.92 mid, 0.84-0.96 long; nothing slower. Pin (64 to 1,023 values, 4 bytes a value extra): single nextGEQ 0.81 / 0.53 / 0.57, getMany 0.11-0.12, nextGEQMany 1.12 / 0.75 / 0.78 (slower in Chromium).
+
+### Deep
+Tiny lists (buildTiny, openTiny, buildAuto, openAuto): lists of 0 to 63 values without the 64-byte header and sample tables, kept as gap bytes or as Elias-Fano with no samples, whichever is smaller; reads decode into one shared scratch array and the last list read stays decoded. On the short lists of five real files (retail, federal assistance by place, SEC filings, SEC filers, FHIR sample): 122 KB against 609 KB for the best older kind per list (0.20x) and 278 KB as plain 32-bit numbers; against flat lists, decode 0.63 / 0.65 / 0.55, nextGEQMany 0.39 / 0.45 / 0.35, intersect pairs 0.52 / 0.58 / 0.73 (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6). The cut stays at 63: longer tiny lists were 2-4x slower to decode and 4-6x slower to intersect. Plain arrays stay faster for single lookups on short lists in Firefox and WebKitGTK. Batch calls (getMany, nextGEQMany, rankMany, containsMany, long slice, intersect) reuse one scratch region of WebAssembly memory, kept up to 1 MB and dropped by trim(): 0.69-0.88 of the time on short lists, 0.82-0.92 on mid-size and 0.84-0.96 on long lists; long intersects unchanged within noise. Pin (off by default, owner-approved setting): list.pin() or open(bytes, { pin: true }) gives a list of 64 to 1,023 values a plain copy (4 bytes a value) for lookups: one nextGEQ at a time 0.81 / 0.53 / 0.57, getMany 0.11-0.12, nextGEQMany 1.12 / 0.75 / 0.78 (Chromium's WebAssembly batch beats plain search). No saved format changes. Elias-Fano follows Vigna's quasi-succinct indices; the gap bytes are standard varints. Tests: 786,309 checks in test/tiny.js (random lists, both layouts, hostile blobs, mixed intersects, scratch around trim, pinned lists) plus every existing suite.
+
 ## 2.1.3 · API 2 · 2026-11-21
 
 ### Quick

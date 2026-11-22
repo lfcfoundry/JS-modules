@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.0 · API 2 · 2026-11-22
+- Lists of 63 values or fewer take 0.2x the bytes; batch calls are quicker; an optional pin speeds up lookups on mid-size lists.
+
 ## 2.1.3 · API 2 · 2026-11-21
 - "First value at or above" no longer crawls through long runs of one repeated value (24 to 42 times faster on a 100,000-copy run); same blobs and answers.
 

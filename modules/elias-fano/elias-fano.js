@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.1.3 (API 2)
+ * Version 2.2.0 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -12,6 +12,8 @@
  *   var set = EliasFano.openLists(EliasFano.buildLists([[1, 5], [], [2, 2, 9]]));  set.get(2);  // Uint32Array [2, 2, 9];  set.decodeAll() -> { offsets, values }
  *   set.getMany([2, 0, 2]) -> { offsets: Uint32Array(4), values: Uint32Array } : several lists in one call, cut out in WebAssembly (an id that is not a list gives an empty list)
  *   var bl = EliasFano.openBlocks(EliasFano.buildBlocks(ids));  EliasFano.intersect([bl, other]);  bl.containsMany(xs)   // block lists (2.1.0): bitmaps where dense, fast to intersect
+ *   var t = EliasFano.openTiny(EliasFano.buildTiny([3, 8, 8, 20]));  t.nextGEQ(9)   // tiny lists (2.2.0): 63 values or fewer in about 0.2x the bytes; buildAuto/openAuto pick tiny or flat
+ *   EliasFano.open(bytes, { pin: true })   // pin (2.2.0, off by default): a list of 64 to 1,023 values keeps a plain copy for quicker lookups (4 bytes a value)
  */
 
 (function (root, factory) {
@@ -63,6 +65,13 @@
     if (blocks[i].o + blocks[i].n === heapEnd) { heapEnd = blocks[i].o; blocks.splice(i, 1); }
     if (AUTO && !trimQueued && mem.buffer.byteLength >= 8388608 && heapEnd * 4 < mem.buffer.byteLength) { trimQueued = true; setTimeout(function () { trimQueued = false; trim(); }, 0); }   // most of the memory is unused: give it back once this call is over
   }
+  /* query scratch (since 2.2.0): batch calls reuse one region of the module's memory for their questions and answers instead of taking and giving back two
+     pieces each call (a 50-query call spent most of its time there). Kept up to SCR_MAX bytes; bigger batches still take their own piece. trim() drops it with the old memory. */
+  var SCR = 0, SCRN = 0, SCR_MAX = 1048576;
+  function take(n) { if (n > SCR_MAX) return alloc(n); if (n > SCRN) { if (SCR) release(SCR, SCRN); SCR = 0; SCRN = Math.max((n + 7) & ~7, 4096); SCR = alloc(SCRN); } return SCR; }
+  function done(p, n) { if (p !== SCR) release(p, n); }
+  function putQ(xs, ip, k) { if (xs instanceof Uint32Array) u32.set(xs, ip >>> 2); else { var b = ip >>> 2; for (var t = 0; t < k; t++) u32[b + t] = xs[t]; } }   // the same ToUint32 as Uint32Array.from
+  function copyOut(r, op, k) { var b = op >>> 2, j; if (k <= 256) { for (j = 0; j < k; j++) r[j] = u32[b + j]; } else r.set(u32.subarray(b, b + k)); }
   function start() {
     if (readyPromise) return readyPromise;
     if (typeof WebAssembly !== 'object' || !WASM_B64) return (readyPromise = Promise.resolve(false));
@@ -233,8 +242,8 @@
     checkIdx(idx, this.length);
     var k = idx.length, r = out || new Uint32Array(k), j;
     if (this._wasm()) {
-      var ip = alloc(k * 4), op = alloc(k * 4); u32.set(idx instanceof Uint32Array ? idx : Uint32Array.from(idx), ip >>> 2);
-      W.ef_get_many(this._ptr, ip, op, k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); release(ip, k * 4); release(op, k * 4); return r;
+      var ip = take(k * 8), op = ip + k * 4; putQ(idx, ip, k);
+      W.ef_get_many(this._ptr, ip, op, k); copyOut(r, op, k); done(ip, k * 8); return r;
     }
     for (j = 0; j < k; j++) r[j] = this._getJS(idx[j]);
     return r;
@@ -242,8 +251,8 @@
   P.nextGEQMany = function (xs, out) {
     var k = xs.length, r = out || new Uint32Array(k), j;
     if (this._wasm()) {
-      var ip = alloc(k * 4), op = alloc(k * 4); u32.set(xs instanceof Uint32Array ? xs : Uint32Array.from(xs), ip >>> 2);
-      W.ef_next_many(this._ptr, ip, op, k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); release(ip, k * 4); release(op, k * 4); return r;
+      var ip = take(k * 8), op = ip + k * 4; putQ(xs, ip, k);
+      W.ef_next_many(this._ptr, ip, op, k); copyOut(r, op, k); done(ip, k * 8); return r;
     }
     for (j = 0; j < k; j++) r[j] = this._nextJS(xs[j]);
     return r;
@@ -280,21 +289,21 @@
     var k = b - a, j, r;
     if (out) return sliceOutWasm(this, a, k, outOf(out, k));   // its own function: one shared body that sometimes got the caller's array ran 2-2.7x slower in WebKitGTK when both kinds of call were mixed
     if (k <= 64) { r = new Uint32Array(k); for (j = 0; j < k; j++) r[j] = W.ef_get(this._ptr, a + j); return r; }   // short runs (a list of a list set): one call each, no scratch space
-    var ip = alloc(k * 4), op = alloc(k * 4), q = ip >>> 2; for (j = 0; j < k; j++) u32[q + j] = a + j;
-    W.ef_get_many(this._ptr, ip, op, k); if (k >= SPARE_MIN) { r = fresh(k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); } else r = u32.slice(op >>> 2, (op >>> 2) + k); release(ip, k * 4); release(op, k * 4); return r;
+    var ip = take(k * 8), op = ip + k * 4, q = ip >>> 2; for (j = 0; j < k; j++) u32[q + j] = a + j;
+    W.ef_get_many(this._ptr, ip, op, k); if (k >= SPARE_MIN) { r = fresh(k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); } else r = u32.slice(op >>> 2, (op >>> 2) + k); done(ip, k * 8); return r;
   };
 
   function sliceOutWasm(e, a, k, r) {
     var j;
     if (k <= 64) { for (j = 0; j < k; j++) r[j] = W.ef_get(e._ptr, a + j); return r; }
-    var ip = alloc(k * 4), op = alloc(k * 4), q = ip >>> 2; for (j = 0; j < k; j++) u32[q + j] = a + j;
-    W.ef_get_many(e._ptr, ip, op, k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); release(ip, k * 4); release(op, k * 4); return r;
+    var ip = take(k * 8), op = ip + k * 4, q = ip >>> 2; for (j = 0; j < k; j++) u32[q + j] = a + j;
+    W.ef_get_many(e._ptr, ip, op, k); copyOut(r, op, k); done(ip, k * 8); return r;
   }
   // opts.compact: call compact() right away (after ready(), when WebAssembly is in use)
   function open(bytes, opts) {
     if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes);
     if (bytes.byteOffset % 4 !== 0) bytes = bytes.slice();
-    var r = new List(bytes); if (opts && opts.compact) r.compact(); return r;
+    var r = new List(bytes); if (opts && opts.compact) r.compact(); if (opts && opts.pin) r.pin(); return r;
   }
 
 
@@ -556,7 +565,7 @@
   function manyP(name, jsOne, wname) {
     return function (xs, out) {
       var k = xs.length, r = out || new Uint32Array(k), j;
-      if (this._wasm()) { var ip = alloc(k * 4), op = alloc(k * 4); u32.set(xs instanceof Uint32Array ? xs : Uint32Array.from(xs), ip >>> 2); W[wname](this._ptr, ip, op, k); r.set(u32.subarray(op >>> 2, (op >>> 2) + k)); release(ip, k * 4); release(op, k * 4); return r; }
+      if (this._wasm()) { var ip = take(k * 8), op = ip + k * 4; putQ(xs, ip, k); W[wname](this._ptr, ip, op, k); copyOut(r, op, k); done(ip, k * 8); return r; }
       for (j = 0; j < k; j++) r[j] = jsOne.call(this, xs[j]);
       return r;
     };
@@ -576,7 +585,7 @@
     return { count: this.length, bytes: B.length, bitsPerValue: this.length ? B.length * 8 / this.length : 0, compact: !this.bytes, chunk: 1 << this._logC, chunks: this._nc, dense: kinds[0], bitmap: kinds[1], eliasFano: kinds[2] };
   };
   backFirst(PP, ['_cget', '_cnext', '_nextJS', '_decodeJS']);
-  function openPartitioned(bytes, opts) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); var r = new PList(bytes); if (opts && opts.compact) r.compact(); return r; }
+  function openPartitioned(bytes, opts) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice(); var r = new PList(bytes); if (opts && opts.compact) r.compact(); if (opts && opts.pin) r.pin(); return r; }
 
   /* ---- block lists (since 2.1.0): values split by their top 16 bits into blocks of 65,536; each block is stored the smallest way, as a bitmap (8,192 bytes) or as
      Elias-Fano, or, with { arrays: true }, as a bitmap or a sorted array of 16-bit numbers (bigger, faster to intersect). A set: a value given twice is kept once.
@@ -724,10 +733,10 @@
   BP.containsMany = function (xs, out) {   // Uint8Array: 1 where xs[j] is in the list
     var k = xs.length, r = out || new Uint8Array(k), j;
     if (this._wasm() && k > 0) {
-      var xp = alloc(k * 4), op = alloc(k), ok = true;
-      for (j = 0; j < k; j++) { var x = xs[j]; if (!(x >= 0 && x <= 4294967295) || x % 1 !== 0) { ok = false; break; } u32[(xp >>> 2) + j] = x; }
-      if (ok) { W.bl_contains_many(this._ptr, xp, op, k); r.set(u8.subarray(op, op + k)); release(xp, k * 4); release(op, k); return r; }
-      release(xp, k * 4); release(op, k);
+      var xp = take(k * 5), op = xp + k * 4, ok = true, xb = xp >>> 2;
+      for (j = 0; j < k; j++) { var x = xs[j]; if (!(x >= 0 && x <= 4294967295) || x % 1 !== 0) { ok = false; break; } u32[xb + j] = x; }
+      if (ok) { W.bl_contains_many(this._ptr, xp, op, k); if (k <= 256) { for (j = 0; j < k; j++) r[j] = u8[op + j]; } else r.set(u8.subarray(op, op + k)); done(xp, k * 5); return r; }
+      done(xp, k * 5);
     }
     for (j = 0; j < k; j++) r[j] = this.contains(xs[j]) ? 1 : 0;
     return r;
@@ -747,11 +756,144 @@
   function intersectBlocks(ls) {
     var res;
     if (useWasm()) {
-      var a = ls[0], b = ls[1]; a._wasm(); b._wasm(); var cap = Math.min(a.length, b.length) * 4 + 4, op = alloc(cap), sc = alloc(262144), o = W.bl_and(a._ptr, b._ptr, op, sc) >>> 0;
-      res = u32.slice(op >>> 2, (op >>> 2) + o); release(sc, 262144); release(op, cap);
+      var a = ls[0], b = ls[1]; a._wasm(); b._wasm(); var cap = (Math.min(a.length, b.length) * 4 + 4 + 7) & ~7, sc = take(262144 + cap), op = sc + 262144, o = W.bl_and(a._ptr, b._ptr, op, sc) >>> 0;
+      res = u32.slice(op >>> 2, (op >>> 2) + o); done(sc, 262144 + cap);
     } else res = andBlocksJS(ls[0], ls[1]);
     for (var i = 2; i < ls.length && res.length; i++) { var m = ls[i].containsMany(res), o2 = 0; for (var j = 0; j < res.length; j++) if (m[j]) res[o2++] = res[j]; res = res.slice(0, o2); }
     return res;
+  }
+
+  /* ---- tiny lists (since 2.2.0): 0 to 63 values without the 64-byte header and sample tables (about 0.2x the bytes of a flat list on real short lists). Plain JavaScript.
+     Byte 0 says which of two layouts the blob uses; buildTiny keeps the smaller one:
+       0x74 gaps:  varint n, varint first value, then n - 1 varint gaps (0 for a repeat)
+       0x75 E-F:   varint n, varint u (= last value + 1), byte l (= floor(log2(u / n))), n * l low bits (byte aligned, low bit first), then n + floor(u / 2^l) + 1 high bits
+                   (bit i + floor(value i / 2^l) set), with no samples
+     Reads decode the list into one shared scratch array (no memory kept per list); the last list decoded stays there, so repeat questions to the same list skip the decode. ---- */
+  var TMAX = 63, TGAP = 0x74, TEF = 0x75, TS = new Uint32Array(64), TS2 = new Uint32Array(64), TLAST = null, TLAST2 = null;
+  function tVarint(out, v) { while (v > 127) { out.push((v % 128) | 128); v = Math.floor(v / 128); } out.push(v); }
+  function tLog(u, n) { var q = Math.floor(u / n), l = 0; while (l < 32 && Math.pow(2, l + 1) <= q) l++; return l; }   // floor(log2(u / n)), 0 when u < 2n
+  function buildTiny(values) {
+    if (!values || typeof values.length !== 'number') throw new TypeError('elias-fano: buildTiny takes an array of numbers');
+    var n = values.length, i, v, p;
+    if (n > TMAX) throw new RangeError('elias-fano: buildTiny takes at most ' + TMAX + ' values (use build for longer lists)');
+    check(values);
+    var g = [TGAP]; tVarint(g, n); if (n) { tVarint(g, values[0]); for (i = 1; i < n; i++) tVarint(g, values[i] - values[i - 1]); }
+    if (n === 0) return new Uint8Array(g);
+    var u = values[n - 1] + 1, l = tLog(u, n);
+    if (l <= 31) {
+      var h = [TEF]; tVarint(h, n); tVarint(h, u); h.push(l);
+      var lowB = (n * l + 7) >> 3, hiB = (n + Math.floor(u / Math.pow(2, l)) + 1 + 7) >> 3, size = h.length + lowB + hiB;
+      if (size < g.length) {
+        var out = new Uint8Array(size), lo = h.length, hi = lo + lowB, pw = Math.pow(2, l); out.set(h, 0);
+        for (i = 0; i < n; i++) {
+          v = values[i]; var low = v % pw, bit = i * l;
+          for (var b = 0; b < l; b++, bit++) if (Math.floor(low / Math.pow(2, b)) % 2) out[lo + (bit >> 3)] |= 1 << (bit & 7);
+          p = i + Math.floor(v / pw); out[hi + (p >> 3)] |= 1 << (p & 7);
+        }
+        return out;
+      }
+    }
+    return new Uint8Array(g);
+  }
+  function tRead(b, st) {   // varint at b[st.p]; -1 when it runs off the end or past 2^32
+    var v = 0, m = 1, c;
+    for (var k = 0; k < 5; k++) { if (st.p >= b.length) return -1; c = b[st.p++]; v += (c & 127) * m; if (!(c & 128)) return v > 4294967296 ? -1 : v; m *= 128; }
+    return -1;
+  }
+  function tDecode(b, dst) {   // fills dst[0 .. n) and returns n, or -1 when the blob is not a valid tiny list (used once on open; reads never pass the end)
+    var st = { p: 1 }, n = tRead(b, st), i, v, t = b[0];
+    if (n < 0 || n > TMAX) return -1;
+    if (t === TGAP) {
+      if (n === 0) return st.p === b.length ? 0 : -1;
+      v = tRead(b, st); if (v < 0 || v > 4294967295) return -1; dst[0] = v;
+      for (i = 1; i < n; i++) { var d = tRead(b, st); if (d < 0) return -1; v += d; if (v > 4294967295) return -1; dst[i] = v; }
+      return st.p === b.length ? n : -1;
+    }
+    if (t !== TEF || n === 0) return -1;
+    var u = tRead(b, st); if (u < 1 || st.p >= b.length) return -1;
+    var l = b[st.p++]; if (l !== tLog(u, n) || l > 31) return -1;
+    var pw = Math.pow(2, l), lo = st.p, hi = lo + ((n * l + 7) >> 3), nb = n + Math.floor(u / pw) + 1, end = hi + ((nb + 7) >> 3);
+    if (end !== b.length) return -1;
+    var c = 0, lb = 0, lmask = l === 0 ? 0 : (l === 31 ? 0x7fffffff : (1 << l) - 1);
+    for (var q = hi; q < end && c <= n; q++) {
+      var w = b[q];
+      while (w) {
+        var z = 31 - Math.clz32(w & -w), pos = (q - hi) * 8 + z; w &= w - 1;
+        if (c === n || pos >= nb) return -1;
+        var low = 0; if (l) { var k = lo + (lb >> 3), sh = lb & 7, x = b[k] | ((k + 1 < hi ? b[k + 1] : 0) << 8) | ((k + 2 < hi ? b[k + 2] : 0) << 16) | ((k + 3 < hi ? b[k + 3] : 0) << 24); low = x >>> sh; if (sh + l > 32) low |= (k + 4 < hi ? b[k + 4] : 0) << (32 - sh); low = (low & lmask) >>> 0; lb += l; }
+        v = (pos - c) * pw + low; if (v > 4294967295 || (c && v < dst[c - 1])) return -1; dst[c++] = v;
+      }
+    }
+    return c === n && dst[n - 1] === u - 1 ? n : -1;
+  }
+  function TList(bytes) {
+    var n = tDecode(bytes, TS); TLAST = null;
+    if (n < 0) throw new RangeError('elias-fano: truncated or invalid tiny list');
+    this.bytes = bytes; this.length = n; TLAST = this;
+  }
+  var TP = TList.prototype;
+  TP._v = function () { if (TLAST !== this) { tDecode(this.bytes, TS); TLAST = this; } return TS; };   // the values, in the shared scratch (valid until another tiny list is read)
+  TP._v2 = function () { if (TLAST2 !== this) { tDecode(this.bytes, TS2); TLAST2 = this; } return TS2; };
+  TP._lb = function (a, x) { var lo = 0, hi = this.length; while (lo < hi) { var m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; };
+  TP.get = function (i) { if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined; return this._v()[i]; };   // decodes the list when another tiny list was read in between: for a loop over every value use toArray
+  TP.getMany = function (idx, out) { checkIdx(idx, this.length); var k = idx.length, r = out || new Uint32Array(k), a = this._v(); for (var j = 0; j < k; j++) r[j] = a[idx[j]]; return r; };
+  TP.nextGEQ = function (x) { if (!(x > 0)) x = 0; if (x > 4294967295) return this.length; if (x % 1 !== 0) x = Math.ceil(x); return this._lb(this._v(), x); };
+  TP.lowerBound = TP.nextGEQ;
+  TP.nextGEQMany = function (xs, out) {
+    var k = xs.length, r = out || new Uint32Array(k), a = this._v(), n = this.length;
+    for (var j = 0; j < k; j++) { var x = xs[j]; if (!(x > 0)) x = 0; else if (x > 4294967295) { r[j] = n; continue; } else if (x % 1 !== 0) x = Math.ceil(x); r[j] = this._lb(a, x); }
+    return r;
+  };
+  TP.rank = P.rank; TP.rankMany = P.rankMany; TP.nextValue = P.nextValue; TP.count = P.count;
+  TP.contains = function (x) { var a = this._v(), i = this._lb(a, x); return i < this.length && a[i] === x; };
+  TP.containsMany = function (xs, out) { var k = xs.length, r = out || new Uint8Array(k), a = this._v(), n = this.length; for (var j = 0; j < k; j++) { var x = xs[j], i = this._lb(a, x); r[j] = i < n && a[i] === x ? 1 : 0; } return r; };
+  TP.toArray = function (out) { var n = this.length, r = outOf(out, n), a = this._v(); for (var j = 0; j < n; j++) r[j] = a[j]; return r; };
+  TP.slice = function (a, b, out) { var n = this.length; a = Math.max(0, a | 0); b = Math.min(n, b === undefined ? n : b | 0); if (b <= a) return new Uint32Array(0); var r = outOf(out, b - a), v = this._v(); for (var j = a; j < b; j++) r[j - a] = v[j]; return r; };
+  TP.stats = function () { return { count: this.length, bytes: this.bytes.length, bitsPerValue: this.length ? this.bytes.length * 8 / this.length : 0, tiny: this.bytes[0] === TGAP ? 'gaps' : 'elias-fano', compact: false }; };
+  TP.free = function () { if (TLAST === this) TLAST = null; if (TLAST2 === this) TLAST2 = null; };
+  TP.compact = function () { return false; };
+  function openTiny(bytes) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); return new TList(bytes); }
+  function intersectTiny(ls) {   // ls sorted by length and one of them tiny, so ls[0] has at most 63 values: keep those every other list contains
+    var A = ls[0], n = A.length, c = A instanceof TList ? A._v2() : A.toArray(), res = new Uint32Array(n), m = 0, i, j, prev = -1;
+    if (ls.length === 2 && ls[1] instanceof TList) {   // two tiny lists: one merge over both decoded lists
+      var b = ls[1]._v(), nb = ls[1].length; i = 0; j = 0;
+      while (i < n && j < nb) { var x = c[i], y = b[j]; if (x < y) i++; else if (y < x) j++; else { if (x !== prev) { res[m++] = x; prev = x; } i++; j++; } }
+      return res.slice(0, m);
+    }
+    for (j = 0; j < n; j++) if (c[j] !== prev) { prev = c[j]; res[m++] = prev; }
+    for (i = 1; i < ls.length && m; i++) { var L = ls[i], o = 0; for (j = 0; j < m; j++) if (L.contains(res[j])) res[o++] = res[j]; m = o; }
+    return res.slice(0, m);
+  }
+  /* pin (since 2.2.0, off by default): a list of 64 to 1,023 values keeps a plain copy of its values (4 bytes a value) and answers lookups from it, 13 to 41% quicker
+     in Firefox and WebKitGTK; the compressed list stays as it is (intersect and saving still use it). list.pin() / list.pin(false), or open(bytes, { pin: true }). */
+  var PIN_MIN = 64, PIN_MAX = 1023, PINNED = {
+    get: function (i) { if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined; return this._pin[i]; },
+    nextGEQ: function (x) { if (!(x > 0)) x = 0; if (x > 4294967295) return this.length; if (x % 1 !== 0) x = Math.ceil(x); var a = this._pin, lo = 0, hi = a.length; while (lo < hi) { var m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; },
+    nextGEQMany: function (xs, out) {
+      var k = xs.length, r = out || new Uint32Array(k), a = this._pin, n = a.length;
+      for (var j = 0; j < k; j++) { var x = xs[j]; if (!(x > 0)) x = 0; else if (x > 4294967295) { r[j] = n; continue; } else if (x % 1 !== 0) x = Math.ceil(x); var lo = 0, hi = n; while (lo < hi) { var m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } r[j] = lo; }
+      return r;
+    },
+    getMany: function (idx, out) { checkIdx(idx, this.length); var k = idx.length, r = out || new Uint32Array(k), a = this._pin; for (var j = 0; j < k; j++) r[j] = a[idx[j]]; return r; },
+    toArray: function (out) { var n = this.length, r = outOf(out, n); r.set(this._pin); return r; },
+    slice: function (a, b, out) { var n = this.length; a = Math.max(0, a | 0); b = Math.min(n, b === undefined ? n : b | 0); if (b <= a) return new Uint32Array(0); var r = outOf(out, b - a); r.set(this._pin.subarray(a, b)); return r; }
+  };
+  function pin(on) {   // true when the list is now pinned; false when off or when the list is outside 64 to 1,023 values (it then stays compressed only)
+    var names = ['get', 'nextGEQ', 'lowerBound', 'nextGEQMany', 'getMany', 'toArray', 'slice'], k;
+    if (on === false || !(this.length >= PIN_MIN && this.length <= PIN_MAX)) { if (this._pin) { this._pin = null; for (k = 0; k < names.length; k++) delete this[names[k]]; } return false; }
+    if (!this._pin) { var a = this.toArray(new Uint32Array(this.length)); this._pin = a; for (k = 0; k < names.length; k++) this[names[k]] = PINNED[names[k] === 'lowerBound' ? 'nextGEQ' : names[k]]; }
+    return true;
+  }
+  P.pin = pin; PP.pin = pin; P.pinned = PP.pinned = function () { return !!this._pin; };
+  var freeFlat = P.free; P.free = PP.free = function () { if (this._pin) this.pin(false); return freeFlat.call(this); };
+  // buildAuto / openAuto: a tiny list for 63 values or fewer, a flat list otherwise (longer tiny lists were smaller but 2 to 6 times slower to read); openAuto opens any single list blob
+  function buildAuto(values) { return values && values.length <= TMAX ? buildTiny(values) : build(values); }
+  function openAuto(bytes, opts) {
+    if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes);
+    var b0 = bytes.length ? bytes[0] : -1;
+    if (b0 === TGAP || b0 === TEF) return openTiny(bytes);
+    if (bytes.length >= 4) { var m = (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) >>> 0; if (m === PMAGIC) return openPartitioned(bytes, opts); if (m === BMAGIC) return openBlocks(bytes); }
+    return open(bytes, opts);
   }
 
   /* ---- intersection of sorted lists: leapfrog over nextGEQ, nothing is decoded. Lists may be flat or partitioned, in any mix; each common value comes out once ---- */
@@ -764,11 +906,12 @@
     if (ls[0].length === 0) return new Uint32Array(0);
     var cap = ls[0].length, res, o = 0, nbl = 0;
     for (i = 0; i < k; i++) if (ls[i] instanceof BList) nbl++;
+    for (i = 0; i < k; i++) if (ls[i] instanceof TList) return intersectTiny(ls);   // a tiny list in the mix: test its few values against the others
     if (nbl === k && k >= 2) return intersectBlocks(ls);   // block lists: block by block (bitmaps are ANDed word by word)
     if (useWasm() && nbl === 0) {
-      var hp = alloc(k * 8), op = alloc(cap * 4);
+      var hp = take(k * 8 + cap * 4), op = hp + k * 8;
       for (i = 0; i < k; i++) { ls[i]._wasm(); u32[(hp >>> 2) + 2 * i] = ls[i]._ptr; u32[(hp >>> 2) + 2 * i + 1] = ls[i] instanceof PList ? 1 : 0; }
-      o = W.ef_intersect(hp, k, op) >>> 0; res = u32.slice(op >>> 2, (op >>> 2) + o); release(hp, k * 8); release(op, cap * 4); return res;
+      o = W.ef_intersect(hp, k, op) >>> 0; res = u32.slice(op >>> 2, (op >>> 2) + o); done(hp, k * 8 + cap * 4); return res;
     }
     res = new Uint32Array(cap);
     var cand = ls[0].get(0);
@@ -787,14 +930,14 @@
     if (!W || !MOD || typeof WeakRef !== 'function') return null;   // without WeakRef the compacted lists cannot be found again, so the memory stays
     var before = mem.buffer.byteLength, old = u8, x = new WebAssembly.Instance(MOD, {}).exports, moved = [];
     LIVE.forEach(function (ref) { var l = ref.deref(); if (!l || !l._wm || l._gen !== GEN || l.bytes) { LIVE.delete(ref); if (l) l._ref = null; return; } moved.push(l); });
-    GEN++; W = x; mem = x.memory; views(); heapEnd = x.__heap_base; blocks = [];
+    GEN++; SCR = 0; SCRN = 0; W = x; mem = x.memory; views(); heapEnd = x.__heap_base; blocks = [];
     moved.forEach(function (l) { var p = alloc(l._blen); u8.set(old.subarray(l._ptr, l._ptr + l._blen), p); l._ptr = p; l._gen = GEN; });
     return { before: before, after: mem.buffer.byteLength, moved: moved.length };
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.1.3', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
-    buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, ready: function () { return start(); },
+    version: '2.2.0', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout
