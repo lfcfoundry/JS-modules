@@ -162,6 +162,15 @@ First layout in a fresh page, lower is better, median of 3. Quality (crossing li
 
 The libraries do more than this engine (drawing, routing, bundling, hundreds of options), so size is not like for like. Not measured: other graph libraries, tuned options, or real-world data. To rerun: `modules/netflow-engine/bench/compare/README.md`.
 
+### On real maps (2026.11.22)
+
+The comparison above uses generated networks. The same three-way race (`bench/compare`, `REAL=<name>`, maps cut by `bench/compare/prep-real.js`) was run on real maps: SBA awards (awarding agency to state to county to ZIP code, 922 items; the 300-item piece is its busiest part), retail customers to products, SEC filings to tags, and the FHIR training set's resource references (generated patients, owner-approved training data). Each map is the connected piece of 300, 1,000 or 3,000 items found by a walk from its best-connected item, with every link between them. First layout in a fresh page, ungoogled Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, 2 runs per case, 30 s limit.
+
+- **Speed holds on every real map.** The engine is 2.2x to 5.2x faster than d3-force, 22x to 57x faster than Cytoscape's cose at 300 items (nothing at 1,000 items or more finished in 30 s except one 922-item case), 327x to 507x faster than ELK's stress layout at 300 items (nothing larger finished), 4.4x to 28x faster than dagre and 3.2x to 45x faster than ELK's layered layout. On the 300-item SEC map (4,834 links) dagre and ELK's layered layout did not finish in 30 s; the engine took 0.9 to 1.1 s.
+- **Where the picture is worse (lower stress is better).** Cytoscape's cose beats the engine on the SBA map: 0.146 against 0.162 at 300 items and 0.170 against 0.184 at 922 items (the engine is 7 to 13% higher), at 22x to 57x the time. On the dense 300-item SEC map the engine is behind d3-force (0.237 against 0.217, 9% higher) and Cytoscape (0.228). It is ahead of d3-force on the SBA map (0.162 against 0.174) and on the larger SEC pieces (0.168 against 0.187 at 2,683 items), and level on the retail and FHIR maps.
+- **Not scored.** Crossing counts for the layered layout are not computed on real maps (no row labels), so only the layered times are real-data figures.
+- **Limits.** The SBA slice is the first 300 MB of the file and holds only 922 items. 3,000-item retail has 111,140 links. WebKitGTK ran the same cases except retail layered at 3,000 items, which neither dagre nor the engine finished there inside the limit. Cases over 30 s in one browser were skipped in the others. Raw results: `js-modules-research/audit-synthetic-claims-2026.11.22/engine-real-maps/`.
+
 ## Size
 
 241 KB as one file, 78 KB gzipped (about 33 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.

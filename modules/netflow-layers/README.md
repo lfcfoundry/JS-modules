@@ -88,7 +88,7 @@ The row-order search (crossing counts, sweeps, neighbor swaps) and the row place
 
 ## How it compares
 
-A small layered-graph drawer. It does less than ELK, and adds switches aimed at long story maps; ELK also wraps tall maps and bundles edges. With its default options (since 1.7.0) it draws fewer crossings than dagre and ELK on generated random maps of 400 and 1,000 items (not yet confirmed on real data); on a real retail product path graph it lays out 300 items 35 to 52 times and 1,000 items 138 to 243 times faster than dagre in the three test browsers (table below). ELK's speed and d3-dag: not measured.
+A small layered-graph drawer. It does less than ELK, and adds switches aimed at long story maps; ELK also wraps tall maps and bundles edges. With its default options (since 1.7.0) it draws fewer crossings than dagre and ELK on generated random maps of 400 and 1,000 items (on a real retail product path graph, thinned to 2 links per item, the crossings of the straight-line picture are level with dagre at 300 items, 1,259 against 1,269, and 36% higher at 1,000 items, 17,099 against 12,593; ELK was not counted there, so the claim of fewer crossings does not hold on real data at 1,000 items); on a real retail product path graph it lays out 300 items 35 to 52 times and 1,000 items 138 to 243 times faster than dagre in the three test browsers (table below). ELK's speed and d3-dag: not measured.
 
 | Alternative | Size (smaller is better) | Where it wins / loses |
 |---|---|---|
