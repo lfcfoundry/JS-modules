@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.20.0 · API 0 · 2026-11-21
+- New geo save option for map data: rows sorted along a Hilbert curve, a heat grid in the footer, and box reads that read only nearby blocks (2.8 to 6.7 times faster than reading everything). Off by default.
+
 ## 0.19.0 · API 0 · 2026-11-21
 - New scramble save option: rows saved in a seeded random order so every block is a fair sample, and open().progressive gives running estimates block by block (first block 9 to 18 ms vs 45 to 100 ms for all, mean 0.1% off). Off by default.
 

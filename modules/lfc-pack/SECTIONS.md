@@ -28,7 +28,8 @@ One place to see which footer section ids are taken. Rules are in `SPEC.md` 2.2 
 | 21 | chart bins (pyramids): min, max and count of every run of rows, per number and date column | written by `packColumnsParallel` (since 0.15.0; `pyramids: false` or `summary: false` turns it off) | no | `SPEC.md` 2.3 |
 | 22 | materialized group-by views | reserved for a later 0.15 release (head-start spec draft) | | |
 | 23 | graph (CSR link lists in a raw region after the blocks, read as typed views) | written by `packColumnsParallel` with `graph` or by `addGraph` (since 0.17.0) | no | `SPEC.md` 2.3 |
-| 24 to 999 | later parts of this format | reserved | | |
+| 24 | geo: bounds, Hilbert key column name and a 256 x 256 grid of row counts | written by `packColumnsParallel` with `geo` (since 0.20.0) | no | `SPEC.md` 2.3 |
+| 25 to 999 | later parts of this format | reserved | | |
 
 ## Application ids (1000 and up)
 Pick the next free id, put your app name and a version inside the payload, and make the section optional unless the file is meaningless without it.
