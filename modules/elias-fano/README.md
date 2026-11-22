@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.1.3 · API 2**
+**Version 2.2.0 · API 2**
 
 **Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -161,10 +161,49 @@ a.get(i); a.nextGEQ(x); a.rank(x); a.toArray(); a.stats();   // stats: { blocks,
 
 Choose block lists for "which ids are in all of these" and "is x present" on dense or mixed data, and flat lists for the smallest size on spread-out values and for "first value at or above x". `get(i)` and `nextGEQ(x)` on a block list are 2 to 7 times slower than on a flat list. `openBlocks` checks the header, the block table and that every block holds its count of values; a damaged block can give wrong values, never a read outside the blob. Block lists have no `compact()`; call `free()` when done, as with the other kinds.
 
+## Tiny lists, pinned lists and many short lists (since 2.2.0)
+Lists of 63 values or fewer take 0.2x the bytes as a tiny list. A flat list carries a 64-byte header and sample tables, which cost more than the values on a short list. `buildTiny` keeps such a list as plain gap bytes or as Elias-Fano without samples, whichever is smaller, and `buildAuto` picks a tiny list for 63 values or fewer and a flat list otherwise.
+
+```js
+var t = EliasFano.openTiny(EliasFano.buildTiny([3, 8, 8, 20]));   // 0 to 63 values; more throws a RangeError
+t.get(3); t.nextGEQ(9); t.nextGEQMany(xs); t.rank(8); t.contains(20); t.containsMany(xs); t.toArray(); t.slice(1, 3); t.stats();
+var l = EliasFano.openAuto(EliasFano.buildAuto(values));            // tiny for 63 or fewer, flat otherwise; openAuto also opens partitioned and block lists
+EliasFano.intersect([t, flatList, blockList]);                       // tiny lists mix with every other kind
+
+var hot = EliasFano.open(blob, { pin: true });                       // or list.pin() / list.pin(false); partitioned lists too
+hot.pinned();                                                        // true only for lists of 64 to 1,023 values
+```
+
+Measured on the short lists (2 to 63 values) of five real files (retail orders, federal assistance by place, SEC filings, SEC filers, a FHIR sample), Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, against flat lists:
+
+| Short lists | Tiny list |
+|---|---|
+| Bytes | 122 KB against 609 KB for the best older kind per list (0.20x) and 278 KB as plain 32-bit numbers |
+| Decode every list | 0.63 / 0.65 / 0.55 of the time |
+| First value at or above x, 50 per list | 0.39 / 0.45 / 0.35 |
+| Intersect pairs | 0.52 / 0.58 / 0.73 |
+
+Reads decode the list into one shared scratch array, so a tiny list keeps no memory besides its bytes. The last list read stays decoded, so `get(i)` in a loop over one list is cheap. A loop that reads two tiny lists in turn decodes each time, so take `toArray()` first. Above 63 values a tiny list is smaller still (about 0.77x of flat) but 2 to 4 times slower to decode and 4 to 6 times slower to intersect, so `buildAuto` stops at 63. Against a plain array of 4 bytes a value, tiny lists win on size, decoding and intersecting, not on single lookups. Plain binary search is as fast in Chromium and 1.4x / 1.8x faster in Firefox / WebKitGTK.
+
+**Pinning (off by default):** `pin()` gives a list of 64 to 1,023 values a plain copy of its values, 4 bytes a value on top of the compressed list, and answers lookups from it. The compressed list stays as it is (intersect, saving and `compact()` still use it). On the mid-size real lists, pinned against unpinned, Chromium / Firefox / WebKitGTK:
+
+| Mid-size lists (64 to 1,023 values) | Pinned |
+|---|---|
+| One `nextGEQ` at a time | 0.81 / 0.53 / 0.57 of the time |
+| `nextGEQMany`, 50 at a time | 1.12 / 0.75 / 0.78 (slower in Chromium, whose WebAssembly batch beats plain JavaScript search) |
+| `getMany` | 0.11 / 0.12 / 0.12 |
+
+`pin()` returns false and changes nothing outside 64 to 1,023 values. `pin(false)` and `free()` drop the copy.
+
+**Many short lists read together:** a list set from `buildLists` was already about 4x smaller than one list each (156 KB against 609 KB on the same short lists), and `decodeAll` takes 0.22 to 0.25x the time of a loop over separate lists. Lists longer than about 64 values do better on their own, and on long lists a list set is about 2x bigger. Choose a list set when the lists are always read together, and tiny lists when each is read on its own. These list-set figures come from the research run that proposed tiny lists.
+
+**Batch calls reuse their scratch memory (since 2.2.0):** `getMany`, `nextGEQMany`, `rankMany`, `containsMany`, long `slice` and `intersect` now use one reusable region of WebAssembly memory instead of taking and giving back two pieces on every call. Same answers, and nothing measured slower. Batches of 50 on the real lists take 0.69 to 0.88 of the time on short lists, 0.82 to 0.92 on mid-size lists and 0.84 to 0.96 on long lists, across the three browsers. Batches over 1 MB still take their own memory, and `trim()` drops the region along with the old memory.
+
 ## Limits
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.
 - Lists must be sorted (duplicates allowed); anything else throws a `RangeError`.
 - `open`, `openLists` and `openPartitioned` refuse (RangeError) a blob whose header, section sizes or counts do not add up, or that is truncated or cut, instead of reading past it. For partitioned lists the bits of every chunk are checked against the counts as well; for flat lists and list sets only the headers and offsets are checked (a flipped bit inside the data can give wrong values, never a read outside the blob).
+- `openTiny` refuses (RangeError) a tiny list whose counts, layout byte or bits do not add up, or that is cut short.
 - Little-endian machines only (all browsers on current hardware).
 - `buildLists` adds `j × (biggest value + 1)` to list j inside a chunk and cuts a new chunk before that would pass 2^32, so a list set whose values reach 2^32 − 1 is refused.
 
