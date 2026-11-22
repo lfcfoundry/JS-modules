@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.19.0 · API 0 · 2026-11-21
+
+### Quick
+scramble: true | seed on packColumnsParallel, packRows, packRowsParallel: Fisher-Yates over mulberry32 before blocks are cut (src/sort.js scramblePerm, the sortBy path with no key).
+
+### Deep
+scramble: true | seed on packColumnsParallel, packRows, packRowsParallel: Fisher-Yates over mulberry32 before blocks are cut (src/sort.js scramblePerm, the sortBy path with no key). No row-position column: unpack / unpackRows { original: true } rebuild the given order from the seed and row count (saved row i is given row P[i]); section 20 says scrambled: { seed } (also with summary: false). Refused with sortBy, keepOrder, exact, base. open().progressive(keys, onStep, { by }): blocks in order, running { n, sum, mean, min, max, estSum } per key and per label of by; onStep returning false stops. Measured 1,000,000 rows x 6 columns (taxi-like: id 0..n-1, fare, distance with 2% missing, passengers, 40 skewed zones, 4 payment kinds), median of 5, 4-core cloud: save 202 -> 308 ms Chromium 156, 206 -> 307 Firefox 158, 194 -> 284 WebKitGTK 2.52.6; first progressive step (1 of 6 blocks, by zone) 11.9 / 18.4 / 9 ms vs all blocks 63 / 100 / 45 ms; first-step mean 0.10% off, worst mean of a zone with at least 1% of rows 1.39% off. Size 4.13 -> 6.63 MB with the sequential id column, 4.11 -> 4.11 MB without it (Chromium run): only columns that follow the row order lose. First draft stored a $row column (keepOrder style): 9.1 MB, dropped for the seed. New test scramble.cjs (27 checks).
+
 ## 0.18.0 · API 0 · 2026-11-21
 
 ### Quick
