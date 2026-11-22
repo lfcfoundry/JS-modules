@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.12.0 · API 1 · 2026-11-21
+
+### Quick
+Tiny trees of 3 to 24 items in every view run in about 0.5 to 1.0 of d3's time
+
+### Details
+Items that name their parent (parentKey), up to 24 items: treemap, circle pack and tree join icicle and sunburst on the separate plain-list path. Same result. Loops, start items, nest groups, nest auto with no links and non-number sizes (treemap) use the general path.
+
+### Deep
+Tiny treemap, circle pack and tree: the separate small path for up to 24 items that name their parent now covers every view. Same layout and drawing as before, checked on 40 random sets in all five views and all five tree shapes. Big layouts untouched.
+
 ## 1.11.0 · API 1 · 2026-11-21
 
 ### Quick
