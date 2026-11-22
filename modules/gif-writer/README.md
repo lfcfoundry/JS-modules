@@ -14,7 +14,7 @@ gif-writer makes animated GIFs from canvas pictures, in the browser or Node. One
 
 ## Why it exists
 
-Most GIFs of apps and games are a still background with a small moving part. Common writers like gifenc and gif.js store every frame in full, so the background is paid for again each frame. On the laptop in Firefox 160, a 30-frame capture was 40 KB here against 195 KB with gifenc.
+Most GIFs of apps and games are a still background with a small moving part. Common writers like gifenc and gif.js store every frame in full, so the background is paid for again each frame. On 30 real frames of the Fancy Banana game (cloud Chromium 156, Firefox 158, WebKitGTK 2.52.6, 2026.11.22) the file is 27% to 29% of gifenc's size (208 to 225 KB against 776 to 782 KB) and is written 3.3 to 5.7 times faster.
 
 **Where it helps**
 
@@ -104,7 +104,7 @@ The WebAssembly program starts compiling in the background when the file loads, 
 Honest numbers: load plus first use, ms, old / new (median of nine fresh pages, right after load; lower is better): Chromium 155 8.3 / 8.7, Firefox 158.0 20 / 20, WebKitGTK 2.52.6 3 / 3 6 / 6. Level within about 1 ms.
 
 ## How it compares
-Much smaller files than gifenc when most of the picture stays still, about the same size when everything changes, and bigger as code. Speed (laptop Firefox 160, 16 cores, 2026.10.30, 30 pictures of 320 x 240): a typical capture, a sprite over a still background, is written 6 to 31 times as fast as gifenc and gif.js; when every pixel changes, 1.7 to 3.3 times as fast as gif.js and gifenc with one palette.
+On real Fancy Banana frames: files 27% to 29% of gifenc's size and 3.3 to 5.7 times faster in the three test browsers (2026.11.22). Earlier, on generated captures: much smaller files than gifenc when most of the picture stays still, about the same size when everything changes, and bigger as code. Speed (laptop Firefox 160, 16 cores, 2026.10.30, 30 pictures of 320 x 240): a typical capture, a sprite over a still background, is written 6 to 31 times as fast as gifenc and gif.js; when every pixel changes, 1.7 to 3.3 times as fast as gif.js and gifenc with one palette.
 
 | Alternative | Size of the code (smaller is better) | Speed (faster is better) | Features | Where it wins or loses |
 |---|---|---|---|---|

@@ -24,7 +24,7 @@
     ===================================================================================
     -->
 <meta charset=utf-8><title>real-data audit</title>
-<script src="papaparse.min.js"></script><script src="fflate.js"></script><script src="fzstd.js"></script><script src="jszip.min.js"></script><script src="d3h.js"></script><script src="pcodec-js-pack.js"></script><script src="lzmajs.js"></script><script src="lzma-decode-with-wasm.js"></script><script src="netflow-hierarchy.js"></script><script src="msgpackr.js"></script><script src="gl.js"></script>
+<script src="papaparse.min.js"></script><script src="fflate.js"></script><script src="fzstd.js"></script><script src="jszip.min.js"></script><script src="d3h.js"></script><script src="ge.js"></script><script src="gif-writer.js"></script><script src="pcodec-js-pack.js"></script><script src="lzmajs.js"></script><script src="lzma-decode-with-wasm.js"></script><script src="netflow-hierarchy.js"></script><script src="msgpackr.js"></script><script src="gl.js"></script>
 <script src="dagre.min.js"></script><script src="d3s.js"></script><script src="netflow-layers.js"></script><script src="netflow-sankey.js"></script><script src="zip-open.js"></script><script src="text-columns.js"></script><script src="lz4-kit.js"></script><script src="zstd-kit.js"></script><script src="memory-compression.js"></script><script src="graph-walk.js"></script>
 <script>
 const med=a=>{a=a.slice().sort((x,y)=>x-y);return a[a.length>>1]};
@@ -106,6 +106,15 @@ const tests={
    const mc=T(()=>MemoryCompression.pack(f),3),mcu=T(()=>MemoryCompression.unpack(mc.r),5);
    const g=T(()=>fflate.gzipSync(raw,{level:6}),1),gu=T(()=>fflate.gunzipSync(g.r),5);const z=T(()=>ZstdKit.compress(raw,3),3),zu=T(()=>ZstdKit.decompress(z.r),5);
    out[n]={values:f.length,raw_bytes:raw.length,exact:ok,pcodec:{bytes:p8.r.length,pack_ms:p8.ms,unpack_ms:pu.ms},memcomp:{bytes:mc.r.length,pack_ms:mc.ms,unpack_ms:mcu.ms},fflate_gzip6:{bytes:g.r.length,pack_ms:g.ms,unpack_ms:gu.ms},zstd3:{bytes:z.r.length,pack_ms:z.ms,unpack_ms:zu.ms}}}return out},
+ async gif(){const out={};
+  for(const g of ['banana','banana300']){const pics=[];let w=0,h=0;
+   for(let i=0;i<30;i++){const bm=await createImageBitmap(await (await fetch('frame-'+g+'-'+String(i).padStart(2,'0')+'.png')).blob());w=bm.width;h=bm.height;const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.drawImage(bm,0,0);pics.push(x.getImageData(0,0,w,h).data)}
+   let changed=0;for(let i=1;i<30;i++){let d=0;for(let k=0;k<pics[i].length;k+=4)if(pics[i][k]!==pics[i-1][k]||pics[i][k+1]!==pics[i-1][k+1]||pics[i][k+2]!==pics[i-1][k+2])d++;changed+=d/(w*h)}
+   const spread=[0,4,8,12,16,20,24,29].map(i=>pics[i]);
+   const mine=()=>{const pal=GifWriter.makePalette(spread,255);const enc=GifWriter.createEncoder(w,h,pal,{loop:true});pics.forEach(p=>enc.add(p,100));return enc.finish()};
+   const theirs=()=>{const all=new Uint8Array(spread.length*w*h*4);spread.forEach((p,i)=>all.set(p,i*w*h*4));const pal=GE.quantize(all,256);const e=GE.GIFEncoder();pics.forEach(p=>{e.writeFrame(GE.applyPalette(p,pal),w,h,{palette:pal,delay:100})});e.finish();return e.bytes()};
+   const a=T(mine,5),b=T(theirs,5);
+   out[g]={frame:w+'x'+h,frames:30,avg_share_of_pixels_changed_per_frame:+(changed/29).toFixed(3),gif_writer:{bytes:a.r.length,ms:a.ms},gifenc:{bytes:b.r.length,ms:b.ms},size_ratio_gifwriter_over_gifenc:+(a.r.length/b.r.length).toFixed(2),speedup:+(b.ms/a.ms).toFixed(2)}}return out},
  async graph(){const G=await (await fetch('graphs.json')).json();const out={};
    for(const [n,g] of Object.entries(G)){const f=Int32Array.from(g.f),t=Int32Array.from(g.t);
     const w=T(()=>GraphWalk.csr(g.n,f,t),3);const gw=w.r;

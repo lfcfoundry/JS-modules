@@ -34,11 +34,11 @@
    ]
   },
   {
-   "label": "gif-writer vs gifenc (low end)",
-   "x": 6,
+   "label": "gif-writer vs gifenc, real game frames (low end)",
+   "x": 3.3,
    "module": "gif-writer",
    "proof": [
-    "6 to 31"
+    "3.3 to 5.7 times faster"
    ]
   },
   {
