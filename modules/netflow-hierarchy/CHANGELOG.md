@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.11.0 · API 1 · 2026-11-21
+- Tiny icicle and sunburst (up to 24 items) have their own fast path
+
 ## 1.10.1 · API 1 · 2026-11-21
 - Small speed-up for the tree and circle pack views on small trees
 

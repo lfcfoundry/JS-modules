@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.10.1 (API 1)
+ * Version 1.11.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -291,7 +291,116 @@ var NetflowHierarchy = (function () {
     return nestedOut('treemap', G, H, val, { R: R, W: W, H: Ht, total: total });
   }
   /** Partition: depth across, value along (icicle), or the same in rings (sunburst). */
+  /* Tiny icicle and sunburst (items that name their own parent, up to TINY items): the whole layout in one function with plain lists. It shares
+     nothing with the general path on purpose: plain lists flowing through the code that also lays out big trees made that code slower for seconds
+     afterwards, in every browser (the browser had seen two kinds of list there). It gives the same result as the general path (the tests compare
+     them) and hands the work back (returns null) for an item marked as the start, a loop, group nesting, or 'auto' with no link at all. */
+  var TINY = 24;
+  function tinyPart(G, o, pk, radial) {
+    var nodes = G.nodes, n = nodes.length, nest = o.nest;
+    if (n < 1 || n > TINY || o._general || nest === 'groups') return null;
+    var sk = typeof o.sizeKey === 'string' && o.sizeKey && o.sizeKey !== 'sizeV' ? o.sizeKey : null;
+    var M = new Map(), sz = new Array(n), szOk = true, i, nd, x, p, a, par = new Array(n), kc = new Array(n), from = [], to = [];
+    for (i = 0; i < n; i++) {
+      nd = nodes[i]; if (nd.start) return null;
+      M.set(nd.id, i); kc[i] = null;
+      x = sk ? nd[sk] : nd.sizeV; if (typeof x !== 'number') { if (x !== undefined) szOk = false; x = NaN; } sz[i] = x;
+    }
+    for (i = 0; i < n; i++) {
+      p = nodes[i][pk]; par[i] = -1;
+      if (p === null || p === undefined || p === '') continue;
+      a = M.get(p); if (a === undefined || a === i) continue;
+      par[i] = a; from.push(a); to.push(i);
+      if (kc[a] === null) kc[a] = [i]; else kc[a].push(i);
+    }
+    if (nest !== 'links' && from.length === 0) return null;
+    var Q = new Array(n), qt = 0, qh = 0, tops = [], u, k, j, v, t;
+    for (i = 0; i < n; i++) {
+      if (par[i] >= 0) continue;
+      tops.push(i); Q[qt++] = i;
+      while (qh < qt) { u = Q[qh++]; k = kc[u]; if (k !== null) for (j = 0; j < k.length; j++) Q[qt++] = k[j]; }
+    }
+    if (qt < n) return null;
+    var sh = tops.length !== 1 ? 1 : 0, N = n + sh, bpar = new Array(N), bitem = new Array(N), bdep = new Array(N), bord = new Array(N), at = new Array(n);
+    var lab = new Array(N), grp = new Array(N), topName = G.name || 'All';
+    if (sh) { bpar[0] = -1; bitem[0] = -1; bdep[0] = 0; bord[0] = 0; lab[0] = topName; grp[0] = ''; }
+    for (k = 0; k < n; k++) {
+      u = Q[k]; v = k + sh; at[u] = v; bitem[v] = u; bord[v] = v; nd = nodes[u]; lab[v] = nd.label; grp[v] = nd.group || '';
+      p = par[u];
+      if (p < 0) { bpar[v] = sh - 1; bdep[v] = sh; } else { p = at[p]; bpar[v] = p; bdep[v] = bdep[p] + 1; }
+    }
+    var kO = new Array(N + 1), kL = new Array(N > 0 ? N - 1 : 0), nk = 0;
+    for (v = 0; v < N; v++) {
+      kO[v] = nk;
+      if (sh && v === 0) { for (j = 0; j < tops.length; j++) kL[nk++] = at[tops[j]]; continue; }
+      k = kc[bitem[v]];
+      if (k !== null) for (j = 0; j < k.length; j++) kL[nk++] = at[k[j]];
+    }
+    kO[N] = nk;
+    /* totals, as sums() does them */
+    var val = new Array(N), own = new Array(N), sized = !!o.sized, s, w, b;
+    for (v = N - 1; v >= 0; v--) {
+      s = 0; a = kO[v]; b = kO[v + 1]; w = 0;
+      for (j = a; j < b; j++) s += val[kL[j]];
+      i = bitem[v];
+      if (i >= 0 && (sized || a === b)) {
+        if (szOk) { w = sz[i]; if (!(w > 0)) w = 1; s += w; }
+        else { w = sk ? nodes[i][sk] : nodes[i].sizeV; if (!(w === w && w > 0)) w = 1; s = s + w; }
+      }
+      own[v] = +w; val[v] = +s;
+    }
+    if (o.sort !== false) {   /* biggest first, ties by lower number: an insertion sort per list */
+      for (v = 0; v < N; v++) {
+        a = kO[v]; b = kO[v + 1];
+        for (j = a + 1; j < b; j++) { t = kL[j]; k = j - 1; while (k >= a && (val[kL[k]] < val[t] || (val[kL[k]] === val[t] && kL[k] > t))) { kL[k + 1] = kL[k]; k--; } kL[k + 1] = t; }
+      }
+    }
+    var kb = new Array(N);
+    for (v = 0; v < N; v++) { a = kO[v]; b = kO[v + 1]; if (a === b) kb[v] = EMPTY; else { k = new Array(b - a); for (j = a; j < b; j++) k[j - a] = kL[j]; kb[v] = k; } }
+    /* places, as partition() does them */
+    var R = new Array(N * 4), maxD = 0, skipRoot = bitem[0] < 0 ? 1 : 0, v4, d, span, tt, cur, c, ww;
+    for (i = 0; i < N * 4; i++) R[i] = 0;
+    R[1] = 0; R[3] = 1;
+    for (v = 0; v < N; v++) {
+      v4 = v * 4; a = R[v4 + 1]; d = bdep[v]; j = kO[v]; b = kO[v + 1];
+      if (d > maxD) maxD = d;
+      R[v4] = d - skipRoot; R[v4 + 2] = d - skipRoot + 1;
+      if (j === b) continue;
+      span = R[v4 + 3] - a; tt = val[v] || 1; cur = a + (own[v] > 0 ? span * own[v] / tt : 0);
+      for (; j < b; j++) { c = kL[j]; ww = span * val[c] / tt; R[c * 4 + 1] = cur; R[c * 4 + 3] = cur + ww; cur += ww; }
+    }
+    var levels = maxD + 1 - skipRoot, geo, type;
+    if (radial) {
+      var Rad = Math.max(260, Math.min(2200, 120 + Math.sqrt(N) * 26)), ring = Rad / Math.max(1, levels + 0.4);
+      type = 'sunburst'; geo = { R: R, W: Rad * 2 + 340, H: Rad * 2 + 340, cx: Rad + 170, cy: Rad + 170, ring: ring, hole: ring * 0.4, skipRoot: skipRoot, levels: levels };
+    } else {
+      var colW = 200, Hh = Math.max(500, Math.min(30000, N * 22));
+      type = 'icicle'; geo = { R: R, W: Math.max(1, levels) * colW, H: Hh, colW: colW, skipRoot: skipRoot, levels: levels };
+    }
+    var outNodes = nodes.slice();
+    if (o.write === false) { geo.at = at; geo.placed = false; }
+    else {   /* each item's place, written onto the item */
+      var xa, xb, ya, yb, x0, y0, x1, y1, an, rr, nd2, bx;
+      for (i = 0; i < n; i++) {
+        nd2 = outNodes[i]; bx = at[i];
+        if (!radial) {
+          xa = R[bx * 4] * geo.colW; xb = R[bx * 4 + 2] * geo.colW; ya = R[bx * 4 + 1] * geo.H; yb = R[bx * 4 + 3] * geo.H;
+          nd2.x = xa; nd2.y = ya; nd2.w = Math.max(0, xb - xa); nd2.h = Math.max(0, yb - ya); nd2.cx = (xa + xb) / 2; nd2.cy = (ya + yb) / 2; nd2.hv = bx;
+        } else {
+          an = (R[bx * 4 + 1] + R[bx * 4 + 3]) / 2 * TAU - Math.PI / 2; rr = geo.hole + (R[bx * 4] + 0.5) * geo.ring;
+          nd2.cx = geo.cx + Math.cos(an) * rr; nd2.cy = geo.cy + Math.sin(an) * rr; x0 = nd2.cx - 5; x1 = nd2.cx + 5; y0 = nd2.cy - 5; y1 = nd2.cy + 5;
+          nd2.x = x0; nd2.y = y0; nd2.w = Math.max(0, x1 - x0); nd2.h = Math.max(0, y1 - y0); nd2.cx = (x0 + x1) / 2; nd2.cy = (y0 + y1) / 2; nd2.hv = bx;
+        }
+      }
+    }
+    geo.type = type; geo.val = val; geo.N = N; geo.par = bpar; geo.kids = kb; geo.depth = bdep; geo.item = bitem; geo.label = lab; geo.group = grp; geo.root = 0; geo.order = bord; geo.mode = 'links';
+    geo.extra = 0; geo.tree = { from: from, to: to, extraList: [] };
+    var es = [];
+    for (i = 0; i < n; i++) { p = nodes[i][pk]; if (p !== null && p !== undefined && p !== '') es.push({ from: p, to: nodes[i].id }); }
+    return { kind: type, dir: 'none', nodes: outNodes, edges: es, chart: geo, width: geo.W, height: geo.H };
+  }
   function partition(G, o, radial) {
+    if (o.parentKey && typeof o.parentKey === 'string') { var TP = tinyPart(G, o, o.parentKey, radial); if (TP) return TP; }
     var H = hierarchy(G, o, 4), val = sums(G, H, o), N = H.N, R = H.fx >= 0 ? H.F.subarray(H.fx, H.fx + N * 4) : new Float64Array(N * 4), maxD = 0, v, own = H.ownV, kidOff = H.kidOff, kidList = H.kidList, depth = H.depth;
     var skipRoot = H.item[H.root] < 0 ? 1 : 0;
     R[H.root * 4 + 1] = 0; R[H.root * 4 + 3] = 1;
