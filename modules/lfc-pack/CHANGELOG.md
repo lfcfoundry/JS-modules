@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.24.0 · API 0 · 2026-11-21
+- Quantile grid gets 40 tail points: 99.9th percentile within 5% (was 57-542% off); cheaper summaries for sorted and small-integer columns
+
 ## 0.23.0 · API 0 · 2026-11-21
 - Geo saves 13-22% faster and 9% smaller; views saves up to 10% faster; sortBy reorder 2-3x faster
 
