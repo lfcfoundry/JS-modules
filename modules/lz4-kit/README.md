@@ -44,7 +44,7 @@ Call `release()` after a big job to free the working memory. WebAssembly memory 
 
 ## Numbers and how it compares
 
-These numbers come from 4 MB of made-up web-server log lines (JSON, 4,194,304 bytes; the page and its generator are in bench/bench.html), on a fresh page each time, as the median of 3 pages. Each call ran 5 times on the page; the table shows the middle of the last 4 (steady) and the first call where noted. Times are in ms. "Browser gzip" is the page's own `CompressionStream` and `DecompressionStream`, median of 3 calls.
+Real files (2026.11.22, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6, first 4 MiB of the retail, SEC and SBA tables): lz4-kit compresses 4.2 to 13 times faster than the browser's gzip and decompresses 2.1 to 4.3 times faster, into a frame 1.4 to 1.6 times the size of gzip's. The other LZ4 libraries were not re-run on real files. The rest of this section comes from 4 MB of generated web-server log lines (JSON, 4,194,304 bytes; the page and its generator are in bench/bench.html), on a fresh page each time, as the median of 3 pages. Each call ran 5 times on the page; the table shows the middle of the last 4 (steady) and the first call where noted. Times are in ms. "Browser gzip" is the page's own `CompressionStream` and `DecompressionStream`, median of 3 calls.
 
 | | ungoogled Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---|---|---|

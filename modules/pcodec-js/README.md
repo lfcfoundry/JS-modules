@@ -69,6 +69,8 @@ const quick = pco.pack(float64Array, {smallest: 'quick'});     // pack file only
 - `warm`: `load({ warm: true })` (or `pco.warm(ms)`, default 15 ms) unpacks three tiny built-in files in slices of about 3 ms while the page waits for its data. Browsers start WebAssembly slowly and speed it up after it has run a while; this brings that forward. First unpack of 100,000 numbers: Chromium 8.8 to 2.8 ms, WebKitGTK 15 to 7 ms to 5 ms; Firefox is not helped. It needs about 50 ms of idle time after `load()` to take effect. Views from before a `warm` call are not valid after it.
 
 ## How it compares
+**Real decimal columns (2026.11.22, three test browsers).** 413,875 SEC statement values pack to 1,189,546 bytes (0.71 of fflate gzip's 1,664,838, 0.77 of zstd level 3's 1,537,543); 147,846 SBA award amounts pack to 62,326 bytes (gzip 60,886, zstd 83,309); both unpack exactly and 4 to 10 times faster than gzip. The comparison with numcodecs-wasm-pco below was measured earlier on generated columns and could not be re-run (the package is no longer on npm).
+
 
 The same Pcodec bytes as any Pcodec, so the question is only how well each build runs in a page. The only other JavaScript build of Pcodec I could find is numcodecs-wasm-pco; this one is much smaller to download (5.3 times for the unpack-only file), is ready 7 to 11 times sooner after the script runs, keeps wasm memory to 6.3 MB for a big unpack, unpacks about as fast (a tie in three browsers, 11% slower in WebKitGTK) and packs about level with it (14% faster in Chromium, a tie elsewhere in the 1.6.0 re-run) but its plain `pack()` is 6% larger on the 12-column set (Pcodec 1.0.4 against 1.0.2; `smallest` mode fixes that). Details and tables: `RESULTS.md`; all speeds measured in the three browsers.
 

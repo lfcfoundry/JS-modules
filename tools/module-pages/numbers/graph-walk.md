@@ -1,14 +1,15 @@
-**Measured on a real laptop: Firefox 160 (Windows), 16 cores, 2026.10.30, 7:09 PM.** Medians; lower is better for every time, size and ratio. This is one browser on one machine, and Firefox 160 is not one of our three cloud test browsers, so treat it as direction, not a guarantee.
+**Measured on a real graph: cloud Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, one browser at a time, 2026.11.22.** The graph is the real retail e-commerce file seen as a directed graph: 9,043 nodes (4,372 customers and 4,671 products) and 408,518 links, one link per purchase line from customer to product. Medians of 3 to 5 runs inside a fresh page; lower is better. graphology 0.26 with graphology-components and graphology-shortest-path (npm latest). This replaces the earlier generated 100,000-item graph.
 
-Compared: graph-walk against graphology and a hand-written walk (100,000 items, ms).
+Compared: graph-walk against graphology on a real purchase graph (ms; Chromium / Firefox / WebKitGTK).
 
-<!-- title: graph-walk builds and searches a 100,000-item graph 3 to 4 times faster than hand-written arrays and 70 to 390 times faster than graphology -->
-| way | build | bfs |
-|---|---:|---:|
-| graph-walk | 3.0 | 6.0 |
-| hand-written arrays | 11 | 16 |
-| graphology | 1,160 | 424 |
+<!-- title: graph-walk builds a real 408,518-link purchase graph 190 to 360 times faster than graphology and finds its components and strong components 12 to 330 times faster -->
+| job | graph-walk | graphology | graphology / graph-walk |
+|---|---|---|---|
+| build the graph | 5.6 / 5 / 6 | 1,746 / 1,816 / 1,157 | 312x / 363x / 193x |
+| connected components | 1.3 / 1 / 2 | 114 / 330 / 312 | 88x / 330x / 156x |
+| strongly connected components | 2.4 / 2 / 2 | 30 / 62 / 90 | 12x / 31x / 45x |
 
+A second real graph, SEC filings to statement tags (2,712 nodes, 61,375 links), gave build 1.4 against 393 ms and components 0.2 against 4.9 ms in Chromium (280x and 25x). Breadth-first search was not re-measured: from a customer, the search reaches only the products they bought and takes under 1 ms in both libraries. The earlier comparison with hand-written arrays was not re-run on real data. Harness and raw results: `tools/real-corpus`.
 
 **Version against version, real laptop, ungoogled Chromium 156 (Windows), 16 cores, 2026.10.30, 9:47 PM.** Medians; lower is better. One browser on one machine.
 

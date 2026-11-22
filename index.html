@@ -188,31 +188,31 @@ footer a{margin-right:16px}
   <div class="bench">
   <!--scoreboard:begin-->
     <div class="eco score">
-    <h3>We are ahead of the nearest alternative on 23 of the 26 comparisons we have measured, and behind on 3</h3>
+    <h3>We are ahead of the nearest alternative on 22 of the 26 comparisons we have measured, and behind on 4</h3>
     <p class="sub">Times faster than the named alternative, one dot per comparison (log scale; the line is level, right is ahead).</p>
-    <div class="row"><span>netflow-layers vs dagre, 300 items</span><div class="track"><i class="dot" style="left:84.4%"></i><b class="" style="left:84.4%">710x</b></div></div>
-    <div class="row"><span>graph-walk vs graphology</span><div class="track"><i class="dot" style="left:59.2%"></i><b class="" style="left:59.2%">70x</b></div></div>
     <div class="row"><span>elias-fano vs roaring-wasm, first value at or above x</span><div class="track"><i class="dot" style="left:52.6%"></i><b class="" style="left:52.6%">38x</b></div></div>
+    <div class="row"><span>netflow-layers vs dagre, 300 real items (low end)</span><div class="track"><i class="dot" style="left:51.7%"></i><b class="" style="left:51.7%">35x</b></div></div>
+    <div class="row"><span>lzma-decode (WebAssembly) vs LZMA-JS, real files (low end)</span><div class="track"><i class="dot" style="left:48.4%"></i><b class="" style="left:48.4%">26x</b></div></div>
     <div class="row"><span>save-kit vs idb-keyval, save</span><div class="track"><i class="dot" style="left:44.5%"></i><b class="" style="left:44.5%">18x</b></div></div>
-    <div class="row"><span>memory-compression vs fflate (low end)</span><div class="track"><i class="dot" style="left:43.2%"></i><b class="" style="left:43.2%">16x</b></div></div>
-    <div class="row"><span>lzma-decode (WebAssembly) vs LZMA-JS</span><div class="track"><i class="dot" style="left:40.1%"></i><b class="" style="left:40.1%">12x</b></div></div>
-    <div class="row"><span>lz4-kit compress vs browser gzip (low end)</span><div class="track"><i class="dot" style="left:33.6%"></i><b class="" style="left:33.6%">6.6x</b></div></div>
-    <div class="row"><span>gif-writer vs gifenc (low end)</span><div class="track"><i class="dot" style="left:32.5%"></i><b class="" style="left:32.5%">6x</b></div></div>
+    <div class="row"><span>graph-walk vs graphology, real purchase graph (low end)</span><div class="track"><i class="dot" style="left:40.1%"></i><b class="" style="left:40.1%">12x</b></div></div>
     <div class="row"><span>clip-writer MP4 vs mp4-muxer</span><div class="track"><i class="dot" style="left:32.5%"></i><b class="" style="left:32.5%">6x</b></div></div>
+    <div class="row"><span>memory-compression vs fflate, real rows, pack (low end)</span><div class="track"><i class="dot" style="left:30.8%"></i><b class="" style="left:30.8%">5.1x</b></div></div>
+    <div class="row"><span>lz4-kit compress vs browser gzip, real files (low end)</span><div class="track"><i class="dot" style="left:28.7%"></i><b class="" style="left:28.7%">4.2x</b></div></div>
     <div class="row"><span>idle-core vs break_infinity.js</span><div class="track"><i class="dot" style="left:26.7%"></i><b class="" style="left:26.7%">3.5x</b></div></div>
-    <div class="row"><span>text-columns vs Papa Parse</span><div class="track"><i class="dot" style="left:26.4%"></i><b class="" style="left:26.4%">3.4x</b></div></div>
+    <div class="row"><span>gif-writer vs gifenc, real game frames (low end)</span><div class="track"><i class="dot" style="left:26.0%"></i><b class="" style="left:26.0%">3.3x</b></div></div>
     <div class="row"><span>LFC-pack write vs gzip</span><div class="track"><i class="dot" style="left:25.7%"></i><b class="" style="left:25.7%">3.2x</b></div></div>
     <div class="row"><span>walker-sim vs a plain loop</span><div class="track"><i class="dot" style="left:24.6%"></i><b class="" style="left:24.6%">2.9x</b></div></div>
     <div class="row"><span>spotlight-tour vs driver.js, Shepherd.js, Intro.js</span><div class="track"><i class="dot" style="left:23.9%"></i><b class="" style="left:23.9%">2.7x</b></div></div>
-    <div class="row"><span>zstd-kit decompress vs fzstd (low end)</span><div class="track"><i class="dot" style="left:23.4%"></i><b class="" style="left:23.4%">2.6x</b></div></div>
     <div class="row"><span>gpu-blur bytes out vs browser filter</span><div class="track"><i class="dot" style="left:20.6%"></i><b class="" style="left:20.6%">2x</b></div></div>
+    <div class="row"><span>zstd-kit decompress vs fzstd, real files (low end)</span><div class="track"><i class="dot" style="left:20.0%"></i><b class="" style="left:20.0%">1.9x</b></div></div>
     <div class="row"><span>LFC-pack row reads vs Parquet readers (low end)</span><div class="track"><i class="dot" style="left:18.8%"></i><b class="" style="left:18.8%">1.7x</b></div></div>
     <div class="row"><span>LFC-pack aggregate vs DuckDB-WASM (low end)</span><div class="track"><i class="dot" style="left:17.5%"></i><b class="" style="left:17.5%">1.5x</b></div></div>
-    <div class="row"><span>zip-open vs fflate</span><div class="track"><i class="dot" style="left:16.7%"></i><b class="" style="left:16.7%">1.4x</b></div></div>
+    <div class="row"><span>zip-open vs fflate, 400 real CSV files (low end)</span><div class="track"><i class="dot" style="left:15.9%"></i><b class="" style="left:15.9%">1.3x</b></div></div>
     <div class="row"><span>save-kit 16 MB load vs idb-keyval and localForage</span><div class="track"><i class="dot" style="left:15.9%"></i><b class="" style="left:15.9%">1.3x</b></div></div>
     <div class="row"><span>gpu-blur drawn canvas vs browser filter (low end)</span><div class="track"><i class="dot" style="left:15.1%"></i><b class="" style="left:15.1%">1.2x</b></div></div>
     <div class="row"><span>elias-fano default block lists vs roaring-wasm, spread-out intersect</span><div class="track"><i class="dot" style="left:14.1%"></i><b class="" style="left:14.1%">1.1x</b></div></div>
     <div class="row"><span>pad-nav vs js-spatial-navigation, WebKitGTK</span><div class="track"><i class="dot" style="left:13.6%"></i><b class="" style="left:13.6%">1.05x</b></div></div>
+    <div class="row"><span>text-columns vs Papa Parse, real files (low end)</span><div class="track"><i class="dot l" style="left:12.4%"></i><b class="lo" style="left:12.4%">0.94x</b></div></div>
     <div class="row"><span>elias-fano default block lists vs roaring-wasm, decoding everything</span><div class="track"><i class="dot l" style="left:10.2%"></i><b class="lo" style="left:10.2%">0.77x</b></div></div>
     <div class="row"><span>save-kit vs localForage localStorage driver, 20 KB load, WebKitGTK</span><div class="track"><i class="dot l" style="left:8.4%"></i><b class="lo" style="left:8.4%">0.65x</b></div></div>
     <div class="row"><span>sprite-baker vs three.js with smooth edges</span><div class="track"><i class="dot l" style="left:7.9%"></i><b class="lo" style="left:7.9%">0.62x</b></div></div>

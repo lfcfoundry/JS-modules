@@ -16,7 +16,7 @@ Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
 
 ## Why it exists
 
-Browser apps hit memory limits early, and phones close pages that use too much. Much of what an app holds is idle (old undo steps, rows out of view). General compressors treat numbers as plain bytes and return one big blob. On the laptop in Firefox 160, an 8 MB float array packed to 4.8 MB in 5 ms, against fflate's 7.3 MB in 278 ms.
+Browser apps hit memory limits early, and phones close pages that use too much. Much of what an app holds is idle (old undo steps, rows out of view). General compressors treat numbers as plain bytes and return one big blob. On real data in the three test browsers, 60,000 real rows (retail and SEC) pack to 0.66 to 0.84 of fflate's size in 5.1 to 9.7 times less time; real decimal columns (SEC values, SBA amounts) pack 5 to 24 times faster than fflate but come out 1.15 to 2.2 times bigger than gzip.
 
 **Where it helps**
 
@@ -159,7 +159,7 @@ Size is smaller-is-better and times are lower-is-better in every table. Every re
 
 The cloud container is shared, so gaps under about 15% are noise. The table was run in the module's own bench runner (`bench/page-main.js`).
 
-Fast mode is 2.5 times smaller than msgpackr with records, and its unpack is as fast or faster in all three browsers; it loses on download size (since 2.12.0 the minified full file is 80.8 KB gzipped and the read-only file 35.0 KB, against 11 KB for msgpackr; the shipped unminified file is about 121 KB) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit, from the 2.0.x runs; not re-run).
+Fast mode is 5.0 and 11 times smaller than msgpackr with records on 60,000 real retail and SEC rows (2.5 times on the generated records measured earlier), and its unpack is 1.7 to 7.4 times faster in all three browsers on those real rows (pack is 1.2 to 2.2 times slower on retail rows, level or faster on SEC rows); real decimal columns are the exception on size (see the first paragraph); it loses on download size (since 2.12.0 the minified full file is 80.8 KB gzipped and the read-only file 35.0 KB, against 11 KB for msgpackr; the shipped unminified file is about 121 KB) and on packing text-heavy records (up to 2.4 times slower than msgpackr in WebKit, from the 2.0.x runs; not re-run).
 
 **The same 60,000 links kept in pages of 2,048 rows, one page opened at a time** (version 2.2.0, `pager()` against page-by-page copies made with each library; median of 5 turns, one browser at a time; times in ms, lower is better, each cell is Chromium 155 / Firefox 158.0 / WebKitGTK 2.52.6; "open" is the mean of 29 pages timed as one block; every contender gave back equal rows):
 
@@ -196,6 +196,7 @@ Fast mode restores faster than lz4-wasm in Firefox 158.0 and Chromium 155 but no
 - **Not the fastest packer for every shape of data**, and class instances come back as plain objects.
 
 ## Good to know
+- **Generated-data figures.** The pager, restore-speed (lz4-wasm, zstd-wasm), timestamp and number-picker tables in this file were measured on generated records, links and columns and have not been re-run on real data yet. Real-data results for rows and decimal columns are in the first paragraph and the Numbers page.
 
 - **Exact.** NaN payloads, -0, `undefined`, `Date`, `Map`, `Set`, `BigInt`, `RegExp`, sparse arrays and `__proto__` keys come back as they went in; shared objects and cycles with `refs: true`. 64-bit typed arrays and `DataView` inside objects are refused with a clear error.
 - **Hostile input is safe to read.** Sizes are checked against what is possible, damaged or cut-off data throws, and results above `maxSize` or `maxItems` are refused. Without `check: true` a flipped byte either throws or changes a value.
