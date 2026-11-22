@@ -339,3 +339,40 @@ EXPORT int ts_pack(const double *f, u32 n, u32 g, double *out, double *st) {
   st[3 * g] = tmin; st[3 * g + 1] = tmax; st[3 * g + 2] = tdm;
   return 1;
 }
+
+/* DEC (picker): v = m * 10^k with k the zeros at the end of a whole number. m[i] = v with its trailing zeros taken off, k[i] = how many (0 for 0).
+ * Returns how many values had at least one zero to take off. The caller checked every |v| < 2^52. */
+EXPORT u32 dec_split(const double *a, u32 n, double *m, double *k) {
+  u32 i, cnt = 0;
+  for (i = 0; i < n; i++) {
+    long long x = (long long)a[i]; int neg = x < 0, z = 0; u64 u = neg ? (u64)(-x) : (u64)x;
+    if (u) {
+      if (u % 100000000ULL == 0) { u /= 100000000ULL; z += 8; }
+      if (u % 10000ULL == 0) { u /= 10000ULL; z += 4; }
+      if (u % 100ULL == 0) { u /= 100ULL; z += 2; }
+      if (u % 10ULL == 0) { u /= 10ULL; z += 1; }
+      if (u % 10ULL == 0) { u /= 10ULL; z += 1; if (u % 10ULL == 0) { u /= 10ULL; z += 1; } }   /* at most 15 zeros in all (|v| < 2^52 < 10^16) */
+      while (u % 10ULL == 0) { u /= 10ULL; z++; }
+    }
+    m[i] = neg ? -(double)u : (double)u; k[i] = (double)z; cnt += z != 0;
+  }
+  return cnt;
+}
+/* EG (picker): size class of each zigzag number in syms (0 to 53), the counts of each class in cnt (256 words), and the bits below the leading one packed into o (zeroed here;
+ * the caller leaves n * 2 + 2 words). Returns the number of bits written. The same bytes as egEncode in picker.js. */
+EXPORT u32 eg_enc(const double *a, u32 n, u8 *syms, u32 *cnt, u32 *o) {
+  u32 i, w, pos = 0, words = n * 2 + 2;
+  for (i = 0; i < 256; i++) cnt[i] = 0;
+  for (i = 0; i < words; i++) o[i] = 0;
+  for (i = 0; i < n; i++) {
+    long long x = (long long)a[i]; u64 u = x >= 0 ? ((u64)x << 1) : (((u64)(-x)) << 1) - 1; u32 c = u ? 64 - (u32)__builtin_clzll(u) : 0;
+    syms[i] = (u8)c; cnt[c]++;
+    if (c > 1) {
+      u64 low = u - (1ULL << (c - 1)); u32 nb = c - 1, nb1 = nb < 32 ? nb : 32, idx, off; u64 t;
+      idx = pos >> 5; off = pos & 31; t = (u64)(u32)low << off; o[idx] |= (u32)t; o[idx + 1] |= (u32)(t >> 32); pos += nb1;
+      if (nb > 32) { idx = pos >> 5; off = pos & 31; t = (low >> 32) << off; o[idx] |= (u32)t; o[idx + 1] |= (u32)(t >> 32); pos += nb - 32; }
+    }
+  }
+  (void)w;
+  return pos;
+}

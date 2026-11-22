@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.15.0 · API 2 · 2026-11-22
+- Warms itself while the page is idle, so the first layout no longer pays the start-up cost.
+
 ## 2.14.0 · API 2 · 2026-11-15
 - Dragging a bar: layout() can resume from the last result (opts.resume), so a move at 10,000 items takes 0.32 (Chromium), 0.22 (Firefox) and 0.28 (WebKitGTK) of the time. Same picture.
 

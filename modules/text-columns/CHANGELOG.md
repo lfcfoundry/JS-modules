@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.1 · API 0 · 2026-11-22
+- Empty fields skip the substring call: wide text tables parse 15 to 25% faster.
+
 ## 0.8.0 · API 0 · 2026-11-22
 - Files with accents or other non-ASCII text read 2 to 4 times faster (text is decoded once instead of per field); lazy columns stay lazy.
 

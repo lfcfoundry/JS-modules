@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.8.0 (API 0)
+ * Version 0.8.1 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -363,10 +363,11 @@
     var whole = ascii, bom = 0;
     if (!ascii && eager.length && mapFn && nrows * eager.length * 128 >= inp.length) { bom = mapFn(); whole = true; }
     if (whole && text === null && eager.length) text = bom ? tdKeep.decode(inp) : td.decode(inp);   // with a byte order mark inside, the decoder must keep them so the positions stay exact
-    var s0, k;
+    var s0, k, a0, b0;
     for (i = 0; i < eager.length; i++) {
       si = eager[i]; j = sel ? sel[si] : si; var vals = new Array(nrows), r;
-      if (whole) for (r = 0; r < nrows; r++) { k = (r + firstRow) * ncols + j; s0 = text.substring(starts[k], ends[k]); if (bom && s0.charCodeAt(0) === 0xFEFF) s0 = s0.substring(1); vals[r] = qflag[k] ? s0.split('""').join('"') : s0; }
+      if (whole && !bom) for (r = 0, k = firstRow * ncols + j; r < nrows; r++, k += ncols) { a0 = starts[k]; b0 = ends[k]; vals[r] = a0 === b0 ? '' : qflag[k] ? text.substring(a0, b0).split('""').join('"') : text.substring(a0, b0); }
+      else if (whole) for (r = 0; r < nrows; r++) { k = (r + firstRow) * ncols + j; s0 = text.substring(starts[k], ends[k]); if (s0.charCodeAt(0) === 0xFEFF) s0 = s0.substring(1); vals[r] = qflag[k] ? s0.split('""').join('"') : s0; }
       else for (r = 0; r < nrows; r++) { k = (r + firstRow) * ncols + j; vals[r] = str(starts[k], ends[k], qflag[k]); }
       columns[si].values = vals;
     }
@@ -764,5 +765,5 @@
     return col;
   }
 
-  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.8.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.8.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

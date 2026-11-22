@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.15.0 · API 2 · 2026-11-22
+
+### Quick
+The layout engine now compiles its WebAssembly and warms its code in idle time when it is loaded in a page (requestIdleCallback, or a short timeout where that is missing).
+
+### Deep
+The layout engine now compiles its WebAssembly and warms its code in idle time when it is loaded in a page (requestIdleCallback, or a short timeout where that is missing). Before, the first layout on a page paid that cost, which is why d3-sankey won on small flows (under about 200 links) on a fresh page. Layouts are unchanged; calling warm() yourself still works and is not needed.
+
 ## 2.14.0 · API 2 · 2026-11-15
 
 ### Quick

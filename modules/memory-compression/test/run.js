@@ -377,6 +377,20 @@ t('number picker: every kind of number column comes back bit for bit', function 
   assert.strictEqual(ADAPT.available(), true);
   throwsJ(function () { ADAPT.unpack(ADAPT.pack(Float64Array.from([1, 2, 3])), 4); }, 'a wrong count');
 });
+t('2.19.0: a Float64Array in balanced and small modes goes through the number picker (size classes, zeros split), bit for bit, and is smaller than the plain way on money-like numbers', function () {
+  var MC = require('../memory-compression.js'), r = D.rng(77), n = 40000, a = new Float64Array(n), i, k, got, plain, m, back;
+  for (i = 0; i < n; i++) { k = Math.floor(r() * 7); m = Math.floor(r() * 90000) + 1; a[i] = (r() < 0.45 ? -1 : 1) * m * Math.pow(10, k); if (r() < 0.2) a[i] = 0; if (r() < 0.03) a[i] = Math.round(r() * 100000) / 100; }
+  a[5] = 4503599627370495; a[6] = -4503599627370495; a[7] = 9007199254740991; a[8] = -0; a[9] = NaN; a[10] = 1e300;
+  plain = MC.pack(a, {});
+  ['balanced', 'small'].forEach(function (mode) {
+    got = MC.pack(a, { mode: mode }); back = MC.unpack(got);
+    assert.strictEqual(back.length, n, mode + ' length'); for (i = 0; i < n; i++) if (!Object.is(back[i], a[i])) assert.fail(mode + ' value ' + i + ': ' + back[i] + ' vs ' + a[i]);
+    assert(got.length < plain.length * 0.8, mode + ' smaller than the plain way: ' + got.length + ' vs ' + plain.length);
+  });
+  var big = new Float64Array(5000); for (i = 0; i < 5000; i++) big[i] = (i % 3 ? 1 : -1) * (i * 1000 + (i % 7) * 10 ** (i % 9));   // whole numbers with zeros at the end, both signs
+  back = MC.unpack(MC.pack(big, { mode: 'balanced' })); for (i = 0; i < 5000; i++) assert(Object.is(back[i], big[i]), 'whole numbers ' + i);
+  var into = new Float64Array(n); back = MC.unpack(MC.pack(a, { mode: 'balanced' }), { into: into }); assert.strictEqual(back, into, 'into');
+});
 t('number picker: balanced and small modes, format 5, off switch, view, damaged files', function () {
   var r = D.rng(41), rows = many(6000, function (i) { var d = Math.round((37 + (r() - 0.5)) * 1e4) / 1e4; return { id: i, lat: i % 2 ? d : d * (1 + Number.EPSILON * Math.floor(r() * 6)), price: Math.round(r() * 1e4) / 100, t: 1.7e9 + i * 2 + Math.floor(r() * 3), n: 'n' + i }; });
   var plain = J.pack(rows, opt()), ap = J.pack(rows, opt({ mode: 'balanced' })), small = J.pack(rows, opt({ mode: 'small' })), rep = [];

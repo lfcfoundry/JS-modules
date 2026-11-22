@@ -320,7 +320,7 @@
     },
     {
       "id": "memory-compression",
-      "version": "2.18.1",
+      "version": "2.19.0",
       "api": 2,
       "global": "MemoryCompression",
       "summary": "Keeps big data packed in memory and brings it back exactly, in one file with one pack/unpack: bytes and typed arrays (measured on the 1.0.0 core: a 120 MB scene shrinks to 52%, 41% in small mode, and restores in about 239 ms in Firefox 158.0, against 312 ms with lz4-wasm and 1.5 s with fflate; lower is better) and big lists of plain JavaScript objects (measured on 2.0.1: 300,000 link objects shrink to 14% of their JSON text, 35% for msgpackr with records). Picks the right layer by itself; MemoryCompressionJSO stays as an alias.",
@@ -401,7 +401,7 @@
     },
     {
       "id": "text-columns",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",
@@ -429,7 +429,7 @@
     },
     {
       "id": "netflow-sankey",
-      "version": "2.14.0",
+      "version": "2.15.0",
       "api": 2,
       "global": "NetflowSankey",
       "summary": "Lays out a flow chart (Sankey) from a plain list of links, with about half the weighted crossings of d3-sankey on the charts measured, backward links drawn instead of crashing, and an SVG drawer.",

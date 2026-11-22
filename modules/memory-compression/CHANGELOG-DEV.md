@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.19.0 · API 2 · 2026-11-22
+
+### Quick
+New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten) for integer-like and short-decimal columns.
+
+### Deep
+New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten) for integer-like and short-decimal columns. A Float64Array packed with mode balanced or small now tries the picker and keeps it when smaller (new tag T_TYPEDA); the default mode is unchanged and still the fastest. On real decimal columns of 8 MB files: SEC numbers 1.01 MB balanced and 0.96 MB small against gzip level 6 at 1.66 MB; SBA 36.6 KB balanced against 62.5 KB. Cost: balanced takes about 210 to 240 ms for those files, slower than the default and about 0.5 to 1.4 times gzip level 6 time, so the speed lead is only kept in the default mode, which stays larger than gzip on these columns. File format 5 is needed to read these tags.
+
 ## 2.18.1 · API 2 · 2026-11-19
 
 ### Quick

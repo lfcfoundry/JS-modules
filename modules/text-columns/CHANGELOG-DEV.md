@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.1 · API 0 · 2026-11-22
+
+### Quick
+Faster text columns on wide files with many empty fields (the SBA file: 147,000 of 327,000 text fields are empty).
+
+### Deep
+Faster text columns on wide files with many empty fields (the SBA file: 147,000 of 327,000 text fields are empty). Empty fields are filled in without cutting a substring, and the column loop walks the field table by a fixed step. In Node the 116-column SBA slice went from about 55 to 41 ms. Output is the same strings as 0.8.0.
+
 ## 0.8.0 · API 0 · 2026-11-22
 
 ### Quick

@@ -165,7 +165,7 @@
     }
 
     // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
-    var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8 }, MAX_DEPTH = 4;
+    var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8, EG: 9, DEC: 10 }, MAX_DEPTH = 4;
     var STAT = null;                                                              // the smallest, the largest and "all whole numbers" of the block isIntegral just looked at (same array object)
     function statsOf(kw, a) {                                                     // one pass in the wasm helper for a block of 1,024 numbers or more; null when it cannot
       var n = a.length, aP = kw.base, mP = kal(aP + n * 8), ok, mm;
@@ -205,8 +205,69 @@
       for (i = 1; i < n; i++) { z = d[i - 1]; c += z % 2 ? -(z + 1) / 2 : z / 2; out[i] = c; }
       return out;
     }
+    // EG (since 2.19.0): every whole number as its size class (the number of bits of its zigzag form, 0 to 53) in rANS plus its bits below the leading one, packed.
+    // Wide ranges of sizes (money, counts, populations) cost about what their sizes say, which a fixed offset or top byte cannot do. DEC: v = m * 10^k with k the zeros at the end
+    // (a count of 4,835,000,000 is 4835 and 6); the k stream and the m stream are each coded by the other ways.
+    var P32 = 4294967296, POW2 = (function () { var t = new Float64Array(54), i; for (i = 0; i < 54; i++) t[i] = Math.pow(2, i); return t; })();
+    function bl53(u) { return u < P32 ? 32 - Math.clz32(u) : 64 - Math.clz32(Math.floor(u / P32)); }
+    function egEncode(a, n) {
+      var kw = KWC, aP, sP, cP, oP, bitsK, syms0, cnt0, o0, w0, f0, cum0, rb0, i0;
+      if (kw && n >= 1024) {                                      // the same classes and bits from the WebAssembly helper
+        aP = kw.base; sP = kal(aP + n * 8); cP = kal(sP + n); oP = kal(cP + 1024);
+        if (kwRoom(oP + (n * 2 + 2) * 4 - kw.base + 64)) {
+          new Float64Array(kw.mem.buffer, aP, n).set(a);
+          bitsK = kw.x.eg_enc(aP, n, sP, cP, oP) >>> 0;
+          syms0 = new Uint8Array(kw.mem.buffer, sP, n).slice(); cnt0 = new Uint32Array(kw.mem.buffer, cP, 256).slice();
+          o0 = new Uint8Array(kw.mem.buffer, oP, Math.ceil(bitsK / 8)).slice();
+          f0 = normFreq(cnt0, n); cum0 = new Uint16Array(257); for (i0 = 0; i0 < 256; i0++) cum0[i0 + 1] = cum0[i0] + f0[i0];
+          w0 = new Wr(); writeTable(w0, f0); rb0 = ransEncode(syms0, f0, cum0); w0.vi(rb0.length); w0.bytes(rb0); w0.bytes(o0);
+          return w0.out();
+        }
+      }
+      var syms = new Uint8Array(n), cnt = new Uint32Array(256), uu = new Float64Array(n), bits = 0, i, x, u, c, o, pos, idx, off, nb, low, lo, hi, freq, cum, rb, w;
+      for (i = 0; i < n; i++) { x = a[i]; u = x >= 0 ? 2 * x : -2 * x - 1; uu[i] = u; c = u < 1 ? 0 : u < P32 ? 32 - Math.clz32(u) : 64 - Math.clz32(Math.floor(u / P32)); syms[i] = c; cnt[c]++; if (c > 1) bits += c - 1; }
+      o = new Uint32Array(Math.ceil(bits / 32) + 2); pos = 0;
+      for (i = 0; i < n; i++) {
+        c = syms[i]; if (c < 2) continue;
+        u = uu[i]; low = u - POW2[c - 1]; nb = c - 1;
+        lo = low % P32; idx = pos >>> 5; off = pos & 31;
+        if (nb <= 32) { o[idx] |= lo << off; if (off + nb > 32) o[idx + 1] |= lo >>> (32 - off); pos += nb; }
+        else { o[idx] |= lo << off; if (off) o[idx + 1] |= lo >>> (32 - off); pos += 32; hi = Math.floor(low / P32); idx = pos >>> 5; off = pos & 31; nb -= 32; o[idx] |= hi << off; if (off + nb > 32) o[idx + 1] |= hi >>> (32 - off); pos += nb; }
+      }
+      freq = normFreq(cnt, n); cum = new Uint16Array(257); for (i = 0; i < 256; i++) cum[i + 1] = cum[i] + freq[i];
+      w = new Wr(); writeTable(w, freq); rb = ransEncode(syms, freq, cum); w.vi(rb.length); w.bytes(rb); w.bytes(new Uint8Array(o.buffer, 0, Math.ceil(bits / 8)));
+      return w.out();
+    }
+    function egDecode(r, n, out) {
+      var t = readTable(r), rl = r.vi(), syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot), bits = 0, i, c, nb, pos = 0, idx, off, lo, hi, u, tmp, src, bytes;
+      for (i = 0; i < n; i++) { c = syms[i]; if (c > 53) pfail('bad size class'); if (c > 1) bits += c - 1; }
+      bytes = Math.ceil(bits / 8); src = r.bytes(bytes); tmp = new Uint32Array(Math.ceil(bytes / 4) + 2); new Uint8Array(tmp.buffer).set(src);
+      for (i = 0; i < n; i++) {
+        c = syms[i];
+        if (c < 2) u = c;
+        else {
+          nb = c - 1; idx = pos >>> 5; off = pos & 31;
+          if (nb <= 32) { lo = tmp[idx] >>> off; if (off + nb > 32) lo |= tmp[idx + 1] << (32 - off); if (nb < 32) lo &= (1 << nb) - 1; lo >>>= 0; u = POW2[nb] + lo; pos += nb; }
+          else {
+            lo = tmp[idx] >>> off; if (off) lo |= tmp[idx + 1] << (32 - off); lo >>>= 0; pos += 32; nb -= 32; idx = pos >>> 5; off = pos & 31;
+            hi = tmp[idx] >>> off; if (off + nb > 32) hi |= tmp[idx + 1] << (32 - off); hi = (hi & ((1 << nb) - 1)) >>> 0; pos += nb;
+            u = POW2[c - 1] + hi * P32 + lo;
+          }
+        }
+        out[i] = u % 2 === 0 ? u / 2 : -(u + 1) / 2;
+      }
+      return out;
+    }
+    function decPick(opt, which, a, depth) {   // one stream of DEC: blocks that only try the ways that won before (opt.prefer) also keep the inner way that won last time, unless it fails
+      var e = null, mm = range(a), pk = opt.prefer && opt.decWon ? opt.decWon[which] : -1, o2;
+      if (pk >= 0) e = tryInt(pk, a, depth, opt, mm, 0);
+      if (!e) { o2 = Object.assign({}, opt); o2.dictGate = true; o2.order = which ? [IS.FOR, IS.PFOR, IS.DICT, IS.ENT, IS.EG] : [IS.CONST, IS.FOR, IS.ENT, IS.RLE, IS.DICT]; e = encInts(a, depth, o2); }   // the zeros are a few kinds, the rest is a list of smaller numbers: no need to try differences or common factors
+      (opt.decWon || (opt.decWon = [-1, -1]))[which] = e[0];
+      return e;
+    }
+    function egWithTag(a, n, w) { w.bytes(egEncode(a, n)); return w.out(); }
     function encIntWith(sch, a, depth, opt, mm, bound) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
-      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen;
+      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, e1, e2, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen;
       w.u8(sch);
       if (sch === IS.RAW) { w.need(n * 8 + 1); for (i = 0; i < n; i++) w.f64(a[i]); return w.out(); }
       if (!mm) mm = range(a);
@@ -231,7 +292,25 @@
         w.zi(mn); w.u8(sh); writeTable(w, freq);
         rb = ransEncode(syms, freq, cum); w.vi(rb.length); w.bytes(rb); bpWrite(w, low, n, sh); return w.out();
       }
+      if (sch === IS.EG) {
+        if (n < 64 || !(Math.max(-mn, mx) < 2251799813685248)) return null;
+        return egWithTag(a, n, w);
+      }
       if (depth <= 0) return null;
+      if (sch === IS.DEC) {
+        if (n < 16 || !(Math.max(-mn, mx) < 2251799813685248)) return null;
+        for (i = 0, j = 0, m = Math.min(n, 256); i < m; i++) { x = a[i]; if (x !== 0 && Math.floor(x / 10) * 10 === x) j++; }   // a quick look first: under 1 in 16 ends in a zero, so the split cannot pay
+        if (j * 16 < m) return null;
+        d = new Float64Array(n); g = new Float64Array(n); j = 0;
+        if (KWC && n >= 1024 && (q = KWC.base, kwRoom(kal(kal(q + n * 8) + n * 8) + n * 8 - KWC.base + 64))) {   // the split in the WebAssembly helper
+          i = kal(q + n * 8); y = kal(i + n * 8);
+          new Float64Array(KWC.mem.buffer, q, n).set(a); j = KWC.x.dec_split(q, n, i, y) >>> 0;
+          d.set(new Float64Array(KWC.mem.buffer, i, n)); g.set(new Float64Array(KWC.mem.buffer, y, n));
+        } else for (i = 0; i < n; i++) { x = a[i]; y = 0; if (x !== 0) { q = Math.floor(x / 10); while (q * 10 === x) { x = q; y++; q = Math.floor(x / 10); } if (y) j++; } d[i] = x; g[i] = y; }
+        if (j * 8 < n) return null;
+        e1 = decPick(opt, 0, g, depth - 1); e2 = decPick(opt, 1, d, depth - 1);
+        w.bytes(e1); w.bytes(e2); return w.out();
+      }
       if (sch === IS.DELTA) {
         if (n < 4) return null;
         d = new Float64Array(n - 1); y = deltaOf(a, n, d);
@@ -254,6 +333,7 @@
       }
       if (sch === IS.DICT) {
         lim = Math.min(n / 2, 65536);
+        if (opt.dictGate && n > 512) { m = new Set(); for (i = 0; i < 256; i++) { m.add(a[i]); if (m.size > 160) return null; } }   // the zero and mantissa streams of DEC: a table needs a few different values, which the first 256 already show
         if (mx - mn < Math.max(65536, n * 16)) {                                                      // values in a narrow range: a table indexed by value is much faster than a Map
           seen = new Int32Array(mx - mn + 1); m = 0;
           for (i = 0; i < n; i++) { x = a[i] - mn; if (!seen[x]) { seen[x] = 1; if (++m > lim) return null; } }
@@ -292,9 +372,9 @@
       for (s = 0; s < k; s++) { from = Math.floor((n - len) * s / (k - 1)); out.set(a.subarray(from, from + len), s * len); }
       return out;
     }
-    var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA, IS.RLE, IS.DICT, IS.PFOR, IS.DIV, IS.ENT, IS.RAW];
+    var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA, IS.RLE, IS.DICT, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
     function encInts(a, depth, opt) {
-      var n = a.length, order = INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, i, sub, mm = range(a);
+      var n = a.length, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, i, sub, mm = range(a);
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
       if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
         for (i = 0; i < opt.prefer.length; i++) { e = tryInt(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0); if (e && (!best || e.length < best.length)) best = e; }
@@ -320,6 +400,12 @@
         mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
         syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot); low = bpRead(r, n, sh); div = Math.pow(2, sh);
         for (i = 0; i < n; i++) out[i] = syms[i] * div + low[i] + mn;
+        return out;
+      }
+      if (sch === IS.EG) { if (n < 1) pfail('bad column'); return egDecode(r, n, out); }
+      if (sch === IS.DEC) {
+        g = decInts(r, n, depth + 1); d = decInts(r, n, depth + 1);
+        for (i = 0; i < n; i++) { k = g[i]; if (!(k >= 0 && k <= 22)) pfail('bad power of ten'); out[i] = d[i] * Math.pow(10, k); }
         return out;
       }
       if (sch === IS.DELTA) {
@@ -671,7 +757,7 @@
       out = new Float64Array(n); for (i = 0; i < n; i++) out[i] = r.f64(); return out;
     }
     function describe(part) {              // the name of the top way of one block, e.g. "ALP>DELTA", "INTS:RLE", "PLANES"
-      var r = new Rd(part), id = r.u8(), names = ['RAW', 'CONST', 'FOR', 'DELTA', 'RLE', 'DICT', 'PFOR', 'DIV', 'ENT'];
+      var r = new Rd(part), id = r.u8(), names = ['RAW', 'CONST', 'FOR', 'DELTA', 'RLE', 'DICT', 'PFOR', 'DIV', 'ENT', 'EG', 'DEC'];
       if (id === CS.INTS) return 'INTS:' + names[r.u8()];
       if (id === CS.ALP) { r.u8(); r.u8(); r.vi(); return 'ALP>' + names[r.u8()]; }
       return NAMES[id];
