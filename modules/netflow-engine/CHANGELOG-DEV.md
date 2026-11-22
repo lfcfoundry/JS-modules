@@ -2,6 +2,324 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.5 · API 2 · 2026-11-21
+
+### Quick
+The every-pair fitting sweeps run in single precision, four pairs at a time. Faster on every map, most on maps under 4,000 items. Positions are NOT the same as 2.6.4: the layout is sensitive to the last digits, so items land in different spots, with the same kind of picture and the same quality numbers. No API change, no new option. A layout saved by 2.6.4 is still read back as saved; a fresh build of the same map gives the new positions.
+
+### Details
+Median build time of 2.6.4 against 2.6.5 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns three times, 9 builds per case. Lower is better. 41 of 42 cases are faster (the other reads +0%), middle case 15% less, best 49% less. Middle case per browser: Chromium 156 20% less, Firefox 158 10% less, WebKitGTK 2.52.6 16% less. Maps under 4,000 items, where the every-pair fit is the whole layout, take 29 to 49% less.
+Quality, 2.6.5 against 2.6.4 over the same 42 cases: stress between 4% lower and 2% higher, middle 0.1% higher; crossings per link between 6% lower and 5% higher, middle 0.1% higher; touching items 0 everywhere. In these runs 2.6.5 printed the same stress and crossings in all three browsers on every map, which 2.6.4 did not.
+
+| Browser | Map | Build ms 2.6.4 | Build ms 2.6.5 | Change | Stress 2.6.4 | Stress 2.6.5 | Crossings per link 2.6.4 | 2.6.5 | Touching |
+|---|---|---|---|---|---|---|---|---|---|
+| Chromium 156 | big50k | 738 | 711 | -4% | 0.1914 | 0.1945 | 144.1 | 147 | 0 |
+| Chromium 156 | shuffled50k | 605 | 571 | -6% | 0.1945 | 0.1934 | 133.6 | 139 | 0 |
+| Chromium 156 | communities10k | 197 | 151 | -23% | 0.1329 | 0.1332 | 525.5 | 525.6 | 0 |
+| Chromium 156 | communities50k | 649 | 627 | -3% | 0.1411 | 0.1417 | 2667.5 | 2671.8 | 0 |
+| Chromium 156 | bigshufB | 579 | 516 | -11% | 0.1913 | 0.1923 | 136.1 | 136.6 | 0 |
+| Chromium 156 | commshuf10k | 185 | 144 | -22% | 0.1312 | 0.1314 | 517.6 | 527.4 | 0 |
+| Chromium 156 | mesh22k | 430 | 357 | -17% | 0.0136 | 0.0136 | 0.1 | 0.1 | 0 |
+| Chromium 156 | ba30k | 294 | 283 | -4% | 0.2019 | 0.1997 | 2847.3 | 2890.1 | 0 |
+| Chromium 156 | tree20k | 227 | 203 | -11% | 0.1016 | 0.1014 | 8.7 | 8.8 | 0 |
+| Chromium 156 | smallworld20k | 365 | 282 | -23% | 0.1313 | 0.1318 | 4.6 | 4.5 | 0 |
+| Chromium 156 | ba3k | 265 | 142 | -46% | 0.1411 | 0.1403 | 321.5 | 317.7 | 0 |
+| Chromium 156 | tree1500 | 103 | 54 | -48% | 0.0758 | 0.0766 | 1.9 | 2 | 0 |
+| Chromium 156 | mesh1600 | 79 | 45 | -43% | 0.0093 | 0.0093 | 0 | 0 | 0 |
+| Chromium 156 | comm3500 | 339 | 186 | -45% | 0.0971 | 0.0989 | 341.5 | 332.7 | 0 |
+| Firefox 158 | big50k | 750 | 708 | -6% | 0.192 | 0.1945 | 143.8 | 147 | 0 |
+| Firefox 158 | shuffled50k | 653 | 639 | -2% | 0.1968 | 0.1934 | 132.4 | 139 | 0 |
+| Firefox 158 | communities10k | 208 | 169 | -19% | 0.133 | 0.1332 | 527 | 525.6 | 0 |
+| Firefox 158 | communities50k | 757 | 738 | -3% | 0.1403 | 0.1417 | 2634.3 | 2671.8 | 0 |
+| Firefox 158 | bigshufB | 685 | 645 | -6% | 0.1902 | 0.1923 | 140.4 | 136.6 | 0 |
+| Firefox 158 | commshuf10k | 224 | 175 | -22% | 0.1317 | 0.1314 | 517.5 | 527.4 | 0 |
+| Firefox 158 | mesh22k | 374 | 347 | -7% | 0.0136 | 0.0136 | 0.1 | 0.1 | 0 |
+| Firefox 158 | ba30k | 321 | 295 | -8% | 0.1986 | 0.1997 | 2779.5 | 2890.1 | 0 |
+| Firefox 158 | tree20k | 222 | 223 | +0% | 0.1016 | 0.1014 | 8.8 | 8.8 | 0 |
+| Firefox 158 | smallworld20k | 326 | 285 | -13% | 0.1312 | 0.1318 | 4.5 | 4.5 | 0 |
+| Firefox 158 | ba3k | 242 | 164 | -32% | 0.1426 | 0.1403 | 310.7 | 317.7 | 0 |
+| Firefox 158 | tree1500 | 94 | 63 | -33% | 0.0762 | 0.0766 | 2.1 | 2 | 0 |
+| Firefox 158 | mesh1600 | 76 | 53 | -30% | 0.0093 | 0.0093 | 0 | 0 | 0 |
+| Firefox 158 | comm3500 | 317 | 224 | -29% | 0.0976 | 0.0989 | 334.3 | 332.7 | 0 |
+| WebKitGTK 2.52.6 | big50k | 747 | 699 | -6% | 0.1949 | 0.1945 | 143.9 | 147 | 0 |
+| WebKitGTK 2.52.6 | shuffled50k | 677 | 605 | -11% | 0.2017 | 0.1934 | 139.4 | 139 | 0 |
+| WebKitGTK 2.52.6 | communities10k | 242 | 194 | -20% | 0.1331 | 0.1332 | 524.9 | 525.6 | 0 |
+| WebKitGTK 2.52.6 | communities50k | 753 | 668 | -11% | 0.1409 | 0.1417 | 2652.4 | 2671.8 | 0 |
+| WebKitGTK 2.52.6 | bigshufB | 631 | 565 | -10% | 0.1932 | 0.1923 | 139.9 | 136.6 | 0 |
+| WebKitGTK 2.52.6 | commshuf10k | 244 | 177 | -27% | 0.1319 | 0.1314 | 517.9 | 527.4 | 0 |
+| WebKitGTK 2.52.6 | mesh22k | 432 | 396 | -8% | 0.0136 | 0.0136 | 0.1 | 0.1 | 0 |
+| WebKitGTK 2.52.6 | ba30k | 318 | 275 | -14% | 0.2001 | 0.1997 | 2857.2 | 2890.1 | 0 |
+| WebKitGTK 2.52.6 | tree20k | 260 | 243 | -7% | 0.1013 | 0.1014 | 8.6 | 8.8 | 0 |
+| WebKitGTK 2.52.6 | smallworld20k | 373 | 306 | -18% | 0.1335 | 0.1318 | 4.8 | 4.5 | 0 |
+| WebKitGTK 2.52.6 | ba3k | 354 | 182 | -49% | 0.1402 | 0.1403 | 317.6 | 317.7 | 0 |
+| WebKitGTK 2.52.6 | tree1500 | 128 | 66 | -48% | 0.0762 | 0.0766 | 1.9 | 2 | 0 |
+| WebKitGTK 2.52.6 | mesh1600 | 90 | 60 | -33% | 0.0093 | 0.0093 | 0 | 0 | 0 |
+| WebKitGTK 2.52.6 | comm3500 | 438 | 240 | -45% | 0.098 | 0.0989 | 335.5 | 332.7 | 0 |
+
+### Deep
+After 2.6.3 and 2.6.4 the fitting sweeps (wasm `sweepsd`) were the largest step left: about 15% of a 50,000-item build and over half of a build under 4,000 items. A pair costs one square root and one division; two lanes of double precision were already in use, and nothing faster gives the same last digits. Four lanes of single precision do twice the pairs in the same time.
+- `sweepsd` copies the positions to single precision, sweeps there, and copies back. Four neighbors in sweep order, (i, i + r) to (i + 3, i + 3 + r), share no item when r and k - r are at least 4, so four lanes give exactly what one pair after the other gives; smaller offsets and leftovers run one pair at a time with the same operations.
+- The JavaScript twin does the same single-precision steps with Math.fround (a double result rounded once to single is the correctly rounded single result for add, subtract, multiply, divide and square root), so WebAssembly and JavaScript still give the same positions: checked on 7 maps of 1,500 to 22,500 items, 0 different positions, plus the module tests.
+- Why the picture moves: single precision changes positions in about the seventh digit, and the later steps (growing back, push-apart) amplify that into a different but equally good arrangement. The 22,500-item mesh moves by at most 11 px on a 32,000 px map; maps with groups or hubs rearrange freely. The owner approved this look change on a card with pictures.
+- Not changed in themselves: the pair-list sweeps of the base fit (`sweepsv`), the 3D sweeps, the Force and Closeness rounds.
+Tests: the module tests (20 checks), WebAssembly against JavaScript on 7 maps, and the three-browser run above. Against 2.6.4 over all arrangements (120 comparisons): Radial, Circle, Rings, Groups, Grid, the 3D ones and Force on small maps are unchanged; Distances, Best, Closeness and Force on big maps (which start from the every-pair fit) get new positions, by design. A separate stress check of Best, Closeness and Force on four maps of 1,500 to 3,500 items found them within 0.8% of 2.6.4.
+
+## 2.6.4 · API 2 · 2026-11-21
+
+### Quick
+Same output as 2.6.3 to the last digit (positions, item and link records, key order), less memory churn while the records are filled. No API change, no new option, saved layouts stay valid.
+
+### Details
+Median build time of 2.6.3 against 2.6.4 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns three times, 9 builds per case; cases that first read slower were repeated with 16 to 20 more builds per version and everything is pooled. Lower is better. Middle case per browser: Chromium 156 7% less (11 of 14 maps faster, best 19% less), Firefox 158 2% less (9 of 14), WebKitGTK 2.52.6 no change (6 of 14). Worst reading 5% more (WebKitGTK bigshufB, which read 0% in its own five-turn repeat); page-to-page noise on this machine is about 8%, so single cases under that are not findings.
+
+| Browser | Map | Build ms 2.6.3 | Build ms 2.6.4 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 769 | 708 | -8% | yes |
+| Chromium 156 | shuffled50k | 696 | 564 | -19% | yes |
+| Chromium 156 | communities10k | 200 | 186 | -7% | yes |
+| Chromium 156 | communities50k | 730 | 696 | -5% | yes |
+| Chromium 156 | bigshufB | 663 | 595 | -10% | yes |
+| Chromium 156 | commshuf10k | 194 | 180 | -7% | yes |
+| Chromium 156 | mesh22k | 424 | 398 | -6% | yes |
+| Chromium 156 | ba30k | 342 | 306 | -11% | yes |
+| Chromium 156 | tree20k | 235 | 210 | -11% | yes |
+| Chromium 156 | smallworld20k | 340 | 320 | -6% | yes |
+| Chromium 156 | ba3k | 259 | 262 | +1% | yes |
+| Chromium 156 | tree1500 | 99 | 103 | +4% | yes |
+| Chromium 156 | mesh1600 | 78 | 74 | -5% | yes |
+| Chromium 156 | comm3500 | 343 | 343 | +0% | yes |
+| Firefox 158 | big50k | 742 | 702 | -5% | yes |
+| Firefox 158 | shuffled50k | 675 | 660 | -2% | yes |
+| Firefox 158 | communities10k | 208 | 195 | -6% | yes |
+| Firefox 158 | communities50k | 798 | 785 | -2% | yes |
+| Firefox 158 | bigshufB | 678 | 639 | -6% | yes |
+| Firefox 158 | commshuf10k | 199 | 191 | -4% | yes |
+| Firefox 158 | mesh22k | 385 | 399 | +4% | yes |
+| Firefox 158 | ba30k | 339 | 333 | -2% | yes |
+| Firefox 158 | tree20k | 228 | 219 | -4% | yes |
+| Firefox 158 | smallworld20k | 334 | 322 | -4% | yes |
+| Firefox 158 | ba3k | 244 | 244 | +0% | yes |
+| Firefox 158 | tree1500 | 97 | 99 | +2% | yes |
+| Firefox 158 | mesh1600 | 76 | 78 | +3% | yes |
+| Firefox 158 | comm3500 | 324 | 330 | +2% | yes |
+| WebKitGTK 2.52.6 | big50k | 676 | 682 | +1% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 685 | 661 | -4% | yes |
+| WebKitGTK 2.52.6 | communities10k | 242 | 249 | +3% | yes |
+| WebKitGTK 2.52.6 | communities50k | 694 | 697 | +0% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 633 | 664 | +5% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 234 | 234 | +0% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 417 | 402 | -4% | yes |
+| WebKitGTK 2.52.6 | ba30k | 341 | 322 | -6% | yes |
+| WebKitGTK 2.52.6 | tree20k | 244 | 241 | -1% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 327 | 329 | +1% | yes |
+| WebKitGTK 2.52.6 | ba3k | 348 | 325 | -7% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 139 | 127 | -9% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 105 | 106 | +1% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 439 | 440 | +0% | yes |
+
+### Deep
+A memory sample of a 50,000-item build showed 42 MB per build made while the item records were filled: an item started life with 3 keys and got about 25 more one at a time, and each few added keys made the browser copy the item's storage.
+- Item objects are now created in mapGraph with their 25 always-set record keys already in place, in the same order, holding undefined until the record loop sets them (every one of them is always set, so no undefined is left and the key order of the output is unchanged). Link objects get their 5 always-set keys (label, count, flow, weight, orig) the same way. Keys that are set only sometimes (sizeK, absent) and the keys the layouts add are still added as before.
+- importance: the dominator loop no longer makes a helper function per item per round; the same merges run in the same order.
+- Looked at and left alone: the fitting sweeps (their cost is square roots and divisions two at a time; anything faster changes the last digits of the positions, so it would be a look change), and the placing loop (its cost is the by-name position table, which is part of the output).
+Tests: the module tests (20 checks), 36 whole-output comparisons on file maps (JSON text of all records, so key order too), 480 story-map comparisons over all views with folding, 120 position comparisons over all arrangements and 3 big-map position comparisons, all against 2.6.3: 0 differences.
+
+## 2.6.3 · API 2 · 2026-11-21
+
+### Quick
+Same positions as 2.6.2 to the last digit, less time on maps with long paths (meshes, trees). The hop-count table of the every-pair fit picks its 64 start items as a ball of near neighbors when that is cheaper. No API change, no new option, saved layouts stay valid. stress.wasm grows from 18,043 to 21,984 bytes.
+
+### Details
+Median build time of 2.6.2 against 2.6.3 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns. 6 builds per case (2 page loads x 3); cases that first read slower were repeated with 15 to 20 more builds per version and everything is pooled (up to 46 builds per version). Lower is better. The 22,500-item mesh takes 19 to 26% less and the 20,000-item tree 9 to 21% less. The other 36 cases sit between 12% less and 5% more, middle 2% less, which is the noise of this machine (about 8% between page loads): the only step that changed was timed on its own in Chromium on the maps that read slower (bigshufB 52 to 44 ms, tree1500 7 to 4 ms, ba3k 33 to 26 ms) and is shorter on every map tried.
+
+| Browser | Map | Build ms 2.6.2 | Build ms 2.6.3 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 829 | 741 | -11% | yes |
+| Chromium 156 | shuffled50k | 664 | 644 | -3% | yes |
+| Chromium 156 | communities10k | 216 | 209 | -3% | yes |
+| Chromium 156 | communities50k | 750 | 731 | -3% | yes |
+| Chromium 156 | bigshufB | 693 | 725 | +5% | yes |
+| Chromium 156 | commshuf10k | 209 | 185 | -12% | yes |
+| Chromium 156 | mesh22k | 533 | 402 | -25% | yes |
+| Chromium 156 | ba30k | 347 | 351 | +1% | yes |
+| Chromium 156 | tree20k | 269 | 228 | -15% | yes |
+| Chromium 156 | smallworld20k | 349 | 357 | +2% | yes |
+| Chromium 156 | ba3k | 260 | 258 | -1% | yes |
+| Chromium 156 | tree1500 | 104 | 106 | +2% | yes |
+| Chromium 156 | mesh1600 | 83 | 82 | -1% | yes |
+| Chromium 156 | comm3500 | 347 | 338 | -3% | yes |
+| Firefox 158 | big50k | 756 | 754 | -0% | yes |
+| Firefox 158 | shuffled50k | 696 | 699 | +0% | yes |
+| Firefox 158 | communities10k | 217 | 198 | -9% | yes |
+| Firefox 158 | communities50k | 774 | 775 | +0% | yes |
+| Firefox 158 | bigshufB | 741 | 675 | -9% | yes |
+| Firefox 158 | commshuf10k | 217 | 206 | -5% | yes |
+| Firefox 158 | mesh22k | 491 | 398 | -19% | yes |
+| Firefox 158 | ba30k | 345 | 351 | +2% | yes |
+| Firefox 158 | tree20k | 287 | 228 | -21% | yes |
+| Firefox 158 | smallworld20k | 349 | 345 | -1% | yes |
+| Firefox 158 | ba3k | 260 | 237 | -9% | yes |
+| Firefox 158 | tree1500 | 102 | 103 | +1% | yes |
+| Firefox 158 | mesh1600 | 84 | 79 | -6% | yes |
+| Firefox 158 | comm3500 | 341 | 330 | -3% | yes |
+| WebKitGTK 2.52.6 | big50k | 795 | 766 | -4% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 683 | 669 | -2% | yes |
+| WebKitGTK 2.52.6 | communities10k | 243 | 221 | -9% | yes |
+| WebKitGTK 2.52.6 | communities50k | 757 | 724 | -4% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 592 | 584 | -1% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 245 | 229 | -6% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 544 | 402 | -26% | yes |
+| WebKitGTK 2.52.6 | ba30k | 338 | 328 | -3% | yes |
+| WebKitGTK 2.52.6 | tree20k | 286 | 260 | -9% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 363 | 373 | +3% | yes |
+| WebKitGTK 2.52.6 | ba3k | 339 | 352 | +4% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 142 | 141 | -1% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 115 | 108 | -6% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 460 | 454 | -1% | yes |
+
+### Deep
+The hop table (wasm `dense()`) took 43% of a build on the mesh map and 27% on the tree map in 2.6.2: with start items taken in index order, the 64 searches of a batch reach an item at many different levels, and every level made three passes over all items.
+- Ring batches: the 64 start items are the first 64 unused items found by a search from a seed (a ball), and seeds follow one search order over the whole map so the balls tile it. The searches of a ball travel together as a thin ring, and only items on the ring are visited (lists of the newest level). In 2.6.1 the same lists were slower than plain passes because the start items were scattered; the ball is what makes them pay.
+- Plain batches (the 2.6.1 way: the next 64 items in order, plain passes) stay cheaper when everything is a few hops apart. Batches start as rings and count "items times levels" against "newly reached items"; if one batch is clearly on the plain side (ratio under 2.2), or the running ratio is under 3 from the third batch on, the rest run plain from item 0 (redoing up to 192 start items costs less than working around them). Measured on the shrunken copies of 14 maps: mesh 6.2 and tree 5.4 run as rings, all others (1.5 to 2.8) run plain.
+- Both ways now write the counts of a batch by item (64 bytes per item, one cache line for a newly reached item) and then copy them into the by-offset table, along diagonals for plain batches. This replaced the items-by-offsets scratch table and its turn-on-its-side pass, and is why plain maps are a little faster too (hop step alone up to about 30% shorter in a development timing).
+- Hop counts are whole numbers and do not depend on the batching, so the table is the same byte for byte (checked by hash on 14 maps against 2.6.2) and positions are identical.
+- The many-at-once search idea is from Then and others, "The More the Merrier: Efficient Multi-Source Graph Traversal" (2014); paper sites could not be reached from the build machine, so there is no link.
+Tests: the module tests (20 checks, including WebAssembly against JavaScript positions), 14 big-map position comparisons and 120 position comparisons over all arrangements against 2.6.2: 0 differences.
+
+## 2.6.2 · API 2 · 2026-11-21
+
+### Quick
+Same output as 2.6.1 to the last digit (positions, item and link records, groups), less time. The work around the Distances layout (reading the links, finding groups, picking the start item, folding links) no longer builds one small list per item. No API change, no new option, saved layouts stay valid.
+
+### Details
+Median build time of 2.6.1 against 2.6.2 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns. First table: 6 builds per case (2 page loads x 3). Second table: 5 builds per case, and 20 per case in Chromium 156 for the eight maps from mesh22k down, because the first single pass there was noisy (it read 14% slower to 8% faster on the same code) and was repeated three more times with the versions taking turns; all runs are pooled. Lower is better. 39 of 42 cases are faster, the middle case 10% less, best 31% less, worst 4% more (two small maps in Chromium, inside the noise of this machine, about 8%).
+
+| Browser | Map | Build ms 2.6.1 | Build ms 2.6.2 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 844 | 802 | -5% | yes |
+| Chromium 156 | shuffled50k | 787 | 679 | -14% | yes |
+| Chromium 156 | communities10k | 264 | 211 | -20% | yes |
+| Chromium 156 | communities50k | 982 | 794 | -19% | yes |
+| Firefox 158 | big50k | 901 | 824 | -9% | yes |
+| Firefox 158 | shuffled50k | 780 | 702 | -10% | yes |
+| Firefox 158 | communities10k | 289 | 252 | -13% | yes |
+| Firefox 158 | communities50k | 1083 | 747 | -31% | yes |
+| WebKitGTK 2.52.6 | big50k | 855 | 774 | -9% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 817 | 687 | -16% | yes |
+| WebKitGTK 2.52.6 | communities10k | 300 | 254 | -15% | yes |
+| WebKitGTK 2.52.6 | communities50k | 1018 | 727 | -29% | yes |
+
+| Browser | Map | Build ms 2.6.1 | Build ms 2.6.2 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | bigshufB | 924 | 716 | -23% | yes |
+| Chromium 156 | commshuf10k | 265 | 231 | -13% | yes |
+| Chromium 156 | mesh22k | 624 | 551 | -12% | yes |
+| Chromium 156 | ba30k | 410 | 361 | -12% | yes |
+| Chromium 156 | tree20k | 364 | 336 | -8% | yes |
+| Chromium 156 | smallworld20k | 408 | 399 | -2% | yes |
+| Chromium 156 | ba3k | 303 | 290 | -4% | yes |
+| Chromium 156 | tree1500 | 117 | 115 | -2% | yes |
+| Chromium 156 | mesh1600 | 91 | 95 | +4% | yes |
+| Chromium 156 | comm3500 | 389 | 400 | +3% | yes |
+| Firefox 158 | bigshufB | 874 | 790 | -10% | yes |
+| Firefox 158 | commshuf10k | 356 | 258 | -28% | yes |
+| Firefox 158 | mesh22k | 581 | 537 | -8% | yes |
+| Firefox 158 | ba30k | 423 | 325 | -23% | yes |
+| Firefox 158 | tree20k | 325 | 287 | -12% | yes |
+| Firefox 158 | smallworld20k | 413 | 366 | -11% | yes |
+| Firefox 158 | ba3k | 277 | 285 | +3% | yes |
+| Firefox 158 | tree1500 | 121 | 116 | -4% | yes |
+| Firefox 158 | mesh1600 | 98 | 91 | -7% | yes |
+| Firefox 158 | comm3500 | 390 | 382 | -2% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 868 | 706 | -19% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 315 | 271 | -14% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 596 | 530 | -11% | yes |
+| WebKitGTK 2.52.6 | ba30k | 386 | 361 | -6% | yes |
+| WebKitGTK 2.52.6 | tree20k | 375 | 332 | -11% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 426 | 382 | -10% | yes |
+| WebKitGTK 2.52.6 | ba3k | 436 | 405 | -7% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 161 | 144 | -11% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 115 | 115 | +0% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 487 | 472 | -3% | yes |
+
+### Deep
+Where a 2.6.1 build spent its time on a 50,000-item map with groups: about half was outside the layout. Changes, each checked to give identical output:
+- Network layout: links are kept as two flat number rows (a start offset per item and the neighbors), not one array per item; the pieces of the map are found over those rows; per-item arrays are built only for the Force and Radial arrangements, which still read them.
+- prepare: the link columns are typed rows filled in place.
+- Start-item search: the reach counts of the first 40 candidates are found in one pass with two 32-bit words per item (the same many-at-once idea as the 2.6.1 hop table), not 40 separate searches.
+- Groups finder: items are ordered with a counting sort, neighbors are read from one combined row, and an item is looked at again only if its own or a neighbor's label changed in the last round (the answer of a round cannot change otherwise).
+- Folding links: the merge key is a number, and it is built only when something is folded.
+- Item and link records: fast paths for one item per page and one source per link.
+- fitScale (2D): the hop search goes level by level and switches direction when the frontier is large; same hop counts.
+Tests: the module tests (20 checks), 120 position comparisons over all arrangements, 36 whole-output comparisons on file maps (with and without a start item, 3 option sets) and 480 story-map comparisons over all views with folding, all against 2.6.1: 0 differences.
+
+## 2.6.1 · API 2 · 2026-11-21
+
+### Quick
+Same positions as 2.6.0 to the last digit, less time. The hop-count table used by the every-pair fit is now found from 64 items at once. No API change, no new option, saved layouts stay valid.
+
+### Details
+Median build time of 2.6.0 against 2.6.1 (a guess on the first half of the rows, not counted, then one final build), 6 builds per case (2 page loads x 3), fresh page, one browser at a time, the two versions taking turns. Lower is better. "Same picture numbers" means stress and crossings are equal to the last printed digit; separately, a Node check found 0 different positions on ten of these maps.
+
+| Browser | Map | Build ms 2.6.0 | Build ms 2.6.1 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 1089 | 771 | -29% | yes |
+| Chromium 156 | shuffled50k | 994 | 824 | -17% | yes |
+| Chromium 156 | communities10k | 415 | 246 | -41% | yes |
+| Chromium 156 | communities50k | 1019 | 1011 | -1% | yes |
+| Firefox 158 | big50k | 1045 | 771 | -26% | yes |
+| Firefox 158 | shuffled50k | 1002 | 784 | -22% | yes |
+| Firefox 158 | communities10k | 419 | 270 | -36% | yes |
+| Firefox 158 | communities50k | 1092 | 1061 | -3% | yes |
+| WebKitGTK 2.52.6 | big50k | 1163 | 848 | -27% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 1024 | 832 | -19% | yes |
+| WebKitGTK 2.52.6 | communities10k | 450 | 280 | -38% | yes |
+| WebKitGTK 2.52.6 | communities50k | 921 | 884 | -4% | yes |
+
+| Browser | Map | Build ms 2.6.0 | Build ms 2.6.1 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | bigshufB | 1052 | 798 | -24% | yes |
+| Chromium 156 | commshuf10k | 483 | 256 | -47% | yes |
+| Chromium 156 | mesh22k | 731 | 587 | -20% | yes |
+| Chromium 156 | ba30k | 444 | 368 | -17% | yes |
+| Chromium 156 | tree20k | 330 | 297 | -10% | yes |
+| Chromium 156 | smallworld20k | 612 | 388 | -37% | yes |
+| Chromium 156 | ba3k | 375 | 274 | -27% | yes |
+| Chromium 156 | tree1500 | 123 | 106 | -14% | yes |
+| Chromium 156 | mesh1600 | 91 | 85 | -7% | yes |
+| Chromium 156 | comm3500 | 659 | 356 | -46% | yes |
+| Firefox 158 | bigshufB | 1082 | 889 | -18% | yes |
+| Firefox 158 | commshuf10k | 457 | 265 | -42% | yes |
+| Firefox 158 | mesh22k | 693 | 608 | -12% | yes |
+| Firefox 158 | ba30k | 433 | 416 | -4% | yes |
+| Firefox 158 | tree20k | 364 | 326 | -10% | yes |
+| Firefox 158 | smallworld20k | 602 | 414 | -31% | yes |
+| Firefox 158 | ba3k | 378 | 268 | -29% | yes |
+| Firefox 158 | tree1500 | 165 | 109 | -34% | yes |
+| Firefox 158 | mesh1600 | 139 | 147 | +6% | yes |
+| Firefox 158 | comm3500 | 631 | 454 | -28% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 1082 | 804 | -26% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 490 | 290 | -41% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 777 | 581 | -25% | yes |
+| WebKitGTK 2.52.6 | ba30k | 434 | 398 | -8% | yes |
+| WebKitGTK 2.52.6 | tree20k | 380 | 305 | -20% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 630 | 398 | -37% | yes |
+| WebKitGTK 2.52.6 | ba3k | 552 | 364 | -34% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 179 | 142 | -21% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 143 | 123 | -14% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 775 | 586 | -24% | yes |
+
+The three smallest maps were measured again with 14 builds each because a 3-build reading had Firefox 6% slower on the 1,600-item mesh: Firefox 158 mesh1600 99 to 95 ms, tree1500 141 to 115, ba3k 372 to 267; Chromium 156 97 to 87, 122 to 107, 378 to 279; WebKitGTK 2.52.6 114 to 116, 146 to 138, 447 to 364. With those, 41 of 42 cases are faster, the middle case takes 21% less time, the best 47% less, and the one slower case is 2% (WebKitGTK, 1,600-item mesh, inside noise). stress.wasm 17,913 to 18,043 bytes.
+
+### Deep
+A stage timing of a 2.6.0 build of the 50,000-item drop showed the hop-count table for the refit of a 3,400-item copy taking about a quarter of the build, more than the fitting sweeps themselves: one search per item, each walking every link. The table is now filled by a search that starts from 64 items at once: every item keeps one bit per start item, and a level is one pass over the links that ORs the newest level's bits into the neighbors (the idea is from Then and others, "The More the Merrier: Efficient Multi-Source Graph Traversal", 2014; named without a link because the paper's page could not be opened from the build machine). Hop counts are whole numbers, so the table, and with it every position, is the same as before; the plain-JavaScript path keeps its one-item search and still gives the same positions (the 20 checks pass unchanged).
+
+Tried and left out: visiting only the newest level's items through lists, alone and mixed with plain passes. Both were slower on mesh-like maps (a 22,500-item mesh went from 20% less time back to no gain), because start items are spread over the map and most levels are wide.
+
+Looked at and not changed: whether the refit should be skipped below 20,000 items, as Netflow Map does after porting 2.6.0. With 2.6.1 the refit costs 0 to 49% of a build on 10,000 to 22,500-item maps (three browsers) for stress 0 to 4% lower; it stays on at every size because that is the look the owner approved for 2.6.0.
+
+The laptop tester (`tests/laptop-warm/`) now follows the standard tester layout: Quick run, Full run, Stop, Copy and Download results, time left, score tiles and live charts, light and dark.
+
 ## 2.6.0 · API 2 · 2026-11-21
 
 ### Quick

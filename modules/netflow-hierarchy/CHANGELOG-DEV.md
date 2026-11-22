@@ -1,5 +1,38 @@
 # netflow-hierarchy developer changelog
 
+## 1.10.1 · API 1 · 2026-11-21
+
+### Quick
+The tree view keeps its scratch lists between layouts and circle pack takes its lists from the shared blocks: 10-item trees 0.8 to 0.95 of the time in Chromium.
+
+### Details
+Same result as before. Big trees are unchanged (within 2%).
+
+### Deep
+Tree view: the last view of each scratch list is kept between layouts instead of cut again each time. Circle pack: its three working lists come from the shared memory blocks. Same output as 1.10.0 on 5,400 compared layouts. 10 items: tree 0.93 / 0.82 / 0.88, pack 0.81 / 1.03 / 1.00 of the time of 1.10.0 in Chromium / Firefox / WebKitGTK; 1,000 items and up unchanged.
+
+## 1.10.0 · API 1 · 2026-11-21
+
+### Quick
+New options sizeKey and write: false lay out existing rows with no copy and nothing written onto them; place() writes the places when wanted.
+
+### Details
+Small trees (up to about 300 items) cut their lists from shared memory blocks and tiny trees get their plain lists at once. Nothing changes for layouts that do not use the new options, apart from speed on small trees.
+
+### Deep
+Rows as they are (approved by the owner): sizeKey names the size field, write: false keeps places in the chart lists (chart.at, chart.placed) until place() or scene() asks. Small-tree fix: shared memory blocks for lists up to 2,048 numbers, eager kids/label/group up to 32 boxes, eager idx up to 8 items. Same output as 1.9.0 on 1,200 compared cases. Found while racing d3-hierarchy 3.1.3 on trees under 300 items.
+
+## 1.9.0 · API 1 · 2026-11-21
+
+### Quick
+New option parentKey: name the field that holds each item's parent id and leave edges out.
+
+### Details
+The picture is the same as with the matching list of links. No list is built unless something reads edges on the result. Nothing changes when the option is not used.
+
+### Deep
+New option parentKey (requested by the owner): items can carry their parent's id in a field, with no list of links. Same layout and drawing as the matching links list; a missing, empty, unknown or self parent makes a top item; edges on the result is made only when read. Icicle with no sorting spends 5 to 8% less time in ungoogled-chromium 156 than with a links list.
+
 ## 1.8.2 · API 1 · 2026-11-21
 
 ### Quick

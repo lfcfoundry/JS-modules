@@ -4,7 +4,7 @@
  * (4 bytes each) plus one Uint16 "hop code" (the hop count, +512 when the pivot weight applies); distance and weight come from two 1,024-entry tables
  * the page fills with the same float32 rounding the JavaScript used, so 10 bytes a pair instead of 16. All memory is handed in by the page. */
 #include <wasm_simd128.h>
-typedef int i32; typedef unsigned int u32; typedef unsigned short u16;
+typedef int i32; typedef unsigned int u32; typedef unsigned short u16; typedef unsigned long long u64;
 #define EXP(n) __attribute__((export_name(n)))
 static i32 *off_, *nbr_, *dist_, *queue_;
 static i32 K;
@@ -163,20 +163,96 @@ EXP("sweepsv") void sweepsv(double *X, const i32 *pa, const i32 *pb, const u16 *
 /* Every-pair pieces without a pair list. dense(): the hop counts of all pairs as one byte each, kept by offset: row r - 1 (r = 1 .. k/2) holds, for every item i, the
  * count between i and i + r (wrapping round), so a sweep reads its row straight through. Returns the largest count, or -2 when one is over 255 (the page then uses
  * the pair list). */
-EXP("dense") i32 dense(i32 k, i32 *off, i32 *nbr, unsigned char *D, i32 *dist, i32 *queue, unsigned char *T) {
-  K = k; off_ = off; nbr_ = nbr; dist_ = dist; queue_ = queue; degsum_ = off[k]; i32 maxD = 1, nr = k / 2;
-  for (i32 i = 0; i < k; i++) {   /* first by item (T: row i = the counts from i to i + 1 .. i + k/2), written straight through */
-    bfs_levels(i); unsigned char *row = T + (long)i * nr; i32 n1 = k - 1 - i < nr ? k - 1 - i : nr, md = 0, r = 0;
-    const i32 *src = dist + i + 1;
-    for (; r < n1; r++) { i32 d = src[r]; if (d < 0) d = 0; if (d > md) md = d; row[r] = (unsigned char)d; }
-    src = dist - (k - 1 - i);
-    for (; r < nr; r++) { i32 d = src[r]; if (d < 0) d = 0; if (d > md) md = d; row[r] = (unsigned char)d; }
-    if (md > 255) return -2;
-    if (md > maxD) maxD = md;
+EXP("dense") i32 dense(i32 k, i32 *off, i32 *nbr, unsigned char *D, u64 *seen, u64 *front, unsigned char *T) {
+  /* The search runs from 64 items at once: each item keeps one bit per start item ("reached"), and a level ORs the bits of the newest level into the
+   * neighbors. Hop counts are whole numbers, so they are the ones a search from one item at a time finds. (Idea: Then and others, "The More the Merrier:
+   * Efficient Multi-Source Graph Traversal", 2014.) The counts of a batch are first written by item (T: 64 bytes per item, one per start item, so a newly
+   * reached item touches one cache line), then copied to their place in D: D[r - 1][s] = T[s + r][bit of s].
+   * Two ways to run a batch, same counts. "Ring": the 64 start items are a ball of near neighbors, so their searches travel together as one thin ring and
+   * only the items on the ring are visited at each level (far less work on maps with long paths: meshes, trees). "Plain": the next 64 items in order and
+   * plain passes over all items at each level (less work when everything is a few hops apart). Batches start as rings and count their work; once the
+   * count says plain passes are cheaper, the rest run plain. */
+  i32 maxD = 1, nr = k / 2, ring = 1, nexti = 0, b0 = 0; long workR = 0, workP = 0; u64 *next = front + k;
+  i32 *cur = (i32 *)(front + 2 * (long)k), *mark = cur + k, *stamp = mark + k, *q = stamp + k, *ord = q + k, src[64];
+  for (i32 v = 0; v < k; v++) { stamp[v] = -1; mark[v] = 0; next[v] = 0; front[v] = 0; }
+  i32 no = 0;   /* ord: every item in search order from item 0 (and from the next unreached item, if the map is in pieces), so the balls tile the map in a sweep */
+  for (i32 s0 = 0; s0 < k; s0++) {
+    if (stamp[s0] != -1) continue;
+    stamp[s0] = -2; ord[no++] = s0;
+    for (i32 h = no - 1; h < no; h++) { i32 u = ord[h]; for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) { i32 w = nbr[e]; if (stamp[w] == -1) { stamp[w] = -2; ord[no++] = w; } } }
   }
-  for (i32 ib = 0; ib < k; ib += 64) for (i32 rb = 0; rb < nr; rb += 64) {   /* then turned on its side, a block at a time (kind to the cache) */
-    i32 ie = ib + 64 < k ? ib + 64 : k, re = rb + 64 < nr ? rb + 64 : nr;
-    for (i32 r = rb; r < re; r++) { unsigned char *drow = D + (long)r * k; for (i32 i = ib; i < ie; i++) drow[i] = T[(long)i * nr + r]; }
+  for (i32 oi = 0, ball = 0, left = k; left > 0; ) {   /* stamp: -2 = not yet a start item, -3 = has been one */
+    i32 nb = 0, wasRing = ring;
+    if (ring) {
+      while (stamp[ord[oi]] == -3) oi++;
+      i32 seed = ord[oi], qt = 0; ball++;
+      q[qt++] = seed; mark[seed] = ball;   /* the first 64 items that have not been start items, in search order from the seed */
+      for (i32 h = 0; h < qt; h++) {
+        i32 u = q[h]; if (stamp[u] == -2) { stamp[u] = -3; src[nb++] = u; if (nb == 64) break; }
+        for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) { i32 w = nbr[e]; if (mark[w] != ball) { mark[w] = ball; q[qt++] = w; } }
+      }
+    } else {
+      b0 = nexti; nb = k - b0 < 64 ? k - b0 : 64; nexti += nb;   /* the next 64 items in order, bit = place in the block */
+      for (i32 t = 0; t < nb; t++) src[t] = b0 + t;
+    }
+    if (ring) left -= nb; else if (nexti >= k) left = 0;
+    __builtin_memset(T, 0, (unsigned long)k * 64);
+    for (i32 v = 0; v < k; v++) seen[v] = 0;
+    if (ring) {
+      i32 nc = 0, events = 0, levels = 0;
+      for (i32 t = 0; t < nb; t++) { seen[src[t]] = (u64)1 << t; front[src[t]] = (u64)1 << t; cur[nc++] = src[t]; }
+      for (i32 level = 1; nc; level++) {
+        i32 nq = 0;
+        for (i32 h = 0; h < nc; h++) {
+          i32 u = cur[h]; u64 f = front[u];
+          for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) { i32 w = nbr[e]; u64 g = f & ~seen[w]; if (!g) continue; if (!next[w]) q[nq++] = w; next[w] |= g; }
+        }
+        for (i32 h = 0; h < nc; h++) front[cur[h]] = 0;
+        if (nq && level > 255) return -2;
+        for (i32 h = 0; h < nq; h++) {
+          i32 v = q[h]; u64 n = next[v]; next[v] = 0; seen[v] |= n; front[v] = n; cur[h] = v;
+          unsigned char *row = T + (long)v * 64;
+          do { row[__builtin_ctzll(n)] = (unsigned char)level; n &= n - 1; } while (n);
+        }
+        nc = nq; events += nq; levels++;
+        if (nq && level > maxD) maxD = level;
+      }
+      /* What plain passes would have cost more (three passes over all items per level) against what the ring costs more (each newly reached item). Measured
+       * break-even is a little over 3 item visits per ring event; the first balls can look worse than the rest, so one batch decides only when it is clear. */
+      workP += (long)levels * k; workR += events;
+      if (ball == 1 ? 10 * workP < 22 * workR : ball >= 3 && workP < 3 * workR) ring = 0;   /* the plain batches then start from item 0: redoing the few ring start items costs less than working around them */
+    } else {
+      for (i32 t = 0; t < nb; t++) { seen[b0 + t] = (u64)1 << t; front[b0 + t] = (u64)1 << t; }
+      for (i32 level = 1; ; level++) {
+        for (i32 v = 0; v < k; v++) next[v] = 0;
+        for (i32 u = 0; u < k; u++) { u64 f = front[u]; if (!f) continue; for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) next[nbr[e]] |= f; }
+        i32 any = 0;
+        for (i32 v = 0; v < k; v++) {
+          u64 n = next[v] & ~seen[v]; front[v] = n; if (!n) continue;
+          seen[v] |= n; any = 1;
+          if (level > 255) return -2;
+          unsigned char *row = T + (long)v * 64;
+          do { row[__builtin_ctzll(n)] = (unsigned char)level; n &= n - 1; } while (n);
+        }
+        if (!any) break;
+        if (level > maxD) maxD = level;
+      }
+      for (i32 v = 0; v < k; v++) front[v] = 0;
+    }
+    if (!wasRing) {   /* D row r - 1, columns b0 .. b0 + nb - 1, is the diagonal T[b0 + t + r][t] */
+      for (i32 r = 1; r <= nr; r++) {
+        unsigned char *drow = D + (long)(r - 1) * k + b0; i32 i = b0 + r; if (i >= k) i -= k;
+        i32 t = 0, e1 = k - i < nb ? k - i : nb;
+        for (; t < e1; t++) drow[t] = T[(long)(i + t) * 64 + t];
+        for (; t < nb; t++) drow[t] = T[(long)(i + t - k) * 64 + t];
+      }
+    } else {
+      for (i32 t = 0; t < nb; t++) src[t] = src[t] + 1 < k ? src[t] + 1 : 0;   /* src now holds s + r for r = 1, kept up to date row by row */
+      for (i32 r = 1; r <= nr; r++) {
+        unsigned char *drow = D + (long)(r - 1) * k;
+        for (i32 t = 0; t < nb; t++) { i32 i = src[t], s0 = i - r; if (s0 < 0) s0 += k; drow[s0] = T[(long)i * 64 + t]; src[t] = i + 1 < k ? i + 1 : 0; }
+      }
+    }
   }
   return maxD;
 }
@@ -192,35 +268,51 @@ static inline void pair1(double *X, i32 i, i32 j, i32 c, const float *pdT, const
  * i = 0, 1, 2, ... (wrapping round), so every pair comes once per sweep and the items are read in order (use < k/2 takes only the first `use` offsets of each sweep's order:
  * an even sample of the pairs). Two neighbors in that order, (i, i + r) and (i + 1, i + 1 + r),
  * share no item unless r is 1, so they run side by side, one per lane, and give exactly what one after the other gives (same operations, no fused multiply-add). */
-EXP("sweepsd") void sweepsd(double *X, i32 k, const unsigned char *D, const float *pdT, const float *pwT, const double *etas, i32 tmax, u32 s, i32 *ord, i32 use) {
+/* One pair in single precision (the same operations, in the same order, as one lane of the four-at-a-time loop below and as the JavaScript, which rounds every step
+ * with Math.fround). */
+static inline void pair1f(float *F, i32 i, i32 j, i32 c, const float *pdT, const float *pwT, float eta) {
+  float mu = pwT[c] * eta; if (mu > 1) mu = 1;
+  i32 a2 = i * 2, b2 = j * 2;
+  float dx = F[a2] - F[b2], dy = F[a2 + 1] - F[b2 + 1], mag = __builtin_sqrtf(dx * dx + dy * dy);
+  if (mag == 0 || mag != mag) mag = 1e-6f;
+  float r = (mu * (mag - pdT[c])) / (2 * mag), rx = r * dx, ry = r * dy;
+  F[a2] -= rx; F[a2 + 1] -= ry; F[b2] += rx; F[b2 + 1] += ry;
+}
+/* The sweeps run in single precision on a copy of the positions (F), four pairs at a time: the neighbors (i, i + r) .. (i + 3, i + 3 + r) share no item when r and
+ * k - r are at least 4, so four lanes give exactly what one pair after the other gives. The square root and the division are what a pair costs, and four lanes
+ * of single precision do twice the pairs of two lanes of double precision in the same time. Positions go in and come out as doubles. */
+EXP("sweepsd") void sweepsd(double *X, i32 k, const unsigned char *D, const float *pdT, const float *pwT, const double *etas, i32 tmax, u32 s, i32 *ord, i32 use, float *F) {
   i32 nr = k / 2;
+  for (i32 q = 0; q < 2 * k; q++) F[q] = (float)X[q];
   for (i32 q = 0; q < nr; q++) ord[q] = q + 1;
   for (i32 t = 0; t < tmax; t++) {
-    double eta = etas[t]; v128_t etav = wasm_f64x2_splat(eta);
+    float eta = (float)etas[t]; v128_t etav = wasm_f32x4_splat(eta), one = wasm_f32x4_splat(1.0f), two = wasm_f32x4_splat(2.0f), tiny = wasm_f32x4_splat(1e-6f), zero = wasm_f32x4_splat(0.0f);
     for (i32 q = nr - 1; q > 0; q--) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; i32 j = (i32)(((double)s / 4294967296.0) * (double)(q + 1)); i32 p = ord[q]; ord[q] = ord[j]; ord[j] = p; }
     for (i32 q = 0; q < use; q++) {
       i32 r = ord[q], lim = 2 * r == k ? nr : k; const unsigned char *Dr = D + (long)(r - 1) * k;
       for (i32 seg = 0; seg < 2; seg++) {   /* seg 0: i + r stays under k; seg 1: it wraps */
         i32 i0 = seg ? k - r : 0, i1 = seg ? lim : (lim < k - r ? lim : k - r), sh = seg ? r - k : r, i = i0;
-        if (r != 1) for (; i + 1 < i1; i += 2) {
-          i32 j = i + sh, c1 = Dr[i], c2 = Dr[i + 1];
-          if (c1 == 0 || c2 == 0) { if (c1) pair1(X, i, j, c1, pdT, pwT, eta); if (c2) pair1(X, i + 1, j + 1, c2, pdT, pwT, eta); continue; }
-          v128_t mu = clampmu(wasm_f64x2_mul(wasm_f64x2_make((double)pwT[c1], (double)pwT[c2]), etav));
-          v128_t dd = wasm_f64x2_make((double)pdT[c1], (double)pdT[c2]);
-          v128_t pa = wasm_v128_load(X + 2 * i), pb = wasm_v128_load(X + 2 * i + 2), qa = wasm_v128_load(X + 2 * j), qb = wasm_v128_load(X + 2 * j + 2);   /* (x, y) of i, i + 1, j, j + 1 */
-          v128_t xa = wasm_i64x2_shuffle(pa, pb, 0, 2), ya = wasm_i64x2_shuffle(pa, pb, 1, 3), xb = wasm_i64x2_shuffle(qa, qb, 0, 2), yb = wasm_i64x2_shuffle(qa, qb, 1, 3);
-          v128_t dx = wasm_f64x2_sub(xa, xb), dy = wasm_f64x2_sub(ya, yb);
-          v128_t mag = fixmag(wasm_f64x2_sqrt(wasm_f64x2_add(wasm_f64x2_mul(dx, dx), wasm_f64x2_mul(dy, dy))));
-          v128_t rr = wasm_f64x2_div(wasm_f64x2_mul(mu, wasm_f64x2_sub(mag, dd)), wasm_f64x2_mul(wasm_f64x2_splat(2.0), mag));
-          v128_t rx = wasm_f64x2_mul(rr, dx), ry = wasm_f64x2_mul(rr, dy);
-          v128_t nxa = wasm_f64x2_sub(xa, rx), nya = wasm_f64x2_sub(ya, ry), nxb = wasm_f64x2_add(xb, rx), nyb = wasm_f64x2_add(yb, ry);
-          wasm_v128_store(X + 2 * i, wasm_i64x2_shuffle(nxa, nya, 0, 2)); wasm_v128_store(X + 2 * i + 2, wasm_i64x2_shuffle(nxa, nya, 1, 3));
-          wasm_v128_store(X + 2 * j, wasm_i64x2_shuffle(nxb, nyb, 0, 2)); wasm_v128_store(X + 2 * j + 2, wasm_i64x2_shuffle(nxb, nyb, 1, 3));
+        if (r >= 4 && k - r >= 4) for (; i + 3 < i1; i += 4) {
+          i32 j = i + sh, c1 = Dr[i], c2 = Dr[i + 1], c3 = Dr[i + 2], c4 = Dr[i + 3];
+          if (c1 == 0 || c2 == 0 || c3 == 0 || c4 == 0) { if (c1) pair1f(F, i, j, c1, pdT, pwT, eta); if (c2) pair1f(F, i + 1, j + 1, c2, pdT, pwT, eta); if (c3) pair1f(F, i + 2, j + 2, c3, pdT, pwT, eta); if (c4) pair1f(F, i + 3, j + 3, c4, pdT, pwT, eta); continue; }
+          v128_t mu = wasm_f32x4_pmin(one, wasm_f32x4_mul(wasm_f32x4_make(pwT[c1], pwT[c2], pwT[c3], pwT[c4]), etav));
+          v128_t dd = wasm_f32x4_make(pdT[c1], pdT[c2], pdT[c3], pdT[c4]);
+          v128_t pa = wasm_v128_load(F + 2 * i), pb = wasm_v128_load(F + 2 * i + 4), qa = wasm_v128_load(F + 2 * j), qb = wasm_v128_load(F + 2 * j + 4);   /* (x, y) of two items each */
+          v128_t xa = wasm_i32x4_shuffle(pa, pb, 0, 2, 4, 6), ya = wasm_i32x4_shuffle(pa, pb, 1, 3, 5, 7), xb = wasm_i32x4_shuffle(qa, qb, 0, 2, 4, 6), yb = wasm_i32x4_shuffle(qa, qb, 1, 3, 5, 7);
+          v128_t dx = wasm_f32x4_sub(xa, xb), dy = wasm_f32x4_sub(ya, yb);
+          v128_t mag = wasm_f32x4_sqrt(wasm_f32x4_add(wasm_f32x4_mul(dx, dx), wasm_f32x4_mul(dy, dy)));
+          mag = wasm_v128_bitselect(tiny, mag, wasm_v128_or(wasm_f32x4_eq(mag, zero), wasm_f32x4_ne(mag, mag)));
+          v128_t rr = wasm_f32x4_div(wasm_f32x4_mul(mu, wasm_f32x4_sub(mag, dd)), wasm_f32x4_mul(two, mag));
+          v128_t rx = wasm_f32x4_mul(rr, dx), ry = wasm_f32x4_mul(rr, dy);
+          v128_t nxa = wasm_f32x4_sub(xa, rx), nya = wasm_f32x4_sub(ya, ry), nxb = wasm_f32x4_add(xb, rx), nyb = wasm_f32x4_add(yb, ry);
+          wasm_v128_store(F + 2 * i, wasm_i32x4_shuffle(nxa, nya, 0, 4, 1, 5)); wasm_v128_store(F + 2 * i + 4, wasm_i32x4_shuffle(nxa, nya, 2, 6, 3, 7));
+          wasm_v128_store(F + 2 * j, wasm_i32x4_shuffle(nxb, nyb, 0, 4, 1, 5)); wasm_v128_store(F + 2 * j + 4, wasm_i32x4_shuffle(nxb, nyb, 2, 6, 3, 7));
         }
-        for (; i < i1; i++) { i32 c = Dr[i]; if (c) pair1(X, i, i + sh, c, pdT, pwT, eta); }
+        for (; i < i1; i++) { i32 c = Dr[i]; if (c) pair1f(F, i, i + sh, c, pdT, pwT, eta); }
       }
     }
   }
+  for (i32 q = 0; q < 2 * k; q++) X[q] = (double)F[q];
 }
 /* The same sweeps in three dimensions (Distances 3D), 3 numbers per item; the pairs, the tables and the one shuffle are the ones above. etas[t] is the page's. */
 EXP("sweeps3") void sweeps3(double *X, const i32 *pa, const i32 *pb, const u16 *pc, const float *pdT, const float *pwT, i32 cnt, const double *etas, i32 tmax) {

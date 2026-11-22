@@ -349,21 +349,36 @@
       out[keys[j]] = { kind: 'dict', labels: { bytes: bs, start: st, end: en }, ids: ids }; any = true; }
     return any ? out : obj;
   }
-  function packColumnsParallel(obj, opts) {
+  function packColumnsParallel(obj, opts) {   // since 0.17.0: graph: { from, to, weight?, directed?, reverse?, nodes? } adds the graph section (23) after the save
+    if (opts && opts.views) { try { viewSpec(opts.views); } catch (e) { return Promise.reject(e); } return packColumnsParallel(obj, Object.assign({}, opts, { views: null, _views: opts.views })); }   // since 0.22.0: built inside the save (packColumnsParallel0)
+    if (opts && opts.geo) { var gp; try { gp = geoPrep(obj, opts); } catch (e) { return Promise.reject(e); } return packColumnsParallel(gp.obj, gp.opts).then(function (b) { return addSections(b, [[SEC_GEO, geoSection(gp, b)]]); }); }   // since 0.20.0
+    if (!opts || !opts.graph) return packColumnsParallel0(obj, opts);
+    var gb; try { gb = graphBuild(opts.graph, obj); } catch (e) { return Promise.reject(e); }
+    return packColumnsParallel0(obj, Object.assign({}, opts, { graph: null })).then(function (b) { return addGraph(b, gb); });
+  }
+  function packColumnsParallel0(obj, opts) {   // since 0.22.0: views (opts._views) run in the summary's idle slots on the main path, or after the save on the others
+    if (!opts || !opts._views) return packColumnsParallel1(obj, opts, null);
+    var V = { spec: opts._views, obj: obj, ex: null, res: null, err: null, done: false, run: function () { V.done = true; try { V.res = viewsBuild(V.obj, V.spec, V.ex); } catch (e) { V.err = e; } } };
+    return packColumnsParallel1(obj, Object.assign({}, opts, { _views: null }), V).then(function (b) { if (!V.done) V.run(); if (V.err) throw V.err; return V.res ? addSections(b, [[SEC_VIEWS, V.res]]) : b; });
+  }
+  function packColumnsParallel1(obj, opts, V) {
     var t = colTable(obj, 'packColumnsParallel'), so;
     if (t instanceof Error) return Promise.reject(t);
-    try { so = sortOpt(opts); } catch (e) { return Promise.reject(e); }
-    if (so) {   // since 0.16.0: sortBy (and keepOrder): the table sorted first, then saved as any table; section 20 says which column (written even with summary: false)
-      try { obj = sortTable(obj, so).obj; } catch (e) { return Promise.reject(e); }
-      t = colTable(obj, 'packColumnsParallel'); if (t instanceof Error) return Promise.reject(t);
-      opts = Object.assign({}, opts, { _sort: so, sortBy: null, keepOrder: false });
-      if (opts.summary === false) { var ks = Object.keys(obj).filter(function (k) { return k !== SORT_ROW || !so.keep; }); return packRowsParallel(t.empty ? t.rowsOf(0, t.n) : t.CT, opts).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, t.n, ks)]]); }); }
+    try { so = opts && opts._presort ? opts._presort : sortOpt(opts); } catch (e) { return Promise.reject(e); }
+    if (so) {   // since 0.16.0: sortBy (and keepOrder): the table sorted first, then saved as any table; section 20 says which column (written even with summary: false). _presort: geo sorted it already
+      if (!opts._presort) { try { obj = sortTable(obj, so).obj; } catch (e) { return Promise.reject(e); }
+        t = colTable(obj, 'packColumnsParallel'); if (t instanceof Error) return Promise.reject(t); }
+      opts = Object.assign({}, opts, { _sort: so, _presort: null, sortBy: null, keepOrder: false, scramble: null });
+      if (V) { V.obj = obj; V.ex = (so.hide || []).concat(so.keep ? [SORT_ROW] : []); }
+      if (opts.summary === false) { var ks = Object.keys(obj).filter(function (k) { return (k !== SORT_ROW || !so.keep) && !(so.hide && so.hide.indexOf(k) >= 0); }); return packRowsParallel(t.empty ? t.rowsOf(0, t.n) : t.CT, opts).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, t.n, ks)]]); }); }
     }
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
     if (opts && opts.summary === false) return packRowsParallel(t.CT, opts);
     // since 0.15.0: the column summary (footer section 20) and the line-chart pyramids (21; pyramids: false leaves them out, summary: false both). Number and date columns are summed inside the writer's own
     // pass over each block (blockStats); what is left runs on this thread while every helper has a full queue and after the last block is handed out, so it fills time this thread would wait anyway
-    var side = sumJobs(obj, t.n, opts), pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
+    var side = sumJobs(obj, t.n, opts), pr;
+    if (V) { var n0 = side.next; side.next = function (early) { if (n0(early)) return true; if (!V.done) { V.run(); return true; } return false; }; }
+    pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
     return pr.then(function (b) { return side.done().then(function (x) { return addSections(b, [[SEC_SUMMARY, x.sum], [SEC_PYRAMID, x.pyr]]); }, function () { return b; }); });
   }
   function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
@@ -385,7 +400,7 @@
   function packRowsParallel(rows, opts) {
     var so; try { so = rows && rows.__ct ? null : sortOpt(opts); } catch (e) { return Promise.reject(e); }
     if (so) { var sr; try { sr = sortRowArray(rows, so); } catch (e) { return Promise.reject(e); }   // since 0.16.0: sortBy on a row array
-      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
+      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
     return init().then(function () {
       var pay = 1, po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
       if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(ctNaN(rows, rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows)) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);

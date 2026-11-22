@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 2.1.2 · API 2**
+**Version 2.1.3 · API 2**
 
-**Tested in:** Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

@@ -2,6 +2,30 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.24.0 · API 0 · 2026-11-21
+- Quantile grid gets 40 tail points: 99.9th percentile within 5% (was 57-542% off); cheaper summaries for sorted and small-integer columns
+
+## 0.23.0 · API 0 · 2026-11-21
+- Geo saves 13-22% faster and 9% smaller; views saves up to 10% faster; sortBy reorder 2-3x faster
+
+## 0.22.0 · API 0 · 2026-11-21
+- Two-way views (section 22): exact pair counts and sums read in about 2 ms
+
+## 0.21.0 · API 0 · 2026-11-21
+- New graph option pack: true keeps the stored graph 2.5 to 3 times smaller; reading it takes 26 to 38 ms instead of 9, still 2 to 4 times faster than rebuilding it. Raw stays the default (owner's choice).
+
+## 0.20.0 · API 0 · 2026-11-21
+- New geo save option for map data: rows sorted along a Hilbert curve, a heat grid in the footer, and box reads that read only nearby blocks (2.8 to 6.7 times faster than reading everything). Off by default.
+
+## 0.19.0 · API 0 · 2026-11-21
+- New scramble save option: rows saved in a seeded random order so every block is a fair sample, and open().progressive gives running estimates block by block (first block 9 to 18 ms vs 45 to 100 ms for all, mean 0.1% off). Off by default.
+
+## 0.18.0 · API 0 · 2026-11-21
+- summary() can now answer percentiles and counts above or below a value from the stored grid, with nothing decoded (about 100 times faster than decoding and sorting).
+
+## 0.17.0 · API 0 · 2026-11-21
+- Graphs stored ready to use: a graph option keeps the links as CSR arrays that graph() reads as typed views with no parse or build.
+
 ## 0.16.0 · API 0 · 2026-11-21
 - Sorted saves (sortBy, keepOrder with original order back), chart bins doubled to 4,096 with an optional full() for wide charts, and column tables with empty number cells save 3 to 4 times faster.
 

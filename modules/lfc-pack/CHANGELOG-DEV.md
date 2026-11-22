@@ -2,6 +2,70 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.24.0 · API 0 · 2026-11-21
+
+### Quick
+Section 20 entries add qt: 40 values at shares 2^(-j/2) and 1 - 2^(-j/2), j = 13..32, beside the 257 even steps; quantile/countAbove/countBelow read all 297 points linearly.
+
+### Deep
+Section 20 entries add qt: 40 values at shares 2^(-j/2) and 1 - 2^(-j/2), j = 13..32, beside the 257 even steps; quantile/countAbove/countBelow read all 297 points linearly. Old readers ignore qt. Reader-check table (1M rows, lognormal fare): p99.9 107.7 to 72.2 (exact 68.58). Test column: worst tail error 542% to under 5%. Writer: an already-sorted block or a counted small-integer block skips the sample radix sort; per-column summary CPU on 1M rows 18-26% less for such columns (Chromium 156 id 8.1 to 6.0 ms, pax 8.8 to 6.9; Firefox 158 id 12.3 to 10.0, pax 12.9 to 10.6; WebKitGTK 2.52.6 id 7.5 to 5.5, pax 11.5 to 9); skewed float columns unchanged; save totals within machine noise. 44 quantile checks.
+
+## 0.23.0 · API 0 · 2026-11-21
+
+### Quick
+Geo: the Hilbert key is no longer stored as a column; section 24 v2 keeps each block's key range (zones).
+
+### Deep
+Geo: the Hilbert key is no longer stored as a column; section 24 v2 keeps each block's key range (zones). 1M points: save 570 to 470 ms (Chromium 156), 451 to 393 (Firefox 158), 578 to 453 (WebKitGTK 2.52.6); file 17.27 to 15.70 MB, now 0.7% under a plain save. Box reads unchanged or faster. Column reordering (geo, sortBy, scramble) uses one loop per array type, 1.9-2.8x faster. Views: string labels through a small table before the Map (1.2x Chromium, 2.2x Firefox), cell ids built column by column; same file bytes; save ratio 0.99 / 0.90 / 0.97 of 0.22.0. Dict columns with several missing ids now give one null label. 0.20-0.22 geo files still read; older readers refuse v2 geo sections instead of answering wrong.
+
+## 0.22.0 · API 0 · 2026-11-21
+
+### Quick
+Writer option views builds two-way cubes (count, sum, min, max per cell) for label pairs.
+
+### Deep
+Writer option views builds two-way cubes (count, sum, min, max per cell) for label pairs. view() reads in 1.5 / 2.2 / 2 ms vs group-by 205 / 163 / 240 ms (Chromium / Firefox / WebKitGTK). Save 204 to 399 / 182 to 315 / 215 to 317 ms when on; off by default. File +0.7%. 18 checks.
+
+## 0.21.0 · API 0 · 2026-11-21
+
+### Quick
+Owner card 11.21 8:27 PM Detroit: opt-in pack: true, raw default.
+
+### Deep
+Owner card 11.21 8:27 PM Detroit: opt-in pack: true, raw default. graph.pack on packColumnsParallel and addGraph: rows sorted by target (weights alongside; gSortRows), degrees for offsets, in-row gaps for targets, weights as Uint16 ids into one Float32 table (open-addressing table on the bit patterns, exact for -0 and NaN; at most 65,536 values) else raw Float32, each array split into byte planes, zstd level 3 (level 1: same size, same time). Header pack: 1, sorted: true, parts [offset, length, kind], wCount. graph() / open().graph() decode into new arrays (fused plane join + prefix sums). Measured 200,000 nodes / 1,000,000 weighted links, median of 5, 4-core cloud: file 14.61 -> 9.35 MB random links, 14.53 -> 8.55 MB mostly local links (5.8 MB no graph); graph() 35.1 / 30.8 / 26 ms random and 38.1 / 27.4 / 28 ms local (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6) vs raw 8 to 9 ms; save 235 -> 294, 194 -> 246, 188 -> 236 ms random (raw graph -> packed). First draft built the weight table with a Map: save +140 ms Chromium; the bit-pattern table cut it to +59. 20 new checks in graph.cjs (59 in all).
+
+## 0.20.0 · API 0 · 2026-11-21
+
+### Quick
+geo: { x, y, bounds?
+
+### Deep
+geo: { x, y, bounds? } on packColumnsParallel: 16-bit quantized coordinates, 32-bit Hilbert key (four levels per lookup from a 1,024-entry table; 6.5x faster than the bit loop, same keys) in hidden column $hilbert (section 20 hidden: [...], sortedBy), stable 32-bit radix sort with missing coordinates last (geoPrep sorts, then the sortBy save path with _presort), 1 MB blocks by default, section 24 { x, y, key, bounds, bits, cells: 256, heat: sparse [cell, count] }. Readers: geo(bytes) / open().geo() -> heat Uint32Array(65536); open().bbox(x0, y0, x1, y1, { keys }) splits quads level by level (up to 1,024 edge quads, then whole runs), reads blocks whose $hilbert zone range meets a run, filters exactly; rows.blocksRead. Hidden columns: rowIndexOf now also reads section 20 hidden (key null when no keepOrder). Measured 1,000,000 clustered points (30 clusters) + fare, passengers, kind, median of 5, 4-core cloud: save plain -> geo 209 -> 560 ms Chromium 156, 177 -> 410 Firefox 158, 227 -> 599 WebKitGTK 2.52.6 (first draft 5x: small 8,192-row blocks and the bit-loop key; usual-size blocks were 1.9 to 2.5x but box reads only 1.7 to 4.9x faster); box with 10% of rows 16 of 100 blocks, 40 / 44.5 / 34 ms vs plain read + filter 125 / 96 / 229 ms; box with 19% of rows 84 / 62 / 44 vs 118 / 95 / 209 ms; file +9% (15.8 -> 17.3 MB). New test geo.cjs (35 checks: boxes equal a full scan, prefix property via the heat grid, hidden in every reader, keepOrder, summary false, bounds clamp, errors).
+
+## 0.19.0 · API 0 · 2026-11-21
+
+### Quick
+scramble: true | seed on packColumnsParallel, packRows, packRowsParallel: Fisher-Yates over mulberry32 before blocks are cut (src/sort.js scramblePerm, the sortBy path with no key).
+
+### Deep
+scramble: true | seed on packColumnsParallel, packRows, packRowsParallel: Fisher-Yates over mulberry32 before blocks are cut (src/sort.js scramblePerm, the sortBy path with no key). No row-position column: unpack / unpackRows { original: true } rebuild the given order from the seed and row count (saved row i is given row P[i]); section 20 says scrambled: { seed } (also with summary: false). Refused with sortBy, keepOrder, exact, base. open().progressive(keys, onStep, { by }): blocks in order, running { n, sum, mean, min, max, estSum } per key and per label of by; onStep returning false stops. Measured 1,000,000 rows x 6 columns (taxi-like: id 0..n-1, fare, distance with 2% missing, passengers, 40 skewed zones, 4 payment kinds), median of 5, 4-core cloud: save 202 -> 308 ms Chromium 156, 206 -> 307 Firefox 158, 194 -> 284 WebKitGTK 2.52.6; first progressive step (1 of 6 blocks, by zone) 11.9 / 18.4 / 9 ms vs all blocks 63 / 100 / 45 ms; first-step mean 0.10% off, worst mean of a zone with at least 1% of rows 1.39% off. Size 4.13 -> 6.63 MB with the sequential id column, 4.11 -> 4.11 MB without it (Chromium run): only columns that follow the row order lose. First draft stored a $row column (keepOrder style): 9.1 MB, dropped for the seed. New test scramble.cjs (27 checks).
+
+## 0.18.0 · API 0 · 2026-11-21
+
+### Quick
+S.quantile(key, p), S.countAbove(key, x), S.countBelow(key, x) on the object summary() and open().summary() return (not enumerable, so JSON is unchanged).
+
+### Deep
+S.quantile(key, p), S.countAbove(key, x), S.countBelow(key, x) on the object summary() and open().summary() return (not enumerable, so JSON is unchanged). Linear between ranks as the grid is built; a sampled grid's ends are replaced by the entry's min and max; exact on qExact entries (counts summed from qn) and on grids read from every value. Tests (quantile.cjs, 41 checks, 200,000 rows): lognormal, uniform, 70% zeros, negative, a quarter missing, constant, small and wide integers, ascending, all missing (null), dates; worst error under 0.6% of the values, exact entries exact. Measured 1,000,000-row lognormal column, 1,000 quantiles plus 1,000 counts including the footer read, median of 7: 1.8 ms Chromium 156, 2.1 ms Firefox 158, 3 ms WebKitGTK 2.52.6; decode plus sort of the column 204 / 169 / 133 ms. Not done: the quantiles: 1025 writer option from the spec draft; a finer grid would not lower the error, which comes from the 65,536-value sample (0.44% worst).
+
+## 0.17.0 · API 0 · 2026-11-21
+
+### Quick
+Footer section 23 (graph): packColumnsParallel graph option { from, to, weight?, directed?, reverse?, nodes?, labels?, nodeIds?
+
+### Deep
+Footer section 23 (graph): packColumnsParallel graph option { from, to, weight?, directed?, reverse?, nodes?, labels?, nodeIds? } (column names or arrays) builds CSR by counting sort (links keep their given order per node; undirected stored both ways, self links once) into a raw region after the blocks (8-byte aligned, crc32), plus addGraph(file, g) for any file. Readers graph(bytes[, { verify }]) and open().graph(): Uint32 offsets/targets, Float32 weights, optional reverse index, as views on the file bytes (one copy only when the bytes are not 4-byte aligned). Measured 200,000 nodes, 1,000,000 weighted links, median of 5, 4-core cloud: graph() 9.3/8.5/8 ms with checksum, 0.7/0.8/1 ms verify:false vs 77/58/111 ms unpackColumnsParallel plus CSR build (Chromium 156/Firefox 158/WebKitGTK 2.52.6); save 163->231, 159->206, 141->172 ms; file 5.8 -> 14.6 MB (raw region, no zstd, by spec). Old readers skip section 23 (flags 0).
+
 ## 0.16.0 · API 0 · 2026-11-21
 
 ### Quick
