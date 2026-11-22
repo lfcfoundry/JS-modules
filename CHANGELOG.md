@@ -29,16 +29,16 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.1.3 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.17.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.24.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.7.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.6.1 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
-| [guess-gate](modules/guess-gate/README.md) | 1.0.1 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.6.5 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [guess-gate](modules/guess-gate/README.md) | 1.0.2 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
 | [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.10.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
@@ -78,12 +78,23 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.10.1 · API 1: Small speed-up for the tree and circle pack views on small trees
 - 2026-11-21 · **netflow-hierarchy** 1.10.0 · API 1: Rows as they are (sizeKey, write: false) and much faster small trees
+- 2026-11-21 · **netflow-engine** 2.6.5 · API 2: Network maps (Distances layout) build in 15% less time in the middle case and up to 49% less on maps under 4,000 items. Items land in different spots than in 2.6.4; stress and link crossings stay within a few percent.
+- 2026-11-21 · **netflow-engine** 2.6.4 · API 2: Big maps build a little faster in Chromium-based browsers (about 7% less time in the middle case, up to 19% less) with exactly the same output; Firefox gains about 2%, WebKitGTK is unchanged.
+- 2026-11-21 · **netflow-engine** 2.6.3 · API 2: Big Network maps shaped like a mesh or a tree (Distances layout) build in about a fifth less time (9 to 26% less), with exactly the same picture as 2.6.2. Other maps are unchanged within measuring noise.
+- 2026-11-21 · **netflow-engine** 2.6.2 · API 2: Big Network maps (Distances layout) build in about a tenth less time again (up to 31% less), with exactly the same picture as 2.6.1. The saving is in the work around the layout.
 - 2026-11-21 · **netflow-engine** 2.6.1 · API 2: Big Network maps (Distances layout) build in about a fifth less time again (up to 47% less), with exactly the same picture as 2.6.0.
 - 2026-11-21 · **netflow-engine** 2.6.0 · API 2: Big Network maps (Distances layout) build in 12 to 73% less time, most about 60% less, with the same or lower stress, fewer link crossings and no touching items. Items now spread more evenly instead of packing into a dense middle.
 - 2026-11-21 · **netflow-engine** 2.5.0 · API 2: New quickNetwork(graph): a rough first picture of a partly read map to draw while the rest arrives. 10,000 items: 5.9 ms Chromium 156, 4.6 Firefox 158, 6 WebKitGTK 2.52.6; 50,000 items: 23.5, 39.5, 60 ms.
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
 - 2026-11-21 · **netflow-chord** 1.0.0 · API 1: New module: the chord layout of Netflow Map as one small file with nothing to load first, 1.6 KB gzipped; it takes 0.46 to 0.68 of d3-chord's time in Chromium, Firefox and WebKitGTK.
 - 2026-11-21 · **lz4-kit** 1.1.2 · API 1: Default-speed .lz4 frames of 64 KiB and more are 23 to 26% faster and 12% smaller on 4 MiB of logs: 6.3 to 6.4 ms against 8.5 before (Chromium 156, Firefox 158, WebKitGTK 2.52.6). Still a standard frame with size and checksum.
+- 2026-11-21 · **lfc-pack** 0.24.0 · API 0: Quantile grid gets 40 tail points: 99.9th percentile within 5% (was 57-542% off); cheaper summaries for sorted and small-integer columns
+- 2026-11-21 · **lfc-pack** 0.23.0 · API 0: Geo saves 13-22% faster and 9% smaller; views saves up to 10% faster; sortBy reorder 2-3x faster
+- 2026-11-21 · **lfc-pack** 0.22.0 · API 0: Two-way views (section 22): exact pair counts and sums read in about 2 ms
+- 2026-11-21 · **lfc-pack** 0.21.0 · API 0: New graph option pack: true keeps the stored graph 2.5 to 3 times smaller; reading it takes 26 to 38 ms instead of 9, still 2 to 4 times faster than rebuilding it. Raw stays the default (owner's choice).
+- 2026-11-21 · **lfc-pack** 0.20.0 · API 0: New geo save option for map data: rows sorted along a Hilbert curve, a heat grid in the footer, and box reads that read only nearby blocks (2.8 to 6.7 times faster than reading everything). Off by default.
+- 2026-11-21 · **lfc-pack** 0.19.0 · API 0: New scramble save option: rows saved in a seeded random order so every block is a fair sample, and open().progressive gives running estimates block by block (first block 9 to 18 ms vs 45 to 100 ms for all, mean 0.1% off). Off by default.
+- 2026-11-21 · **lfc-pack** 0.18.0 · API 0: summary() can now answer percentiles and counts above or below a value from the stored grid, with nothing decoded (about 100 times faster than decoding and sorting).
 - 2026-11-21 · **lfc-pack** 0.17.0 · API 0: Graphs stored ready to use: a graph option keeps the links as CSR arrays that graph() reads as typed views with no parse or build.
 - 2026-11-21 · **lfc-pack** 0.16.0 · API 0: Sorted saves (sortBy, keepOrder with original order back), chart bins doubled to 4,096 with an optional full() for wide charts, and column tables with empty number cells save 3 to 4 times faster.
 - 2026-11-21 · **lfc-pack** 0.15.0 · API 0: Saved column tables now carry a summary of every column (range, order, a 257-point quantile grid, the most common labels) and chart bins for number and date columns, read without unpacking anything. New: LfcPack.summary(bytes) and LfcPack.pyramids(bytes), also open().summary() and open().pyramids(key); options summary: false, pyramids: false or { bins }, quantiles: false. Reads can fill arrays you keep in more places: unpackColumnsParallel into, and text as bytes into a holder.
@@ -97,8 +108,10 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **lfc-pack** 0.14.11 · API 0: New opts.onBlock on unpackColumnsParallel: each block's columns reach your function as soon as that block is read, so a first picture can draw while the rest reads. Same final result.
 - 2026-11-21 · **lfc-pack** 0.14.10 · API 0: Packing a table with many columns skips two per-column costs: preview rows are made only when read, and whole numbers are counted without making their text. 120 columns, 700 rows: 0.6 to 0.7 of the time in three browsers. Same bytes.
 - 2026-11-21 · **idle-core** 1.3.0 · API 1: Prices of 1e10 and up are now exact to the coin and the same in every browser (before, from about 1e12 a price could be a coin low). Ordinary prices are as fast or a little faster.
+- 2026-11-21 · **guess-gate** 1.0.2 · API 1: README now says plainly that the share is a target: one unexpectedly long guess can go over, then guesses wait. stats().elapsed stops at finish().
 - 2026-11-21 · **guess-gate** 1.0.1 · API 1: Guesses use at most 5% of the time so far by default (was 10%): at 10% a progressive import ran 12% slower than none in WebKitGTK 2.52.6; at 5% Chromium 156, Firefox 158 and WebKitGTK are within noise of none.
 - 2026-11-21 · **guess-gate** 1.0.0 · API 1: New module: a time-boxed scheduler for first guesses during an import; guesses may use only a set share (10% by default) of the time so far, so a progressive import costs about the same total time as one without guesses.
+- 2026-11-21 · **elias-fano** 2.1.3 · API 2: "First value at or above" no longer crawls through long runs of one repeated value (24 to 42 times faster on a 100,000-copy run); same blobs and answers.
 - 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
 - 2026-11-20 · **netflow-plot** 2.19.0 · API 2: A table can be given as columns, { name: array } with plain or typed arrays (what lfc-pack's unpackColumns returns); the chart is the same as from rows, and a 100,000-point line builds in about 4 ms instead of 5 (Chromium 156) A Voronoi chart with an infinite value no longer hangs
 - 2026-11-20 · **netflow-plot** 2.18.1 · API 2: A line chart of many points builds about 3 times faster (100,000 points: 15 to 5 ms in Chromium 156, 20 to 5 in Firefox 158, 21 to 10 in WebKitGTK 2.52.6); the chart is exactly the same

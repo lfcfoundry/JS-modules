@@ -12,9 +12,18 @@
   var SUM_Q = 257, SUM_QS = 65536, SUM_CNT = 4096, SUM_KEEP = 1025, PYR_BINS = 4096;   // 4,096 bins (since 0.16.0; 2,048 in 0.15.0): netflow-plot draws from bins while there are 2 or more per pixel, so charts up to 2,048 px wide
   function sposAt(j, N) { return Math.min(N - 1, Math.floor((j + (Math.imul(j ^ 0x9E3779B9, 0x85EBCA6B) >>> 0) / 4294967296) * N / SUM_QS)); }   // sample position j of SUM_QS over N > SUM_QS rows: one fixed place in each equal slice, rising with j
   function sumPos(n) { var p = new Int32Array(SUM_QS), j; for (j = 0; j < SUM_QS; j++) p[j] = sposAt(j, n); return p; }
-  function qOf(get, m) { var q = new Array(SUM_Q), k, pos, lo, fr, v; for (k = 0; k < SUM_Q; k++) { pos = k / (SUM_Q - 1) * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); q[k] = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; } return q; }   // the grid from a value-at-rank function over m ranks
+  // since 0.24.0 the grid also has tail points (qt): the values at shares 2^(-j/2) and 1 - 2^(-j/2) for j = 13 .. 32 (from 1/91 to 1/65,536 from each end), where the 257 even steps are too coarse
+  // (the last step is 1/256 of the values, so a 99.9th percentile read between it and the maximum was 80% to 300% off on skewed columns; with the tail points under 3%)
+  var SUM_QT = 20, QP = (function () { var a = [], k, j; for (k = 0; k < SUM_Q; k++) a.push([k / (SUM_Q - 1), 0, k]); for (j = 0; j < SUM_QT; j++) { a.push([Math.pow(2, -(32 - j) / 2), 1, j]); a.push([1 - Math.pow(2, -(13 + j) / 2), 1, SUM_QT + j]); }
+    a.sort(function (x, y) { return x[0] - y[0]; }); return a; })();   // every grid share, rising: [p, 0 even step | 1 tail, index]
+  function qOf(get, m) {   // the grid from a value-at-rank function over m ranks (asked for in rising order): q (the 257 even steps) with q.qt (2 x SUM_QT tail values: the low tail rising, then the high tail rising)
+    var q = new Array(SUM_Q), qt = new Array(2 * SUM_QT), k, pos, lo, fr, v, e;
+    for (k = 0; k < QP.length; k++) { e = QP[k]; pos = e[0] * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); v = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; if (e[1]) qt[e[2]] = v; else q[e[2]] = v; }
+    q.qt = qt; return q;
+  }
+  function qMap(q, f) { var o = q.map(f); if (q.qt) o.qt = q.qt.map(f); return o; }
   function qSortedArr(s, m) { return qOf(function (r) { return s[r]; }, m); }
-  function sumGridIdx(n) { var g = [], k, pos, lo; for (k = 0; k < SUM_Q; k++) { pos = k / (SUM_Q - 1) * (n - 1); lo = Math.floor(pos); g.push(lo); if (lo + 1 < n) g.push(lo + 1); } return g; }   // the ranks the grid reads (rising)
+  function sumGridIdx(n) { var g = [], k, pos, lo; for (k = 0; k < QP.length; k++) { pos = QP[k][0] * (n - 1); lo = Math.floor(pos); g.push(lo, n - 1 - lo); if (lo + 1 < n) g.push(lo + 1, n - 2 - lo); } g.sort(function (x, y) { return x - y; }); return g.filter(function (x, i) { return x >= 0 && x < n && (i === 0 || x !== g[i - 1]); }); }   // the ranks the grid reads, and their mirror images (a falling column reads them from the end)   // the ranks the grid reads (rising)
   function qCounts(cnt, base, tot) {   // whole numbers counted over [base, base + cnt.length): exact distinct values, or the exact grid
     var d = 0, i, vals = [], ns = [], at, run;
     for (i = 0; i < cnt.length; i++) if (cnt[i]) { d++; if (d <= SUM_Q) { vals.push(base + i); ns.push(cnt[i]); } }
@@ -46,10 +55,12 @@
       else { j = Math.max(0, Math.floor(a0 * SUM_QS / N) - 1); while (j < SUM_QS && sposAt(j, N) < a0) j++;
         sv = new Float64Array(Math.min(SUM_QS - j, Math.ceil(c * SUM_QS / N) + 2)); t = 0;   // positions rise by at least one slice each, so the block holds at most this many
         for (; j < SUM_QS && (p = sposAt(j, N)) < a0 + c; j++) { x = r[p - a0]; if (x - x === 0) sv[t++] = x; } sv = sv.subarray(0, t); }
-      sortF64(sv); svn = sv.length;
+      if (mx - mn <= SUM_CNT && mn === Math.floor(mn)) { cnt = new Int32Array(mx - mn + 1); for (i = 0; i < c; i++) { x = r[i]; if (x - x !== 0) continue; if (x !== Math.floor(x)) { cnt = null; break; } cnt[x - mn]++; } }   // whole numbers close together: counted
+      // the sample sorted (since 0.24.0 without the radix sort when it is already in order, rising or falling, or when the block's values were counted: a counting sort over that small range)
+      if (asc) { /* in order */ } else if (desc) sv.reverse(); else if (cnt) { var sc = new Int32Array(cnt.length), q2; for (i = 0; i < sv.length; i++) sc[sv[i] - mn]++; for (q2 = 0, i = 0; q2 < sc.length; q2++) for (t = sc[q2]; t > 0; t--) sv[i++] = mn + q2; } else sortF64(sv);
+      svn = sv.length;
       if (N > SUM_QS && svn > SUM_KEEP && c < N) { var kp = new Float64Array(SUM_KEEP), z; for (z = 0; z < SUM_KEEP; z++) kp[z] = sv[Math.round(z * (svn - 1) / (SUM_KEEP - 1))]; sv = kp; }   // a long block keeps SUM_KEEP evenly spaced order statistics of its sample, each standing for svn / SUM_KEEP values
       G = R.G; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= a0 && G[j] < a0 + c) gv.push(G[j], r[G[j] - a0]);
-      if (mx - mn <= SUM_CNT && mn === Math.floor(mn)) { cnt = new Int32Array(mx - mn + 1); for (i = 0; i < c; i++) { x = r[i]; if (x - x !== 0) continue; if (x !== Math.floor(x)) { cnt = null; break; } cnt[x - mn]++; } }   // whole numbers close together: counted
     }
     return { a: a0, n: c, nulls: nul, have: have, mn: mn, mx: mx, asc: have && asc, desc: have && desc, first: first, last: last, sv: sv, svn: svn, gv: gv, cnt: cnt, b0: b0, bmn: bmn, bmx: bmx, bct: bct };
   }
@@ -101,8 +112,8 @@
       if (!g.nulls && (g.asc || g.desc)) { gm = new Map(); for (i = 0; i < bl.length; i++) for (j = 0; j < bl[i].gv.length; j += 2) gm.set(bl[i].gv[j], bl[i].gv[j + 1]);   // ordered: the grid values were kept at their exact ranks
         g.q = qOf(g.asc ? function (x) { return f(gm.get(x)); } : function (x) { return f(gm.get(n - 1 - x)); }, n); }
       else if (cntOk && g.mx - g.mn <= 65536) { var cnt = new Int32Array(g.mx - g.mn + 1), qc; for (i = 0; i < bl.length; i++) { b = bl[i]; if (b.cnt) for (j = 0; j < b.cnt.length; j++) cnt[b.mn - g.mn + j] += b.cnt[j]; }
-        qc = qCounts(cnt, g.mn, tot); g.q = sc === 1 ? qc.q : qc.q.map(f); if (qc.exact) { g.qExact = true; g.qn = qc.qn; } }
-      else { g.q = qWeighted(runs, m); if (sc !== 1) g.q = g.q.map(f); if (n > SUM_QS) g.qSample = m; }
+        qc = qCounts(cnt, g.mn, tot); g.q = sc === 1 ? qc.q : qMap(qc.q, f); if (qc.exact) { g.qExact = true; g.qn = qc.qn; } }
+      else { g.q = qWeighted(runs, m); if (sc !== 1) g.q = qMap(g.q, f); if (n > SUM_QS) g.qSample = m; }
     }
     if (R.bin) {   // pyramid bins of the whole column
       var nb = Math.ceil(n / R.bin), pmn = new Float64Array(nb).fill(NaN), pmx = new Float64Array(nb).fill(NaN), pct = new Uint32Array(nb), t, gb, v;
@@ -117,7 +128,7 @@
   }
   function putMerged(c, g, type) {   // a merged result into the summary entry; the pyramid rides along (taken off before the entry is written)
     c.type = type; c.nulls = g.nulls; c.min = g.have ? g.min : null; c.max = g.have ? g.max : null; c.sorted = g.have ? (g.asc ? 'asc' : g.desc ? 'desc' : null) : null;
-    if (g.q) { c.q = g.q; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
+    if (g.q) { c.q = g.q; if (g.q.qt && !g.qExact) c.qt = g.q.qt; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
     if (g.pyr) c._pyr = g.pyr;
     return c;
   }
@@ -160,11 +171,11 @@
   function sumDateMs(s) { var t = Date.parse((s.charCodeAt(10) === 32 ? s.slice(0, 10) + 'T' + s.slice(11) : s) + (s.charCodeAt(s.length - 1) === 90 ? '' : 'Z')); return t === t ? t : null; }   // read as UTC, as the date columns are
   function sumDateQ(c, a, n, nl, sa, sd) {   // the grid of a date column read from its strings (when the writer left no date numbers): ordered columns at exact ranks, others from up to SUM_QS / 4 parsed values
     var P, sm, j, m, x, t, step;
-    if (!nl && (sa || sd)) { c.q = qOf(sa ? function (r) { return sumDateMs(a[r]); } : function (r) { return sumDateMs(a[n - 1 - r]); }, n); for (j = 0; j < c.q.length; j++) if (c.q[j] === null) { delete c.q; return; } return; }
+    if (!nl && (sa || sd)) { c.q = qOf(sa ? function (r) { return sumDateMs(a[r]); } : function (r) { return sumDateMs(a[n - 1 - r]); }, n); for (j = 0; j < c.q.length; j++) if (c.q[j] === null) { delete c.q; return; } for (j = 0; j < c.q.qt.length; j++) if (c.q.qt[j] === null) { delete c.q; return; } c.qt = c.q.qt; return; }
     if (n <= SUM_QS / 4) { P = null; m = n; } else { P = sumPos(n); m = SUM_QS / 4; }
     sm = new Float64Array(m); step = P ? 4 : 1;
     for (j = 0, x = 0; j < m; j++) { t = a[P ? P[j * step] : j]; if (typeof t === 'string' && (t = sumDateMs(t)) !== null) sm[x++] = t; }
-    if (!x) return; sm = sm.subarray(0, x); sm.sort(); c.q = qSortedArr(sm, x); if (P) c.qSample = x;
+    if (!x) return; sm = sm.subarray(0, x); sm.sort(); c.q = qSortedArr(sm, x); c.qt = c.q.qt; if (P) c.qSample = x;
   }
   function sumMergeU(cp, n, R) { var k0 = Object.keys(cp)[0], u = k0 !== undefined && cp[k0].u; return sumMerge(cp, n, R, u ? 0.001 : 1, !!u); }   // date numbers the writer left: microseconds for six-digit forms
   function sumColumn(key, a, n, cp, R) {   // R: the request (sumReq), or a boolean (quantile grid or not, no pyramid) for tests; cp: the blocks' parts the writer left for this key, if any
@@ -239,7 +250,7 @@
   // { sum: section 20 payload or null, pyr: section 21 payload or null }; cap is where the writer leaves each block's part (SUMCAP)
   function sumJobs(obj, n, opts) {
     opts = opts || {};
-    var so = opts._sort || null, keys = Object.keys(obj).filter(function (k) { return !(so && so.keep && k === SORT_ROW); }), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
+    var so = opts._sort || null, keys = Object.keys(obj).filter(function (k) { return !(so && so.keep && k === SORT_ROW) && !(so && so.hide && so.hide.indexOf(k) >= 0); }), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
     function one(k) { st[k] = 1; try { cols[k] = sumColumn(keys[k], obj[keys[k]], n, cap.cols[keys[k]], R); } catch (e) { bad = true; } }
     function next(early) {   // early (blocks still being written): only columns that are not plain arrays or typed numbers, since those wait for the parts every block leaves
       for (var k = 0; k < m; k++) if (!st[k] && !(early && (Array.isArray(obj[keys[k]]) || ArrayBuffer.isView(obj[keys[k]]) || isTsCol(obj[keys[k]])))) { one(k); return true; }
@@ -247,8 +258,8 @@
     function result() {
       if (bad) return { sum: null, pyr: null };
       var py = [], k, o; for (k = 0; k < m; k++) if (cols[k]._pyr) { py.push([keys[k], cols[k]._pyr]); delete cols[k]._pyr; }
-      o = { v: 1, rows: n }; if (so) { o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
-      o.cols = cols; if (cut) { o.colsCut = true; if (so && so.keep) o.keys = keys; }
+      o = { v: 1, rows: n }; if (so) { if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.hide) o.hidden = so.hide; if (so.keep) o.rowIndex = SORT_ROW; if (so.key !== null) for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
+      o.cols = cols; if (cut) { o.colsCut = true; if (so && (so.keep || so.hide)) o.keys = keys; }
       return { sum: te.encode(JSON.stringify(o)), pyr: py.length ? pyrPayload(py, n, R.bin) : null };
     }
     return { cap: cap, next: next, done: function () { while (next(false)); return Promise.resolve(result()); }, payload: function () { while (next(false)); return result(); } };
@@ -303,4 +314,37 @@
     t.set(u32le(nf.length), 0); t.set(u32le(crcJS(nf, 0)), 4); t.set(file.subarray(n - 8, n - 4), 8); t.set(MAGIC, 12);
     return concat([file.subarray(0, n - 16 - flen), nf, t]);
   }
-  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? JSON.parse(tdr.decode(s)) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded
+  // since 0.18.0: answers from the quantile grid with nothing decoded. quantile(key, p) -> the value at share p (0..1) of the column's non-missing values, linear between ranks (as the grid is built);
+  // countAbove(key, x) / countBelow(key, x) -> how many non-missing values are > x / < x. Exact when the entry is exact (qExact: the distinct values and their counts; or a grid read from every value
+  // at ranks that hit each value), otherwise an estimate within the grid's rank error (one grid step is 1/256 of the values). null when the column has no grid. Dates: x and the answer in epoch ms (a Date is taken too).
+  function sumEntry(s, key) { var cs = s.cols, i; for (i = 0; i < cs.length; i++) if (cs[i].key === key) return cs[i].q && cs[i].q.length ? cs[i] : null; return null; }
+  function sumGrid(c) { var q = c.q; if (c.qExact || q[0] === c.min && q[q.length - 1] === c.max || typeof c.min !== 'number') return q; q = q.slice(); q[0] = c.min; q[q.length - 1] = c.max; return q; }   // a sampled grid's ends are the sample's: the true ends are min and max
+  function sumX(x) { return x instanceof Date ? x.getTime() : +x; }
+  // with tail points (since 0.24.0): the shares and values of every grid point, ends at min and max, read linearly between neighbours (as the even steps are)
+  function sumPts(c) { var q = sumGrid(c), P = [], V = [], k, e; for (k = 0; k < QP.length; k++) { e = QP[k]; P.push(e[0]); V.push(e[1] ? c.qt[e[2]] : q[e[2]]); } return { P: P, V: V }; }
+  function sumQuantile(key, p) {
+    var c = sumEntry(this, key), q, m, r, lo, k, run, v, w; if (!c) return null; p = +p; if (!(p >= 0 && p <= 1)) throw new Error('LfcPack: quantile p must be from 0 to 1');
+    q = sumGrid(c); m = q.length;
+    if (c.qExact) { for (k = 0, run = 0; k < m; k++) run += c.qn[k]; r = p * (run - 1); lo = Math.floor(r);
+      for (k = 0, run = 0; k < m && run + c.qn[k] <= lo; k++) run += c.qn[k]; v = q[k]; if (r === lo || run + c.qn[k] > lo + 1) return v; w = q[k + 1]; return v + (r - lo) * (w - v); }
+    if (c.qt && c.qt.length === 2 * SUM_QT) { var G = sumPts(c), P = G.P, V = G.V; for (k = 0; k + 2 < P.length && P[k + 1] <= p; k++); if (p <= P[k]) return V[k]; if (p >= P[k + 1]) return V[k + 1]; return V[k] + (p - P[k]) / (P[k + 1] - P[k]) * (V[k + 1] - V[k]); }
+    r = p * (m - 1); lo = Math.floor(r); return r === lo ? q[lo] : q[lo] + (r - lo) * (q[lo + 1] - q[lo]);
+  }
+  function sumCount(key, x, above) {   // non-missing values > x (above) or < x
+    var c = sumEntry(this, key), q, m, N, k, cnt, lo, hi, a, b, f; if (!c) return null; x = sumX(x); if (x !== x) return null; q = sumGrid(c); m = q.length; N = c.n - c.nulls;
+    if (c.qExact) { for (k = 0, cnt = 0; k < m; k++) if (above ? q[k] > x : q[k] < x) cnt += c.qn[k]; return cnt; }
+    if (above ? x < q[0] : x > q[m - 1]) return N; if (above ? x >= q[m - 1] : x <= q[0]) return 0;
+    // the fractional rank r where the grid reaches x: values at ranks 0..floor(r) are <= x (for above), ranks 0..ceil(r)-1 are < x (for below)
+    var s = (N - 1) / (m - 1), r;
+    if (c.qt && c.qt.length === 2 * SUM_QT) { var G = sumPts(c), P = G.P, V = G.V, M = P.length;   // the same steps over the grid with tail points: the share where the grid reaches x, as a rank
+      if (above) { lo = 0; hi = M - 2; while (lo < hi) { k = (lo + hi + 1) >> 1; if (V[k] <= x) lo = k; else hi = k - 1; } r = (P[lo] + (x - V[lo]) / (V[lo + 1] - V[lo]) * (P[lo + 1] - P[lo])) * (N - 1); r = Math.round(r * 1e9) / 1e9; return N - Math.min(N, Math.floor(r) + 1); }
+      lo = 1; hi = M - 1; while (lo < hi) { k = (lo + hi) >> 1; if (V[k] >= x) hi = k; else lo = k + 1; } r = (P[lo - 1] + (x - V[lo - 1]) / (V[lo] - V[lo - 1]) * (P[lo] - P[lo - 1])) * (N - 1); r = Math.round(r * 1e9) / 1e9; return Math.min(N, Math.ceil(r)); }
+    if (above) { lo = 0; hi = m - 2; while (lo < hi) { k = (lo + hi + 1) >> 1; if (q[k] <= x) lo = k; else hi = k - 1; } r = (lo + (x - q[lo]) / (q[lo + 1] - q[lo])) * s; r = Math.round(r * 1e9) / 1e9; return N - Math.min(N, Math.floor(r) + 1); }
+    lo = 1; hi = m - 1; while (lo < hi) { k = (lo + hi) >> 1; if (q[k] >= x) hi = k; else lo = k + 1; } r = (lo - 1 + (x - q[lo - 1]) / (q[lo] - q[lo - 1])) * s; r = Math.round(r * 1e9) / 1e9; return Math.min(N, Math.ceil(r));
+  }
+  function sumAttach(s) {
+    if (s && Array.isArray(s.cols)) { var d = function (k, fn) { Object.defineProperty(s, k, { value: fn, enumerable: false, configurable: true, writable: true }); };
+      d('quantile', sumQuantile); d('countAbove', function (key, x) { return sumCount.call(this, key, x, true); }); d('countBelow', function (key, x) { return sumCount.call(this, key, x, false); }); }
+    return s;
+  }
+  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? sumAttach(JSON.parse(tdr.decode(s))) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded

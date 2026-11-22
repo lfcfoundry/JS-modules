@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.17.0 (API 0)
+ * Version 0.24.0 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -2669,7 +2669,7 @@
   // ================================================================ container: blocks, then footer v1 (sections), then the 16-byte trailer
   var MAJOR = 1, MINOR = 0, MAGIC = [76, 70, 67, 49];   // "LFC1"
   var SEC_HEADER = 1, SEC_BLOCKS = 2, SEC_ZONE = 5, SEC_META = 6, SEC_FLAGS = 12, SEC_RAW = 9, SEC_SPELL = 15, SEC_SHARED = 16, SEC_DELTA = 17, SEC_EQF = 18, SEC_LABELS = 19, SHREG = {};   // 19: label tables of flat blocks (required, since 0.13.0)
-  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1, 21: 1, 23: 1 };   // 18: NX A equality filters (optional)   // 15 is the number-spelling section, 16 the shared tables of nested blocks   // 8 and 13 are reserved
+  var KNOWN = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 9: 1, 10: 1, 11: 1, 12: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1, 21: 1, 22: 1, 23: 1, 24: 1 };   // 18: NX A equality filters (optional)   // 15 is the number-spelling section, 16 the shared tables of nested blocks   // 8 and 13 are reserved
   function writeFooter(zs, sections, compress, minor) {   // minor: 1 when a null-plane (N) column was written, else the file stays minor 0 and 0.8.x readers open it
     var parts = [], i, s, h;
     for (i = 0; i < sections.length; i++) { s = sections[i]; h = new Uint8Array(8); h[0] = s.id; h[1] = s.id >> 8; h[2] = s.flags; h[3] = s.flags >> 8; h.set(u32le(s.payload.length), 4); parts.push(h, s.payload); }
@@ -2739,9 +2739,18 @@
   var SUM_Q = 257, SUM_QS = 65536, SUM_CNT = 4096, SUM_KEEP = 1025, PYR_BINS = 4096;   // 4,096 bins (since 0.16.0; 2,048 in 0.15.0): netflow-plot draws from bins while there are 2 or more per pixel, so charts up to 2,048 px wide
   function sposAt(j, N) { return Math.min(N - 1, Math.floor((j + (Math.imul(j ^ 0x9E3779B9, 0x85EBCA6B) >>> 0) / 4294967296) * N / SUM_QS)); }   // sample position j of SUM_QS over N > SUM_QS rows: one fixed place in each equal slice, rising with j
   function sumPos(n) { var p = new Int32Array(SUM_QS), j; for (j = 0; j < SUM_QS; j++) p[j] = sposAt(j, n); return p; }
-  function qOf(get, m) { var q = new Array(SUM_Q), k, pos, lo, fr, v; for (k = 0; k < SUM_Q; k++) { pos = k / (SUM_Q - 1) * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); q[k] = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; } return q; }   // the grid from a value-at-rank function over m ranks
+  // since 0.24.0 the grid also has tail points (qt): the values at shares 2^(-j/2) and 1 - 2^(-j/2) for j = 13 .. 32 (from 1/91 to 1/65,536 from each end), where the 257 even steps are too coarse
+  // (the last step is 1/256 of the values, so a 99.9th percentile read between it and the maximum was 80% to 300% off on skewed columns; with the tail points under 3%)
+  var SUM_QT = 20, QP = (function () { var a = [], k, j; for (k = 0; k < SUM_Q; k++) a.push([k / (SUM_Q - 1), 0, k]); for (j = 0; j < SUM_QT; j++) { a.push([Math.pow(2, -(32 - j) / 2), 1, j]); a.push([1 - Math.pow(2, -(13 + j) / 2), 1, SUM_QT + j]); }
+    a.sort(function (x, y) { return x[0] - y[0]; }); return a; })();   // every grid share, rising: [p, 0 even step | 1 tail, index]
+  function qOf(get, m) {   // the grid from a value-at-rank function over m ranks (asked for in rising order): q (the 257 even steps) with q.qt (2 x SUM_QT tail values: the low tail rising, then the high tail rising)
+    var q = new Array(SUM_Q), qt = new Array(2 * SUM_QT), k, pos, lo, fr, v, e;
+    for (k = 0; k < QP.length; k++) { e = QP[k]; pos = e[0] * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); v = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; if (e[1]) qt[e[2]] = v; else q[e[2]] = v; }
+    q.qt = qt; return q;
+  }
+  function qMap(q, f) { var o = q.map(f); if (q.qt) o.qt = q.qt.map(f); return o; }
   function qSortedArr(s, m) { return qOf(function (r) { return s[r]; }, m); }
-  function sumGridIdx(n) { var g = [], k, pos, lo; for (k = 0; k < SUM_Q; k++) { pos = k / (SUM_Q - 1) * (n - 1); lo = Math.floor(pos); g.push(lo); if (lo + 1 < n) g.push(lo + 1); } return g; }   // the ranks the grid reads (rising)
+  function sumGridIdx(n) { var g = [], k, pos, lo; for (k = 0; k < QP.length; k++) { pos = QP[k][0] * (n - 1); lo = Math.floor(pos); g.push(lo, n - 1 - lo); if (lo + 1 < n) g.push(lo + 1, n - 2 - lo); } g.sort(function (x, y) { return x - y; }); return g.filter(function (x, i) { return x >= 0 && x < n && (i === 0 || x !== g[i - 1]); }); }   // the ranks the grid reads, and their mirror images (a falling column reads them from the end)   // the ranks the grid reads (rising)
   function qCounts(cnt, base, tot) {   // whole numbers counted over [base, base + cnt.length): exact distinct values, or the exact grid
     var d = 0, i, vals = [], ns = [], at, run;
     for (i = 0; i < cnt.length; i++) if (cnt[i]) { d++; if (d <= SUM_Q) { vals.push(base + i); ns.push(cnt[i]); } }
@@ -2773,10 +2782,12 @@
       else { j = Math.max(0, Math.floor(a0 * SUM_QS / N) - 1); while (j < SUM_QS && sposAt(j, N) < a0) j++;
         sv = new Float64Array(Math.min(SUM_QS - j, Math.ceil(c * SUM_QS / N) + 2)); t = 0;   // positions rise by at least one slice each, so the block holds at most this many
         for (; j < SUM_QS && (p = sposAt(j, N)) < a0 + c; j++) { x = r[p - a0]; if (x - x === 0) sv[t++] = x; } sv = sv.subarray(0, t); }
-      sortF64(sv); svn = sv.length;
+      if (mx - mn <= SUM_CNT && mn === Math.floor(mn)) { cnt = new Int32Array(mx - mn + 1); for (i = 0; i < c; i++) { x = r[i]; if (x - x !== 0) continue; if (x !== Math.floor(x)) { cnt = null; break; } cnt[x - mn]++; } }   // whole numbers close together: counted
+      // the sample sorted (since 0.24.0 without the radix sort when it is already in order, rising or falling, or when the block's values were counted: a counting sort over that small range)
+      if (asc) { /* in order */ } else if (desc) sv.reverse(); else if (cnt) { var sc = new Int32Array(cnt.length), q2; for (i = 0; i < sv.length; i++) sc[sv[i] - mn]++; for (q2 = 0, i = 0; q2 < sc.length; q2++) for (t = sc[q2]; t > 0; t--) sv[i++] = mn + q2; } else sortF64(sv);
+      svn = sv.length;
       if (N > SUM_QS && svn > SUM_KEEP && c < N) { var kp = new Float64Array(SUM_KEEP), z; for (z = 0; z < SUM_KEEP; z++) kp[z] = sv[Math.round(z * (svn - 1) / (SUM_KEEP - 1))]; sv = kp; }   // a long block keeps SUM_KEEP evenly spaced order statistics of its sample, each standing for svn / SUM_KEEP values
       G = R.G; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= a0 && G[j] < a0 + c) gv.push(G[j], r[G[j] - a0]);
-      if (mx - mn <= SUM_CNT && mn === Math.floor(mn)) { cnt = new Int32Array(mx - mn + 1); for (i = 0; i < c; i++) { x = r[i]; if (x - x !== 0) continue; if (x !== Math.floor(x)) { cnt = null; break; } cnt[x - mn]++; } }   // whole numbers close together: counted
     }
     return { a: a0, n: c, nulls: nul, have: have, mn: mn, mx: mx, asc: have && asc, desc: have && desc, first: first, last: last, sv: sv, svn: svn, gv: gv, cnt: cnt, b0: b0, bmn: bmn, bmx: bmx, bct: bct };
   }
@@ -2828,8 +2839,8 @@
       if (!g.nulls && (g.asc || g.desc)) { gm = new Map(); for (i = 0; i < bl.length; i++) for (j = 0; j < bl[i].gv.length; j += 2) gm.set(bl[i].gv[j], bl[i].gv[j + 1]);   // ordered: the grid values were kept at their exact ranks
         g.q = qOf(g.asc ? function (x) { return f(gm.get(x)); } : function (x) { return f(gm.get(n - 1 - x)); }, n); }
       else if (cntOk && g.mx - g.mn <= 65536) { var cnt = new Int32Array(g.mx - g.mn + 1), qc; for (i = 0; i < bl.length; i++) { b = bl[i]; if (b.cnt) for (j = 0; j < b.cnt.length; j++) cnt[b.mn - g.mn + j] += b.cnt[j]; }
-        qc = qCounts(cnt, g.mn, tot); g.q = sc === 1 ? qc.q : qc.q.map(f); if (qc.exact) { g.qExact = true; g.qn = qc.qn; } }
-      else { g.q = qWeighted(runs, m); if (sc !== 1) g.q = g.q.map(f); if (n > SUM_QS) g.qSample = m; }
+        qc = qCounts(cnt, g.mn, tot); g.q = sc === 1 ? qc.q : qMap(qc.q, f); if (qc.exact) { g.qExact = true; g.qn = qc.qn; } }
+      else { g.q = qWeighted(runs, m); if (sc !== 1) g.q = qMap(g.q, f); if (n > SUM_QS) g.qSample = m; }
     }
     if (R.bin) {   // pyramid bins of the whole column
       var nb = Math.ceil(n / R.bin), pmn = new Float64Array(nb).fill(NaN), pmx = new Float64Array(nb).fill(NaN), pct = new Uint32Array(nb), t, gb, v;
@@ -2844,7 +2855,7 @@
   }
   function putMerged(c, g, type) {   // a merged result into the summary entry; the pyramid rides along (taken off before the entry is written)
     c.type = type; c.nulls = g.nulls; c.min = g.have ? g.min : null; c.max = g.have ? g.max : null; c.sorted = g.have ? (g.asc ? 'asc' : g.desc ? 'desc' : null) : null;
-    if (g.q) { c.q = g.q; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
+    if (g.q) { c.q = g.q; if (g.q.qt && !g.qExact) c.qt = g.q.qt; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
     if (g.pyr) c._pyr = g.pyr;
     return c;
   }
@@ -2887,11 +2898,11 @@
   function sumDateMs(s) { var t = Date.parse((s.charCodeAt(10) === 32 ? s.slice(0, 10) + 'T' + s.slice(11) : s) + (s.charCodeAt(s.length - 1) === 90 ? '' : 'Z')); return t === t ? t : null; }   // read as UTC, as the date columns are
   function sumDateQ(c, a, n, nl, sa, sd) {   // the grid of a date column read from its strings (when the writer left no date numbers): ordered columns at exact ranks, others from up to SUM_QS / 4 parsed values
     var P, sm, j, m, x, t, step;
-    if (!nl && (sa || sd)) { c.q = qOf(sa ? function (r) { return sumDateMs(a[r]); } : function (r) { return sumDateMs(a[n - 1 - r]); }, n); for (j = 0; j < c.q.length; j++) if (c.q[j] === null) { delete c.q; return; } return; }
+    if (!nl && (sa || sd)) { c.q = qOf(sa ? function (r) { return sumDateMs(a[r]); } : function (r) { return sumDateMs(a[n - 1 - r]); }, n); for (j = 0; j < c.q.length; j++) if (c.q[j] === null) { delete c.q; return; } for (j = 0; j < c.q.qt.length; j++) if (c.q.qt[j] === null) { delete c.q; return; } c.qt = c.q.qt; return; }
     if (n <= SUM_QS / 4) { P = null; m = n; } else { P = sumPos(n); m = SUM_QS / 4; }
     sm = new Float64Array(m); step = P ? 4 : 1;
     for (j = 0, x = 0; j < m; j++) { t = a[P ? P[j * step] : j]; if (typeof t === 'string' && (t = sumDateMs(t)) !== null) sm[x++] = t; }
-    if (!x) return; sm = sm.subarray(0, x); sm.sort(); c.q = qSortedArr(sm, x); if (P) c.qSample = x;
+    if (!x) return; sm = sm.subarray(0, x); sm.sort(); c.q = qSortedArr(sm, x); c.qt = c.q.qt; if (P) c.qSample = x;
   }
   function sumMergeU(cp, n, R) { var k0 = Object.keys(cp)[0], u = k0 !== undefined && cp[k0].u; return sumMerge(cp, n, R, u ? 0.001 : 1, !!u); }   // date numbers the writer left: microseconds for six-digit forms
   function sumColumn(key, a, n, cp, R) {   // R: the request (sumReq), or a boolean (quantile grid or not, no pyramid) for tests; cp: the blocks' parts the writer left for this key, if any
@@ -2966,7 +2977,7 @@
   // { sum: section 20 payload or null, pyr: section 21 payload or null }; cap is where the writer leaves each block's part (SUMCAP)
   function sumJobs(obj, n, opts) {
     opts = opts || {};
-    var so = opts._sort || null, keys = Object.keys(obj).filter(function (k) { return !(so && so.keep && k === SORT_ROW); }), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
+    var so = opts._sort || null, keys = Object.keys(obj).filter(function (k) { return !(so && so.keep && k === SORT_ROW) && !(so && so.hide && so.hide.indexOf(k) >= 0); }), cut = keys.length > SUM_KEYS, m = cut ? SUM_KEYS : keys.length, cols = new Array(m), bad = false, R = sumReq(n, opts.quantiles !== false, opts.pyramids), cap = { cols: {}, R: R }, st = new Uint8Array(m);
     function one(k) { st[k] = 1; try { cols[k] = sumColumn(keys[k], obj[keys[k]], n, cap.cols[keys[k]], R); } catch (e) { bad = true; } }
     function next(early) {   // early (blocks still being written): only columns that are not plain arrays or typed numbers, since those wait for the parts every block leaves
       for (var k = 0; k < m; k++) if (!st[k] && !(early && (Array.isArray(obj[keys[k]]) || ArrayBuffer.isView(obj[keys[k]]) || isTsCol(obj[keys[k]])))) { one(k); return true; }
@@ -2974,8 +2985,8 @@
     function result() {
       if (bad) return { sum: null, pyr: null };
       var py = [], k, o; for (k = 0; k < m; k++) if (cols[k]._pyr) { py.push([keys[k], cols[k]._pyr]); delete cols[k]._pyr; }
-      o = { v: 1, rows: n }; if (so) { o.sortedBy = so.key; if (so.keep) o.rowIndex = SORT_ROW; for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
-      o.cols = cols; if (cut) { o.colsCut = true; if (so && so.keep) o.keys = keys; }
+      o = { v: 1, rows: n }; if (so) { if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.hide) o.hidden = so.hide; if (so.keep) o.rowIndex = SORT_ROW; if (so.key !== null) for (k = 0; k < m; k++) if (keys[k] === so.key) cols[k].sorted = so.desc ? 'desc' : 'asc'; }   // since 0.16.0: the sortBy column, and the column keepOrder added (not summed itself)
+      o.cols = cols; if (cut) { o.colsCut = true; if (so && (so.keep || so.hide)) o.keys = keys; }
       return { sum: te.encode(JSON.stringify(o)), pyr: py.length ? pyrPayload(py, n, R.bin) : null };
     }
     return { cap: cap, next: next, done: function () { while (next(false)); return Promise.resolve(result()); }, payload: function () { while (next(false)); return result(); } };
@@ -3030,7 +3041,40 @@
     t.set(u32le(nf.length), 0); t.set(u32le(crcJS(nf, 0)), 4); t.set(file.subarray(n - 8, n - 4), 8); t.set(MAGIC, 12);
     return concat([file.subarray(0, n - 16 - flen), nf, t]);
   }
-  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? JSON.parse(tdr.decode(s)) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded
+  // since 0.18.0: answers from the quantile grid with nothing decoded. quantile(key, p) -> the value at share p (0..1) of the column's non-missing values, linear between ranks (as the grid is built);
+  // countAbove(key, x) / countBelow(key, x) -> how many non-missing values are > x / < x. Exact when the entry is exact (qExact: the distinct values and their counts; or a grid read from every value
+  // at ranks that hit each value), otherwise an estimate within the grid's rank error (one grid step is 1/256 of the values). null when the column has no grid. Dates: x and the answer in epoch ms (a Date is taken too).
+  function sumEntry(s, key) { var cs = s.cols, i; for (i = 0; i < cs.length; i++) if (cs[i].key === key) return cs[i].q && cs[i].q.length ? cs[i] : null; return null; }
+  function sumGrid(c) { var q = c.q; if (c.qExact || q[0] === c.min && q[q.length - 1] === c.max || typeof c.min !== 'number') return q; q = q.slice(); q[0] = c.min; q[q.length - 1] = c.max; return q; }   // a sampled grid's ends are the sample's: the true ends are min and max
+  function sumX(x) { return x instanceof Date ? x.getTime() : +x; }
+  // with tail points (since 0.24.0): the shares and values of every grid point, ends at min and max, read linearly between neighbours (as the even steps are)
+  function sumPts(c) { var q = sumGrid(c), P = [], V = [], k, e; for (k = 0; k < QP.length; k++) { e = QP[k]; P.push(e[0]); V.push(e[1] ? c.qt[e[2]] : q[e[2]]); } return { P: P, V: V }; }
+  function sumQuantile(key, p) {
+    var c = sumEntry(this, key), q, m, r, lo, k, run, v, w; if (!c) return null; p = +p; if (!(p >= 0 && p <= 1)) throw new Error('LfcPack: quantile p must be from 0 to 1');
+    q = sumGrid(c); m = q.length;
+    if (c.qExact) { for (k = 0, run = 0; k < m; k++) run += c.qn[k]; r = p * (run - 1); lo = Math.floor(r);
+      for (k = 0, run = 0; k < m && run + c.qn[k] <= lo; k++) run += c.qn[k]; v = q[k]; if (r === lo || run + c.qn[k] > lo + 1) return v; w = q[k + 1]; return v + (r - lo) * (w - v); }
+    if (c.qt && c.qt.length === 2 * SUM_QT) { var G = sumPts(c), P = G.P, V = G.V; for (k = 0; k + 2 < P.length && P[k + 1] <= p; k++); if (p <= P[k]) return V[k]; if (p >= P[k + 1]) return V[k + 1]; return V[k] + (p - P[k]) / (P[k + 1] - P[k]) * (V[k + 1] - V[k]); }
+    r = p * (m - 1); lo = Math.floor(r); return r === lo ? q[lo] : q[lo] + (r - lo) * (q[lo + 1] - q[lo]);
+  }
+  function sumCount(key, x, above) {   // non-missing values > x (above) or < x
+    var c = sumEntry(this, key), q, m, N, k, cnt, lo, hi, a, b, f; if (!c) return null; x = sumX(x); if (x !== x) return null; q = sumGrid(c); m = q.length; N = c.n - c.nulls;
+    if (c.qExact) { for (k = 0, cnt = 0; k < m; k++) if (above ? q[k] > x : q[k] < x) cnt += c.qn[k]; return cnt; }
+    if (above ? x < q[0] : x > q[m - 1]) return N; if (above ? x >= q[m - 1] : x <= q[0]) return 0;
+    // the fractional rank r where the grid reaches x: values at ranks 0..floor(r) are <= x (for above), ranks 0..ceil(r)-1 are < x (for below)
+    var s = (N - 1) / (m - 1), r;
+    if (c.qt && c.qt.length === 2 * SUM_QT) { var G = sumPts(c), P = G.P, V = G.V, M = P.length;   // the same steps over the grid with tail points: the share where the grid reaches x, as a rank
+      if (above) { lo = 0; hi = M - 2; while (lo < hi) { k = (lo + hi + 1) >> 1; if (V[k] <= x) lo = k; else hi = k - 1; } r = (P[lo] + (x - V[lo]) / (V[lo + 1] - V[lo]) * (P[lo + 1] - P[lo])) * (N - 1); r = Math.round(r * 1e9) / 1e9; return N - Math.min(N, Math.floor(r) + 1); }
+      lo = 1; hi = M - 1; while (lo < hi) { k = (lo + hi) >> 1; if (V[k] >= x) hi = k; else lo = k + 1; } r = (P[lo - 1] + (x - V[lo - 1]) / (V[lo] - V[lo - 1]) * (P[lo] - P[lo - 1])) * (N - 1); r = Math.round(r * 1e9) / 1e9; return Math.min(N, Math.ceil(r)); }
+    if (above) { lo = 0; hi = m - 2; while (lo < hi) { k = (lo + hi + 1) >> 1; if (q[k] <= x) lo = k; else hi = k - 1; } r = (lo + (x - q[lo]) / (q[lo + 1] - q[lo])) * s; r = Math.round(r * 1e9) / 1e9; return N - Math.min(N, Math.floor(r) + 1); }
+    lo = 1; hi = m - 1; while (lo < hi) { k = (lo + hi) >> 1; if (q[k] >= x) hi = k; else lo = k + 1; } r = (lo - 1 + (x - q[lo - 1]) / (q[lo] - q[lo - 1])) * s; r = Math.round(r * 1e9) / 1e9; return Math.min(N, Math.ceil(r));
+  }
+  function sumAttach(s) {
+    if (s && Array.isArray(s.cols)) { var d = function (k, fn) { Object.defineProperty(s, k, { value: fn, enumerable: false, configurable: true, writable: true }); };
+      d('quantile', sumQuantile); d('countAbove', function (key, x) { return sumCount.call(this, key, x, true); }); d('countBelow', function (key, x) { return sumCount.call(this, key, x, false); }); }
+    return s;
+  }
+  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? sumAttach(JSON.parse(tdr.decode(s))) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ sortBy and keepOrder (writer settings, since 0.16.0; SPEC.md 2.3b)
@@ -3040,8 +3084,20 @@
   // keepOrder: true adds the number column '$row' (each row's 0-based position before the sort); section 20 then says rowIndex: '$row', readers hide that column unless asked for it by name,
   // and unpack / unpackRows with { original: true } give the rows back in the order they were saved in.
   var SORT_ROW = '$row';
-  function sortOpt(opts) {   // -> null, or { key, desc, keep }
-    var s = opts && opts.sortBy, k, d = 'asc';
+  // since 0.18.0: scramble (true or a seed): rows saved in a seeded random order instead, so every block is a uniform sample of the table and a reader can stop early with good estimates
+  // (open().progressive). No row-position column is stored: the order comes back from the seed and the row count, so { original: true } gives the input order back. Section 20 says scrambled: { seed }.
+  var SCRAMBLE_SEED = 0x2545F491;
+  function sortOpt(opts) {   // -> null, or { key, desc, keep } (key null and scr the seed for scramble)
+    var s = opts && opts.sortBy, k, d = 'asc', sc = opts && opts.scramble, seed;
+    if (sc !== undefined && sc !== null && sc !== false) {
+      if (s !== undefined && s !== null && s !== false) throw new Error('LfcPack: scramble cannot be used with sortBy (pick one)');
+      seed = sc === true ? SCRAMBLE_SEED : sc;
+      if (typeof seed !== 'number' || seed !== Math.floor(seed) || seed < 0 || seed > 4294967295) throw new Error('LfcPack: scramble must be true or a seed (a whole number from 0 to 4294967295)');
+      if (opts.exact) throw new Error('LfcPack: scramble cannot be used with exact (an exact file keeps the input as it was)');
+      if (opts.base) throw new Error('LfcPack: scramble cannot be used with a delta save (base)');
+      if (opts.keepOrder) throw new Error('LfcPack: scramble keeps the order by itself (its seed); leave keepOrder out');
+      return { key: null, desc: false, keep: false, scr: seed >>> 0 };
+    }
     if (s === undefined || s === null || s === false) { if (opts && opts.keepOrder) throw new Error('LfcPack: keepOrder needs sortBy'); return null; }
     if (Array.isArray(s)) { k = s[0]; if (s.length > 1) d = s[1]; } else k = s;
     if (typeof k !== 'string' || !k) throw new Error("LfcPack: sortBy must be a column name or [name, 'asc' | 'desc']");
@@ -3049,7 +3105,14 @@
     if (opts.exact) throw new Error('LfcPack: sortBy cannot be used with exact (an exact file keeps the input as it was)');
     if (opts.base) throw new Error('LfcPack: sortBy cannot be used with a delta save (base)');
     if (opts.keepOrder && k === SORT_ROW) throw new Error('LfcPack: sortBy cannot be ' + SORT_ROW + ' with keepOrder');
-    return { key: k, desc: d === 'desc', keep: !!opts.keepOrder };
+    var so = { key: k, desc: d === 'desc', keep: !!opts.keepOrder }; if (opts._hide) so.hide = opts._hide; return so;
+  }
+  // the seeded shuffle (Fisher-Yates over mulberry32): the same seed and row count always give the same order
+  function scramblePerm(n, seed) {
+    var P = new Uint32Array(n), i, j, x, a = seed | 0, t;
+    for (i = 0; i < n; i++) P[i] = i;
+    for (i = n - 1; i > 0; i--) { a = a + 0x6D2B79F5 | 0; t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; j = Math.floor(((t ^ t >>> 14) >>> 0) / 4294967296 * (i + 1)); x = P[i]; P[i] = P[j]; P[j] = x; }
+    return P;
   }
   // stable LSD radix sort of positions 0..m-1 by 32-bit keys (H high, L low or null), 16-bit digits, passes whose digit is the same for every key skipped -> Uint32Array of positions
   function radixPerm(H, L, m) {
@@ -3136,7 +3199,17 @@
     if (ArrayBuffer.isView(a)) return sortPermNum(a, n, desc);
     return sortPermAny(a, n, desc);
   }
-  function gatherTyped(a, P) { var n = P.length, o = new a.constructor(n), i; for (i = 0; i < n; i++) o[i] = a[P[i]]; return o; }
+  // one loop per common array type (since 0.23.0): a single loop shared by every type reads elements the slow generic way; these are 1.9 to 2.8 times faster on 1,000,000 rows
+  function gatherF64(a, P) { var n = P.length, o = new Float64Array(n), i; for (i = 0; i < n; i++) o[i] = a[P[i]]; return o; }
+  function gatherI32(a, P) { var n = P.length, o = new Int32Array(n), i; for (i = 0; i < n; i++) o[i] = a[P[i]]; return o; }
+  function gatherU32(a, P) { var n = P.length, o = new Uint32Array(n), i; for (i = 0; i < n; i++) o[i] = a[P[i]]; return o; }
+  function gatherF32(a, P) { var n = P.length, o = new Float32Array(n), i; for (i = 0; i < n; i++) o[i] = a[P[i]]; return o; }
+  function gatherU8(a, P) { var n = P.length, o = new Uint8Array(n), i; for (i = 0; i < n; i++) o[i] = a[P[i]]; return o; }
+  function gatherTyped(a, P) {
+    if (a instanceof Float64Array) return gatherF64(a, P); if (a instanceof Int32Array) return gatherI32(a, P); if (a instanceof Uint32Array) return gatherU32(a, P);
+    if (a instanceof Float32Array) return gatherF32(a, P); if (a instanceof Uint8Array) return gatherU8(a, P);
+    var n = P.length, o = new a.constructor(n), i; for (i = 0; i < n; i++) o[i] = a[P[i]]; return o;
+  }
   function permCol(a, P) {
     var n = P.length, i, o;
     if (isTsCol(a)) { o = Object.assign({}, a); o.values = gatherTyped(a.values, P); return o; }
@@ -3155,16 +3228,16 @@
   function colLen(a) { return isTsCol(a) ? a.values.length : isDictCol(a) ? a.ids.length : isByteCol(a) ? a.start.length : a.length; }
   // the column table obj sorted (a new object; the caller's columns are not changed) -> { obj, P }; with keep, obj ends with SORT_ROW
   function sortTable(obj, so) {
-    if (!Object.prototype.hasOwnProperty.call(obj, so.key)) throw new Error('LfcPack: sortBy column "' + so.key + '" is not in the table');
+    if (so.key !== null && !Object.prototype.hasOwnProperty.call(obj, so.key)) throw new Error('LfcPack: sortBy column "' + so.key + '" is not in the table');
     if (so.keep && Object.prototype.hasOwnProperty.call(obj, SORT_ROW)) throw new Error('LfcPack: keepOrder adds the column ' + SORT_ROW + ', which the table already has');
-    var c = obj[so.key], n = colLen(c), P = sortPermCol(c, n, so.desc), out = {}, k, i, r;
+    var k0 = so.key !== null ? so.key : Object.keys(obj)[0], c = obj[k0], n = c === undefined ? 0 : colLen(c), P = so.key === null ? scramblePerm(n, so.scr) : sortPermCol(c, n, so.desc), out = {}, k, i, r;
     for (k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = permCol(obj[k], P);
     if (so.keep) { r = n < 2147483648 ? new Int32Array(n) : new Float64Array(n); for (i = 0; i < n; i++) r[i] = P[i]; out[SORT_ROW] = r; }
     return { obj: out, P: P };
   }
   // a row array sorted -> { rows, keys }: a new array of the same row objects; with keep, each row is a copy that ends with SORT_ROW, and keys lists every other key the rows carry
   function sortRowArray(rows, so) {
-    var n = rows.length, P = sortPermAny(function (i) { var r = rows[i]; return r !== null && typeof r === 'object' ? r[so.key] : undefined; }, n, so.desc), out = new Array(n), i, r, o, k, seen = so.keep ? new Set() : null;
+    var n = rows.length, P = so.key === null ? scramblePerm(n, so.scr) : sortPermAny(function (i) { var r = rows[i]; return r !== null && typeof r === 'object' ? r[so.key] : undefined; }, n, so.desc), out = new Array(n), i, r, o, k, seen = so.keep ? new Set() : null;
     for (i = 0; i < n; i++) {
       r = rows[P[i]];
       if (so.keep) { if (r === null || typeof r !== 'object' || Array.isArray(r)) throw new Error('LfcPack: keepOrder needs every row to be an object (row ' + P[i] + ')');
@@ -3175,18 +3248,34 @@
     return { rows: out, keys: seen ? Array.from(seen) : null };
   }
   // section 20 when the save sorted but wrote no summary (summary: false): which column, and the keys (so a reader can leave out SORT_ROW without reading a block)
-  function sortSection(so, n, keys) { var o = { v: 1, rows: n, sortedBy: so.key }; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
+  function sortSection(so, n, keys) { var o = { v: 1, rows: n }; if (so.key === null) o.scrambled = { seed: so.scr }; else o.sortedBy = so.key; if (so.hide) o.hidden = so.hide; if (so.keep) o.rowIndex = SORT_ROW; if (keys) o.keys = keys; o.cols = []; return te.encode(JSON.stringify(o)); }
   // readers: { key, keys } when the file was saved with keepOrder (keys: the other keys, or null when the footer cannot say), else null. Only the start of section 20 is read unless it names rowIndex.
-  function rowIndexOf(file) {
-    var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], j, ks, i;
+  // readers: { seed, rows } when the file was saved with scramble, else null (only the start of section 20 is read)
+  function scrambleOf(file) {
+    var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], h, m, r;
     if (!s) return null;
-    if (tdr.decode(s.subarray(0, Math.min(s.length, 512))).indexOf('"rowIndex"') < 0) return null;
-    try { j = JSON.parse(tdr.decode(s)); } catch (e) { return null; }
-    if (typeof j.rowIndex !== 'string') return null;
-    ks = Array.isArray(j.keys) ? j.keys.slice() : (!j.colsCut && Array.isArray(j.cols) && j.cols.length ? j.cols.map(function (c) { return c.key; }) : null);
-    if (ks) { i = ks.indexOf(j.rowIndex); if (i >= 0) ks.splice(i, 1); }
-    return { key: j.rowIndex, keys: ks };
+    h = tdr.decode(s.subarray(0, Math.min(s.length, 512))); m = /"scrambled":\{"seed":(\d+)\}/.exec(h); r = /^\{"v":1,"rows":(\d+)/.exec(h);
+    return m && r ? { seed: +m[1], rows: +r[1] } : null;
   }
+  // the rows of a scrambled file in the order they were given: saved row i was input row P[i]
+  function unscramble(rows, sc) {
+    var n = rows.length, P, out, i;
+    if (n !== sc.rows) throw new Error('LfcPack: original: true needs every row of the scrambled file (' + sc.rows + '), got ' + n);
+    P = scramblePerm(n, sc.seed); out = new Array(n); for (i = 0; i < n; i++) out[P[i]] = rows[i];
+    return out;
+  }
+  function rowIndexOf(file) {   // since 0.19.0 also for columns section 20 lists as hidden (geo's $hilbert): key is then null unless keepOrder named one
+    var s = file.footer && file.footer.sec && file.footer.sec[SEC_SUMMARY], j, ks, i, h, hid;
+    if (!s) return null;
+    h = tdr.decode(s.subarray(0, Math.min(s.length, 512))); if (h.indexOf('"rowIndex"') < 0 && h.indexOf('"hidden"') < 0) return null;
+    try { j = JSON.parse(tdr.decode(s)); } catch (e) { return null; }
+    hid = Array.isArray(j.hidden) ? j.hidden : [];
+    if (typeof j.rowIndex !== 'string' && !hid.length) return null;
+    ks = Array.isArray(j.keys) ? j.keys.slice() : (!j.colsCut && Array.isArray(j.cols) && j.cols.length ? j.cols.map(function (c) { return c.key; }) : null);
+    if (ks) ks = ks.filter(function (k) { return k !== j.rowIndex && hid.indexOf(k) < 0; });
+    return { key: typeof j.rowIndex === 'string' ? j.rowIndex : null, keys: ks, hidden: hid };
+  }
+
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ graph section (footer section 23, optional; since 0.17.0; SPEC.md 2.3c)
@@ -3217,12 +3306,72 @@
       return [off, tg, wt];
     }
     var out = csr(F, T, !dir), parts = [['offsets', out[0]], ['targets', out[1]]];
+    if (g.pack) return graphPacked(g, N, E, m, dir, W, rev, out, rev ? csr(T, F, false) : null);
     if (W) parts.push(['weights', out[2]]);
     if (rev) { var r = csr(T, F, false); parts.push(['rOffsets', r[0]], ['rTargets', r[1]]); if (W) parts.push(['rWeights', r[2]]); }
     var size = 0, k, at = {}; for (k = 0; k < parts.length; k++) { at[parts[k][0]] = [size, parts[k][1].length]; size += (parts[k][1].byteLength + 7) & ~7; }
     var region = new Uint8Array(size); for (k = 0; k < parts.length; k++) region.set(new Uint8Array(parts[k][1].buffer, 0, parts[k][1].byteLength), at[parts[k][0]][0]);
     var hd = { v: 1, nodes: N, edges: E, pairs: m, directed: dir, weights: W ? 'f32' : null, reverse: rev, labels: typeof g.labels === 'string' ? g.labels : null, nodeIds: typeof g.nodeIds === 'string' ? g.nodeIds : null, parts: at };
     return { header: hd, region: region };
+  }
+
+  // since 0.21.0: graph.pack: the region holds zstd frames instead of raw arrays (2.5 to 3 times smaller on 1,000,000 links; a read decodes them, 23 to 34 ms instead of 9).
+  // Each node's links are sorted by target (weights follow), so targets are stored as gaps inside the row; offsets as node degrees; weights as 16-bit ids into one Float32 table when there are at most
+  // 65,536 different values, else raw Float32; every array is split into byte planes (all first bytes, then all second bytes, ...) before zstd, which roughly halves what zstd leaves.
+  // Header adds pack: 1 and parts: { name: [offset in region, compressed length, kind] } with kind 'deg' (Uint32 degrees), 'gap' (Uint32 gaps), 'f32', 'id' (Uint16 ids), 'tab' (the Float32 table).
+  function gPlanes(u8, w) { var n = u8.length / w, o = new Uint8Array(u8.length), i, b; for (b = 0; b < w; b++) for (i = 0; i < n; i++) o[b * n + i] = u8[i * w + b]; return o; }
+  function gSortRows(off, tg, wt, N) {   // each row by target, weights alongside (insertion sort for short rows)
+    var u, s, e, i, j, x, y, idx, a, b2;
+    for (u = 0; u < N; u++) { s = off[u]; e = off[u + 1]; if (e - s < 2) continue;
+      if (e - s <= 32) { for (i = s + 1; i < e; i++) { x = tg[i]; y = wt ? wt[i] : 0; j = i - 1; while (j >= s && tg[j] > x) { tg[j + 1] = tg[j]; if (wt) wt[j + 1] = wt[j]; j--; } tg[j + 1] = x; if (wt) wt[j + 1] = y; } continue; }
+      idx = new Array(e - s); for (i = 0; i < idx.length; i++) idx[i] = s + i; idx.sort(function (p, q) { return tg[p] - tg[q] || p - q; });
+      a = new Uint32Array(idx.length); b2 = wt ? new Float32Array(idx.length) : null; for (i = 0; i < idx.length; i++) { a[i] = tg[idx[i]]; if (wt) b2[i] = wt[idx[i]]; }
+      tg.set(a, s); if (wt) wt.set(b2, s); }
+  }
+  function graphPacked(g, N, E, m, dir, W, rev, out, rout) {
+    var parts = [], tab = null, idsOf = [], i, k;
+    gSortRows(out[0], out[1], out[2], N); if (rout) gSortRows(rout[0], rout[1], rout[2], N);   // rows sorted first, so the weight ids below follow them
+    if (W) {   // at most 65,536 different Float32 bit patterns -> 16-bit ids (an open-addressing table on the bits: exact, -0 and NaN kept as they are)
+      var HK = new Uint32Array(131072), HV = new Int32Array(131072).fill(-1), tl = new Uint32Array(65536), cnt = 0, ok = true, all = [out[2]].concat(rout ? [rout[2]] : []), bits, id, h, x, q;
+      for (k = 0; k < all.length && ok; k++) { bits = new Uint32Array(all[k].buffer, all[k].byteOffset, all[k].length); id = new Uint16Array(bits.length);
+        for (i = 0; i < bits.length; i++) { x = bits[i]; h = Math.imul(x, 0x9E3779B1) >>> 15;
+          while ((q = HV[h]) >= 0 && HK[h] !== x) h = (h + 1) & 131071;
+          if (q < 0) { if (cnt === 65536) { ok = false; break; } HK[h] = x; HV[h] = q = cnt; tl[cnt++] = x; }
+          id[i] = q; }
+        idsOf.push(id); }
+      if (ok) tab = new Float32Array(tl.buffer.slice(0, cnt * 4)); else idsOf = [];
+    }
+    function add(name, kind, arr) { var u8 = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength), w = arr.BYTES_PER_ELEMENT; parts.push([name, kind, S.zfull.compress(w > 1 ? gPlanes(u8, w) : u8, 3)]); }
+    function side(pre, o3, ids) {
+      var off = o3[0], tg = o3[1], wt = o3[2], deg = new Uint32Array(N), gap = new Uint32Array(E), u, p, prev;
+      for (u = 0; u < N; u++) { deg[u] = off[u + 1] - off[u]; prev = 0; for (p = off[u]; p < off[u + 1]; p++) { gap[p] = tg[p] - prev; prev = tg[p]; } }
+      add(pre ? 'rOffsets' : 'offsets', 'deg', deg); add(pre ? 'rTargets' : 'targets', 'gap', gap);
+      if (wt) { if (tab) add(pre ? 'rWeights' : 'weights', 'id', ids); else add(pre ? 'rWeights' : 'weights', 'f32', wt); }
+    }
+    side(false, out, idsOf[0]); if (rout) side(true, rout, idsOf[1]); if (tab) add('wTable', 'tab', tab);
+    var size = 0, at = {}; for (k = 0; k < parts.length; k++) { at[parts[k][0]] = [size, parts[k][2].length, parts[k][1]]; size += (parts[k][2].length + 7) & ~7; }
+    var region = new Uint8Array(size); for (k = 0; k < parts.length; k++) region.set(parts[k][2], at[parts[k][0]][0]);
+    var hd = { v: 1, pack: 1, nodes: N, edges: E, pairs: m, directed: dir, weights: W ? 'f32' : null, reverse: rev, sorted: true, labels: typeof g.labels === 'string' ? g.labels : null, nodeIds: typeof g.nodeIds === 'string' ? g.nodeIds : null, parts: at }; if (tab) hd.wCount = tab.length;
+    return { header: hd, region: region };
+  }
+  function graphUnpack(hd, rg) {   // the packed region decoded into new arrays (offsets, targets, weights and the reverse ones)
+    var P = hd.parts, N = hd.nodes, E = hd.edges, o = { nodes: N, edges: E, pairs: hd.pairs, directed: hd.directed, labels: hd.labels, nodeIds: hd.nodeIds, offsets: null, targets: null, weights: null, rOffsets: null, rTargets: null, rWeights: null }, tab = null;
+    function raw(name, len) { var q = P[name]; if (q[0] + q[1] > rg.length) throw new Error('LfcPack: graph section part ' + name + ' out of range'); return S.zdec.decompress(rg.subarray(q[0], q[0] + q[1]), len); }
+    function side(pre) {
+      var d = raw(pre ? 'rOffsets' : 'offsets', N * 4), off = new Uint32Array(N + 1), u, n4 = N, s = 0, p, e, v, gp, E4 = E, tg = new Uint32Array(E), wq, wt = null, id;
+      for (u = 0; u < N; u++) { s += d[u] | d[n4 + u] << 8 | d[2 * n4 + u] << 16 | d[3 * n4 + u] << 24; off[u + 1] = s; }
+      if (s !== E) throw new Error('LfcPack: graph section offsets damaged');
+      gp = raw(pre ? 'rTargets' : 'targets', E * 4);
+      for (u = 0; u < N; u++) { v = 0; for (p = off[u], e = off[u + 1]; p < e; p++) { v = (v + (gp[p] | gp[E4 + p] << 8 | gp[2 * E4 + p] << 16 | gp[3 * E4 + p] << 24)) >>> 0; tg[p] = v; } }
+      wq = P[pre ? 'rWeights' : 'weights'];
+      if (wq) { wt = new Float32Array(E);
+        if (wq[2] === 'id') { id = raw(pre ? 'rWeights' : 'weights', E * 2); for (p = 0; p < E; p++) wt[p] = tab[id[p] | id[E4 + p] << 8]; }
+        else { id = raw(pre ? 'rWeights' : 'weights', E * 4); var w8 = new Uint8Array(wt.buffer); for (p = 0; p < E; p++) { w8[4 * p] = id[p]; w8[4 * p + 1] = id[E4 + p]; w8[4 * p + 2] = id[2 * E4 + p]; w8[4 * p + 3] = id[3 * E4 + p]; } } }
+      if (pre) { o.rOffsets = off; o.rTargets = tg; o.rWeights = wt; } else { o.offsets = off; o.targets = tg; o.weights = wt; }
+    }
+    if (P.wTable) { var tl = hd.wCount, tz = raw('wTable', tl * 4), t8 = new Uint8Array(tl * 4), i; for (i = 0; i < tl; i++) { t8[4 * i] = tz[i]; t8[4 * i + 1] = tz[tl + i]; t8[4 * i + 2] = tz[2 * tl + i]; t8[4 * i + 3] = tz[3 * tl + i]; } tab = new Float32Array(t8.buffer); }
+    side(false); if (P.rOffsets) side(true);
+    return o;
   }
   // the same file with the graph region placed after the blocks (8-byte aligned) and section 23 in the footer; no byte of the blocks changes
   function addGraph(file, gb) {   // gb: graphBuild's result
@@ -3237,6 +3386,7 @@
   }
   // typed views onto the region (no copy when the file's bytes sit on a 4-byte boundary; otherwise one copy of the region)
   function graphViews(hd, rg) {
+    if (hd.pack) return graphUnpack(hd, rg);
     if (rg.byteOffset & 3) rg = rg.slice();
     var o = { nodes: hd.nodes, edges: hd.edges, pairs: hd.pairs, directed: hd.directed, labels: hd.labels, nodeIds: hd.nodeIds }, P = hd.parts, k, q;
     var kinds = { offsets: Uint32Array, targets: Uint32Array, weights: Float32Array, rOffsets: Uint32Array, rTargets: Uint32Array, rWeights: Float32Array };
@@ -3256,6 +3406,187 @@
     if (!(opts && opts.verify === false) && crcOf(rg) !== hd.at[2]) throw new Error('LfcPack: graph region checksum mismatch');
     return graphViews(hd, rg);
   }
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
+
+  // ================================================================ geo preset (footer section 24, optional; since 0.20.0)
+  // packColumnsParallel(cols, { geo: { x, y, bounds? } }): each row gets a 32-bit Hilbert key from its two coordinates quantized to 16 bits inside the bounds (given, or the data's own); the rows are
+  // sorted by it (missing coordinates last); blocks default to 1 MB (blockBytes changes it). Section 24 is JSON { v: 2, x, y, key: null, bounds: [x0, y0, x1, y1], bits: 16, cells: 256,
+  // heat: [cell, count, ...], zones: [[min, max] | null, ...] } with heat the row count of every non-empty cell of a 256 x 256 grid (cell = cy * 256 + cx) and zones each block's key range.
+  // Files from 0.20.0 to 0.22.0 are v: 1 with key: '$hilbert', a hidden number column holding the key (its block zone maps give the ranges); readers take both.
+  // A box read turns the box into the key runs of the quads it covers (a quad's keys are one run: the top bits of a key are its quad's Hilbert index), so only blocks whose key range meets a run are read.
+  var SEC_GEO = 24, GEO_KEY = '$hilbert', GEO_BLOCK_BYTES = 1048576;   // about 10,000 rows of a 5-column table per block: box reads 2.8 to 6.7 times faster than a scan, against about 2 with the usual block size
+  function hilbertXY(x, y, n) {   // Hilbert index of cell (x, y) in an n x n grid (n a power of 2), one level at a time; exact in doubles up to n = 65536
+    var d = 0, s, rx, ry, t, m = n - 1;
+    for (s = n >>> 1; s > 0; s >>>= 1) { rx = (x & s) ? 1 : 0; ry = (y & s) ? 1 : 0; d += s * s * ((3 * rx) ^ ry); if (!ry) { if (rx) { x ^= m; y ^= m; } t = x; x = y; y = t; } }
+    return d;
+  }
+  // the same index for n = 65536 four levels at a time from a 1,024-entry table (state: swapped, flipped; 6.5 times faster than the loop above on 1,000,000 points, same answers)
+  var HIL4 = (function () {
+    var T1 = new Uint8Array(16), T2 = new Uint8Array(64), T4 = new Uint16Array(1024), st, a, b, xb, yb, sw, cp, tx, ty, q, x2, y2, x4, y4;
+    for (st = 0; st < 4; st++) for (xb = 0; xb < 2; xb++) for (yb = 0; yb < 2; yb++) { sw = st >> 1; cp = st & 1; tx = xb ^ cp; ty = yb ^ cp; if (sw) { q = tx; tx = ty; ty = q; } q = (3 * tx) ^ ty; if (!ty) { if (tx) cp ^= 1; sw ^= 1; } T1[st * 4 + (xb << 1 | yb)] = q | ((sw * 2 + cp) << 2); }
+    for (st = 0; st < 4; st++) for (x2 = 0; x2 < 4; x2++) for (y2 = 0; y2 < 4; y2++) { a = T1[st * 4 + ((x2 >> 1) << 1 | (y2 >> 1))]; b = T1[(a >> 2) * 4 + ((x2 & 1) << 1 | (y2 & 1))]; T2[st * 16 + (x2 << 2 | y2)] = ((a & 3) << 2 | (b & 3)) | ((b >> 2) << 4); }
+    for (st = 0; st < 4; st++) for (x4 = 0; x4 < 16; x4++) for (y4 = 0; y4 < 16; y4++) { a = T2[st * 16 + ((x4 >> 2) << 2 | (y4 >> 2))]; b = T2[(a >> 4) * 16 + ((x4 & 3) << 2 | (y4 & 3))]; T4[(st << 8) | (x4 << 4) | y4] = ((a & 15) << 4 | (b & 15)) | ((b >> 4) << 8); }
+    return T4;
+  })();
+  function hilbert16(x, y) { var d = 0, st = 0, e, sh; for (sh = 12; sh >= 0; sh -= 4) { e = HIL4[(st << 8) | (((x >>> sh) & 15) << 4) | ((y >>> sh) & 15)]; d = (d << 8) | (e & 255); st = e >> 8; } return d >>> 0; }
+  function geoCol(obj, name) { if (typeof name !== 'string' || !Object.prototype.hasOwnProperty.call(obj, name)) throw new Error('LfcPack: geo.x and geo.y must be column names of the table'); var a = obj[name]; if (isTsCol(a) || isDictCol(a) || isByteCol(a)) throw new Error('LfcPack: geo column ' + name + ' must hold numbers'); return a; }
+  function geoNum(v) { return typeof v === 'number' && v === v && v !== Infinity && v !== -Infinity ? v : NaN; }
+  function geoPrep(obj, opts) {   // -> { obj (sorted), hd (section 24 without zones), ks (sorted keys), nk (rows with a key), opts for the save }
+    var g = opts.geo, X, Y, n, i, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, a, b, heat, sx, sy, qx, qy, cells = [], hd;
+    if (!g || typeof g !== 'object') throw new Error('LfcPack: geo must be { x, y, bounds? } (column names)');
+    if (opts.sortBy != null && opts.sortBy !== false) throw new Error('LfcPack: geo sorts by its own key; leave sortBy out');
+    if (opts.scramble) throw new Error('LfcPack: geo cannot be used with scramble');
+    if (opts.exact || opts.base) throw new Error('LfcPack: geo cannot be used with exact or a delta save');
+    if (Object.prototype.hasOwnProperty.call(obj, GEO_KEY)) throw new Error('LfcPack: geo adds the column ' + GEO_KEY + ', which the table already has');
+    X = geoCol(obj, g.x); Y = geoCol(obj, g.y); n = X.length; if (Y.length !== n) throw new Error('LfcPack: geo.x and geo.y must have the same length');
+    if (g.bounds != null) { if (!Array.isArray(g.bounds) || g.bounds.length !== 4 || !g.bounds.every(function (v) { return typeof v === 'number' && isFinite(v); }) || !(g.bounds[2] >= g.bounds[0] && g.bounds[3] >= g.bounds[1])) throw new Error('LfcPack: geo.bounds must be [x0, y0, x1, y1] with x1 >= x0 and y1 >= y0'); x0 = g.bounds[0]; y0 = g.bounds[1]; x1 = g.bounds[2]; y1 = g.bounds[3]; }
+    else for (i = 0; i < n; i++) { a = geoNum(X[i]); b = geoNum(Y[i]); if (a !== a || b !== b) continue; if (a < x0) x0 = a; if (a > x1) x1 = a; if (b < y0) y0 = b; if (b > y1) y1 = b; }
+    if (!(x1 >= x0)) { x0 = y0 = 0; x1 = y1 = 1; }
+    sx = x1 > x0 ? 65536 / (x1 - x0) : 0; sy = y1 > y0 ? 65536 / (y1 - y0) : 0; var K = new Uint32Array(n), miss = null; heat = new Uint32Array(65536);
+    for (i = 0; i < n; i++) { a = X[i]; b = Y[i]; if (typeof a !== 'number' || typeof b !== 'number' || a !== a || b !== b || a === Infinity || a === -Infinity || b === Infinity || b === -Infinity) { if (!miss) miss = new Uint32Array(n); miss[i] = 1; continue; }
+      qx = Math.floor((a - x0) * sx); qy = Math.floor((b - y0) * sy); if (qx < 0) qx = 0; else if (qx > 65535) qx = 65535; if (qy < 0) qy = 0; else if (qy > 65535) qy = 65535;
+      K[i] = hilbert16(qx, qy); heat[(qy >>> 8) << 8 | (qx >>> 8)]++; }
+    for (i = 0; i < 65536; i++) if (heat[i]) cells.push(i, heat[i]);
+    hd = { v: 1, x: g.x, y: g.y, key: GEO_KEY, bounds: [x0, y0, x1, y1], bits: 16, cells: 256, heat: cells };
+    // sorted here (a stable radix sort on the 32-bit keys, missing coordinates last: two or three passes instead of the four a Float64 column takes), then saved as presorted (section 20 still names $hilbert as the sort key, hidden)
+    // since 0.23.0 the key is not stored as a column: section 24 keeps each block's key range instead (zones), which is all a box read needs (file 9% smaller, save faster)
+    var P = radixPerm(miss, K, n), o2 = {}, k, so = { key: GEO_KEY, desc: false, keep: !!opts.keepOrder, hide: [GEO_KEY] }, ks = new Uint32Array(n), nk = n;
+    if (so.keep && Object.prototype.hasOwnProperty.call(obj, SORT_ROW)) throw new Error('LfcPack: keepOrder adds the column ' + SORT_ROW + ', which the table already has');
+    for (k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) o2[k] = permCol(obj[k], P);
+    for (i = 0; i < n; i++) { k = P[i]; if (miss && miss[k]) { nk = i; break; } ks[i] = K[k]; }
+    if (so.keep) { var rw = n < 2147483648 ? new Int32Array(n) : new Float64Array(n); for (i = 0; i < n; i++) rw[i] = P[i]; o2[SORT_ROW] = rw; }
+    return { obj: o2, hd: hd, ks: ks, nk: nk, opts: Object.assign({}, opts, { geo: null, sortBy: null, keepOrder: false, _presort: so, blockBytes: opts.blockBytes || GEO_BLOCK_BYTES }) };
+  }
+  // section 24 for a finished save: the key range [min, max] of every block's rows (rows sorted by key, missing coordinates last: null for a block with none)
+  function geoSection(gp, bytes) {
+    var f = openFile(bytes), z = [], r = 0, i, c, a, b; gp.hd.v = 2; gp.hd.key = null;
+    for (i = 0; i < f.blocks.length; i++) { c = f.blocks[i][3]; a = r; b = Math.min(r + c, gp.nk) - 1; z.push(b >= a ? [gp.ks[a], gp.ks[b]] : null); r += c; }
+    gp.hd.zones = z; return te.encode(JSON.stringify(gp.hd));
+  }
+  function geoHeader(f) { var s = f.sec[SEC_GEO]; if (!s) return null; var hd = JSON.parse(tdr.decode(s)); if (!hd || (hd.v !== 1 && !(hd.v === 2 && Array.isArray(hd.zones))) || !Array.isArray(hd.bounds)) throw new Error('LfcPack: geo section damaged'); return hd; }
+  // geo(bytes) -> { x, y, key, bounds, cells, heat: Uint32Array(cells * cells) } or null; nothing is decoded
+  function geoInfo(hd) { var h = new Uint32Array(hd.cells * hd.cells), i; for (i = 0; i + 1 < hd.heat.length; i += 2) h[hd.heat[i]] = hd.heat[i + 1]; return { x: hd.x, y: hd.y, key: hd.key, bounds: hd.bounds.slice(), cells: hd.cells, heat: h, zones: hd.zones ? hd.zones.map(function (z) { return z && z.slice(); }) : null }; }
+  function geo(bytes) { var hd = geoHeader(readFooter(S.zdec, bytesOf(bytes))); return hd ? geoInfo(hd) : null; }
+  // the key runs [lo, hi] a box touches (merged, rising): quads of the 65,536 x 65,536 grid split level by level, a quad inside the box giving its whole key run (the keys of one quad at level L
+  // are one run of 4^(16 - L)), until level 16 or more than GEO_EDGE quads lie on the box's edge, which then give their whole runs (a few rows outside the box are read and filtered out)
+  var GEO_EDGE = 1024;
+  function geoRuns(hd, bx0, by0, bx1, by1) {
+    var b = hd.bounds, sx = b[2] > b[0] ? 65536 / (b[2] - b[0]) : 0, sy = b[3] > b[1] ? 65536 / (b[3] - b[1]) : 0, q = function (v, lo, s) { var r = Math.floor((v - lo) * s); return r < 0 ? 0 : r > 65535 ? 65535 : r; };
+    if (!(bx1 >= bx0 && by1 >= by0)) return [];
+    var X0 = q(bx0, b[0], sx), X1 = q(bx1, b[0], sx), Y0 = q(by0, b[1], sy), Y1 = q(by1, b[1], sy), runs = [], edge = [[0, 0]], L = 0, i, j, nx, s, x0, y0, span, next, d;
+    for (;;) {
+      s = 65536 / Math.pow(2, L); span = Math.pow(4, 16 - L); next = [];
+      for (i = 0; i < edge.length; i++) { x0 = edge[i][0] * s; y0 = edge[i][1] * s;
+        if (x0 > X1 || x0 + s - 1 < X0 || y0 > Y1 || y0 + s - 1 < Y0) continue;
+        if ((x0 >= X0 && x0 + s - 1 <= X1 && y0 >= Y0 && y0 + s - 1 <= Y1) || L === 16) { d = hilbertXY(edge[i][0], edge[i][1], s === 1 ? 65536 : 65536 / s); runs.push([d * span, d * span + span - 1]); continue; }
+        next.push(edge[i]); }
+      if (!next.length) break;
+      if (next.length > GEO_EDGE) { for (i = 0; i < next.length; i++) { d = hilbertXY(next[i][0], next[i][1], 65536 / s); runs.push([d * span, d * span + span - 1]); } break; }
+      edge = []; for (i = 0; i < next.length; i++) for (j = 0; j < 4; j++) { nx = next[i]; edge.push([nx[0] * 2 + (j & 1), nx[1] * 2 + (j >> 1)]); }
+      L++;
+    }
+    runs.sort(function (p, r) { return p[0] - r[0]; });
+    var out = []; for (i = 0; i < runs.length; i++) { if (out.length && out[out.length - 1][1] + 1 >= runs[i][0]) { if (runs[i][1] > out[out.length - 1][1]) out[out.length - 1][1] = runs[i][1]; } else out.push(runs[i].slice()); }
+    return out;
+  }
+  function geoMeets(runs, mn, mx) { var lo = 0, hi = runs.length; while (lo < hi) { var m = (lo + hi) >> 1; if (runs[m][1] < mn) lo = m + 1; else hi = m; } return lo < runs.length && runs[lo][0] <= mx; }
+// Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
+
+  // ================================================================ two-way views (footer section 22, optional; since 0.22.0)
+  // packColumnsParallel(cols, { views: true | [[keyA, keyB], ...] }): for pairs of label columns (at most VIEW_LABELS different values each, at most VIEW_CELLS label pairs), the row count of every pair of
+  // labels and, for each number column, the count, sum, min and max of its non-missing values there; so a two-way group-by is answered from the footer with nothing decoded.
+  // Section 22 is JSON { v: 1, rows, dims: { key: [label, ...] }, measures: [key, ...], views: [{ a, b, cells: [ia * nb + ib, ...], count: [...], m: { key: { n?, sum, min, max } } }] }; n only when that
+  // number column has missing values. true picks up to VIEW_DIMS label columns and VIEW_PAIRS pairs; a list names the pairs.
+  var SEC_VIEWS = 22, VIEW_LABELS = 64, VIEW_CELLS = 4096, VIEW_DIMS = 8, VIEW_PAIRS = 16, VIEW_MEASURES = 8, VIEW_FULL = 65536;
+  function viewLabels(a, n) {   // -> { labels, ids: Uint8Array } for a column with at most VIEW_LABELS different values (strings, numbers, booleans, null), else null
+    var ids = new Uint8Array(n), labels = [], map = new Map(), i, v, k;
+    if (isDictCol(a)) { var L = a.labels, dl = []; for (i = 0; i < L.start.length; i++) dl.push(tdr.decode(L.bytes.subarray(L.start[i], L.end[i])));
+      var ut = new Int16Array(dl.length + 1).fill(-1), DI = a.ids; for (i = 0; i < n; i++) { v = DI[i]; if (!(v >= 0 && v < dl.length)) v = dl.length; k = ut[v]; if (k < 0) { if (labels.length === VIEW_LABELS) return null; k = ut[v] = labels.length; labels.push(v < dl.length ? dl[v] : null); } ids[i] = k; }
+      return { labels: labels, ids: ids }; }
+    if (isTsCol(a) || isByteCol(a)) return null;
+    if (ArrayBuffer.isView(a) && (a instanceof Float64Array || a instanceof Float32Array)) { for (i = 0; i < n; i++) { v = a[i]; if (v === v && v !== Math.floor(v)) return null; } }
+    if (!ArrayBuffer.isView(a) && !Array.isArray(a)) return null;
+    if (ArrayBuffer.isView(a) && !(a instanceof Float64Array || a instanceof Float32Array)) {   // whole numbers: a lookup table over their range instead of a Map
+      var lo = Infinity, hi = -Infinity; for (i = 0; i < n; i++) { v = a[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
+      if (n && hi - lo < 65536) { var tb = new Int16Array(hi - lo + 1).fill(-1); for (i = 0; i < n; i++) { v = a[i] - lo; k = tb[v]; if (k < 0) { if (labels.length === VIEW_LABELS) return null; k = tb[v] = labels.length; labels.push(a[i]); } ids[i] = k; } return { labels: labels, ids: ids }; }
+    }
+    // strings first try a small table keyed by length and three characters (a hit is confirmed by ===), then the Map (since 0.23.0: 1.2 times faster in Chromium 156, 2.2 in Firefox 158)
+    var tb = new Int16Array(4096).fill(-1), h, L;
+    for (i = 0; i < n; i++) { v = a[i]; if (typeof v === 'string' && (L = v.length) > 0) { h = (L * 977 + v.charCodeAt(0) * 31 + v.charCodeAt(L - 1) * 7 + v.charCodeAt(L >> 1)) & 4095; k = tb[h]; if (k >= 0 && labels[k] === v) { ids[i] = k; continue; } } else h = -1;
+      if (v === undefined || (typeof v === 'number' && v !== v)) v = null; else if (typeof v === 'object' && v !== null) return null;
+      k = map.get(v); if (k === undefined) { if (labels.length === VIEW_LABELS) return null; k = labels.length; map.set(v, k); labels.push(v); } if (h >= 0 && tb[h] < 0) tb[h] = k; ids[i] = k; }
+    return { labels: labels, ids: ids };
+  }
+  function viewMeasure(a) { return ArrayBuffer.isView(a) && !(a instanceof BigInt64Array || a instanceof BigUint64Array) && !(a instanceof DataView); }
+  function viewSpec(spec) { if (spec === true) return; if (!Array.isArray(spec) || !spec.length) throw new Error('LfcPack: views must be true or a list of [keyA, keyB] pairs'); for (var i = 0; i < spec.length; i++) if (!Array.isArray(spec[i]) || spec[i].length !== 2 || typeof spec[i][0] !== 'string' || typeof spec[i][1] !== 'string' || spec[i][0] === spec[i][1]) throw new Error('LfcPack: views must be true or a list of [keyA, keyB] pairs of two different columns'); }
+  function viewsBuild(obj, spec, ex) {
+    var keys = Object.keys(obj).filter(function (k) { return !ex || ex.indexOf(k) < 0; }), n = -1, k, a, dims = {}, D = {}, pairs = [], i, j, p, meas = [], out = { v: 1, rows: 0, dims: dims, measures: meas, views: [] };
+    for (k = 0; k < keys.length; k++) { a = obj[keys[k]]; n = isTsCol(a) ? a.values.length : isDictCol(a) ? a.ids.length : isByteCol(a) ? a.start.length : a.length; break; }
+    if (n < 0) return null; out.rows = n;
+    var want = null; if (Array.isArray(spec)) { want = {}; for (i = 0; i < spec.length; i++) { if (!Array.isArray(spec[i]) || spec[i].length !== 2 || typeof spec[i][0] !== 'string' || typeof spec[i][1] !== 'string' || spec[i][0] === spec[i][1]) throw new Error('LfcPack: views must be true or a list of [keyA, keyB] pairs of two different columns'); want[spec[i][0]] = 1; want[spec[i][1]] = 1; } }
+    else if (spec !== true) throw new Error('LfcPack: views must be true or a list of [keyA, keyB] pairs');
+    for (k = 0; k < keys.length; k++) { if (want ? !want[keys[k]] : Object.keys(D).length >= VIEW_DIMS) continue; if (!want && viewMeasure(obj[keys[k]]) && !(obj[keys[k]] instanceof Int8Array || obj[keys[k]] instanceof Uint8Array || obj[keys[k]] instanceof Int16Array || obj[keys[k]] instanceof Uint16Array || obj[keys[k]] instanceof Int32Array)) continue;
+      a = viewLabels(obj[keys[k]], n); if (a) D[keys[k]] = a; else if (want) throw new Error('LfcPack: views column ' + keys[k] + ' has more than ' + VIEW_LABELS + ' different values (or is not a label column)'); }
+    if (want) { for (i = 0; i < spec.length; i++) { if (!Object.prototype.hasOwnProperty.call(obj, spec[i][0]) || !Object.prototype.hasOwnProperty.call(obj, spec[i][1])) throw new Error('LfcPack: views names a column the table does not have'); pairs.push(spec[i]); } }
+    else { var dk = Object.keys(D); for (i = 0; i < dk.length && pairs.length < VIEW_PAIRS; i++) for (j = i + 1; j < dk.length && pairs.length < VIEW_PAIRS; j++) if (D[dk[i]].labels.length * D[dk[j]].labels.length <= VIEW_CELLS) pairs.push([dk[i], dk[j]]); }
+    for (k = 0; k < keys.length && meas.length < VIEW_MEASURES; k++) if (!D[keys[k]] && viewMeasure(obj[keys[k]])) meas.push(keys[k]);
+    var used = {}, X = [], q, c, i2, v2, x;
+    for (q = 0; q < meas.length; q++) { x = obj[meas[q]]; X.push(x instanceof Float64Array ? x : Float64Array.from(x)); }   // one array kind, so the loops below stay monomorphic
+    // one pass over the rows: per cell of the pair, or (when all the pairs' columns together have at most VIEW_FULL label combinations) per combination of all of them, then each pair summed from it
+    var dl = []; for (p = 0; p < pairs.length; p++) { if (dl.indexOf(pairs[p][0]) < 0) dl.push(pairs[p][0]); if (dl.indexOf(pairs[p][1]) < 0) dl.push(pairs[p][1]); }
+    var full = 1; for (i = 0; i < dl.length; i++) full *= D[dl[i]].labels.length;
+    function cellsOf(ks) {   // each row's cell over the label columns ks (row-major), built one column at a time in plain loops (since 0.23.0; a per-row callback was 2 to 3 times slower)
+      var cell = new Int32Array(n), d, ids, nl;
+      for (d = 0; d < ks.length; d++) { ids = D[ks[d]].ids; nl = D[ks[d]].labels.length; if (d === 0) cell.set(ids); else for (i2 = 0; i2 < n; i2++) cell[i2] = cell[i2] * nl + ids[i2]; }
+      return cell;
+    }
+    function agg(cell, C) {   // -> { cnt, s: [], mn: [], mx: [], nn: [], miss: [] } over C cells
+      var cnt = new Float64Array(C), R = { cnt: cnt, s: [], mn: [], mx: [], nn: [], miss: [] }, s, mn, mx, nn, xs, ms, cc;
+      for (i2 = 0; i2 < n; i2++) cnt[cell[i2]]++;
+      for (q = 0; q < X.length; q++) { xs = X[q]; s = new Float64Array(C); mn = new Float64Array(C).fill(Infinity); mx = new Float64Array(C).fill(-Infinity); nn = new Float64Array(C); ms = false;
+        for (i2 = 0; i2 < n; i2++) { v2 = xs[i2]; if (v2 !== v2) { ms = true; continue; } cc = cell[i2]; s[cc] += v2; nn[cc]++; if (v2 < mn[cc]) mn[cc] = v2; if (v2 > mx[cc]) mx[cc] = v2; }
+        R.s.push(s); R.mn.push(mn); R.mx.push(mx); R.nn.push(nn); R.miss.push(ms); }
+      return R;
+    }
+    function emit(pa, R, C) {   // a pair's cells from its own aggregates
+      var cells = [], cc = [], mo = {}, m;
+      for (c = 0; c < C; c++) if (R.cnt[c]) { cells.push(c); cc.push(R.cnt[c]); }
+      for (q = 0; q < meas.length; q++) { m = { sum: [], min: [], max: [] }; if (R.miss[q]) m.n = [];
+        for (i = 0; i < cells.length; i++) { c = cells[i]; m.sum.push(R.s[q][c]); m.min.push(R.nn[q][c] ? R.mn[q][c] : null); m.max.push(R.nn[q][c] ? R.mx[q][c] : null); if (R.miss[q]) m.n.push(R.nn[q][c]); }
+        mo[meas[q]] = m; }
+      used[pa[0]] = used[pa[1]] = 1; out.views.push({ a: pa[0], b: pa[1], cells: cells, count: cc, m: mo });
+    }
+    for (p = 0; p < pairs.length; p++) { var CP = D[pairs[p][0]].labels.length * D[pairs[p][1]].labels.length; if (CP > VIEW_CELLS) throw new Error('LfcPack: views pair ' + pairs[p].join(' x ') + ' has ' + CP + ' label pairs (at most ' + VIEW_CELLS + ')'); }
+    if (pairs.length > 1 && full <= VIEW_FULL) {
+      var NL = dl.map(function (k2) { return D[k2].labels.length; }), nd = dl.length, F = agg(cellsOf(dl), full), strides = [];
+      for (i = 0; i < nd; i++) { strides[i] = 1; for (var e2 = i + 1; e2 < nd; e2++) strides[i] *= NL[e2]; }
+      for (p = 0; p < pairs.length; p++) {
+        var ia2 = dl.indexOf(pairs[p][0]), ib2 = dl.indexOf(pairs[p][1]), nb2 = NL[ib2], C2 = NL[ia2] * nb2, R2 = { cnt: new Float64Array(C2), s: [], mn: [], mx: [], nn: [], miss: F.miss }, map = new Int32Array(full), f2;
+        for (f2 = 0; f2 < full; f2++) map[f2] = (Math.floor(f2 / strides[ia2]) % NL[ia2]) * nb2 + (Math.floor(f2 / strides[ib2]) % nb2);
+        for (q = 0; q < X.length; q++) { R2.s.push(new Float64Array(C2)); R2.mn.push(new Float64Array(C2).fill(Infinity)); R2.mx.push(new Float64Array(C2).fill(-Infinity)); R2.nn.push(new Float64Array(C2)); }
+        for (f2 = 0; f2 < full; f2++) { if (!F.cnt[f2]) continue; c = map[f2]; R2.cnt[c] += F.cnt[f2];
+          for (q = 0; q < X.length; q++) { R2.s[q][c] += F.s[q][f2]; R2.nn[q][c] += F.nn[q][f2]; if (F.mn[q][f2] < R2.mn[q][c]) R2.mn[q][c] = F.mn[q][f2]; if (F.mx[q][f2] > R2.mx[q][c]) R2.mx[q][c] = F.mx[q][f2]; } }
+        emit(pairs[p], R2, C2);
+      }
+    } else for (p = 0; p < pairs.length; p++) { var nb3 = D[pairs[p][1]].labels.length; emit(pairs[p], agg(cellsOf(pairs[p]), D[pairs[p][0]].labels.length * nb3), D[pairs[p][0]].labels.length * nb3); }
+    for (k in used) dims[k] = D[k].labels;
+    return out.views.length ? te.encode(JSON.stringify(out)) : null;
+  }
+  // readers: views(bytes) -> [[keyA, keyB], ...] the file can answer (or []); view(bytes, keyA, keyB) -> { a, b, labelsA, labelsB, cells: [{ a, b, count, cols: { key: { n, sum, min, max, mean } } }] } or null
+  function viewSec(f) { var s = f.sec[SEC_VIEWS]; if (!s) return null; var j = JSON.parse(tdr.decode(s)); if (!j || j.v !== 1 || !Array.isArray(j.views)) throw new Error('LfcPack: views section damaged'); return j; }
+  function viewList(j) { return j ? j.views.map(function (w) { return [w.a, w.b]; }) : []; }
+  function viewOf(j, ka, kb) {
+    if (!j) return null; var w = null, flip = false, i, q, o, A, B, nb, c, x, cell, mq;
+    for (i = 0; i < j.views.length; i++) { if (j.views[i].a === ka && j.views[i].b === kb) { w = j.views[i]; break; } if (j.views[i].a === kb && j.views[i].b === ka) { w = j.views[i]; flip = true; break; } }
+    if (!w) return null;
+    A = j.dims[w.a]; B = j.dims[w.b]; nb = B.length; o = { a: ka, b: kb, labelsA: flip ? B.slice() : A.slice(), labelsB: flip ? A.slice() : B.slice(), cells: [] };
+    for (i = 0; i < w.cells.length; i++) { c = w.cells[i]; cell = { a: flip ? B[c % nb] : A[Math.floor(c / nb)], b: flip ? A[Math.floor(c / nb)] : B[c % nb], count: w.count[i], cols: {} };
+      for (q in w.m) { mq = w.m[q]; x = mq.n ? mq.n[i] : w.count[i]; cell.cols[q] = { n: x, sum: mq.sum[i], min: mq.min[i], max: mq.max[i], mean: x ? mq.sum[i] / x : null }; }
+      o.cells.push(cell); }
+    return o;
+  }
+  function view(bytes, ka, kb) { return viewOf(viewSec(readFooter(S.zdec, bytesOf(bytes))), ka, kb); }
+  function views(bytes) { return viewList(viewSec(readFooter(S.zdec, bytesOf(bytes)))); }
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ public API
@@ -3334,7 +3665,7 @@
   }
   var B26 = !(typeof globalThis !== 'undefined' && globalThis.__B26 === 0);
   function packRows(rows, opts) { var po = packOpts(opts), pay, so = sortOpt(opts);
-    if (so) { var sr = sortRowArray(rows, so); return addSections(packRows(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })), [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }   // since 0.16.0: sortBy on a row array
+    if (so) { var sr = sortRowArray(rows, so); return addSections(packRows(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })), [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }   // since 0.16.0: sortBy on a row array
     if (B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows) && (pay = b18Pays(rows))) {   // B26: the row scatter checks the rest
       try { return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _b26: 1, _hb: pay === 2 })); } catch (e) { if (e !== B26_BAIL) throw e; return pack(rowsBytes(rows), opts); } }
     if (!B26 && !po.exact && !po.block && !po.share && rows.length > 4096 && flatScalars(rows) && (pay = b18Pays(rows))) return packManyNow([{ name: null, rowsArr: rows, bytes: new Uint8Array(0) }], Object.assign({}, po, { _hb: pay === 2 })); return pack(rowsBytes(rows), opts); }
@@ -3723,8 +4054,9 @@
   function unpack(bytes, opts) {   // -> array of row objects
     var f0 = openFile(bytes);
     if (f0.footer.sec[SEC_DELTA]) { if (opts && (opts.equals || opts.range || opts.keys || opts.lazy)) throw new Error('LfcPack: a delta file reads whole (no equals, range, keys or lazy): rebuild the rows with unpackTables(file, { base }) first'); var dt = unpackDelta(bytes, opts), dn, dr = []; for (dn in dt) if (Array.isArray(dt[dn])) for (var di = 0; di < dt[dn].length; di++) dr.push(dt[dn][di]); return dr; }   // a delta: the rows of its tables, with { base }
+    if (opts && opts.original) { var sc0 = scrambleOf(f0); if (sc0) { if (opts.range || opts.equals || opts.positions || opts.table) throw new Error('LfcPack: original: true reads the whole table (no range, equals, positions or table)'); return unscramble(unpack(bytes, Object.assign({}, opts, { original: null, from: null, count: null })), sc0); } }   // since 0.18.0
     var ri = rowIndexOf(f0), want = null;   // since 0.16.0: a keepOrder file hides its row-position column unless asked for it by name; { original: true } gives the rows in the order they were saved in
-    if (ri) { if (opts && opts.original) return originalRows(bytes, ri, opts); if (ri.keys && !(opts && opts.keys)) { if (opts) opts = Object.assign({}, opts, { keys: ri.keys }); else { want = {}; for (var wi = 0; wi < ri.keys.length; wi++) want[ri.keys[wi]] = 1; } } }
+    if (ri) { if (opts && opts.original && ri.key) return originalRows(bytes, ri, opts); if (opts && opts.original) opts = Object.assign({}, opts, { original: null }); if (ri.keys && !(opts && opts.keys)) { if (opts) opts = Object.assign({}, opts, { keys: ri.keys }); else { want = {}; for (var wi = 0; wi < ri.keys.length; wi++) want[ri.keys[wi]] = 1; } } }
     else if (opts && opts.original) opts = Object.assign({}, opts, { original: null });
     if (opts) return unpackSome(bytes, opts);
     var file = f0, rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))), rf = arenaReader(makeFlatReader(arenaZs(S.zdec))), out = [], i, r, j, kd;
@@ -3955,7 +4287,8 @@
   // unpackRows(bytes, { from, count, table }): the rows from..from+count-1 (of the table, default the first) without decoding blocks outside that range. Files with raw blocks (their block row count includes blank lines) are read whole and cut.
   function unpackRows(bytes, opts) {
     opts = opts || {}; var from = opts.from || 0, count = opts.count == null ? Infinity : opts.count, file = openFile(bytes), tb = opts.table || 0, i, kd, start = 0, out = [], r, b, lo, hi, rn, rf, ri = rowIndexOf(file), want = null;
-    if (ri && opts.original) { r = originalRows(bytes, ri, { table: opts.table }); return r.slice(from, count === Infinity ? undefined : from + count); }   // since 0.16.0: rows in the order they were saved in, then cut
+    if (ri && ri.key && opts.original) { r = originalRows(bytes, ri, { table: opts.table }); return r.slice(from, count === Infinity ? undefined : from + count); }
+    if (opts.original && scrambleOf(file)) { r = unpack(bytes, opts.keys ? { keys: opts.keys, original: true } : { original: true }); return r.slice(from, count === Infinity ? undefined : from + count); }   // since 0.18.0: a scrambled file   // since 0.16.0: rows in the order they were saved in, then cut
     if (ri && ri.keys) { want = {}; for (i = 0; i < ri.keys.length; i++) want[ri.keys[i]] = 1; }   // and without the row-position column
     for (i = 0; i < file.blocks.length; i++) if (file.blocks[i][4] === 'r') return unpackSome(bytes, { table: tb }).slice(from, count === Infinity ? undefined : from + count);
     rn = arenaReader(makeNestedReader(arenaZs(S.zdec), sharedOf(file))); rf = arenaReader(makeFlatReader(arenaZs(S.zdec)));
@@ -4113,7 +4446,7 @@
         var R = {
           size: size, blocks: blocks.map(function (b, k) { return { offset: b[0], length: b[1], rows: b[3], kind: b[4], table: b[5] || 0, first: at[k] }; }),
           info: { rows: file.header.rows, blocks: blocks.length, size: size, major: f.major, minor: f.minor }, meta: file.meta === undefined ? null : file.meta,
-          summary: function () { var sm = f.sec[SEC_SUMMARY]; return sm ? JSON.parse(tdr.decode(sm)) : null; }, pyramids: function (key) { return pyrRead(f.sec[SEC_PYRAMID], key); },
+          summary: function () { var sm = f.sec[SEC_SUMMARY]; return sm ? sumAttach(JSON.parse(tdr.decode(sm))) : null; }, pyramids: function (key) { return pyrRead(f.sec[SEC_PYRAMID], key); },
           graph: function (o) { var hd = graphHeader(f); if (!hd) return Promise.resolve(null); if (hd.at[0] + hd.at[1] > f.bodyEnd) return Promise.reject(new Error('LfcPack: graph region out of range')); return read(hd.at[0], hd.at[1]).then(function (rg) { if (!(o && o.verify === false) && crcOf(rg) !== hd.at[2]) throw new Error('LfcPack: graph region checksum mismatch'); return graphViews(hd, rg); }); },   // since 0.17.0: the graph section as typed views (one read of its region)   // since 0.15.0: the column summary of the file (footer section 20), or null; nothing is read or decoded
           // block(i, { rows, keys }) (rows since 0.10.26): only the rows at those block-local positions (0 = the block's first row), in the order given, so a sorted page decodes a few rows of
           // each block instead of the whole block; keys (optional, with rows) names the keys to read. Same objects as block(i) would hold at those positions. Raw and nested blocks are read whole, then picked
@@ -4142,6 +4475,54 @@
             var z = file.zone && file.zone[i], h = fnvStr('.' + key), q; if (!z) return null;
             for (q = 0; q < z.length; q++) if (z[q][0] === h) return { min: z[q][1], max: z[q][2], count: z[q][3] };
             return null;
+          },
+          // bbox(x0, y0, x1, y1, { keys }) (since 0.20.0): on a file saved with geo, the rows whose x and y lie inside the box (edges included), reading only the blocks whose Hilbert key range meets
+          // a cell the box touches, in file order. Resolves with the rows (keys as asked; the hidden key column left out); rows.blocksRead says how many blocks were read. geo() gives the header.
+          geo: function () { var hd = geoHeader(f); return hd ? geoInfo(hd) : null; },
+          view: function (a, b) { return viewOf(viewSec(f), a, b); }, views: function () { return viewList(viewSec(f)); },   // since 0.22.0: two-way views from the footer
+          bbox: function (x0, y0, x1, y1, bo) {
+            var hd = geoHeader(f), me = this; if (!hd) return Promise.reject(new Error('LfcPack: bbox needs a file saved with geo'));
+            var runs = geoRuns(hd, x0, y0, x1, y1), list = [], i, z, ks = bo && bo.keys ? bo.keys.slice() : null, want, out = [];
+            for (i = 0; i < blocks.length; i++) { z = hd.zones ? (hd.zones[i] ? { min: hd.zones[i][0], max: hd.zones[i][1] } : null) : this.zone(i, hd.key); if (z && geoMeets(runs, z.min, z.max)) list.push(i); }
+            want = ks ? ks.concat([hd.x, hd.y].filter(function (k) { return ks.indexOf(k) < 0; })) : null;
+            var k = 0, step = function () {
+              if (k >= list.length) { out.blocksRead = list.length; return out; }
+              var bi = list[k++];
+              return me.columns(bi, { keys: want || undefined, nulls: 'NaN' }).then(function (b) {
+                var X = b.cols[hd.x], Y = b.cols[hd.y], names = ks || Object.keys(b.cols).filter(function (q) { return q !== hd.key; }), j, q, r, xv, yv;
+                for (j = 0; j < b.n; j++) { xv = X[j]; yv = Y[j]; if (!(xv >= x0 && xv <= x1 && yv >= y0 && yv <= y1)) continue; r = {}; for (q = 0; q < names.length; q++) { var c = b.cols[names[q]]; r[names[q]] = c ? (c[j] !== c[j] && typeof c[j] === 'number' ? null : c[j]) : undefined; } out.push(r); }
+                return step();
+              });
+            };
+            return Promise.resolve().then(step);
+          },
+          // progressive(keys, onStep, { by }) (since 0.18.0): reads the blocks in file order and after each one calls onStep({ block, blocks, rows, total, share, cols, groups }) with running numbers:
+          // cols[key] = { n, sum, mean, min, max, estSum } over the non-missing values read so far (estSum scales sum by total / rows); with by (a column key), groups is a Map from each label to
+          // { rows, estRows, cols } for that label. In a file saved with scramble every block is a uniform sample, so these are fair estimates from the first block on and exact after the last;
+          // in any other file they are only the totals of the rows read so far. onStep returning false stops early. Resolves with the last step. Flat-row blocks only (as columns()).
+          progressive: function (keys, onStep, po) {
+            if (typeof keys === 'string') keys = [keys];
+            if (!Array.isArray(keys) || !keys.length) return Promise.reject(new TypeError('LfcPack: progressive(keys, onStep): keys must be a column key or a list of them'));
+            var by = po && po.by != null ? String(po.by) : null, want = by && keys.indexOf(by) < 0 ? keys.concat([by]) : keys, me = this, total = file.header.rows, done = 0, k = 0, last = null;
+            var mk = function () { var c = {}, q; for (q = 0; q < keys.length; q++) c[keys[q]] = { n: 0, sum: 0, mean: NaN, min: Infinity, max: -Infinity, estSum: 0 }; return c; };
+            var cols = mk(), groups = by ? new Map() : null;
+            var add = function (c, v) { if (typeof v === 'number' && v === v) { c.n++; c.sum += v; if (v < c.min) c.min = v; if (v > c.max) c.max = v; } };
+            var step = function () {
+              if (k >= blocks.length) return last;
+              var i = k++;
+              return me.columns(i, { keys: want, nulls: 'NaN' }).then(function (b) {
+                var n = b.n, q, j, a, g, lab, gb = by ? b.cols[by] : null, sc;
+                for (q = 0; q < keys.length; q++) { a = b.cols[keys[q]]; if (!a) continue; for (j = 0; j < n; j++) add(cols[keys[q]], a[j]); }
+                if (gb) for (j = 0; j < n; j++) { lab = gb[j]; g = groups.get(lab); if (!g) { g = { rows: 0, estRows: 0, cols: mk() }; groups.set(lab, g); } g.rows++; for (q = 0; q < keys.length; q++) { a = b.cols[keys[q]]; if (a) add(g.cols[keys[q]], a[j]); } }
+                done += n; sc = done ? total / done : 0;
+                var fin = function (cs) { for (var key in cs) { var c = cs[key]; c.mean = c.n ? c.sum / c.n : NaN; c.estSum = c.sum * sc; } };
+                fin(cols); if (groups) groups.forEach(function (gg) { gg.estRows = gg.rows * sc; fin(gg.cols); });
+                last = { block: i, blocks: blocks.length, rows: done, total: total, share: total ? done / total : 1, cols: cols, groups: groups };
+                if (typeof onStep === 'function' && onStep(last) === false) return last;
+                return step();
+              });
+            };
+            return Promise.resolve().then(step);
           },
           rows: function (o) {
             o = o || {}; var from = o.from || 0, count = o.count == null ? Infinity : o.count, tb = o.table || 0, out = [], k = 0;
@@ -4220,7 +4601,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), pyramids: auto(pyramids, false), graph: auto(graph, false), addGraph: auto(function (file, g, table) { return addGraph(bytesOf(file), graphBuild(g, table)); }, true), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n, q) { return sumColumn(k, col, n, undefined, q !== null && typeof q === "object" ? sumReq(n, q.q !== false, q.pyramids) : q !== false); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.17.0', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), pyramids: auto(pyramids, false), graph: auto(graph, false), geo: auto(geo, false), view: auto(view, false), views: auto(views, false), addGraph: auto(function (file, g, table) { return addGraph(bytesOf(file), graphBuild(g, table)); }, true), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n, q) { return sumColumn(k, col, n, undefined, q !== null && typeof q === "object" ? sumReq(n, q.q !== false, q.pyramids) : q !== false); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.24.0', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
@@ -4698,25 +5079,35 @@
     return any ? out : obj;
   }
   function packColumnsParallel(obj, opts) {   // since 0.17.0: graph: { from, to, weight?, directed?, reverse?, nodes? } adds the graph section (23) after the save
+    if (opts && opts.views) { try { viewSpec(opts.views); } catch (e) { return Promise.reject(e); } return packColumnsParallel(obj, Object.assign({}, opts, { views: null, _views: opts.views })); }   // since 0.22.0: built inside the save (packColumnsParallel0)
+    if (opts && opts.geo) { var gp; try { gp = geoPrep(obj, opts); } catch (e) { return Promise.reject(e); } return packColumnsParallel(gp.obj, gp.opts).then(function (b) { return addSections(b, [[SEC_GEO, geoSection(gp, b)]]); }); }   // since 0.20.0
     if (!opts || !opts.graph) return packColumnsParallel0(obj, opts);
     var gb; try { gb = graphBuild(opts.graph, obj); } catch (e) { return Promise.reject(e); }
     return packColumnsParallel0(obj, Object.assign({}, opts, { graph: null })).then(function (b) { return addGraph(b, gb); });
   }
-  function packColumnsParallel0(obj, opts) {
+  function packColumnsParallel0(obj, opts) {   // since 0.22.0: views (opts._views) run in the summary's idle slots on the main path, or after the save on the others
+    if (!opts || !opts._views) return packColumnsParallel1(obj, opts, null);
+    var V = { spec: opts._views, obj: obj, ex: null, res: null, err: null, done: false, run: function () { V.done = true; try { V.res = viewsBuild(V.obj, V.spec, V.ex); } catch (e) { V.err = e; } } };
+    return packColumnsParallel1(obj, Object.assign({}, opts, { _views: null }), V).then(function (b) { if (!V.done) V.run(); if (V.err) throw V.err; return V.res ? addSections(b, [[SEC_VIEWS, V.res]]) : b; });
+  }
+  function packColumnsParallel1(obj, opts, V) {
     var t = colTable(obj, 'packColumnsParallel'), so;
     if (t instanceof Error) return Promise.reject(t);
-    try { so = sortOpt(opts); } catch (e) { return Promise.reject(e); }
-    if (so) {   // since 0.16.0: sortBy (and keepOrder): the table sorted first, then saved as any table; section 20 says which column (written even with summary: false)
-      try { obj = sortTable(obj, so).obj; } catch (e) { return Promise.reject(e); }
-      t = colTable(obj, 'packColumnsParallel'); if (t instanceof Error) return Promise.reject(t);
-      opts = Object.assign({}, opts, { _sort: so, sortBy: null, keepOrder: false });
-      if (opts.summary === false) { var ks = Object.keys(obj).filter(function (k) { return k !== SORT_ROW || !so.keep; }); return packRowsParallel(t.empty ? t.rowsOf(0, t.n) : t.CT, opts).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, t.n, ks)]]); }); }
+    try { so = opts && opts._presort ? opts._presort : sortOpt(opts); } catch (e) { return Promise.reject(e); }
+    if (so) {   // since 0.16.0: sortBy (and keepOrder): the table sorted first, then saved as any table; section 20 says which column (written even with summary: false). _presort: geo sorted it already
+      if (!opts._presort) { try { obj = sortTable(obj, so).obj; } catch (e) { return Promise.reject(e); }
+        t = colTable(obj, 'packColumnsParallel'); if (t instanceof Error) return Promise.reject(t); }
+      opts = Object.assign({}, opts, { _sort: so, _presort: null, sortBy: null, keepOrder: false, scramble: null });
+      if (V) { V.obj = obj; V.ex = (so.hide || []).concat(so.keep ? [SORT_ROW] : []); }
+      if (opts.summary === false) { var ks = Object.keys(obj).filter(function (k) { return (k !== SORT_ROW || !so.keep) && !(so.hide && so.hide.indexOf(k) >= 0); }); return packRowsParallel(t.empty ? t.rowsOf(0, t.n) : t.CT, opts).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, t.n, ks)]]); }); }
     }
     if (t.empty) return packRowsParallel(t.rowsOf(0, t.n), opts);
     if (opts && opts.summary === false) return packRowsParallel(t.CT, opts);
     // since 0.15.0: the column summary (footer section 20) and the line-chart pyramids (21; pyramids: false leaves them out, summary: false both). Number and date columns are summed inside the writer's own
     // pass over each block (blockStats); what is left runs on this thread while every helper has a full queue and after the last block is handed out, so it fills time this thread would wait anyway
-    var side = sumJobs(obj, t.n, opts), pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
+    var side = sumJobs(obj, t.n, opts), pr;
+    if (V) { var n0 = side.next; side.next = function (early) { if (n0(early)) return true; if (!V.done) { V.run(); return true; } return false; }; }
+    pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
     return pr.then(function (b) { return side.done().then(function (x) { return addSections(b, [[SEC_SUMMARY, x.sum], [SEC_PYRAMID, x.pyr]]); }, function () { return b; }); });
   }
   function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
@@ -4738,7 +5129,7 @@
   function packRowsParallel(rows, opts) {
     var so; try { so = rows && rows.__ct ? null : sortOpt(opts); } catch (e) { return Promise.reject(e); }
     if (so) { var sr; try { sr = sortRowArray(rows, so); } catch (e) { return Promise.reject(e); }   // since 0.16.0: sortBy on a row array
-      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
+      return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
     return init().then(function () {
       var pay = 1, po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
       if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(ctNaN(rows, rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows)) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);
