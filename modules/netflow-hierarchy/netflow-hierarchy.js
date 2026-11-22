@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 LFC Foundry. MIT License. https://github.com/lfcfoundry/JS-modules */
 /*
- * Version 1.11.0 (API 1)
+ * Version 1.12.0 (API 1)
  * netflow-hierarchy.js: the nested views of Netflow Map (Treemap, Sunburst, Icicle, Circle pack, Tree), and the tree and drawing
  * helpers the circular views (netflow-circular.js) build on.
  * layout(view, G, o) runs in the engine helper and returns a plain layout; scene(L, o, NS) turns it into drawing lists
@@ -277,6 +277,7 @@ var NetflowHierarchy = (function () {
     }
   }
   function treemap(G, o) {
+    if (o.parentKey && typeof o.parentKey === 'string') { var TP = tinyView(G, o, o.parentKey, 'treemap'); if (TP) return TP; }
     var H = hierarchy(G, o, 4), val = sums(G, H, o), N = H.N, R = H.fx >= 0 ? H.F.subarray(H.fx, H.fx + N * 4) : new Float64Array(N * 4);
     var total = val[H.root] || 1, side = Math.max(600, Math.min(4000, Math.sqrt(H.N) * 70)), W = side * 1.5, Ht = side;
     if (o.width > 0 && o.height > 0) { W = Math.max(160, o.width - 60); Ht = Math.max(120, o.height - 60); }   /* width and height given (since 1.5.0): lay the boxes out at that size; the picture keeps its 30-unit margin, so the SVG is exactly that size */
@@ -296,8 +297,120 @@ var NetflowHierarchy = (function () {
      afterwards, in every browser (the browser had seen two kinds of list there). It gives the same result as the general path (the tests compare
      them) and hands the work back (returns null) for an item marked as the start, a loop, group nesting, or 'auto' with no link at all. */
   var TINY = 24;
-  function tinyPart(G, o, pk, radial) {
-    var nodes = G.nodes, n = nodes.length, nest = o.nest;
+  /* the treemap's rows for the tiny path: squarify() on plain lists */
+  function tinySquarify(k, val, own, x0, y0, x1, y1, R) {
+    var total = 0, i, kl = k.length; if (!kl) return;
+    for (i = 0; i < kl; i++) total += val[k[i]];
+    total += own; if (!(total > 0)) return;
+    var W = x1 - x0, Ht = y1 - y0, area = W * Ht / total, at = 0;
+    while (at < kl) {
+      var side = Math.min(x1 - x0, y1 - y0); if (side <= 0) side = 1e-9;
+      var rowSum = 0, minV = Infinity, maxV = 0, worst = Infinity, end = at;
+      for (; end < kl; end++) {
+        var vv = val[k[end]] * area, s2 = rowSum + vv, mn = Math.min(minV, vv), mx = Math.max(maxV, vv);
+        var wr = Math.max(side * side * mx / (s2 * s2), s2 * s2 / (side * side * mn));
+        if (end > at && wr > worst) break;
+        rowSum = s2; minV = mn; maxV = mx; worst = wr;
+      }
+      var horiz = (x1 - x0) >= (y1 - y0), thick = rowSum / side, p = horiz ? y0 : x0;
+      for (i = at; i < end; i++) {
+        var c = k[i], len = val[c] * area / (thick || 1);
+        if (horiz) { R[c * 4] = x0; R[c * 4 + 1] = p; R[c * 4 + 2] = x0 + thick; R[c * 4 + 3] = p + len; }
+        else { R[c * 4] = p; R[c * 4 + 1] = y0; R[c * 4 + 2] = p + len; R[c * 4 + 3] = y0 + thick; }
+        p += len;
+      }
+      if (horiz) x0 += thick; else y0 += thick;
+      at = end;
+    }
+  }
+  function zeros(n, v0) { var a = new Array(n); for (var i = 0; i < n; i++) a[i] = v0 || 0; return a; }
+  /* the tree view for the tiny path: tree() and buchheim() on plain lists (boxes are numbered parents first) */
+  function tinyTree(N, kids, par, depth, item, shape) {
+    var X = zeros(N), Y = zeros(N), maxD = 0, i, skipRoot = item[0] < 0 ? 1 : 0, v, k, j;
+    for (i = 0; i < N; i++) if (depth[i] > maxD) maxD = depth[i];
+    if (shape === 'indented') {
+      var row = 0, stack = [0];
+      while (stack.length) { v = stack.pop(); if (!(skipRoot && v === 0)) { X[v] = (depth[v] - skipRoot) * 26; Y[v] = row++ * 26; } k = kids[v]; for (j = k.length - 1; j >= 0; j--) stack.push(k[j]); }
+      return { X: X, Y: Y, shape: shape, W: (maxD + 1) * 26 + 360, H: row * 26 + 40, skipRoot: skipRoot };
+    }
+    var cluster = shape === 'cluster' || shape === 'radialCluster', B = zeros(N);
+    if (cluster) {
+      var leaf = 0, dfs = [0], post = [], w2, kk, q, seen = [0], vis = [], s, ks, p2, kp;
+      while (dfs.length) { w2 = dfs.pop(); post.push(w2); kk = kids[w2]; for (q = 0; q < kk.length; q++) dfs.push(kk[q]); }
+      while (seen.length) { s = seen.pop(); vis.push(s); ks = kids[s]; for (q = ks.length - 1; q >= 0; q--) seen.push(ks[q]); }
+      for (q = 0; q < vis.length; q++) if (!kids[vis[q]].length) B[vis[q]] = leaf++;
+      for (i = post.length - 1; i >= 0; i--) { p2 = post[i]; kp = kids[p2]; if (kp.length) B[p2] = (B[kp[0]] + B[kp[kp.length - 1]]) / 2; }
+    } else tinyBuch(N, kids, par, B);
+    var minB = Infinity, maxB = -Infinity;
+    for (i = 0; i < N; i++) { if (skipRoot && i === 0) continue; if (B[i] < minB) minB = B[i]; if (B[i] > maxB) maxB = B[i]; }
+    if (!isFinite(minB)) { minB = 0; maxB = 0; }
+    var levels = maxD + 1 - skipRoot;
+    if (shape === 'radial' || shape === 'radialCluster') {
+      var count = maxB - minB + 1, Rad = Math.max(220, Math.min(3000, count * 16 / TAU, levels * 120 + 60)), cx = Rad + 200;
+      if (count * 16 / TAU > Rad) Rad = Math.min(4000, count * 16 / TAU);
+      cx = Rad + 200;
+      for (i = 0; i < N; i++) {
+        var an = (B[i] - minB) / Math.max(1, count) * TAU - Math.PI / 2, rr = cluster && !kids[i].length ? Rad : (depth[i] - skipRoot) / Math.max(1, levels - 1) * Rad;
+        if (skipRoot && i === 0) rr = 0;
+        X[i] = cx + Math.cos(an) * rr; Y[i] = cx + Math.sin(an) * rr;
+      }
+      return { X: X, Y: Y, shape: shape, cx: cx, cy: cx, W: cx * 2, H: cx * 2, skipRoot: skipRoot, minB: minB, count: count };
+    }
+    var dx = 180, dy = 26;
+    for (i = 0; i < N; i++) { X[i] = (cluster && !kids[i].length ? levels - 1 : depth[i] - skipRoot) * dx + 20; Y[i] = (B[i] - minB) * dy + 20; }
+    return { X: X, Y: Y, shape: shape, W: levels * dx + 300, H: (maxB - minB + 1) * dy + 40, skipRoot: skipRoot };
+  }
+  function tinyBuch(N, kids, par, B) {
+    var prelim = zeros(N), mod = zeros(N), shift = zeros(N), change = zeros(N), thread = zeros(N, -1), ancestor = zeros(N), number = zeros(N), mid = zeros(N), acc = zeros(N);
+    var fk = zeros(N, -1), lk = zeros(N, -1), ls = zeros(N, -1), lm = zeros(N, -1), i, j, k, L, c0;
+    for (i = 0; i < N; i++) { ancestor[i] = i; k = kids[i]; L = k.length; if (!L) continue; fk[i] = k[0]; lk[i] = k[L - 1]; for (j = 0; j < L; j++) { c0 = k[j]; number[c0] = j; lm[c0] = k[0]; if (j) ls[c0] = k[j - 1]; } }
+    /* apportion(), with nextLeft, nextRight, ancestorOf and moveSubtree written out where they are used */
+    var apportion = function (v, def) {
+      var w = ls[v]; if (w < 0) return def;
+      var vip = v, vop = v, vim = w, vom = lm[v], sip = mod[vip], sop = mod[vop], sim = mod[vim], som = mod[vom], nr, nl, s, sub, a, wm;
+      for (;;) {
+        nr = lk[vim]; if (!(nr >= 0)) nr = thread[vim]; if (!(nr >= 0)) break;
+        nl = fk[vip]; if (!(nl >= 0)) nl = thread[vip]; if (!(nl >= 0)) break;
+        vim = nr; vip = nl;
+        nl = fk[vom]; vom = nl >= 0 ? nl : thread[vom];
+        nr = lk[vop]; vop = nr >= 0 ? nr : thread[vop];
+        ancestor[vop] = v;
+        s = (prelim[vim] + sim) - (prelim[vip] + sip) + 1;
+        if (s > 0) {
+          a = ancestor[vim]; wm = par[a] === par[v] && par[v] >= 0 ? a : def;
+          sub = number[v] - number[wm]; if (sub <= 0) sub = 1;
+          change[v] -= s / sub; shift[v] += s; change[wm] += s / sub; prelim[v] += s; mod[v] += s;
+          sip += s; sop += s;
+        }
+        sim += mod[vim]; sip += mod[vip]; som += mod[vom]; sop += mod[vop];
+      }
+      nr = lk[vim]; if (!(nr >= 0)) nr = thread[vim];
+      nl = lk[vop]; if (!(nl >= 0)) nl = thread[vop];
+      if (nr >= 0 && !(nl >= 0)) { thread[vop] = nr; mod[vop] += sim - sop; }
+      nr = fk[vip]; if (!(nr >= 0)) nr = thread[vip];
+      nl = fk[vom]; if (!(nl >= 0)) nl = thread[vom];
+      if (nr >= 0 && !(nl >= 0)) { thread[vom] = nr; mod[vom] += sip - som; def = v; }
+      return def;
+    };
+    var k2, def, q2, c, w2, sh, ch, q, w;
+    for (i = N - 1; i >= 0; i--) {
+      k2 = kids[i]; if (!k2.length) continue;
+      def = k2[0];
+      for (q2 = 0; q2 < k2.length; q2++) {
+        c = k2[q2]; w2 = q2 ? k2[q2 - 1] : -1;
+        if (w2 >= 0) { prelim[c] = prelim[w2] + 1; if (kids[c].length) mod[c] = prelim[c] - mid[c]; }
+        else prelim[c] = kids[c].length ? mid[c] : 0;
+        def = apportion(c, def);
+      }
+      sh = 0; ch = 0;   /* executeShifts */
+      for (q = k2.length - 1; q >= 0; q--) { w = k2[q]; prelim[w] += sh; mod[w] += sh; ch += change[w]; sh += shift[w] + ch; }
+      mid[i] = (prelim[k2[0]] + prelim[k2[k2.length - 1]]) / 2;
+    }
+    prelim[0] = kids[0].length ? mid[0] : 0; B[0] = prelim[0];
+    for (i = 0; i < N; i++) { if (par[i] >= 0) { acc[i] = acc[par[i]] + mod[par[i]]; B[i] = prelim[i] + acc[i]; } else { acc[i] = 0; B[i] = prelim[i]; } }
+  }
+  function tinyView(G, o, pk, view) {
+    var nodes = G.nodes, n = nodes.length, nest = o.nest, radial = view === 'sunburst', treeV = view === 'tree';
     if (n < 1 || n > TINY || o._general || nest === 'groups') return null;
     var sk = typeof o.sizeKey === 'string' && o.sizeKey && o.sizeKey !== 'sizeV' ? o.sizeKey : null;
     var M = new Map(), sz = new Array(n), szOk = true, i, nd, x, p, a, par = new Array(n), kc = new Array(n), from = [], to = [];
@@ -338,8 +451,9 @@ var NetflowHierarchy = (function () {
     }
     kO[N] = nk;
     /* totals, as sums() does them */
+    if (view === 'treemap' && !szOk) return null;   /* a size that is not a plain number: the general path reads it as before */
     var val = new Array(N), own = new Array(N), sized = !!o.sized, s, w, b;
-    for (v = N - 1; v >= 0; v--) {
+    if (!treeV) for (v = N - 1; v >= 0; v--) {
       s = 0; a = kO[v]; b = kO[v + 1]; w = 0;
       for (j = a; j < b; j++) s += val[kL[j]];
       i = bitem[v];
@@ -349,7 +463,7 @@ var NetflowHierarchy = (function () {
       }
       own[v] = +w; val[v] = +s;
     }
-    if (o.sort !== false) {   /* biggest first, ties by lower number: an insertion sort per list */
+    if (o.sort !== false && !treeV) {   /* biggest first, ties by lower number: an insertion sort per list (the tree view does not sort) */
       for (v = 0; v < N; v++) {
         a = kO[v]; b = kO[v + 1];
         for (j = a + 1; j < b; j++) { t = kL[j]; k = j - 1; while (k >= a && (val[kL[k]] < val[t] || (val[kL[k]] === val[t] && kL[k] > t))) { kL[k + 1] = kL[k]; k--; } kL[k + 1] = t; }
@@ -357,50 +471,96 @@ var NetflowHierarchy = (function () {
     }
     var kb = new Array(N);
     for (v = 0; v < N; v++) { a = kO[v]; b = kO[v + 1]; if (a === b) kb[v] = EMPTY; else { k = new Array(b - a); for (j = a; j < b; j++) k[j - a] = kL[j]; kb[v] = k; } }
-    /* places, as partition() does them */
-    var R = new Array(N * 4), maxD = 0, skipRoot = bitem[0] < 0 ? 1 : 0, v4, d, span, tt, cur, c, ww;
-    for (i = 0; i < N * 4; i++) R[i] = 0;
-    R[1] = 0; R[3] = 1;
-    for (v = 0; v < N; v++) {
-      v4 = v * 4; a = R[v4 + 1]; d = bdep[v]; j = kO[v]; b = kO[v + 1];
-      if (d > maxD) maxD = d;
-      R[v4] = d - skipRoot; R[v4 + 2] = d - skipRoot + 1;
-      if (j === b) continue;
-      span = R[v4 + 3] - a; tt = val[v] || 1; cur = a + (own[v] > 0 ? span * own[v] / tt : 0);
-      for (; j < b; j++) { c = kL[j]; ww = span * val[c] / tt; R[c * 4 + 1] = cur; R[c * 4 + 3] = cur + ww; cur += ww; }
-    }
-    var levels = maxD + 1 - skipRoot, geo, type;
-    if (radial) {
-      var Rad = Math.max(260, Math.min(2200, 120 + Math.sqrt(N) * 26)), ring = Rad / Math.max(1, levels + 0.4);
-      type = 'sunburst'; geo = { R: R, W: Rad * 2 + 340, H: Rad * 2 + 340, cx: Rad + 170, cy: Rad + 170, ring: ring, hole: ring * 0.4, skipRoot: skipRoot, levels: levels };
+    var R, maxD = 0, geo, type = view, outNodes = nodes.slice(), at2 = at;
+    if (view === 'icicle' || radial) {
+      /* places, as partition() does them */
+      var skipRoot = bitem[0] < 0 ? 1 : 0, v4, d, span, tt, cur, c, ww;
+      R = new Array(N * 4); for (i = 0; i < N * 4; i++) R[i] = 0;
+      R[1] = 0; R[3] = 1;
+      for (v = 0; v < N; v++) {
+        v4 = v * 4; a = R[v4 + 1]; d = bdep[v]; j = kO[v]; b = kO[v + 1];
+        if (d > maxD) maxD = d;
+        R[v4] = d - skipRoot; R[v4 + 2] = d - skipRoot + 1;
+        if (j === b) continue;
+        span = R[v4 + 3] - a; tt = val[v] || 1; cur = a + (own[v] > 0 ? span * own[v] / tt : 0);
+        for (; j < b; j++) { c = kL[j]; ww = span * val[c] / tt; R[c * 4 + 1] = cur; R[c * 4 + 3] = cur + ww; cur += ww; }
+      }
+      var levels = maxD + 1 - skipRoot;
+      if (radial) {
+        var Rad = Math.max(260, Math.min(2200, 120 + Math.sqrt(N) * 26)), ring = Rad / Math.max(1, levels + 0.4);
+        geo = { R: R, W: Rad * 2 + 340, H: Rad * 2 + 340, cx: Rad + 170, cy: Rad + 170, ring: ring, hole: ring * 0.4, skipRoot: skipRoot, levels: levels };
+      } else {
+        var colW = 200, Hh = Math.max(500, Math.min(30000, N * 22));
+        geo = { R: R, W: Math.max(1, levels) * colW, H: Hh, colW: colW, skipRoot: skipRoot, levels: levels };
+      }
+    } else if (view === 'treemap') {
+      var side = Math.max(600, Math.min(4000, Math.sqrt(N) * 70)), W = side * 1.5, Ht = side;
+      if (o.width > 0 && o.height > 0) { W = Math.max(160, o.width - 60); Ht = Math.max(120, o.height - 60); }
+      R = new Array(N * 4); for (i = 0; i < N * 4; i++) R[i] = 0;
+      R[2] = W; R[3] = Ht;
+      for (v = 0; v < N; v++) {
+        if (kb[v].length === 0) continue;
+        var hd = (bitem[v] >= 0 || v !== 0) && R[v * 4 + 3] - R[v * 4 + 1] > 60 && R[v * 4 + 2] - R[v * 4] > 40 ? 18 : 0, pd = bdep[v] ? 3 : 0;
+        var tx0 = R[v * 4] + pd, ty0 = R[v * 4 + 1] + pd + hd, tx1 = R[v * 4 + 2] - pd, ty1 = R[v * 4 + 3] - pd;
+        if (tx1 < tx0) tx1 = tx0; if (ty1 < ty0) ty1 = ty0;
+        tinySquarify(kb[v], val, own[v], tx0, ty0, tx1, ty1, R);
+      }
+      geo = { R: R, W: W, H: Ht, total: val[0] || 1 };
+    } else if (view === 'pack') {
+      var padR = 3, PR = new Array(N), SX = new Array(N), SY = new Array(N), T0 = { x: 0, y: 0, r: 0 }, T1 = { x: 0, y: 0, r: 0 }, T2 = { x: 0, y: 0, r: 0 }, L3 = [T2, T1, T0], ra, rb, ow, n2, cs;
+      for (i = 0; i < N; i++) { PR[i] = 0; SX[i] = 0; SY[i] = 0; }
+      for (v = N - 1; v >= 0; v--) {
+        j = kO[v]; b = kO[v + 1]; n2 = b - j; ow = own[v];
+        if (!n2) { PR[v] = Math.sqrt(val[v] || 1) * 10; continue; }
+        if (!(ow > 0) && n2 < 3) {
+          if (n2 === 1) { PR[v] = PR[kL[j]] + padR + padR; continue; }
+          ra = PR[kL[j]] + padR; rb = PR[kL[j + 1]] + padR;
+          SX[kL[j]] = -rb; SX[kL[j + 1]] = ra; PR[v] = ra + rb + padR; continue;
+        }
+        if (n2 === 2) {
+          T0.x = 0; T0.y = 0; T0.r = PR[kL[j]] + padR; T1.x = 0; T1.y = 0; T1.r = PR[kL[j + 1]] + padR; T2.x = 0; T2.y = 0; T2.r = Math.sqrt(ow) * 10 + padR;
+          T0.x = -T1.r; T1.x = T0.r; place(T1, T0, T2); en_core(L3, 3);
+          c = kL[j]; SX[c] = T0.x - EN[0]; SY[c] = T0.y - EN[1]; c = kL[j + 1]; SX[c] = T1.x - EN[0]; SY[c] = T1.y - EN[1];
+          PR[v] = EN[2] + padR; continue;
+        }
+        cs = new Array(n2);
+        for (k = 0; k < n2; k++) cs[k] = { x: 0, y: 0, r: PR[kL[j + k]] + padR };
+        if (ow > 0) cs.push({ x: 0, y: 0, r: Math.sqrt(ow) * 10 + padR });
+        PR[v] = packSiblings(cs) + padR;
+        for (k = 0; k < n2; k++) { c = kL[j + k]; SX[c] = cs[k].x; SY[c] = cs[k].y; }
+      }
+      var want = Math.max(300, Math.min(3000, Math.sqrt(N) * 40)), scale = PR[0] > 0 ? want / PR[0] : 1, PX = new Array(N), PY = new Array(N), PRr = new Array(N);
+      for (i = 0; i < N; i++) { PX[i] = 0; PY[i] = 0; PRr[i] = 0; }
+      PX[0] = want + 40; PY[0] = want + 40; PRr[0] = want;
+      for (u = 0; u < N; u++) for (j = kO[u], b = kO[u + 1]; j < b; j++) { c = kL[j]; PX[c] = PX[u] + SX[c] * scale; PY[c] = PY[u] + SY[c] * scale; PRr[c] = (PR[c] + padR - padR) * scale; }
+      geo = { X: PX, Y: PY, Rr: PRr, W: want * 2 + 80, H: want * 2 + 80 };
     } else {
-      var colW = 200, Hh = Math.max(500, Math.min(30000, N * 22));
-      type = 'icicle'; geo = { R: R, W: Math.max(1, levels) * colW, H: Hh, colW: colW, skipRoot: skipRoot, levels: levels };
+      geo = tinyTree(N, kb, bpar, bdep, bitem, o.treeShape || 'tidy');
     }
-    var outNodes = nodes.slice();
     if (o.write === false) { geo.at = at; geo.placed = false; }
     else {   /* each item's place, written onto the item */
-      var xa, xb, ya, yb, x0, y0, x1, y1, an, rr, nd2, bx;
+      var xa, xb, ya, yb, x0, y0, x1, y1, an, rr, nd2, bx, rq = view === 'treemap' || view === 'icicle' || radial ? geo.R : null;
       for (i = 0; i < n; i++) {
         nd2 = outNodes[i]; bx = at[i];
-        if (!radial) {
-          xa = R[bx * 4] * geo.colW; xb = R[bx * 4 + 2] * geo.colW; ya = R[bx * 4 + 1] * geo.H; yb = R[bx * 4 + 3] * geo.H;
-          nd2.x = xa; nd2.y = ya; nd2.w = Math.max(0, xb - xa); nd2.h = Math.max(0, yb - ya); nd2.cx = (xa + xb) / 2; nd2.cy = (ya + yb) / 2; nd2.hv = bx;
-        } else {
-          an = (R[bx * 4 + 1] + R[bx * 4 + 3]) / 2 * TAU - Math.PI / 2; rr = geo.hole + (R[bx * 4] + 0.5) * geo.ring;
-          nd2.cx = geo.cx + Math.cos(an) * rr; nd2.cy = geo.cy + Math.sin(an) * rr; x0 = nd2.cx - 5; x1 = nd2.cx + 5; y0 = nd2.cy - 5; y1 = nd2.cy + 5;
-          nd2.x = x0; nd2.y = y0; nd2.w = Math.max(0, x1 - x0); nd2.h = Math.max(0, y1 - y0); nd2.cx = (x0 + x1) / 2; nd2.cy = (y0 + y1) / 2; nd2.hv = bx;
+        if (view === 'icicle') {
+          xa = rq[bx * 4] * geo.colW; xb = rq[bx * 4 + 2] * geo.colW; ya = rq[bx * 4 + 1] * geo.H; yb = rq[bx * 4 + 3] * geo.H;
+          nd2.x = xa; nd2.y = ya; nd2.w = Math.max(0, xb - xa); nd2.h = Math.max(0, yb - ya); nd2.cx = (xa + xb) / 2; nd2.cy = (ya + yb) / 2; nd2.hv = bx; continue;
         }
+        if (radial) { an = (rq[bx * 4 + 1] + rq[bx * 4 + 3]) / 2 * TAU - Math.PI / 2; rr = geo.hole + (rq[bx * 4] + 0.5) * geo.ring; nd2.cx = geo.cx + Math.cos(an) * rr; nd2.cy = geo.cy + Math.sin(an) * rr; x0 = nd2.cx - 5; x1 = nd2.cx + 5; y0 = nd2.cy - 5; y1 = nd2.cy + 5; }
+        else if (view === 'treemap') { x0 = rq[bx * 4]; y0 = rq[bx * 4 + 1]; x1 = rq[bx * 4 + 2]; y1 = rq[bx * 4 + 3]; }
+        else if (view === 'pack') { rr = geo.Rr[bx]; x0 = geo.X[bx] - rr; x1 = geo.X[bx] + rr; y0 = geo.Y[bx] - rr; y1 = geo.Y[bx] + rr; }
+        else { x0 = geo.X[bx] - 5; x1 = geo.X[bx] + 5; y0 = geo.Y[bx] - 5; y1 = geo.Y[bx] + 5; }
+        nd2.x = x0; nd2.y = y0; nd2.w = Math.max(0, x1 - x0); nd2.h = Math.max(0, y1 - y0); nd2.cx = (x0 + x1) / 2; nd2.cy = (y0 + y1) / 2; nd2.hv = bx;
       }
     }
-    geo.type = type; geo.val = val; geo.N = N; geo.par = bpar; geo.kids = kb; geo.depth = bdep; geo.item = bitem; geo.label = lab; geo.group = grp; geo.root = 0; geo.order = bord; geo.mode = 'links';
+    geo.type = type; geo.val = treeV ? NOVAL : val; geo.N = N; geo.par = bpar; geo.kids = kb; geo.depth = bdep; geo.item = bitem; geo.label = lab; geo.group = grp; geo.root = 0; geo.order = bord; geo.mode = 'links';
     geo.extra = 0; geo.tree = { from: from, to: to, extraList: [] };
     var es = [];
     for (i = 0; i < n; i++) { p = nodes[i][pk]; if (p !== null && p !== undefined && p !== '') es.push({ from: p, to: nodes[i].id }); }
     return { kind: type, dir: 'none', nodes: outNodes, edges: es, chart: geo, width: geo.W, height: geo.H };
   }
   function partition(G, o, radial) {
-    if (o.parentKey && typeof o.parentKey === 'string') { var TP = tinyPart(G, o, o.parentKey, radial); if (TP) return TP; }
+    if (o.parentKey && typeof o.parentKey === 'string') { var TP = tinyView(G, o, o.parentKey, radial ? 'sunburst' : 'icicle'); if (TP) return TP; }
     var H = hierarchy(G, o, 4), val = sums(G, H, o), N = H.N, R = H.fx >= 0 ? H.F.subarray(H.fx, H.fx + N * 4) : new Float64Array(N * 4), maxD = 0, v, own = H.ownV, kidOff = H.kidOff, kidList = H.kidList, depth = H.depth;
     var skipRoot = H.item[H.root] < 0 ? 1 : 0;
     R[H.root * 4 + 1] = 0; R[H.root * 4 + 3] = 1;
@@ -504,6 +664,7 @@ var NetflowHierarchy = (function () {
     EN[0] = ex; EN[1] = ey; EN[2] = er;
   }
   function pack(G, o) {
+    if (o.parentKey && typeof o.parentKey === 'string') { var TP = tinyView(G, o, o.parentKey, 'pack'); if (TP) return TP; }
     var H = hierarchy(G, o), val = sums(G, H, o), N = H.N, i, j, c, padR = 3, order = H.order, kidOff = H.kidOff, kidList = H.kidList, own = H.ownV;
     /* each box's own circle size and its place inside its parent, in plain number lists; one or two children need no packing at all */
     var PR = fltList(N), SX = fltList(N), SY = fltList(N), T0 = { x: 0, y: 0, r: 0 }, T1 = { x: 0, y: 0, r: 0 }, T2 = { x: 0, y: 0, r: 0 }, L3 = [T2, T1, T0];   /* the order the fixed shuffle gives three circles */
@@ -541,6 +702,7 @@ var NetflowHierarchy = (function () {
    * shape: 'tidy' (left to right), 'cluster' (every leaf in the last column, a dendrogram), 'radial', 'radialCluster', 'indented'.
    */
   function tree(G, o) {
+    if (o.parentKey && typeof o.parentKey === 'string') { var TP = tinyView(G, o, o.parentKey, 'tree'); if (TP) return TP; }
     var H = hierarchy(G, o), val = NOVAL, N = H.N, shape = o.treeShape || 'tidy', i;
     var X = fltList(N), Y = fltList(N), maxD = 0;
     for (i = 0; i < N; i++) if (H.depth[i] > maxD) maxD = H.depth[i];
