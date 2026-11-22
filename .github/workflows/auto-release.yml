@@ -4,7 +4,7 @@ name: auto-release
 on:
   push:
     branches: [main]
-    paths: [modules.json]
+    paths: [modules.json, .github/workflows/auto-release.yml]
   workflow_dispatch:
 permissions:
   contents: write
