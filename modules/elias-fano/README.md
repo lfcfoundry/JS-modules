@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.2.0 · API 2**
+**Version 2.2.1 · API 2**
 
 **Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -179,8 +179,8 @@ Measured on the short lists (2 to 63 values) of five real files (retail orders, 
 | Short lists | Tiny list |
 |---|---|
 | Bytes | 122 KB against 609 KB for the best older kind per list (0.20x) and 278 KB as plain 32-bit numbers |
-| Decode every list | 0.63 / 0.65 / 0.55 of the time |
-| First value at or above x, 50 per list | 0.39 / 0.45 / 0.35 |
+| Decode every list | 0.57 / 0.44 / 0.35 of the time (2.2.1) |
+| First value at or above x, 50 per list | 0.45 / 0.53 / 0.33 (2.2.1) |
 | Intersect pairs | 0.52 / 0.58 / 0.73 |
 
 Reads decode the list into one shared scratch array, so a tiny list keeps no memory besides its bytes. The last list read stays decoded, so `get(i)` in a loop over one list is cheap. A loop that reads two tiny lists in turn decodes each time, so take `toArray()` first. Above 63 values a tiny list is smaller still (about 0.77x of flat) but 2 to 4 times slower to decode and 4 to 6 times slower to intersect, so `buildAuto` stops at 63. Against a plain array of 4 bytes a value, tiny lists win on size, decoding and intersecting, not on single lookups. Plain binary search is as fast in Chromium and 1.4x / 1.8x faster in Firefox / WebKitGTK.

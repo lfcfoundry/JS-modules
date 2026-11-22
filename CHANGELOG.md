@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.2.0 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.2.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.24.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-22 · **walker-sim** 2.5.0 · API 2: Single-walker trials run faster on sparse graphs.
 - 2026-11-22 · **lfc-pack** 0.24.1 · API 0: Tail estimates from sampled summaries are no longer biased high.
 - 2026-11-22 · **image-decode** 1.2.3 · API 1: Uses the browser's built-in base64 decoder when it has one.
+- 2026-11-22 · **elias-fano** 2.2.1 · API 2: Tiny lists read faster.
 - 2026-11-22 · **elias-fano** 2.2.0 · API 2: Lists of 63 values or fewer take 0.2x the bytes; batch calls are quicker; an optional pin speeds up lookups on mid-size lists.
 - 2026-11-22 · **clip-writer** 1.4.0 · API 1: Blob output builds WebM from parts without one big copy.
 - 2026-11-21 · **zip-open** 1.21.0 · API 1: New opts.onFile on expand() and expandBlob(): each file is handed to your function as soon as it is unpacked, so a first view can show while the rest opens. Same final result.

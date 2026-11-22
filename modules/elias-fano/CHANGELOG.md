@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.1 · API 2 · 2026-11-22
+- Tiny lists read faster.
+
 ## 2.2.0 · API 2 · 2026-11-22
 - Lists of 63 values or fewer take 0.2x the bytes; batch calls are quicker; an optional pin speeds up lookups on mid-size lists.
 
