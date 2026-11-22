@@ -268,35 +268,51 @@ static inline void pair1(double *X, i32 i, i32 j, i32 c, const float *pdT, const
  * i = 0, 1, 2, ... (wrapping round), so every pair comes once per sweep and the items are read in order (use < k/2 takes only the first `use` offsets of each sweep's order:
  * an even sample of the pairs). Two neighbors in that order, (i, i + r) and (i + 1, i + 1 + r),
  * share no item unless r is 1, so they run side by side, one per lane, and give exactly what one after the other gives (same operations, no fused multiply-add). */
-EXP("sweepsd") void sweepsd(double *X, i32 k, const unsigned char *D, const float *pdT, const float *pwT, const double *etas, i32 tmax, u32 s, i32 *ord, i32 use) {
+/* One pair in single precision (the same operations, in the same order, as one lane of the four-at-a-time loop below and as the JavaScript, which rounds every step
+ * with Math.fround). */
+static inline void pair1f(float *F, i32 i, i32 j, i32 c, const float *pdT, const float *pwT, float eta) {
+  float mu = pwT[c] * eta; if (mu > 1) mu = 1;
+  i32 a2 = i * 2, b2 = j * 2;
+  float dx = F[a2] - F[b2], dy = F[a2 + 1] - F[b2 + 1], mag = __builtin_sqrtf(dx * dx + dy * dy);
+  if (mag == 0 || mag != mag) mag = 1e-6f;
+  float r = (mu * (mag - pdT[c])) / (2 * mag), rx = r * dx, ry = r * dy;
+  F[a2] -= rx; F[a2 + 1] -= ry; F[b2] += rx; F[b2 + 1] += ry;
+}
+/* The sweeps run in single precision on a copy of the positions (F), four pairs at a time: the neighbors (i, i + r) .. (i + 3, i + 3 + r) share no item when r and
+ * k - r are at least 4, so four lanes give exactly what one pair after the other gives. The square root and the division are what a pair costs, and four lanes
+ * of single precision do twice the pairs of two lanes of double precision in the same time. Positions go in and come out as doubles. */
+EXP("sweepsd") void sweepsd(double *X, i32 k, const unsigned char *D, const float *pdT, const float *pwT, const double *etas, i32 tmax, u32 s, i32 *ord, i32 use, float *F) {
   i32 nr = k / 2;
+  for (i32 q = 0; q < 2 * k; q++) F[q] = (float)X[q];
   for (i32 q = 0; q < nr; q++) ord[q] = q + 1;
   for (i32 t = 0; t < tmax; t++) {
-    double eta = etas[t]; v128_t etav = wasm_f64x2_splat(eta);
+    float eta = (float)etas[t]; v128_t etav = wasm_f32x4_splat(eta), one = wasm_f32x4_splat(1.0f), two = wasm_f32x4_splat(2.0f), tiny = wasm_f32x4_splat(1e-6f), zero = wasm_f32x4_splat(0.0f);
     for (i32 q = nr - 1; q > 0; q--) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; i32 j = (i32)(((double)s / 4294967296.0) * (double)(q + 1)); i32 p = ord[q]; ord[q] = ord[j]; ord[j] = p; }
     for (i32 q = 0; q < use; q++) {
       i32 r = ord[q], lim = 2 * r == k ? nr : k; const unsigned char *Dr = D + (long)(r - 1) * k;
       for (i32 seg = 0; seg < 2; seg++) {   /* seg 0: i + r stays under k; seg 1: it wraps */
         i32 i0 = seg ? k - r : 0, i1 = seg ? lim : (lim < k - r ? lim : k - r), sh = seg ? r - k : r, i = i0;
-        if (r != 1) for (; i + 1 < i1; i += 2) {
-          i32 j = i + sh, c1 = Dr[i], c2 = Dr[i + 1];
-          if (c1 == 0 || c2 == 0) { if (c1) pair1(X, i, j, c1, pdT, pwT, eta); if (c2) pair1(X, i + 1, j + 1, c2, pdT, pwT, eta); continue; }
-          v128_t mu = clampmu(wasm_f64x2_mul(wasm_f64x2_make((double)pwT[c1], (double)pwT[c2]), etav));
-          v128_t dd = wasm_f64x2_make((double)pdT[c1], (double)pdT[c2]);
-          v128_t pa = wasm_v128_load(X + 2 * i), pb = wasm_v128_load(X + 2 * i + 2), qa = wasm_v128_load(X + 2 * j), qb = wasm_v128_load(X + 2 * j + 2);   /* (x, y) of i, i + 1, j, j + 1 */
-          v128_t xa = wasm_i64x2_shuffle(pa, pb, 0, 2), ya = wasm_i64x2_shuffle(pa, pb, 1, 3), xb = wasm_i64x2_shuffle(qa, qb, 0, 2), yb = wasm_i64x2_shuffle(qa, qb, 1, 3);
-          v128_t dx = wasm_f64x2_sub(xa, xb), dy = wasm_f64x2_sub(ya, yb);
-          v128_t mag = fixmag(wasm_f64x2_sqrt(wasm_f64x2_add(wasm_f64x2_mul(dx, dx), wasm_f64x2_mul(dy, dy))));
-          v128_t rr = wasm_f64x2_div(wasm_f64x2_mul(mu, wasm_f64x2_sub(mag, dd)), wasm_f64x2_mul(wasm_f64x2_splat(2.0), mag));
-          v128_t rx = wasm_f64x2_mul(rr, dx), ry = wasm_f64x2_mul(rr, dy);
-          v128_t nxa = wasm_f64x2_sub(xa, rx), nya = wasm_f64x2_sub(ya, ry), nxb = wasm_f64x2_add(xb, rx), nyb = wasm_f64x2_add(yb, ry);
-          wasm_v128_store(X + 2 * i, wasm_i64x2_shuffle(nxa, nya, 0, 2)); wasm_v128_store(X + 2 * i + 2, wasm_i64x2_shuffle(nxa, nya, 1, 3));
-          wasm_v128_store(X + 2 * j, wasm_i64x2_shuffle(nxb, nyb, 0, 2)); wasm_v128_store(X + 2 * j + 2, wasm_i64x2_shuffle(nxb, nyb, 1, 3));
+        if (r >= 4 && k - r >= 4) for (; i + 3 < i1; i += 4) {
+          i32 j = i + sh, c1 = Dr[i], c2 = Dr[i + 1], c3 = Dr[i + 2], c4 = Dr[i + 3];
+          if (c1 == 0 || c2 == 0 || c3 == 0 || c4 == 0) { if (c1) pair1f(F, i, j, c1, pdT, pwT, eta); if (c2) pair1f(F, i + 1, j + 1, c2, pdT, pwT, eta); if (c3) pair1f(F, i + 2, j + 2, c3, pdT, pwT, eta); if (c4) pair1f(F, i + 3, j + 3, c4, pdT, pwT, eta); continue; }
+          v128_t mu = wasm_f32x4_pmin(one, wasm_f32x4_mul(wasm_f32x4_make(pwT[c1], pwT[c2], pwT[c3], pwT[c4]), etav));
+          v128_t dd = wasm_f32x4_make(pdT[c1], pdT[c2], pdT[c3], pdT[c4]);
+          v128_t pa = wasm_v128_load(F + 2 * i), pb = wasm_v128_load(F + 2 * i + 4), qa = wasm_v128_load(F + 2 * j), qb = wasm_v128_load(F + 2 * j + 4);   /* (x, y) of two items each */
+          v128_t xa = wasm_i32x4_shuffle(pa, pb, 0, 2, 4, 6), ya = wasm_i32x4_shuffle(pa, pb, 1, 3, 5, 7), xb = wasm_i32x4_shuffle(qa, qb, 0, 2, 4, 6), yb = wasm_i32x4_shuffle(qa, qb, 1, 3, 5, 7);
+          v128_t dx = wasm_f32x4_sub(xa, xb), dy = wasm_f32x4_sub(ya, yb);
+          v128_t mag = wasm_f32x4_sqrt(wasm_f32x4_add(wasm_f32x4_mul(dx, dx), wasm_f32x4_mul(dy, dy)));
+          mag = wasm_v128_bitselect(tiny, mag, wasm_v128_or(wasm_f32x4_eq(mag, zero), wasm_f32x4_ne(mag, mag)));
+          v128_t rr = wasm_f32x4_div(wasm_f32x4_mul(mu, wasm_f32x4_sub(mag, dd)), wasm_f32x4_mul(two, mag));
+          v128_t rx = wasm_f32x4_mul(rr, dx), ry = wasm_f32x4_mul(rr, dy);
+          v128_t nxa = wasm_f32x4_sub(xa, rx), nya = wasm_f32x4_sub(ya, ry), nxb = wasm_f32x4_add(xb, rx), nyb = wasm_f32x4_add(yb, ry);
+          wasm_v128_store(F + 2 * i, wasm_i32x4_shuffle(nxa, nya, 0, 4, 1, 5)); wasm_v128_store(F + 2 * i + 4, wasm_i32x4_shuffle(nxa, nya, 2, 6, 3, 7));
+          wasm_v128_store(F + 2 * j, wasm_i32x4_shuffle(nxb, nyb, 0, 4, 1, 5)); wasm_v128_store(F + 2 * j + 4, wasm_i32x4_shuffle(nxb, nyb, 2, 6, 3, 7));
         }
-        for (; i < i1; i++) { i32 c = Dr[i]; if (c) pair1(X, i, i + sh, c, pdT, pwT, eta); }
+        for (; i < i1; i++) { i32 c = Dr[i]; if (c) pair1f(F, i, i + sh, c, pdT, pwT, eta); }
       }
     }
   }
+  for (i32 q = 0; q < 2 * k; q++) X[q] = (double)F[q];
 }
 /* The same sweeps in three dimensions (Distances 3D), 3 numbers per item; the pairs, the tables and the one shuffle are the ones above. etas[t] is the page's. */
 EXP("sweeps3") void sweeps3(double *X, const i32 *pa, const i32 *pb, const u16 *pc, const float *pdT, const float *pwT, i32 cnt, const double *etas, i32 tmax) {

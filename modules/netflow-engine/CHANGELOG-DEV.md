@@ -2,6 +2,68 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.5 · API 2 · 2026-11-21
+
+### Quick
+The every-pair fitting sweeps run in single precision, four pairs at a time. Faster on every map, most on maps under 4,000 items. Positions are NOT the same as 2.6.4: the layout is sensitive to the last digits, so items land in different spots, with the same kind of picture and the same quality numbers. No API change, no new option. A layout saved by 2.6.4 is still read back as saved; a fresh build of the same map gives the new positions.
+
+### Details
+Median build time of 2.6.4 against 2.6.5 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns three times, 9 builds per case. Lower is better. 41 of 42 cases are faster (the other reads +0%), middle case 15% less, best 49% less. Middle case per browser: Chromium 156 20% less, Firefox 158 10% less, WebKitGTK 2.52.6 16% less. Maps under 4,000 items, where the every-pair fit is the whole layout, take 29 to 49% less.
+Quality, 2.6.5 against 2.6.4 over the same 42 cases: stress between 4% lower and 2% higher, middle 0.1% higher; crossings per link between 6% lower and 5% higher, middle 0.1% higher; touching items 0 everywhere. In these runs 2.6.5 printed the same stress and crossings in all three browsers on every map, which 2.6.4 did not.
+
+| Browser | Map | Build ms 2.6.4 | Build ms 2.6.5 | Change | Stress 2.6.4 | Stress 2.6.5 | Crossings per link 2.6.4 | 2.6.5 | Touching |
+|---|---|---|---|---|---|---|---|---|---|
+| Chromium 156 | big50k | 738 | 711 | -4% | 0.1914 | 0.1945 | 144.1 | 147 | 0 |
+| Chromium 156 | shuffled50k | 605 | 571 | -6% | 0.1945 | 0.1934 | 133.6 | 139 | 0 |
+| Chromium 156 | communities10k | 197 | 151 | -23% | 0.1329 | 0.1332 | 525.5 | 525.6 | 0 |
+| Chromium 156 | communities50k | 649 | 627 | -3% | 0.1411 | 0.1417 | 2667.5 | 2671.8 | 0 |
+| Chromium 156 | bigshufB | 579 | 516 | -11% | 0.1913 | 0.1923 | 136.1 | 136.6 | 0 |
+| Chromium 156 | commshuf10k | 185 | 144 | -22% | 0.1312 | 0.1314 | 517.6 | 527.4 | 0 |
+| Chromium 156 | mesh22k | 430 | 357 | -17% | 0.0136 | 0.0136 | 0.1 | 0.1 | 0 |
+| Chromium 156 | ba30k | 294 | 283 | -4% | 0.2019 | 0.1997 | 2847.3 | 2890.1 | 0 |
+| Chromium 156 | tree20k | 227 | 203 | -11% | 0.1016 | 0.1014 | 8.7 | 8.8 | 0 |
+| Chromium 156 | smallworld20k | 365 | 282 | -23% | 0.1313 | 0.1318 | 4.6 | 4.5 | 0 |
+| Chromium 156 | ba3k | 265 | 142 | -46% | 0.1411 | 0.1403 | 321.5 | 317.7 | 0 |
+| Chromium 156 | tree1500 | 103 | 54 | -48% | 0.0758 | 0.0766 | 1.9 | 2 | 0 |
+| Chromium 156 | mesh1600 | 79 | 45 | -43% | 0.0093 | 0.0093 | 0 | 0 | 0 |
+| Chromium 156 | comm3500 | 339 | 186 | -45% | 0.0971 | 0.0989 | 341.5 | 332.7 | 0 |
+| Firefox 158 | big50k | 750 | 708 | -6% | 0.192 | 0.1945 | 143.8 | 147 | 0 |
+| Firefox 158 | shuffled50k | 653 | 639 | -2% | 0.1968 | 0.1934 | 132.4 | 139 | 0 |
+| Firefox 158 | communities10k | 208 | 169 | -19% | 0.133 | 0.1332 | 527 | 525.6 | 0 |
+| Firefox 158 | communities50k | 757 | 738 | -3% | 0.1403 | 0.1417 | 2634.3 | 2671.8 | 0 |
+| Firefox 158 | bigshufB | 685 | 645 | -6% | 0.1902 | 0.1923 | 140.4 | 136.6 | 0 |
+| Firefox 158 | commshuf10k | 224 | 175 | -22% | 0.1317 | 0.1314 | 517.5 | 527.4 | 0 |
+| Firefox 158 | mesh22k | 374 | 347 | -7% | 0.0136 | 0.0136 | 0.1 | 0.1 | 0 |
+| Firefox 158 | ba30k | 321 | 295 | -8% | 0.1986 | 0.1997 | 2779.5 | 2890.1 | 0 |
+| Firefox 158 | tree20k | 222 | 223 | +0% | 0.1016 | 0.1014 | 8.8 | 8.8 | 0 |
+| Firefox 158 | smallworld20k | 326 | 285 | -13% | 0.1312 | 0.1318 | 4.5 | 4.5 | 0 |
+| Firefox 158 | ba3k | 242 | 164 | -32% | 0.1426 | 0.1403 | 310.7 | 317.7 | 0 |
+| Firefox 158 | tree1500 | 94 | 63 | -33% | 0.0762 | 0.0766 | 2.1 | 2 | 0 |
+| Firefox 158 | mesh1600 | 76 | 53 | -30% | 0.0093 | 0.0093 | 0 | 0 | 0 |
+| Firefox 158 | comm3500 | 317 | 224 | -29% | 0.0976 | 0.0989 | 334.3 | 332.7 | 0 |
+| WebKitGTK 2.52.6 | big50k | 747 | 699 | -6% | 0.1949 | 0.1945 | 143.9 | 147 | 0 |
+| WebKitGTK 2.52.6 | shuffled50k | 677 | 605 | -11% | 0.2017 | 0.1934 | 139.4 | 139 | 0 |
+| WebKitGTK 2.52.6 | communities10k | 242 | 194 | -20% | 0.1331 | 0.1332 | 524.9 | 525.6 | 0 |
+| WebKitGTK 2.52.6 | communities50k | 753 | 668 | -11% | 0.1409 | 0.1417 | 2652.4 | 2671.8 | 0 |
+| WebKitGTK 2.52.6 | bigshufB | 631 | 565 | -10% | 0.1932 | 0.1923 | 139.9 | 136.6 | 0 |
+| WebKitGTK 2.52.6 | commshuf10k | 244 | 177 | -27% | 0.1319 | 0.1314 | 517.9 | 527.4 | 0 |
+| WebKitGTK 2.52.6 | mesh22k | 432 | 396 | -8% | 0.0136 | 0.0136 | 0.1 | 0.1 | 0 |
+| WebKitGTK 2.52.6 | ba30k | 318 | 275 | -14% | 0.2001 | 0.1997 | 2857.2 | 2890.1 | 0 |
+| WebKitGTK 2.52.6 | tree20k | 260 | 243 | -7% | 0.1013 | 0.1014 | 8.6 | 8.8 | 0 |
+| WebKitGTK 2.52.6 | smallworld20k | 373 | 306 | -18% | 0.1335 | 0.1318 | 4.8 | 4.5 | 0 |
+| WebKitGTK 2.52.6 | ba3k | 354 | 182 | -49% | 0.1402 | 0.1403 | 317.6 | 317.7 | 0 |
+| WebKitGTK 2.52.6 | tree1500 | 128 | 66 | -48% | 0.0762 | 0.0766 | 1.9 | 2 | 0 |
+| WebKitGTK 2.52.6 | mesh1600 | 90 | 60 | -33% | 0.0093 | 0.0093 | 0 | 0 | 0 |
+| WebKitGTK 2.52.6 | comm3500 | 438 | 240 | -45% | 0.098 | 0.0989 | 335.5 | 332.7 | 0 |
+
+### Deep
+After 2.6.3 and 2.6.4 the fitting sweeps (wasm `sweepsd`) were the largest step left: about 15% of a 50,000-item build and over half of a build under 4,000 items. A pair costs one square root and one division; two lanes of double precision were already in use, and nothing faster gives the same last digits. Four lanes of single precision do twice the pairs in the same time.
+- `sweepsd` copies the positions to single precision, sweeps there, and copies back. Four neighbors in sweep order, (i, i + r) to (i + 3, i + 3 + r), share no item when r and k - r are at least 4, so four lanes give exactly what one pair after the other gives; smaller offsets and leftovers run one pair at a time with the same operations.
+- The JavaScript twin does the same single-precision steps with Math.fround (a double result rounded once to single is the correctly rounded single result for add, subtract, multiply, divide and square root), so WebAssembly and JavaScript still give the same positions: checked on 7 maps of 1,500 to 22,500 items, 0 different positions, plus the module tests.
+- Why the picture moves: single precision changes positions in about the seventh digit, and the later steps (growing back, push-apart) amplify that into a different but equally good arrangement. The 22,500-item mesh moves by at most 11 px on a 32,000 px map; maps with groups or hubs rearrange freely. The owner approved this look change on a card with pictures.
+- Not changed in themselves: the pair-list sweeps of the base fit (`sweepsv`), the 3D sweeps, the Force and Closeness rounds.
+Tests: the module tests (20 checks), WebAssembly against JavaScript on 7 maps, and the three-browser run above. Against 2.6.4 over all arrangements (120 comparisons): Radial, Circle, Rings, Groups, Grid, the 3D ones and Force on small maps are unchanged; Distances, Best, Closeness and Force on big maps (which start from the every-pair fit) get new positions, by design. A separate stress check of Best, Closeness and Force on four maps of 1,500 to 3,500 items found them within 0.8% of 2.6.4.
+
 ## 2.6.4 · API 2 · 2026-11-21
 
 ### Quick
