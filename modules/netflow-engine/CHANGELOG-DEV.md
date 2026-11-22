@@ -2,6 +2,68 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.3 · API 2 · 2026-11-21
+
+### Quick
+Same positions as 2.6.2 to the last digit, less time on maps with long paths (meshes, trees). The hop-count table of the every-pair fit picks its 64 start items as a ball of near neighbors when that is cheaper. No API change, no new option, saved layouts stay valid. stress.wasm grows from 18,043 to 21,984 bytes.
+
+### Details
+Median build time of 2.6.2 against 2.6.3 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns. 6 builds per case (2 page loads x 3); cases that first read slower were repeated with 15 to 20 more builds per version and everything is pooled (up to 46 builds per version). Lower is better. The 22,500-item mesh takes 19 to 26% less and the 20,000-item tree 9 to 21% less. The other 36 cases sit between 12% less and 5% more, middle 2% less, which is the noise of this machine (about 8% between page loads): the only step that changed was timed on its own in Chromium on the maps that read slower (bigshufB 52 to 44 ms, tree1500 7 to 4 ms, ba3k 33 to 26 ms) and is shorter on every map tried.
+
+| Browser | Map | Build ms 2.6.2 | Build ms 2.6.3 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 829 | 741 | -11% | yes |
+| Chromium 156 | shuffled50k | 664 | 644 | -3% | yes |
+| Chromium 156 | communities10k | 216 | 209 | -3% | yes |
+| Chromium 156 | communities50k | 750 | 731 | -3% | yes |
+| Chromium 156 | bigshufB | 693 | 725 | +5% | yes |
+| Chromium 156 | commshuf10k | 209 | 185 | -12% | yes |
+| Chromium 156 | mesh22k | 533 | 402 | -25% | yes |
+| Chromium 156 | ba30k | 347 | 351 | +1% | yes |
+| Chromium 156 | tree20k | 269 | 228 | -15% | yes |
+| Chromium 156 | smallworld20k | 349 | 357 | +2% | yes |
+| Chromium 156 | ba3k | 260 | 258 | -1% | yes |
+| Chromium 156 | tree1500 | 104 | 106 | +2% | yes |
+| Chromium 156 | mesh1600 | 83 | 82 | -1% | yes |
+| Chromium 156 | comm3500 | 347 | 338 | -3% | yes |
+| Firefox 158 | big50k | 756 | 754 | -0% | yes |
+| Firefox 158 | shuffled50k | 696 | 699 | +0% | yes |
+| Firefox 158 | communities10k | 217 | 198 | -9% | yes |
+| Firefox 158 | communities50k | 774 | 775 | +0% | yes |
+| Firefox 158 | bigshufB | 741 | 675 | -9% | yes |
+| Firefox 158 | commshuf10k | 217 | 206 | -5% | yes |
+| Firefox 158 | mesh22k | 491 | 398 | -19% | yes |
+| Firefox 158 | ba30k | 345 | 351 | +2% | yes |
+| Firefox 158 | tree20k | 287 | 228 | -21% | yes |
+| Firefox 158 | smallworld20k | 349 | 345 | -1% | yes |
+| Firefox 158 | ba3k | 260 | 237 | -9% | yes |
+| Firefox 158 | tree1500 | 102 | 103 | +1% | yes |
+| Firefox 158 | mesh1600 | 84 | 79 | -6% | yes |
+| Firefox 158 | comm3500 | 341 | 330 | -3% | yes |
+| WebKitGTK 2.52.6 | big50k | 795 | 766 | -4% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 683 | 669 | -2% | yes |
+| WebKitGTK 2.52.6 | communities10k | 243 | 221 | -9% | yes |
+| WebKitGTK 2.52.6 | communities50k | 757 | 724 | -4% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 592 | 584 | -1% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 245 | 229 | -6% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 544 | 402 | -26% | yes |
+| WebKitGTK 2.52.6 | ba30k | 338 | 328 | -3% | yes |
+| WebKitGTK 2.52.6 | tree20k | 286 | 260 | -9% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 363 | 373 | +3% | yes |
+| WebKitGTK 2.52.6 | ba3k | 339 | 352 | +4% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 142 | 141 | -1% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 115 | 108 | -6% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 460 | 454 | -1% | yes |
+
+### Deep
+The hop table (wasm `dense()`) took 43% of a build on the mesh map and 27% on the tree map in 2.6.2: with start items taken in index order, the 64 searches of a batch reach an item at many different levels, and every level made three passes over all items.
+- Ring batches: the 64 start items are the first 64 unused items found by a search from a seed (a ball), and seeds follow one search order over the whole map so the balls tile it. The searches of a ball travel together as a thin ring, and only items on the ring are visited (lists of the newest level). In 2.6.1 the same lists were slower than plain passes because the start items were scattered; the ball is what makes them pay.
+- Plain batches (the 2.6.1 way: the next 64 items in order, plain passes) stay cheaper when everything is a few hops apart. Batches start as rings and count "items times levels" against "newly reached items"; if one batch is clearly on the plain side (ratio under 2.2), or the running ratio is under 3 from the third batch on, the rest run plain from item 0 (redoing up to 192 start items costs less than working around them). Measured on the shrunken copies of 14 maps: mesh 6.2 and tree 5.4 run as rings, all others (1.5 to 2.8) run plain.
+- Both ways now write the counts of a batch by item (64 bytes per item, one cache line for a newly reached item) and then copy them into the by-offset table, along diagonals for plain batches. This replaced the items-by-offsets scratch table and its turn-on-its-side pass, and is why plain maps are a little faster too (hop step alone up to about 30% shorter in a development timing).
+- Hop counts are whole numbers and do not depend on the batching, so the table is the same byte for byte (checked by hash on 14 maps against 2.6.2) and positions are identical.
+- The many-at-once search idea is from Then and others, "The More the Merrier: Efficient Multi-Source Graph Traversal" (2014); paper sites could not be reached from the build machine, so there is no link.
+Tests: the module tests (20 checks, including WebAssembly against JavaScript positions), 14 big-map position comparisons and 120 position comparisons over all arrangements against 2.6.2: 0 differences.
+
 ## 2.6.2 · API 2 · 2026-11-21
 
 ### Quick

@@ -164,32 +164,95 @@ EXP("sweepsv") void sweepsv(double *X, const i32 *pa, const i32 *pb, const u16 *
  * count between i and i + r (wrapping round), so a sweep reads its row straight through. Returns the largest count, or -2 when one is over 255 (the page then uses
  * the pair list). */
 EXP("dense") i32 dense(i32 k, i32 *off, i32 *nbr, unsigned char *D, u64 *seen, u64 *front, unsigned char *T) {
-  /* First by item (T: row i = the counts from i to i + 1 .. i + k/2). The search runs from 64 items at once: each item keeps one bit per start item ("reached"),
-   * and a level is one pass over the links that ORs the bits of the newest level into the neighbors. Hop counts are whole numbers, so they are the ones a search
-   * from one item at a time finds. (Idea: Then and others, "The More the Merrier: Efficient Multi-Source Graph Traversal", 2014.) */
-  i32 maxD = 1, nr = k / 2; u64 *next = front + k;
-  __builtin_memset(T, 0, (unsigned long)k * (unsigned long)nr);
-  for (i32 b0 = 0; b0 < k; b0 += 64) {
-    i32 nb = k - b0 < 64 ? k - b0 : 64;
-    for (i32 v = 0; v < k; v++) { seen[v] = 0; front[v] = 0; }
-    for (i32 t = 0; t < nb; t++) { seen[b0 + t] = (u64)1 << t; front[b0 + t] = (u64)1 << t; }
-    for (i32 level = 1; ; level++) {   /* plain passes over all items: keeping lists of the newest level was tried and was slower on meshes */
-      for (i32 v = 0; v < k; v++) next[v] = 0;
-      for (i32 u = 0; u < k; u++) { u64 f = front[u]; if (!f) continue; for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) next[nbr[e]] |= f; }
-      i32 any = 0;
-      for (i32 v = 0; v < k; v++) {
-        u64 n = next[v] & ~seen[v]; front[v] = n; if (!n) continue;
-        seen[v] |= n; any = 1;
-        if (level > 255) return -2;
-        do { i32 s = b0 + (i32)__builtin_ctzll(n), r = v - s; n &= n - 1; if (r < 0) r += k; if (r <= nr) T[(long)s * nr + r - 1] = (unsigned char)level; } while (n);
-      }
-      if (!any) break;
-      if (level > maxD) maxD = level;
-    }
+  /* The search runs from 64 items at once: each item keeps one bit per start item ("reached"), and a level ORs the bits of the newest level into the
+   * neighbors. Hop counts are whole numbers, so they are the ones a search from one item at a time finds. (Idea: Then and others, "The More the Merrier:
+   * Efficient Multi-Source Graph Traversal", 2014.) The counts of a batch are first written by item (T: 64 bytes per item, one per start item, so a newly
+   * reached item touches one cache line), then copied to their place in D: D[r - 1][s] = T[s + r][bit of s].
+   * Two ways to run a batch, same counts. "Ring": the 64 start items are a ball of near neighbors, so their searches travel together as one thin ring and
+   * only the items on the ring are visited at each level (far less work on maps with long paths: meshes, trees). "Plain": the next 64 items in order and
+   * plain passes over all items at each level (less work when everything is a few hops apart). Batches start as rings and count their work; once the
+   * count says plain passes are cheaper, the rest run plain. */
+  i32 maxD = 1, nr = k / 2, ring = 1, nexti = 0, b0 = 0; long workR = 0, workP = 0; u64 *next = front + k;
+  i32 *cur = (i32 *)(front + 2 * (long)k), *mark = cur + k, *stamp = mark + k, *q = stamp + k, *ord = q + k, src[64];
+  for (i32 v = 0; v < k; v++) { stamp[v] = -1; mark[v] = 0; next[v] = 0; front[v] = 0; }
+  i32 no = 0;   /* ord: every item in search order from item 0 (and from the next unreached item, if the map is in pieces), so the balls tile the map in a sweep */
+  for (i32 s0 = 0; s0 < k; s0++) {
+    if (stamp[s0] != -1) continue;
+    stamp[s0] = -2; ord[no++] = s0;
+    for (i32 h = no - 1; h < no; h++) { i32 u = ord[h]; for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) { i32 w = nbr[e]; if (stamp[w] == -1) { stamp[w] = -2; ord[no++] = w; } } }
   }
-  for (i32 ib = 0; ib < k; ib += 64) for (i32 rb = 0; rb < nr; rb += 64) {   /* then turned on its side, a block at a time (kind to the cache) */
-    i32 ie = ib + 64 < k ? ib + 64 : k, re = rb + 64 < nr ? rb + 64 : nr;
-    for (i32 r = rb; r < re; r++) { unsigned char *drow = D + (long)r * k; for (i32 i = ib; i < ie; i++) drow[i] = T[(long)i * nr + r]; }
+  for (i32 oi = 0, ball = 0, left = k; left > 0; ) {   /* stamp: -2 = not yet a start item, -3 = has been one */
+    i32 nb = 0, wasRing = ring;
+    if (ring) {
+      while (stamp[ord[oi]] == -3) oi++;
+      i32 seed = ord[oi], qt = 0; ball++;
+      q[qt++] = seed; mark[seed] = ball;   /* the first 64 items that have not been start items, in search order from the seed */
+      for (i32 h = 0; h < qt; h++) {
+        i32 u = q[h]; if (stamp[u] == -2) { stamp[u] = -3; src[nb++] = u; if (nb == 64) break; }
+        for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) { i32 w = nbr[e]; if (mark[w] != ball) { mark[w] = ball; q[qt++] = w; } }
+      }
+    } else {
+      b0 = nexti; nb = k - b0 < 64 ? k - b0 : 64; nexti += nb;   /* the next 64 items in order, bit = place in the block */
+      for (i32 t = 0; t < nb; t++) src[t] = b0 + t;
+    }
+    if (ring) left -= nb; else if (nexti >= k) left = 0;
+    __builtin_memset(T, 0, (unsigned long)k * 64);
+    for (i32 v = 0; v < k; v++) seen[v] = 0;
+    if (ring) {
+      i32 nc = 0, events = 0, levels = 0;
+      for (i32 t = 0; t < nb; t++) { seen[src[t]] = (u64)1 << t; front[src[t]] = (u64)1 << t; cur[nc++] = src[t]; }
+      for (i32 level = 1; nc; level++) {
+        i32 nq = 0;
+        for (i32 h = 0; h < nc; h++) {
+          i32 u = cur[h]; u64 f = front[u];
+          for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) { i32 w = nbr[e]; u64 g = f & ~seen[w]; if (!g) continue; if (!next[w]) q[nq++] = w; next[w] |= g; }
+        }
+        for (i32 h = 0; h < nc; h++) front[cur[h]] = 0;
+        if (nq && level > 255) return -2;
+        for (i32 h = 0; h < nq; h++) {
+          i32 v = q[h]; u64 n = next[v]; next[v] = 0; seen[v] |= n; front[v] = n; cur[h] = v;
+          unsigned char *row = T + (long)v * 64;
+          do { row[__builtin_ctzll(n)] = (unsigned char)level; n &= n - 1; } while (n);
+        }
+        nc = nq; events += nq; levels++;
+        if (nq && level > maxD) maxD = level;
+      }
+      /* What plain passes would have cost more (three passes over all items per level) against what the ring costs more (each newly reached item). Measured
+       * break-even is a little over 3 item visits per ring event; the first balls can look worse than the rest, so one batch decides only when it is clear. */
+      workP += (long)levels * k; workR += events;
+      if (ball == 1 ? 10 * workP < 22 * workR : ball >= 3 && workP < 3 * workR) ring = 0;   /* the plain batches then start from item 0: redoing the few ring start items costs less than working around them */
+    } else {
+      for (i32 t = 0; t < nb; t++) { seen[b0 + t] = (u64)1 << t; front[b0 + t] = (u64)1 << t; }
+      for (i32 level = 1; ; level++) {
+        for (i32 v = 0; v < k; v++) next[v] = 0;
+        for (i32 u = 0; u < k; u++) { u64 f = front[u]; if (!f) continue; for (i32 e = off[u], e1 = off[u + 1]; e < e1; e++) next[nbr[e]] |= f; }
+        i32 any = 0;
+        for (i32 v = 0; v < k; v++) {
+          u64 n = next[v] & ~seen[v]; front[v] = n; if (!n) continue;
+          seen[v] |= n; any = 1;
+          if (level > 255) return -2;
+          unsigned char *row = T + (long)v * 64;
+          do { row[__builtin_ctzll(n)] = (unsigned char)level; n &= n - 1; } while (n);
+        }
+        if (!any) break;
+        if (level > maxD) maxD = level;
+      }
+      for (i32 v = 0; v < k; v++) front[v] = 0;
+    }
+    if (!wasRing) {   /* D row r - 1, columns b0 .. b0 + nb - 1, is the diagonal T[b0 + t + r][t] */
+      for (i32 r = 1; r <= nr; r++) {
+        unsigned char *drow = D + (long)(r - 1) * k + b0; i32 i = b0 + r; if (i >= k) i -= k;
+        i32 t = 0, e1 = k - i < nb ? k - i : nb;
+        for (; t < e1; t++) drow[t] = T[(long)(i + t) * 64 + t];
+        for (; t < nb; t++) drow[t] = T[(long)(i + t - k) * 64 + t];
+      }
+    } else {
+      for (i32 t = 0; t < nb; t++) src[t] = src[t] + 1 < k ? src[t] + 1 : 0;   /* src now holds s + r for r = 1, kept up to date row by row */
+      for (i32 r = 1; r <= nr; r++) {
+        unsigned char *drow = D + (long)(r - 1) * k;
+        for (i32 t = 0; t < nb; t++) { i32 i = src[t], s0 = i - r; if (s0 < 0) s0 += k; drow[s0] = T[(long)i * 64 + t]; src[t] = i + 1 < k ? i + 1 : 0; }
+      }
+    }
   }
   return maxD;
 }
