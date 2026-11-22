@@ -52,7 +52,7 @@ Ship a fused timestamp only if:
 
 - All admission, accounting, exception, and statistics checks pass.
 - The scheduling change near boundaries is understood and stays conservative.
-- A real import or consumer timeline improves repeatably, not just a dense synthetic no-op loop.
+- A real import or consumer timeline improves repeatably, not just a dense synthetic minimal-callback loop.
 - No browser has a measurable regression or different practical guess schedule.
 
 If only the module-only success loop improves while skip-heavy/import timelines remain unchanged, keep version 1.0.1 and report no source change. If adopted, update tests, changelog/version via repository tools, and the README only with supported-browser evidence.

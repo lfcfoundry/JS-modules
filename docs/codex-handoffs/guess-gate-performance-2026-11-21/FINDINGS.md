@@ -21,7 +21,7 @@ Host: Android ARM64, Node v26.13.1. Timings are module-only Node experiments, no
 
 | Workload | Current | Fused candidate | Result |
 |---|---:|---:|---:|
-| 250,000 successful no-op run() calls, share 1, minMs 0 | 44.408 ms | 32.323 ms | 1.374x faster |
+| 250,000 successful run() calls with a counter-increment callback, share 1, minMs 0 | 44.408 ms | 32.323 ms | 1.374x faster |
 | 250,000 skipped run() calls, minMs far in the future | 15.387 ms | 15.243 ms | 1.009x; within noise |
 
 The dense success case saves about 48 ns per call on this host. It intentionally maximizes the candidate's opportunity and is unlike the module's expected use, where guesses are optional and many calls are skipped.

@@ -10,7 +10,7 @@ Claude handoff based on JS-modules main at c4c6b3a2ec6bce937b6017c427ff23c4e996c
 
 ## Main finding
 
-A successful GuessGate.run() currently reads the clock three times: for eligibility, callback start, and callback end. A scratch variant reused the eligibility timestamp as the callback start. It passed the existing seven checks and ran 1.37x faster in a synthetic loop of 250,000 successful no-op guesses. It did not improve the common skipped path, and a 40-chunk progressive-import model was effectively unchanged. The default 5% budget was recently tuned in all three approved browsers; keep it as-is.
+A successful GuessGate.run() currently reads the clock three times: for eligibility, callback start, and callback end. A scratch variant reused the eligibility timestamp as the callback start. It passed the existing seven checks and ran 1.37x faster in a synthetic loop of 250,000 successful guesses with a tiny counter callback. It did not improve the common skipped path, and a 40-chunk progressive-import model was effectively unchanged. The default 5% budget was recently tuned in all three approved browsers; keep it as-is.
 
 ## Handoff
 
