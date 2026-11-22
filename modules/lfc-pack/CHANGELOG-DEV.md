@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.22.0 · API 0 · 2026-11-21
+
+### Quick
+Writer option views builds two-way cubes (count, sum, min, max per cell) for label pairs.
+
+### Deep
+Writer option views builds two-way cubes (count, sum, min, max per cell) for label pairs. view() reads in 1.5 / 2.2 / 2 ms vs group-by 205 / 163 / 240 ms (Chromium / Firefox / WebKitGTK). Save 204 to 399 / 182 to 315 / 215 to 317 ms when on; off by default. File +0.7%. 18 checks.
+
 ## 0.21.0 · API 0 · 2026-11-21
 
 ### Quick

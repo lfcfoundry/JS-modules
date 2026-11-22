@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.22.0 · API 0 · 2026-11-21
+- Two-way views (section 22): exact pair counts and sums read in about 2 ms
+
 ## 0.21.0 · API 0 · 2026-11-21
 - New graph option pack: true keeps the stored graph 2.5 to 3 times smaller; reading it takes 26 to 38 ms instead of 9, still 2 to 4 times faster than rebuilding it. Raw stays the default (owner's choice).
 
