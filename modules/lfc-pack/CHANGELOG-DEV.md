@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.24.0 · API 0 · 2026-11-21
+
+### Quick
+Section 20 entries add qt: 40 values at shares 2^(-j/2) and 1 - 2^(-j/2), j = 13..32, beside the 257 even steps; quantile/countAbove/countBelow read all 297 points linearly.
+
+### Deep
+Section 20 entries add qt: 40 values at shares 2^(-j/2) and 1 - 2^(-j/2), j = 13..32, beside the 257 even steps; quantile/countAbove/countBelow read all 297 points linearly. Old readers ignore qt. Reader-check table (1M rows, lognormal fare): p99.9 107.7 to 72.2 (exact 68.58). Test column: worst tail error 542% to under 5%. Writer: an already-sorted block or a counted small-integer block skips the sample radix sort; per-column summary CPU on 1M rows 18-26% less for such columns (Chromium 156 id 8.1 to 6.0 ms, pax 8.8 to 6.9; Firefox 158 id 12.3 to 10.0, pax 12.9 to 10.6; WebKitGTK 2.52.6 id 7.5 to 5.5, pax 11.5 to 9); skewed float columns unchanged; save totals within machine noise. 44 quantile checks.
+
 ## 0.23.0 · API 0 · 2026-11-21
 
 ### Quick

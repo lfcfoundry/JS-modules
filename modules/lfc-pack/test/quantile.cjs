@@ -37,6 +37,12 @@ const J = require('../lfc-pack.js');
     ok(c.type === 'date' && Math.abs(Sd.countBelow('t', x) - 1234) <= 31 && Sd.countBelow('t', x) === Sd.countBelow('t', x.getTime()), 'date column: Date and ms agree');
     ok(Math.abs(Sd.quantile('t', 0.5) - ms[2499]) <= 3600e3 * 30, 'date median in ms');
   }
+  { // tail points (since 0.24.0): the far tails of a skewed column read close to an exact sort, and old readers still find the 257 even steps
+    const lg = cols.logn, srt = Float64Array.from(lg).sort(), ex = (p) => { const R = p * (N - 1), lo = Math.floor(R); return lo + 1 < N ? srt[lo] + (R - lo) * (srt[lo + 1] - srt[lo]) : srt[lo]; }, c = S.cols.find((x) => x.key === 'logn');
+    ok(Array.isArray(c.qt) && c.qt.length === 40 && c.q.length === 257, 'qt: 40 tail values beside the 257 steps');
+    let worst = 0; for (const p of [0.001, 0.003, 0.997, 0.999, 0.9995]) worst = Math.max(worst, Math.abs(S.quantile('logn', p) / ex(p) - 1)); ok(worst < 0.05, 'tail quantiles within 5% (worst ' + (worst * 100).toFixed(2) + '%)');
+    const x = ex(0.999), above = N - srt.findIndex((v) => v > x); ok(Math.abs(S.countAbove('logn', x) - above) <= above * 0.15, 'countAbove at the 99.9th percentile within 15% (' + S.countAbove('logn', x) + ' vs ' + above + ')');
+  }
   console.log(bad ? bad + ' of ' + n + ' quantile checks FAILED' : 'quantile: all ' + n + ' checks pass');
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
