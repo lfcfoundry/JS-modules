@@ -16,5 +16,5 @@ cp "$PP/node_modules/lzma/src/lzma-d-min.js" "$W/lzmajs.js"; cp "$repo/modules/l
 cp "$repo/modules/pcodec-js/pcodec-js-pack.js" "$W/"
 cp "$here/ge-entry.js" "$PP/"; (cd "$PP" && ./node_modules/.bin/esbuild ge-entry.js --bundle --minify --format=iife --outfile="$W/ge.js"); cp "$repo/modules/gif-writer/gif-writer.js" "$W/"
 cp "$here/page.html" "$W/index.html"
-node "$here/prep-slices.js" && node "$here/prep-layers.js" && node "$here/prep-sankey.js" && node "$here/prep-floats.js" && node "$here/prep-trees.js" && node "$here/prep-lzma.js"
+node "$here/prep-slices.js" && node "$here/prep-layers.js" && node "$here/prep-sankey.js" && node "$here/prep-floats.js" && node "$here/prep-trees.js" && node "$here/prep-lzma.js" && node "$here/prep-fhir.js"
 echo "ready: node tools/real-corpus/run.js chromium csv comp mem graph layers sankey sankeyq zip"

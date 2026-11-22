@@ -38,14 +38,14 @@ const tests={
    const b=await get(u);const tc=T(()=>TextColumns.parse(b,{delimiter:d}));
    const pp=T(()=>{const s=new TextDecoder(enc).decode(b);return Papa.parse(s,{delimiter:d,header:true,dynamicTyping:true,skipEmptyLines:true})});
    out[n]={mb:+(b.length/1e6).toFixed(1),rows:tc.r.count,textcolumns_ms:tc.ms,papa_ms:pp.ms,ratio_papa_over_tc:+(pp.ms/tc.ms).toFixed(2)}}return out},
- async comp(){const out={};await Lz4Kit.init();await ZstdKit.init();for(const [n,u] of [['retail','retail.csv'],['sec','sec.tsv'],['sba','sba.csv']]){
+ async comp(){const out={};await Lz4Kit.init();await ZstdKit.init();for(const [n,u] of [['retail','retail.csv'],['sec','sec.tsv'],['sba','sba.csv'],['fhir_training','fhir.ndjson']]){
    const full=await get(u);const b=full.subarray(0,4194304);
    const l=T(()=>Lz4Kit.compress(b));const z=T(()=>ZstdKit.compress(b,3));const g=await TA(()=>gz(b),3);const ff=T(()=>fflate.gzipSync(b),3);
    const ld=T(()=>Lz4Kit.decompress(l.r));const zd=T(()=>ZstdKit.decompress(z.r));const gd=await TA(()=>gunz(g.r),3);const fz=T(()=>fzstd.decompress(z.r),3);
    out[n]={bytes:b.length,size:{lz4:l.r.length,zstd3:z.r.length,gzip:g.r.length},compress_ms:{lz4:l.ms,zstd3:z.ms,browser_gzip:g.ms,fflate_gzip:ff.ms},decompress_ms:{lz4:ld.ms,zstd3:zd.ms,browser_gzip:gd.ms,fzstd:fz.ms},
      lz4_vs_gzip_compress_speedup:+(g.ms/l.ms).toFixed(2)}}return out},
- async mem(){const R=await (await fetch('recs.json')).json();const out={};const enc=new TextEncoder();
-   for(const n of ['retail','sec']){const rows=R[n];const jb=enc.encode(JSON.stringify(rows));
+ async mem(){const R=await (await fetch('recs.json')).json();R.fhir_training=await (await fetch('recs-fhir.json')).json();const out={};const enc=new TextEncoder();
+   for(const n of ['retail','sec','fhir_training']){const rows=R[n];const jb=enc.encode(JSON.stringify(rows));
     const m=T(()=>MemoryCompression.pack(rows,{mode:'fast'}),3);const mu=T(()=>MemoryCompression.unpack(m.r),3);
     const sr=new msgpackr.Packr({useRecords:true});const p=T(()=>sr.pack(rows),3);const pu=T(()=>sr.unpack(p.r),3);
     const fg=T(()=>fflate.gzipSync(jb),1);const fu=T(()=>fflate.gunzipSync(fg.r),3);
@@ -73,7 +73,7 @@ const tests={
    const a=T(()=>NetflowSankey.layoutFlows({links},{height:600,quick:true}),5),b=T(()=>NetflowSankey.layoutFlows({links},{height:600}),5);
    const c=T(()=>{const ids=[...new Set(links.flatMap(l=>[l.from,l.to]))];const idx=new Map(ids.map((x,i)=>[x,i]));return D3S.sankey().nodeWidth(15).nodePadding(8).extent([[0,0],[900,600]])({nodes:ids.map(id=>({id})),links:links.map(l=>({source:idx.get(l.from),target:idx.get(l.to),value:l.value}))})},5);
    out[k]={links:links.length,quick_ms:a.ms,default_ms:b.ms,d3_ms:c.ms}}return out},
- async floats(){const out={};for(const [n,u] of [['sec_values','floats-sec.bin'],['sba_award_amounts','floats-sba.bin']]){
+ async floats(){const out={};for(const [n,u] of [['sec_values','floats-sec.bin'],['sba_award_amounts','floats-sba.bin'],['fhir_observation_values_training','floats-fhir.bin']]){
    const b=await get(u);const f=new Float64Array(b.buffer,b.byteOffset,b.length/8);const raw=new Uint8Array(f.buffer);
    const m=T(()=>MemoryCompression.pack(f),3),mu=T(()=>MemoryCompression.unpack(m.r),3);const bl=T(()=>MemoryCompression.pack(f,{mode:'balanced'}),3),blu=T(()=>MemoryCompression.unpack(bl.r),3);
    const g=T(()=>fflate.gzipSync(raw,{level:6}),1),gu=T(()=>fflate.gunzipSync(g.r),3);
@@ -90,7 +90,7 @@ const tests={
    for(let i=0;i<6;i++){const a=[],b=[];for(let r=0;r<(rows.length>=100000?3:7);r++){if(r%2){a.push(one(D[i]));b.push(one(O[i]))}else{b.push(one(O[i]));a.push(one(D[i]))}}
     out[ds+' '+rows.length][names[i]]={d3_ms:+med(a).toFixed(2),netflow_ms:+med(b).toFixed(2),ratio:+(med(b)/med(a)).toFixed(2)}}}
   return out},
- async lzma(){const out={};for(const n of ['retail','sec','sba']){const lz=await get(n+'-3mb.lzma'),orig=await get(n+'-3mb.txt');
+ async lzma(){const out={};for(const n of ['retail','sec','sba','fhir']){const lz=await get(n+'-3mb.lzma'),orig=await get(n+'-3mb.txt');
    const raw=lz.subarray(14);   /* 13-byte header, then the leading zero byte */
    const mine=()=>lzmaDecode(raw,orig.length,{lc:3,lp:0,pb:2});
    const theirs=()=>new Promise((res,rej)=>{LZMA.decompress(Array.from(lz),function(r,e){e?rej(e):res(r)})});
@@ -100,7 +100,7 @@ const tests={
    const m=T(mine,5);const th=await TA(theirs,5);
    out[n]={compressed_bytes:lz.length,original_bytes:orig.length,identical:ok,engine:lzmaDecode.engine,first_ms:{lzma_decode:+first_mine.toFixed(1),lzma_js:+first_theirs.toFixed(1)},warm_ms:{lzma_decode:m.ms,lzma_js:th.ms},warm_speedup:+(th.ms/m.ms).toFixed(1)}}return out},
  async pco(){const out={};const pco=await PcodecJS.load({warm:true});await ZstdKit.init();
-  for(const [n,u] of [['sec_values','floats-sec.bin'],['sba_award_amounts','floats-sba.bin']]){
+  for(const [n,u] of [['sec_values','floats-sec.bin'],['sba_award_amounts','floats-sba.bin'],['fhir_observation_values_training','floats-fhir.bin']]){
    const b=await get(u);const f=new Float64Array(b.buffer,b.byteOffset,b.length/8);const raw=new Uint8Array(f.buffer);
    const p8=T(()=>pco.pack(f,{level:8}),3),pu=T(()=>pco.unpack(p8.r),5);const ok=(()=>{const x=pco.unpack(p8.r);for(let i=0;i<f.length;i++)if(x[i]!==f[i]&&!(x[i]!==x[i]&&f[i]!==f[i]))return false;return true})();
    const mc=T(()=>MemoryCompression.pack(f),3),mcu=T(()=>MemoryCompression.unpack(mc.r),5);
@@ -115,7 +115,7 @@ const tests={
    const theirs=()=>{const all=new Uint8Array(spread.length*w*h*4);spread.forEach((p,i)=>all.set(p,i*w*h*4));const pal=GE.quantize(all,256);const e=GE.GIFEncoder();pics.forEach(p=>{e.writeFrame(GE.applyPalette(p,pal),w,h,{palette:pal,delay:100})});e.finish();return e.bytes()};
    const a=T(mine,5),b=T(theirs,5);
    out[g]={frame:w+'x'+h,frames:30,avg_share_of_pixels_changed_per_frame:+(changed/29).toFixed(3),gif_writer:{bytes:a.r.length,ms:a.ms},gifenc:{bytes:b.r.length,ms:b.ms},size_ratio_gifwriter_over_gifenc:+(a.r.length/b.r.length).toFixed(2),speedup:+(b.ms/a.ms).toFixed(2)}}return out},
- async graph(){const G=await (await fetch('graphs.json')).json();const out={};
+ async graph(){const G=Object.assign(await (await fetch('graphs.json')).json(),await (await fetch('graphs-fhir.json')).json());const out={};
    for(const [n,g] of Object.entries(G)){const f=Int32Array.from(g.f),t=Int32Array.from(g.t);
     const w=T(()=>GraphWalk.csr(g.n,f,t),3);const gw=w.r;
     const gl=T(()=>{const x=new GL.Graph({type:'directed',multi:false});for(let i=0;i<g.n;i++)x.addNode(i);for(let i=0;i<f.length;i++){try{x.addEdge(f[i],t[i])}catch(e){}}return x},1);const gr=gl.r;
