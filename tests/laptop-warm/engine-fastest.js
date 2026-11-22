@@ -3,7 +3,7 @@
  * netflow-engine.js: the engine of Netflow Map as a module you can adapt: reads links, lays the map out (layered rows, arcs, matrix, shapes, force, distances), and scores it. No page, no DOM; runs on the main thread or in a worker.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.6.3 (API 2)
+ * Version 2.6.4 (API 2)
  *
  *   var L = NetflowEngine.build({ nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] }, { view: 'network', colorBy: 'group' });   // L.nodes, L.edges: positions and sizes, ready to draw
  *   NetflowEngine.use('layers', NetflowLayers);      // optional: hand over the add-ons (they are also found on their own)
@@ -17,7 +17,7 @@
   else root.NetflowEngine = factory(null);
 }(typeof self !== 'undefined' ? self : this, function (REQ) {
   'use strict';
-  var VERSION = '2.6.3';
+  var VERSION = '2.6.4';
   var NFMColumns = (function () {
     'use strict';
 
@@ -640,9 +640,15 @@
       }
       var idom = new Int32Array(n + 1).fill(-1);
       idom[start] = start;
-      var preds = function (b, cb) {
-        if (b === S) { for (var q = 0; q < goal.length; q++) cb(goal[q]); return; }
-        for (var q2 = P.inStart[b]; q2 < P.inStart[b + 1]; q2++) cb(P.from[P.inEdge[q2]]);
+      var meet = function (p, ni) {   // the nearest shared dominator of p and what was found so far
+        if (!seen[p] || idom[p] < 0) return ni;
+        if (ni < 0) return p;
+        var x = p, y = ni;
+        while (x !== y) {
+          while (po[x] < po[y]) x = idom[x];
+          while (po[y] < po[x]) y = idom[y];
+        }
+        return x;
       };
       var changed = true, guard = 0;
       while (changed && guard++ < 60) {
@@ -650,17 +656,9 @@
         for (var oi = order.length - 1; oi >= 0; oi--) {
           var b = order[oi];
           if (b === start) continue;
-          var ni = -1;
-          preds(b, function (p) {
-            if (!seen[p] || idom[p] < 0) return;
-            if (ni < 0) { ni = p; return; }
-            var x = p, y = ni;
-            while (x !== y) {
-              while (po[x] < po[y]) x = idom[x];
-              while (po[y] < po[x]) y = idom[y];
-            }
-            ni = x;
-          });
+          var ni = -1, q;   // no helper function per item: the same merges in the same order
+          if (b === S) { for (q = 0; q < goal.length; q++) ni = meet(goal[q], ni); }
+          else for (q = P.inStart[b]; q < P.inStart[b + 1]; q++) ni = meet(P.from[P.inEdge[q]], ni);
           if (ni !== idom[b]) { idom[b] = ni; changed = true; }
         }
       }
@@ -1102,12 +1100,12 @@
       var chapters = found ? found.list.filter(function (ch) { return ch.folded; }) : [];
       chapters.forEach(function (ch, ci) { ch.pages.forEach(function (id) { chOf[id] = ci; }); });
       if (opts.fold) runs.forEach(function (run, ri) { if (!(opts.open && opts.open[run[0]]) && !run.some(function (id) { return chOf[id] >= 0; })) run.forEach(function (id) { runOf[id] = ri; }); });
-      var nodes = [], groupOf = new Array(n), groupIx = new Int32Array(n);   // groupIx: the same as groupOf, as the item's place in nodes
+      var U, nodes = [], groupOf = new Array(n), groupIx = new Int32Array(n);   // groupIx: the same as groupOf, as the item's place in nodes
       for (i = 0; i < n; i++) {
         var ri2 = runOf[i], ci2 = chOf[i];
         if (ci2 >= 0 && chapters[ci2].pages[0] !== i) continue;
         if (ri2 >= 0 && runs[ri2][0] !== i) continue;
-        var node = ci2 >= 0 ? { id: 'ch:' + i, pages: chapters[ci2].pages.slice(), run: false, chapter: true, chKey: chapters[ci2].key, part: chapters[ci2].kind === 'part' } : ri2 >= 0 ? { id: 'run:' + i, pages: runs[ri2].slice(), run: true } : { id: 'n' + i, pages: [i], run: false };
+        var node = ci2 >= 0 ? { id: 'ch:' + i, pages: chapters[ci2].pages.slice(), run: false, chapter: true, chKey: chapters[ci2].key, part: chapters[ci2].kind === 'part', traffic: U, choke: U, visits: U, pGood: U, pBad: U, pNeutral: U, pi: U, dom: U, domP: U, label: U, sub: U, nodeId: U, group: U, sizeV: U, colorV: U, start: U, end: U, valence: U, unreached: U, deg: U, inN: U, outN: U, inW: U, outW: U, ghost: U } : ri2 >= 0 ? { id: 'run:' + i, pages: runs[ri2].slice(), run: true, traffic: U, choke: U, visits: U, pGood: U, pBad: U, pNeutral: U, pi: U, dom: U, domP: U, label: U, sub: U, nodeId: U, group: U, sizeV: U, colorV: U, start: U, end: U, valence: U, unreached: U, deg: U, inN: U, outN: U, inW: U, outW: U, ghost: U } : { id: 'n' + i, pages: [i], run: false, traffic: U, choke: U, visits: U, pGood: U, pBad: U, pNeutral: U, pi: U, dom: U, domP: U, label: U, sub: U, nodeId: U, group: U, sizeV: U, colorV: U, start: U, end: U, valence: U, unreached: U, deg: U, inN: U, outN: U, inW: U, outW: U, ghost: U };
         for (var gq = 0; gq < node.pages.length; gq++) { groupOf[node.pages[gq]] = node.id; groupIx[node.pages[gq]] = nodes.length; }
         nodes.push(node);
       }
@@ -1119,9 +1117,9 @@
         if (merging) {
           var key = groupIx[P.from[e]] * nodes.length + groupIx[P.to[e]], had = seen.get(key);   // one number per from>to pair instead of a text key
           if (had) { had.srcs.push(e); continue; }
-          ed = { from: a, to: b, srcs: [e] };
+          ed = { from: a, to: b, srcs: [e], label: U, count: U, flow: U, weight: U, orig: U };
           seen.set(key, ed);
-        } else ed = { from: a, to: b, srcs: [e] };
+        } else ed = { from: a, to: b, srcs: [e], label: U, count: U, flow: U, weight: U, orig: U };
         edges.push(ed);
       }
       return { nodes: nodes, edges: edges, groupOf: groupOf, runs: runs, imp: imp, chapters: chapters, chapterInfo: found };
