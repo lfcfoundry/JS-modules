@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.0 · API 0 · 2026-11-22
+- Files with accents or other non-ASCII text read 2 to 4 times faster (text is decoded once instead of per field); lazy columns stay lazy.
+
 ## 0.7.1 · API 0 · 2026-11-21
 - onPiece read time against without it (15 MB): 0.96 in Chromium 156 (noisy, 0.92 to 1.20), 1.10 Firefox 158, 1.01 WebKitGTK 2.52.6; 0.7.0 was 1.09 in Chromium. Helpers send a copy of each number column for the piece.
 

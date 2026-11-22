@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.7.1 · API 0**
+**Version 0.8.0 · API 0**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6
+**Tested in:** Firefox 158, ungoogled Chromium 156, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -17,6 +17,8 @@ Reads CSV or TSV text straight into typed columns. Decimal columns come out as `
 ## Why it exists
 
 Usual parsers build a string for every cell and an object for every row, which costs time and memory on big tables. Pages that import a table usually want columns for charts or for [lfc-pack](../lfc-pack/README.md). On real 8 MB files (retail, SEC and SBA tables) in the three test browsers it is 0.94 to 4.9 times as fast as Papa Parse with typed rows: SEC numbers 1.8 to 4.9 times, retail 1.0 to 1.9 times, and the 116-column SBA text file 1.2 to 1.5 times, except in Firefox where Papa Parse is 6% faster.
+
+On real files (8 MB slices of public CSV and TSV files, Papa Parse given the decoded text with `header` and `dynamicTyping`), 0.8.0 is 2.1 to 5.8 times faster than Papa Parse in all three test browsers, including wide text files and files with accents, where 0.7.1 was barely ahead or behind. Text that is not plain ASCII is now decoded once and cut into substrings, instead of one decoder call per field.
 
 **Where it helps**
 
@@ -79,15 +81,15 @@ A text column that repeats a few values (a city, a status) used to hold one stri
 - The WebAssembly memory grows to fit the biggest file you read and stays that size; the returned columns do not point into it.
 
 ## How it compares
-Three real tables, the first 8 MB of each, from bytes, medians of 5 runs in a fresh page, milliseconds, lower is better. Cloud container, one browser at a time: ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (2026.11.22). Files: the retail e-commerce table (95,607 rows x 8 columns, Latin-1), the SEC 2026 Q1 numbers file (54,712 rows x 9 columns, tab separated) and the SBA assistance file (3,206 rows x 116 columns, mostly text). Papa Parse 5 gets the decoded text with `header` and `dynamicTyping`; text-columns gets the bytes and returns columns.
+Three real tables, the first 8 MB of each, from bytes, medians of 5 runs in a fresh page, milliseconds, lower is better. Cloud container, one browser at a time: ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (2026.11.22; text-columns 0.8.0). Files: the retail e-commerce table (95,607 rows x 8 columns, Latin-1), the SEC 2026 Q1 numbers file (54,712 rows x 9 columns, tab separated) and the SBA assistance file (3,206 rows x 116 columns, mostly text). Papa Parse 5 gets the decoded text with `header` and `dynamicTyping`; text-columns gets the bytes and returns columns.
 
 | File | text-columns (Chromium / Firefox / WebKitGTK) | Papa Parse (Chromium / Firefox / WebKitGTK) | Papa Parse time / ours |
 |---|---|---|---|
-| Retail | 165 / 107 / 141 | 261 / 206 / 145 | 1.58 / 1.93 / 1.03 |
-| SEC numbers | 29 / 68 / 32 | 143 / 125 / 118 | 4.86 / 1.84 / 3.69 |
-| SBA, 116 columns | 74 / 80 / 75 | 113 / 75 / 93 | 1.54 / 0.94 / 1.24 |
+| Retail | 40 / 45 / 59 | 203 / 262 / 219 | 5.03 / 5.82 / 3.71 |
+| SEC numbers | 25 / 30 / 26 | 135 / 147 / 119 | 5.40 / 4.90 / 4.58 |
+| SBA, 116 columns | 43 / 28 / 51 | 156 / 82 / 106 | 3.60 / 2.93 / 2.08 |
 
-Papa Parse and d3-dsv are fuller parsers (type guessing for dates and booleans, streaming, error recovery, other delimiters); text-columns does less on purpose. A wide text-heavy file is close to level, and Firefox is 6% slower than Papa Parse on the SBA file. d3-dsv, the plain-JavaScript path, the WebAssembly share and `toRows()` were measured on generated 200,000-row tables earlier and have not been re-measured on real files; those figures were removed from this page. The harness and raw results are in `tools/real-corpus`.
+Papa Parse and d3-dsv are fuller parsers (type guessing for dates and booleans, streaming, error recovery, other delimiters); text-columns does less on purpose. Version 0.7.1 was only 1.0 to 1.5x ahead on the retail and SBA files (0.94x in Firefox on SBA) because text that is not plain ASCII was decoded one field at a time; 0.8.0 decodes it once. Four public files kept apart from these (NFL play by play, airport codes, world cities in UTF-8 and Latin-1) give 2.4 to 5.5x in the same three browsers. d3-dsv, the plain-JavaScript path, the WebAssembly share and `toRows()` were measured on generated 200,000-row tables earlier and have not been re-measured on real files; those figures were removed from this page. The harness and raw results are in `tools/real-corpus`.
 
 ## Limits
 - One-character delimiter below 128 other than a quote or a line break.

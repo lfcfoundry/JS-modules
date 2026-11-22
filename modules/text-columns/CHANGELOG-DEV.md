@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.8.0 · API 0 · 2026-11-22
+
+### Quick
+Non-ASCII text (any byte of 128 or more) was decoded one field at a time (about 0.3 microseconds each); now tc.c u16map turns the field positions into UTF-16 positions and the text is decoded once and cut as substrings (a byte order mark a…
+
+### Deep
+Non-ASCII text (any byte of 128 or more) was decoded one field at a time (about 0.3 microseconds each); now tc.c u16map turns the field positions into UTF-16 positions and the text is decoded once and cut as substrings (a byte order mark at a field start is still dropped, as before). Same strings on 30,000 random broken-UTF-8 tables and a new check in test/run.js. Also fixed: shareLater read every lazy column's values (so lazy: true built all strings at once); it now skips lazy columns. A/B against Papa Parse 5.4.1 (typed, given the decoded text), 8 MB slices of real files, median of 5 to 9 runs, ratio Papa/text-columns, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: retail Latin-1 5.0/5.8/3.7 (0.7.1: 1.2/2.5/1.0); SBA 116 columns 3.6/2.9/2.1 (0.7.1: 1.3/0.8/1.2); SEC 5.4/4.9/4.6; NFL play by play 4.7/5.5/5.4; airport codes 2.9/2.6/2.6; world cities 3.7-4.0/3.9-4.7/2.4-2.6. Own time, 0.8.0 vs 0.7.1: retail 40 vs 158 ms Chromium, 45 vs 119 Firefox, 59 vs 160 WebKitGTK; SBA 43 vs 93, 28 vs 93, 51 vs 86. Tuned only on public dev data (NFL, airports, cities); retail, SEC and SBA were used to measure only.
+
 ## 0.7.1 · API 0 · 2026-11-21
 
 ### Quick

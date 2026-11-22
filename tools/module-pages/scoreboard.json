@@ -51,10 +51,10 @@
   },
   {
    "label": "text-columns vs Papa Parse, real files (low end)",
-   "x": 0.94,
+   "x": 2.08,
    "module": "text-columns",
    "proof": [
-    "0.9 to 4.9 times"
+    "2.1 to 5.8 times"
    ]
   },
   {

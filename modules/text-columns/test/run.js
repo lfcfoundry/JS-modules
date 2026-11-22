@@ -21,6 +21,21 @@ t('wasm and plain paths agree on random text (comma and tab, \\n and \\r\\n, quo
     if (typeof a === 'string' || typeof b === 'string') assert.strictEqual(a, b, 'same error'); else same(a, b, 'case ' + it);
   }
 });
+t('non-ASCII text (0.8.0): one whole decode plus UTF-16 positions gives what a decoder call a field gives, on valid and broken UTF-8, with quotes and a mid-field byte order mark', () => {
+  const HIGH = [0xC2, 0xC3, 0xDF, 0xE0, 0xE1, 0xED, 0xEF, 0xBB, 0xBF, 0xF0, 0xF4, 0xF5, 0xFF, 0x80, 0xA0, 0x9F, 0x8F, 0x90, 0xE2, 0x82, 0xAC, 0x98], dec = new TextDecoder('utf-8');
+  for (let it = 0; it < 3000; it++) {
+    const delim = it % 3 ? 44 : 9, rows = ri(1, 25), cols = ri(2, 5), bytes = [], cells = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const n = ri(0, 6), b = []; for (let i = 0; i < n; i++) { const x = R(); b.push(x < 0.45 ? 97 + ri(0, 5) : x < 0.9 ? HIGH[ri(0, HIGH.length - 1)] : 32); }
+      const q = R() < 0.15; if (q) { b.unshift(34); b.push(34); }
+      cells.push(q ? b.slice(1, -1) : b); bytes.push(...b, c < cols - 1 ? delim : 10);
+    }
+    const u = Uint8Array.from(bytes), opt = { delimiter: String.fromCharCode(delim), header: false, _shareLater: false, spare: false};
+    let a, p; try { a = F.parse(u, opt); p = F.parse(u, Object.assign({ plain: true }, opt)); } catch (e) { continue; }
+    for (let c = 0; c < cols; c++) { if (a.columns[c].type !== 'text') continue;
+      for (let r = 0; r < rows; r++) { const want = dec.decode(Uint8Array.from(cells[r * cols + c])); assert.strictEqual(a.columns[c].values[r], want, 'wasm it ' + it + ' r' + r + ' c' + c); assert.strictEqual(p.columns[c].values[r], want, 'plain it ' + it); } }
+  }
+});
 t('numbers: plain decimals become Float64Array, others stay text', () => {
   const x = F.parse('a,b,c,d\n1,007,1e5,\n-2.5,8,2,\n3.25,9,3,\n');
   assert.deepStrictEqual(x.columns.map(c => c.type), ['number', 'text', 'text', 'text']);
