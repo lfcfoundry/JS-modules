@@ -58,6 +58,7 @@ var steps = [
   ['elias-fano intersect', 'node', ['modules/elias-fano/test/intersect.js']],
   ['elias-fano long equal runs', 'node', ['modules/elias-fano/test/longruns.js']],
   ['elias-fano tiny lists and query scratch', 'node', ['modules/elias-fano/test/tiny.js']],
+  ['elias-fano SIMD decode', 'node', ['modules/elias-fano/test/simd-decode.js']],
   ['gif-writer filters', 'node', ['modules/gif-writer/test/fx.js']],
   ['gif-writer filters, WebAssembly twin', 'node', ['modules/gif-writer/test/fx-wasm.js']],
   ['zip-open', 'node', ['modules/zip-open/test/run.js']],
