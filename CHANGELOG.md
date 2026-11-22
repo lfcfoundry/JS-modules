@@ -41,7 +41,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
-| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.10.1 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
+| [netflow-hierarchy](modules/netflow-hierarchy/README.md) | 1.11.0 · API 1 | [changelog](modules/netflow-hierarchy/CHANGELOG.md) |
 | [netflow-layers](modules/netflow-layers/README.md) | 1.13.0 · API 1 | [changelog](modules/netflow-layers/CHANGELOG.md) |
 | [netflow-scene](modules/netflow-scene/README.md) | 1.14.2 · API 1 | [changelog](modules/netflow-scene/CHANGELOG.md) |
 | [netflow-plot](modules/netflow-plot/README.md) | 2.23.0 · API 2 | [changelog](modules/netflow-plot/CHANGELOG.md) |
@@ -76,6 +76,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-hierarchy** 1.9.0 · API 1: Items can name their own parent, with no list of links
 - 2026-11-21 · **netflow-hierarchy** 1.8.2 · API 1: Circle pack is faster, most of all on trees where items have two children; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
+- 2026-11-21 · **netflow-hierarchy** 1.11.0 · API 1: Tiny icicle and sunburst (up to 24 items) have their own fast path
 - 2026-11-21 · **netflow-hierarchy** 1.10.1 · API 1: Small speed-up for the tree and circle pack views on small trees
 - 2026-11-21 · **netflow-hierarchy** 1.10.0 · API 1: Rows as they are (sizeKey, write: false) and much faster small trees
 - 2026-11-21 · **netflow-engine** 2.6.5 · API 2: Network maps (Distances layout) build in 15% less time in the middle case and up to 49% less on maps under 4,000 items. Items land in different spots than in 2.6.4; stress and link crossings stay within a few percent.

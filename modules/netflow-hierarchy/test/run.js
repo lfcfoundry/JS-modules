@@ -280,6 +280,43 @@ const LINKS = [{ from: 'Wages', to: 'Rent', value: 30 }, { from: 'Wages', to: 'F
   ok(L.chart.val[0] === 9 && L.nodes[0].h > 0 && L.chart.placed === undefined, 'sizeKey also works with a list of links, and items are written as usual');
   ok(A.place(A.layout('icicle', G, { nest: 'links' })).nodes.length === 3 && A.place(null) === null, 'place() on a layout that needs nothing does nothing');
 }
+{   /* tiny icicle and sunburst (items that name their parent, up to 24 items) have their own plain-list code: the result must equal the general path's, which o._general forces (a switch for this test only) */
+  const A = require('../netflow-hierarchy.js'), B = require('../netflow-hierarchy.min.js');
+  const sortedKeys = (v) => v && typeof v === 'object' && !Array.isArray(v) && !ArrayBuffer.isView(v) ? Object.keys(v).sort().reduce((o, q) => (o[q] = v[q], o), {}) : v;
+  const norm = (x) => JSON.stringify(x, (k, v) => ArrayBuffer.isView(v) || v instanceof Map ? Array.from(v) : sortedKeys(v));
+  let used = 0, same = 0, total = 0, sceneSame = 0, sceneTotal = 0, minSame = 0, minTotal = 0, typedBig = 0;
+  for (let seed = 1; seed <= 48; seed++) {
+    const r = rnd(seed), n = Math.floor(r() * 26), kind = seed % 8, rows = [];
+    for (let i = 0; i < n; i++) {
+      let par = null;
+      if (i && kind !== 0) par = 'n' + Math.floor(r() * i);
+      if (kind === 1 && i % 5 === 0) par = null;
+      if (kind === 2 && i % 4 === 1) par = 'zz' + i;
+      if (kind === 3 && i % 6 === 2) par = 'n' + i;
+      if (kind === 4 && i > 2 && i % 7 === 3) par = 'n' + (i + 1 < n ? i + 1 : 0);
+      if (kind === 5 && i % 9 === 4) par = '';
+      let id = 'n' + i; if (kind === 6 && i === 3) id = 'n1';
+      let val = 1 + Math.floor(r() * 9); if (kind === 7 && i % 3 === 0) val = [undefined, '7', -2, null, NaN, 0, 3.5][i % 7];
+      rows.push({ id, label: 'L' + i, group: 'g' + (i % 3), parent: par, value: val, start: kind === 4 && i === 5 ? true : undefined });
+    }
+    const mk = () => ({ nodes: rows.map((x) => ({ id: x.id, label: x.label, group: x.group, parent: x.parent, value: x.value, sizeV: x.value, start: x.start })), name: seed % 2 ? 'Top' : undefined });
+    for (const nest of ['links', 'auto', 'groups', undefined]) for (const view of ['sunburst', 'icicle']) for (const sort of [true, false]) for (const mode of [0, 1]) {
+      const o = { nest, sized: seed % 3 !== 0, sort, parentKey: 'parent' }; if (mode) { o.sizeKey = 'value'; o.write = false; }
+      const og = Object.assign({ _general: true }, o), a = A.layout(view, mk(), o), b = A.layout(view, mk(), og);
+      total++; if (norm(a) === norm(b)) same++;
+      if (Array.isArray(a.chart.R)) used++;
+      if (mode === 0 && sort) { minTotal++; if (norm(B.layout(view, mk(), o)) === norm(a)) minSame++; }
+      if (!mode && sort) { a.view = b.view = view; a.groups = b.groups = ['g0', 'g1', 'g2']; sceneTotal++; if (norm(A.scene(a, {}, global.NetflowScene)) === norm(A.scene(b, {}, global.NetflowScene))) sceneSame++; }
+    }
+  }
+  const big = { nodes: Array.from({ length: 60 }, (_, i) => ({ id: 'n' + i, label: 'L' + i, sizeV: 1 + i % 5, parent: i ? 'n' + (i >> 1) : null })) };
+  for (const view of ['icicle', 'sunburst']) if (!Array.isArray(A.layout(view, big, { nest: 'links', sized: true, parentKey: 'parent' }).chart.R)) typedBig++;
+  ok(same === total, 'tiny icicle and sunburst: same layout as the general path on ' + total + ' cases (' + (total - same) + ' differ)');
+  ok(sceneSame === sceneTotal, 'tiny icicle and sunburst: same drawing as the general path on ' + sceneTotal + ' cases');
+  ok(minSame === minTotal, 'tiny icicle and sunburst: the minified file agrees on ' + minTotal + ' cases');
+  ok(used > 100, 'tiny icicle and sunburst: the own code was used (' + used + ' times) and handed back for loops, start items and group nesting');
+  ok(typedBig === 2, 'tiny icicle and sunburst: a 60-item tree takes the general path (typed lists)');
+}
 {   /* the minified file is this version and draws the same pictures (rebuild: test/make-min.js) */
   const fs = require('fs'), path = require('path'), dir = path.join(__dirname, '..');
   const src = fs.readFileSync(path.join(dir, 'netflow-hierarchy.js'), 'utf8'), min = fs.readFileSync(path.join(dir, 'netflow-hierarchy.min.js'), 'utf8');

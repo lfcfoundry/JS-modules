@@ -1,5 +1,16 @@
 # netflow-hierarchy developer changelog
 
+## 1.11.0 · API 1 · 2026-11-21
+
+### Quick
+Tiny icicle and sunburst of 3 to 24 items run in about 0.5 to 1.0 of d3's time
+
+### Details
+Items that name their parent (parentKey), up to 24 items, icicle and sunburst: own plain-list code that shares nothing with the general path. Same result. Loops, start items, nest groups and nest auto with no links use the general path.
+
+### Deep
+Tiny icicle and sunburst: a separate small piece of code for up to 24 items that name their parent. Same layout and drawing as before, checked on 48 random sets in both views. Big layouts untouched.
+
 ## 1.10.1 · API 1 · 2026-11-21
 
 ### Quick
