@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.2.2 · API 2 · 2026-11-22
+- toArray on flat lists is up to about 2x faster.
+
 ## 2.2.1 · API 2 · 2026-11-22
 - Tiny lists read faster.
 

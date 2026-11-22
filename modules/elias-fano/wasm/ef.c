@@ -170,6 +170,49 @@ void ef_decode(const u8 *b, u32 *out) {
   for (; j < n; j++) out[j] = (u32)(((u64)out[j] << l) | lowAt(low, l, j));
 }
 
+#ifdef __wasm_simd128__
+static u8 QT[256][8], Q8[256]; static u32 qtOk;   // for each byte value: where its set bits are, each minus its rank, and how many there are
+static void qtInit(void) { for (u32 x = 0; x < 256; x++) { u32 n = 0; for (u32 b = 0; b < 8; b++) if (x >> b & 1) { QT[x][n] = (u8)(b - n); n++; } Q8[x] = (u8)n; } qtOk = 1; }
+#endif
+// like ef_decode but 8 values at a time with a byte table for the high parts and swizzle+multiply for the low parts (l up to 16); out needs 32 spare bytes after the n values
+void ef_decode_fast(const u8 *b, u32 *out) {
+#ifdef __wasm_simd128__
+  OPEN(b)
+  if (n < 16 || l > 16) { ef_decode(b, out); return; }
+  if (!qtOk) qtInit();
+  const u8 *Hb = (const u8 *)H; u32 i = 0;
+  for (u32 k = 0; i < n; k++) {
+    u32 x = Hb[k]; v128_t q = wasm_u16x8_load8x8(QT[x]); v128_t base = wasm_i32x4_splat((int)(k * 8 - i));
+    wasm_v128_store(out + i, wasm_i32x4_add(wasm_u32x4_extend_low_u16x8(q), base)); wasm_v128_store(out + i + 4, wasm_i32x4_add(wasm_u32x4_extend_high_u16x8(q), base)); i += Q8[x];
+  }
+  if (l == 0) return;
+  if (l <= 8) {
+    u8 sw[16]; u16 mu[8];
+    for (u32 t = 0; t < 8; t++) { u32 bo = t * l; sw[2 * t] = (u8)(bo >> 3); sw[2 * t + 1] = (u8)((bo >> 3) + 1); mu[t] = (u16)(1u << (8 - (bo & 7))); }
+    v128_t SW = wasm_v128_load(sw), MU = wasm_v128_load(mu), MK = wasm_i16x8_splat((short)mask(l));
+    for (u32 g = 0; g < n; g += 8) {
+      v128_t f = wasm_i8x16_swizzle(wasm_v128_load64_zero((const u8 *)low + (g >> 3) * l), SW);
+      f = wasm_v128_and(wasm_u16x8_shr(wasm_i16x8_mul(f, MU), 8), MK);
+      wasm_v128_store(out + g, wasm_v128_or(wasm_i32x4_shl(wasm_v128_load(out + g), l), wasm_u32x4_extend_low_u16x8(f)));
+      wasm_v128_store(out + g + 4, wasm_v128_or(wasm_i32x4_shl(wasm_v128_load(out + g + 4), l), wasm_u32x4_extend_high_u16x8(f)));
+    }
+    return;
+  }
+  u8 sw[32]; u32 mu[8]; u32 h2 = (4 * l) >> 3;
+  for (u32 t = 0; t < 8; t++) { u32 bo = t * l, base = t < 4 ? 0 : h2, by = (bo >> 3) - base + (t < 4 ? 0 : 8); for (u32 z = 0; z < 4; z++) sw[4 * t + z] = (u8)(by + z); mu[t] = 1u << (16 - (bo & 7)); }
+  v128_t S0 = wasm_v128_load(sw), S1 = wasm_v128_load(sw + 16), M0 = wasm_v128_load(mu), M1 = wasm_v128_load(mu + 4), MK = wasm_i32x4_splat((int)mask(l));
+  for (u32 g = 0; g < n; g += 8) {
+    const u8 *p = (const u8 *)low + (g >> 3) * l; v128_t v = wasm_v128_load64_lane(p + h2, wasm_v128_load64_zero(p), 1);
+    v128_t f0 = wasm_v128_and(wasm_u32x4_shr(wasm_i32x4_mul(wasm_i8x16_swizzle(v, S0), M0), 16), MK);
+    v128_t f1 = wasm_v128_and(wasm_u32x4_shr(wasm_i32x4_mul(wasm_i8x16_swizzle(v, S1), M1), 16), MK);
+    wasm_v128_store(out + g, wasm_v128_or(wasm_i32x4_shl(wasm_v128_load(out + g), l), f0));
+    wasm_v128_store(out + g + 4, wasm_v128_or(wasm_i32x4_shl(wasm_v128_load(out + g + 4), l), f1));
+  }
+#else
+  ef_decode(b, out);
+#endif
+}
+
 // build the blob at out (already zero filled, length from the layout the caller worked out) from values[n], sorted, n >= 1
 void ef_build(const u32 *v, u32 n, u32 l, u32 s, u32 lowOff, u32 highOff, u32 s1Off, u32 s0Off, u32 total, u8 *out) {
   u32 maxv = v[n - 1], nbits = n + (maxv >> l) + 1;
@@ -403,10 +446,6 @@ static inline Blk blkAt(const u8 *b, u32 k) {
 }
 static inline u32 efBlkLowB(u32 c, u32 l) { return ((((c * l + 31) >> 5) + 2) * 4 + 7) & ~7u; }
 static inline u32 efLowBits(const u8 *low, u32 l, u32 q) { return (u32)lowAt(low, l, q); }
-#ifdef __wasm_simd128__
-static u8 QT[256][8], Q8[256]; static u32 qtOk;   // for each byte value: where its set bits are, each minus its rank, and how many there are
-static void qtInit(void) { for (u32 x = 0; x < 256; x++) { u32 n = 0; for (u32 b = 0; b < 8; b++) if (x >> b & 1) { QT[x][n] = (u8)(b - n); n++; } Q8[x] = (u8)n; } qtOk = 1; }
-#endif
 // block values as u16 into out (EF and array blocks); returns the count. out needs 8 spare slots after the count.
 static u32 blkU16(Blk B, u16 *out) {
   if (B.kind == 2) { const u16 *a = (const u16 *)B.d; for (u32 q = 0; q < B.c; q++) out[q] = a[q]; return B.c; }
