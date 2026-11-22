@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.21.0 · API 0 · 2026-11-21
+- New graph option pack: true keeps the stored graph 2.5 to 3 times smaller; reading it takes 26 to 38 ms instead of 9, still 2 to 4 times faster than rebuilding it. Raw stays the default (owner's choice).
+
 ## 0.20.0 · API 0 · 2026-11-21
 - New geo save option for map data: rows sorted along a Hilbert curve, a heat grid in the footer, and box reads that read only nearby blocks (2.8 to 6.7 times faster than reading everything). Off by default.
 

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.21.0 · API 0 · 2026-11-21
+
+### Quick
+Owner card 11.21 8:27 PM Detroit: opt-in pack: true, raw default.
+
+### Deep
+Owner card 11.21 8:27 PM Detroit: opt-in pack: true, raw default. graph.pack on packColumnsParallel and addGraph: rows sorted by target (weights alongside; gSortRows), degrees for offsets, in-row gaps for targets, weights as Uint16 ids into one Float32 table (open-addressing table on the bit patterns, exact for -0 and NaN; at most 65,536 values) else raw Float32, each array split into byte planes, zstd level 3 (level 1: same size, same time). Header pack: 1, sorted: true, parts [offset, length, kind], wCount. graph() / open().graph() decode into new arrays (fused plane join + prefix sums). Measured 200,000 nodes / 1,000,000 weighted links, median of 5, 4-core cloud: file 14.61 -> 9.35 MB random links, 14.53 -> 8.55 MB mostly local links (5.8 MB no graph); graph() 35.1 / 30.8 / 26 ms random and 38.1 / 27.4 / 28 ms local (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6) vs raw 8 to 9 ms; save 235 -> 294, 194 -> 246, 188 -> 236 ms random (raw graph -> packed). First draft built the weight table with a Map: save +140 ms Chromium; the bit-pattern table cut it to +59. 20 new checks in graph.cjs (59 in all).
+
 ## 0.20.0 · API 0 · 2026-11-21
 
 ### Quick
