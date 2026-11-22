@@ -51,7 +51,7 @@ static inline u32 getOne(const u8 *b, u32 i) {
 // steps and find the place by galloping over values (getOne), which costs a few dozen reads however long the run is. Ordinary lists never reach the limits, so they take the same steps as before.
 #define SEL_WORDS 4
 #define SCAN_STEPS 8
-static inline u32 gallop(const u8 *b, u32 lo, u32 n, u32 x) {   // the first position t >= lo whose value is >= x (values never go down), or n
+__attribute__((noinline)) static u32 gallop(const u8 *b, u32 lo, u32 n, u32 x) {   // the first position t >= lo whose value is >= x (values never go down), or n
   u32 hi = lo, step = 1;
   while (hi < n && getOne(b, hi) < x) { lo = hi + 1; hi = lo + step; step <<= 1; }
   if (hi > n) hi = n;
@@ -59,7 +59,7 @@ static inline u32 gallop(const u8 *b, u32 lo, u32 n, u32 x) {   // the first pos
   return lo;
 }
 // where the values of bucket h start: *i = how many values lie in lower buckets, *sp = their bit position; the zero search gives up after SEL_WORDS words (a long run of ones)
-static inline void bucketStart(const u8 *b, u32 h, u32 *iout, u32 *spout) {
+static void bucketStart(const u8 *b, u32 h, u32 *iout, u32 *spout) {
   OPEN(b)
   if (h == 0) { *iout = 0; *spout = 0; return; }
   u32 j = h - 1, k = j >> s, pos = s0[k], rem = j - (k << s), w = pos >> 6, c, steps = 0;
