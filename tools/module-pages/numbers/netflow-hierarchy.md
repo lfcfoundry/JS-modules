@@ -36,4 +36,6 @@ Compared: netflow-hierarchy against d3-hierarchy 3.1.3 on an Android phone (Chro
 
 The phone run covers five views, icicle without sorting, five tree shapes and 1,000, 10,000 and 100,000 items: 90 races, all won by netflow-hierarchy. The best result was 0.32 of d3-hierarchy's time and the closest 0.93. At 10,000 items the middle tree shape takes 43 to 71% and at 1,000 items 47 to 78%. In this test netflow-hierarchy's items are made with their seven output fields already present, as the netflow-hierarchy README advises. This is one phone, so it shows direction rather than a guarantee.
 
+A second phone run, on version 1.10.0 (the owner's Quick run of 31 races on the same phone, 2026-11-21, 4:59 PM Detroit, rows fed untouched to both libraries), was faster than d3-hierarchy 3.1.3 in all 31 races: the best result was 0.34 of d3-hierarchy's time and the closest 0.87. The chart above is the earlier run on 1.8.2.
+
 Size is the one place d3-hierarchy is smaller, and the two are not the same job. d3-hierarchy 3.1.3 minified is 14.8 KB (5.8 KB gzipped) and does layout only. netflow-hierarchy ships a minified copy of 32.5 KB (14.6 KB gzipped) that does layout and drawing in one file (the readable file is 22.6 KB gzipped), and its layout part alone is about 16.3 KB (7.4 KB gzipped). So d3-hierarchy is smaller and no size win is claimed.
