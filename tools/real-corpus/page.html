@@ -1,0 +1,87 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    APPLICATION : real-data benchmark page
+    FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<meta charset=utf-8><title>real-data audit</title>
+<script src="papaparse.min.js"></script><script src="fflate.js"></script><script src="msgpackr.js"></script><script src="gl.js"></script>
+<script src="dagre.min.js"></script><script src="d3s.js"></script><script src="netflow-layers.js"></script><script src="netflow-sankey.js"></script><script src="zip-open.js"></script><script src="text-columns.js"></script><script src="lz4-kit.js"></script><script src="zstd-kit.js"></script><script src="memory-compression.js"></script><script src="graph-walk.js"></script>
+<script>
+const med=a=>{a=a.slice().sort((x,y)=>x-y);return a[a.length>>1]};
+const T=(f,reps=5)=>{const t=[];let r;for(let i=0;i<reps;i++){const s=performance.now();r=f();t.push(performance.now()-s)}return {ms:+med(t).toFixed(2),r}};
+const TA=async(f,reps=5)=>{const t=[];let r;for(let i=0;i<reps;i++){const s=performance.now();r=await f();t.push(performance.now()-s)}return {ms:+med(t).toFixed(2),r}};
+const get=async u=>new Uint8Array(await (await fetch(u)).arrayBuffer());
+async function gz(b){const cs=new Blob([b]).stream().pipeThrough(new CompressionStream('gzip'));return new Uint8Array(await new Response(cs).arrayBuffer())}
+async function gunz(b){const ds=new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'));return new Uint8Array(await new Response(ds).arrayBuffer())}
+const tests={
+ async csv(){const out={};for(const [n,u,d,enc] of [['retail','retail.csv',',','latin1'],['sec','sec.tsv','\t','utf-8'],['sba','sba.csv',',','utf-8']]){
+   const b=await get(u);const tc=T(()=>TextColumns.parse(b,{delimiter:d}));
+   const pp=T(()=>{const s=new TextDecoder(enc).decode(b);return Papa.parse(s,{delimiter:d,header:true,dynamicTyping:true,skipEmptyLines:true})});
+   out[n]={mb:+(b.length/1e6).toFixed(1),rows:tc.r.count,textcolumns_ms:tc.ms,papa_ms:pp.ms,ratio_papa_over_tc:+(pp.ms/tc.ms).toFixed(2)}}return out},
+ async comp(){const out={};await Lz4Kit.init();await ZstdKit.init();for(const [n,u] of [['retail','retail.csv'],['sec','sec.tsv'],['sba','sba.csv']]){
+   const full=await get(u);const b=full.subarray(0,4194304);
+   const l=T(()=>Lz4Kit.compress(b));const z=T(()=>ZstdKit.compress(b,3));const g=await TA(()=>gz(b),3);const ff=T(()=>fflate.gzipSync(b),3);
+   const ld=T(()=>Lz4Kit.decompress(l.r));const zd=T(()=>ZstdKit.decompress(z.r));const gd=await TA(()=>gunz(g.r),3);
+   out[n]={bytes:b.length,size:{lz4:l.r.length,zstd3:z.r.length,gzip:g.r.length},compress_ms:{lz4:l.ms,zstd3:z.ms,browser_gzip:g.ms,fflate_gzip:ff.ms},decompress_ms:{lz4:ld.ms,zstd3:zd.ms,browser_gzip:gd.ms},
+     lz4_vs_gzip_compress_speedup:+(g.ms/l.ms).toFixed(2)}}return out},
+ async mem(){const R=await (await fetch('recs.json')).json();const out={};const enc=new TextEncoder();
+   for(const n of ['retail','sec']){const rows=R[n];const jb=enc.encode(JSON.stringify(rows));
+    const m=T(()=>MemoryCompression.pack(rows,{mode:'fast'}),3);const mu=T(()=>MemoryCompression.unpack(m.r),3);
+    const sr=new msgpackr.Packr({useRecords:true});const p=T(()=>sr.pack(rows),3);const pu=T(()=>sr.unpack(p.r),3);
+    const fg=T(()=>fflate.gzipSync(jb),1);const fu=T(()=>fflate.gunzipSync(fg.r),3);
+    out[n]={rows:rows.length,json_bytes:jb.length,size:{memcomp_fast:m.r.length,msgpackr_records:p.r.length,fflate_gzip_json:fg.r.length},pack_ms:{memcomp:m.ms,msgpackr:p.ms,fflate:fg.ms},unpack_ms:{memcomp:mu.ms,msgpackr:pu.ms,fflate_plus_none:fu.ms}}}return out},
+ 
+ async layers(){const Lg=await (await fetch('layers.json')).json();const out={};
+  for(const k of ['n300','n1000']){const g=Lg[k];const n=g.nodes.length;const edges=g.edges.sort((a,b)=>b.count-a.count).slice(0,2*n);
+   const root=g.nodes[0];
+   const nl=T(()=>NetflowLayers.layout({root,nodes:g.nodes.map(id=>({id,w:140,h:44})),edges:edges.map(e=>({from:e.from,to:e.to,count:e.count}))},{dir:'TB',tagLen:8}),k==='n3000'?2:3);
+   const dg=T(()=>{const G=new dagre.graphlib.Graph();G.setGraph({rankdir:'TB'});G.setDefaultEdgeLabel(()=>({}));g.nodes.forEach(id=>G.setNode(id,{width:140,height:44}));edges.forEach(e=>G.setEdge(e.from,e.to));dagre.layout(G);return G},k==='n3000'?1:3);
+   out[k]={nodes:n,links:edges.length,netflow_layers_ms:nl.ms,dagre_ms:dg.ms,speedup:+(dg.ms/nl.ms).toFixed(1)}}return out},
+ async sankey(){const S=await (await fetch('sankey.json')).json();const out={};
+  for(const k of Object.keys(S)){const links=S[k];
+   const a=T(()=>NetflowSankey.layoutFlows({links:links.map(l=>({from:l.from,to:l.to,value:l.value}))},{height:600}),3);
+   let b;try{b=T(()=>{const ids=[...new Set(links.flatMap(l=>[l.from,l.to]))];const idx=new Map(ids.map((x,i)=>[x,i]));const nodes=ids.map(id=>({id}));const ls=links.map(l=>({source:idx.get(l.from),target:idx.get(l.to),value:l.value}));return D3S.sankey().nodeWidth(15).nodePadding(8).extent([[0,0],[900,600]])({nodes,links:ls})},3)}catch(e){b={ms:'error '+e.message}}
+   out[k]={links:links.length,netflow_sankey_ms:a.ms,d3_sankey_ms:b.ms,loops:a.r.loops&&a.r.loops.length,speedup:typeof b.ms==='number'?+(b.ms/a.ms).toFixed(2):null}}return out},
+ async zip(){const b=await get('retail.csv');const txt=new TextDecoder('latin1').decode(b);const lines=txt.split('\n');const head=lines[0];const files={};const per=Math.floor((lines.length-1)/400);
+   for(let i=0;i<400;i++){files['f'+i+'.csv']=new TextEncoder().encode(head+'\n'+lines.slice(1+i*per,1+(i+1)*per).join('\n'))}
+   const z=fflate.zipSync(files,{level:6});
+   const a=await TA(()=>ZipOpen.expand(z),5);const f=T(()=>{const u=fflate.unzipSync(z);let n=0;for(const k in u){n+=new TextDecoder().decode(u[k]).length}return n},5);
+   return {zip_bytes:z.length,files:400,zip_open_ms:a.ms,fflate_ms:f.ms,speedup:+(f.ms/a.ms).toFixed(2)}}
+,
+ async sankeyq(){const S=await (await fetch('sankey.json')).json();const out={};
+  for(const k of Object.keys(S)){const links=S[k].map(l=>({from:l.from,to:l.to,value:l.value}));
+   const a=T(()=>NetflowSankey.layoutFlows({links},{height:600,quick:true}),5),b=T(()=>NetflowSankey.layoutFlows({links},{height:600}),5);
+   const c=T(()=>{const ids=[...new Set(links.flatMap(l=>[l.from,l.to]))];const idx=new Map(ids.map((x,i)=>[x,i]));return D3S.sankey().nodeWidth(15).nodePadding(8).extent([[0,0],[900,600]])({nodes:ids.map(id=>({id})),links:links.map(l=>({source:idx.get(l.from),target:idx.get(l.to),value:l.value}))})},5);
+   out[k]={links:links.length,quick_ms:a.ms,default_ms:b.ms,d3_ms:c.ms}}return out},
+ async graph(){const G=await (await fetch('graphs.json')).json();const out={};
+   for(const [n,g] of Object.entries(G)){const f=Int32Array.from(g.f),t=Int32Array.from(g.t);
+    const w=T(()=>GraphWalk.csr(g.n,f,t),3);const gw=w.r;
+    const gl=T(()=>{const x=new GL.Graph({type:'directed',multi:false});for(let i=0;i<g.n;i++)x.addNode(i);for(let i=0;i<f.length;i++){try{x.addEdge(f[i],t[i])}catch(e){}}return x},1);const gr=gl.r;
+    const b1=T(()=>GraphWalk.bfs(gw,0),5),b2=T(()=>GL.bfs(gr,'0'),3);
+    const c1=T(()=>GraphWalk.components(gw),5),c2=T(()=>GL.connectedComponents(gr),3);
+    let s1=T(()=>GraphWalk.scc(gw),5),s2;try{s2=T(()=>GL.stronglyConnectedComponents(gr),3)}catch(e){s2={ms:'error '+e.message}}
+    out[n]={nodes:g.n,links:g.f.length,build_ms:{graph_walk:w.ms,graphology:gl.ms},bfs_ms:{graph_walk:b1.ms,graphology:b2.ms},components_ms:{graph_walk:c1.ms,graphology:c2.ms},scc_ms:{graph_walk:s1.ms,graphology:s2.ms},
+     bfs_speedup:+(b2.ms/b1.ms).toFixed(1),components_speedup:+(c2.ms/c1.ms).toFixed(1)}}return out}
+};
+window.runTest=async n=>{try{return await tests[n]()}catch(e){return {error:String(e&&e.stack||e)}}};
+</script>

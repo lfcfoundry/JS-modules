@@ -2,11 +2,11 @@
  "note": "Source and notes: each dot is the headline figure from that module's page, the lowest end where it is a range; laptop runs where we have them, otherwise the three cloud browsers. One compares against a plain loop, not a rival library. The netflow-layers dot is speed only; its page has the crossings comparison. The ones behind are on their module pages with the reasons.",
  "rows": [
   {
-   "label": "netflow-layers vs dagre, 300 items",
-   "x": 710,
+   "label": "netflow-layers vs dagre, 300 real items (low end)",
+   "x": 35,
    "module": "netflow-layers",
    "proof": [
-    "710 times"
+    "35 to 52 times"
    ]
   },
   {
@@ -50,11 +50,11 @@
    ]
   },
   {
-   "label": "text-columns vs Papa Parse",
-   "x": 3.4,
+   "label": "text-columns vs Papa Parse, real files (low end)",
+   "x": 0.94,
    "module": "text-columns",
    "proof": [
-    "3.4 times"
+    "0.9 to 4.9 times"
    ]
   },
   {

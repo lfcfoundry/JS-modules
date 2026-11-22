@@ -66,27 +66,27 @@ That is 3 to 26% less time. Charts under 64 bars keep the JavaScript.
 
 In Node, d3-sankey is faster than the default at these sizes, and the default draws more crossings than d3-sankey at 5,000 items. With `stopCap: 500` this module is faster than d3-sankey and draws fewer crossings at both sizes. Browser runs of `stopCap`: not yet.
 
-**Against d3-sankey: tidiness, three made-up charts.**
+**Against d3-sankey: tidiness, four real retail charts (2026.11.22).**
 
-Compared: netflow-sankey against d3-sankey 0.12.3 (weighted crossings, lower is tidier; for every pair of links that cross, the two flows multiplied together).
+Compared: netflow-sankey against d3-sankey 0.12.3 on real retail revenue flows, country to month to product (weighted crossings in trillions, lower is tidier; for every pair of bands between the same two columns that cross, the two flows multiplied together).
 
-<!-- title: netflow-sankey leaves about half the weighted crossings of d3-sankey on three test charts, 47% to 58% of them -->
-| way | 64 links | 118 links | 222 links |
+<!-- title: netflow-sankey leaves 12% to 77% of d3-sankey's weighted crossings on four real retail charts -->
+| way | 72 links | 200 links | 500 links | 1,500 links |
+|---|---:|---:|---:|---:|
+| netflow-sankey | 2.10 | 4.44 | 5.60 | 7.94 |
+| d3-sankey | 2.95 | 5.94 | 45.68 | 10.36 |
+
+Counted in Node, so the numbers do not depend on the browser. The two tools place the columns differently, so this is one yardstick on four charts. d3-sankey throws "circular link" when the data has a loop; netflow-sankey draws it. The earlier three generated charts (47% to 58%) were replaced.
+
+**Against d3-sankey: speed on real retail flows, cloud-browser runs.**
+
+Compared: netflow-sankey against d3-sankey on real retail revenue flows (laid out warm, ms per chart, median of 5, lower is faster; 1,500 links, Chromium 156 / Firefox 158 / WebKitGTK 2.52.6).
+
+<!-- title: With quick mode netflow-sankey lays out 1,500 real links in 4.6 to 6 ms against d3-sankey's 31 to 47, and the default setting takes 15 to 17 ms -->
+| way | Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---:|---:|---:|
-| netflow-sankey | 2147 | 10840 | 35454 |
-| d3-sankey | 4608 | 22131 | 61492 |
+| netflow-sankey, quick: true | 4.6 | 6 | 5 |
+| d3-sankey | 46.9 | 47 | 31 |
+| netflow-sankey, default | 15.5 | 17 | 15 |
 
-Counted in Node, so the numbers do not depend on the browser. The two tools place the columns differently, so this is one yardstick on three charts, not a proof for every chart. d3-sankey throws "circular link" when the data has a loop; netflow-sankey draws it.
-
-**Against d3-sankey: speed on a 100-item chart, cloud-browser runs.**
-
-Compared: netflow-sankey against d3-sankey (6 columns, 100 items, made-up flows, laid out warm, ms per chart, median of 40 charts, lower is faster).
-
-<!-- title: With quick mode netflow-sankey lays out a 100-item chart in 0.50 to 0.60 ms against d3-sankey's 0.72 to 1.00, but the default setting takes about 2 ms and is slower -->
-| way | Chromium 155 | Firefox 158 | WebKitGTK 2.52.6 |
-|---|---:|---:|---:|
-| netflow-sankey, quick: true | 0.50 | 0.60 | 0.60 |
-| d3-sankey | 0.72 | 1.00 | 0.80 |
-| netflow-sankey, default | 2.00 | 2.20 | 2.20 |
-
-Cloud-browser runs (shared machine, not the laptop). Quick mode keeps 74 to 78% of d3-sankey's weighted crossings and is tidier or equal on 35 to 39 of every 40 charts; the default keeps 68 to 73% but takes about four times as long as d3-sankey on small charts. On a real laptop in Firefox 160 the default was 3.7 to 5.5 times as fast as d3-sankey at 200 and 500 nodes, and about twice as slow at 72 nodes.
+Real retail revenue flows, country to month to product, the top links by value. Quick mode is level with or faster than d3-sankey from 72 to 1,500 links (full table in the README); the default is slower than d3-sankey at 72 to 200 links in Firefox and at 500 links in WebKitGTK. Firefox and WebKitGTK report whole milliseconds. The earlier generated 100-item figures were removed.

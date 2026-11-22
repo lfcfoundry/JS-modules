@@ -58,11 +58,11 @@ svgElement.innerHTML = NetflowSankey.toSvg(R, { title: "Where the wages go" });
 `opts`: `height` (aim for this picture height), `nodeW`, `gapLayer` (space between columns), `pad` (space between bars), `restarts` and `budgetMs` (how hard to search for a good order), `quick` (true: skip the extra restarts for speed on small charts; see below), `seed`, `unweighted`, `justifySinks`, and `stopCap` with `stopCapFrom` (off by default: on maps with at least `stopCapFrom` items, default 1,000, at most `stopCap` stand-in stops; the lightest long links beyond that are drawn as one straight band each, which is faster but a different picture: at 1,500 items `stopCap: 500` takes about 4 ms instead of 24 in Node). `toSvg` takes `colors`, `labels`, `fontSize`, `textColor`, `bandOpacity`, and the optional `title`, `subtitle` and `source` (a bold title and lighter subtitle drawn above the picture, a small source line below; the title is also the picture's hidden label for screen readers); `highlight` (optional, since 2.8.0) names one item by id or label: that item and every band that touches it keep their colors, and the rest fade toward the background, the same word as in netflow-plot. Since 2.11.0 `toSvg` also takes `valueLabel` (`'none'`, `'under'`, `'inline'`, `'percent'` or `'both'`), `unit` (a money sign before the number, a word after; `unitAt` decides it instead), `percentOf` (`'total'` or `'column'`) and `notes` (`[{ text, x, y, anchor, size, color, bold, align }]`: plain text at 0 to 1 across and down the picture, a thin leader line to `anchor` (an item or `"from>to"`), live words `{total}`, `{value:id}`, `{share:id}`, `{flow:from>to}`, `{top}` (the biggest flow with its amount, "Salary to Rent, $1,800") and, since 2.12.0, `{topbox}` (the biggest item with its amount, "Salary, $3,000")). These are the same words netflow-scene reads. A note past the edge widens the picture. All text is escaped. `fromLinks`, `layout`, `layering`, `crossWeight`, `roundPath` and `toBezier` are exported for people who want the pieces.
 
 ## How it compares
-netflow-sankey is bigger than d3-sankey, but on three made-up charts it leaves about half the weighted crossings (47% to 58% of d3-sankey's; lower is better), and it draws a chart with loops where d3-sankey stops with an error. Speed against d3-sankey (laptop Firefox 160, 16 cores, 2026.10.30): 3.7 to 5.5 times as fast at 200 and 500 nodes; at 72 nodes d3-sankey is about twice as fast with the default settings.
+netflow-sankey is bigger than d3-sankey, but on four real retail revenue charts (72 to 1,500 links) it leaves 12% to 77% of d3-sankey's weighted crossings (lower is better), and it draws a chart with loops where d3-sankey stops with an error. Speed against d3-sankey on real retail revenue flows (country to month to product, the top links by value; ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6, 2026.11.22): at 72 links d3-sankey is faster in Chromium (0.39x) and Firefox (0.5x) and level in WebKitGTK; at 200 links it is level or ahead (Chromium 1.17x, Firefox 0.67x, WebKitGTK 1.0x); at 500 links this module is 1.0 to 1.5 times as fast; at 1,500 links 2.1 to 3.8 times as fast. The earlier 3.7 to 5.5 times (laptop Firefox 160, generated charts) did not hold on real data.
 
 | Alternative | Size (smaller is better) | Speed | Features | Where it wins / loses |
 |---|---|---|---|---|
-| [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3) | 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape (their size: not measured). This module: 81,657 bytes readable, 28.4 KB gzipped; 47,326 bytes minified, 19.5 KB minified and gzipped (terser 5.51.2) | Laptop Firefox 160: 3.7 to 5.5 times as fast at 200 and 500 nodes; d3-sankey about twice as fast at 72 nodes | No loops (throws "circular link"); crossing order not weighted by flow | Wins on size. Loses on weighted crossings (about half as many here) and on loops |
+| [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3) | 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape (their size: not measured). This module: 81,657 bytes readable, 28.4 KB gzipped; 47,326 bytes minified, 19.5 KB minified and gzipped (terser 5.51.2) | Real retail flows, three test browsers: d3-sankey faster or level up to 200 links (down to 0.39x), this module 1.0 to 1.5 times as fast at 500 links and 2.1 to 3.8 times at 1,500 | No loops (throws "circular link"); crossing order not weighted by flow | Wins on size. Loses on weighted crossings (12% to 77% as many on real charts) and on loops |
 | d3-sankey-circular and similar forks (version and license: not read) | Not measured | Not measured | Add loops to d3-sankey | Same job as the loop support here; pictures not compared |
 | Plotly and Google Charts Sankey (versions: not read) | Not measured (each is a whole charting library) | Not measured | Sankey as one chart type among many | Pick one if you already ship it; this module is only the Sankey layout and SVG |
 
@@ -84,15 +84,16 @@ The browser race of Netflow Map against D3 measured the app's own flow engine, n
 
 > **Node numbers.** The speeds in this section were measured in Node, not in the three test browsers (ungoogled Chromium 155.0.8059.39-1, Firefox 158.0, WebKitGTK 2.52.6), so they are not what a visitor's browser does. Use them to compare rows with each other, not as page speeds. Sizes and counts are exact; only the times depend on the browser. Re-measuring in the three browsers is not done (open item on `TASKS.md`).
 
-Three made-up charts (64, 118 and 222 links). One yardstick for both: for every pair of links that cross, add their two flows multiplied together. Lower is better.
+Four real charts (2026.11.22): retail revenue flows, country to month to product, the top 72, 200, 500 and 1,500 links by value. One yardstick for both: for every pair of bands between the same two columns that cross, add their two flows multiplied together. Lower is better. Counts are exact and do not depend on the browser; the harness is `tools/real-corpus`.
 
-| Links | netflow-sankey | d3-sankey | netflow-sankey as a share of d3-sankey | time (netflow-sankey / d3-sankey) |
-|---|---|---|---|---|
-| 64 | 2,147 | 4,608 | 47% | 17 ms / 5 ms |
-| 118 | 10,840 | 22,131 | 49% | 25 ms / 4 ms |
-| 222 | 35,454 | 61,492 | 58% | 26 ms / 7 ms |
+| Links | netflow-sankey | d3-sankey | netflow-sankey as a share of d3-sankey |
+|---|---|---|---|
+| 72 | 2.10e12 | 2.95e12 | 71% |
+| 200 | 4.44e12 | 5.94e12 | 75% |
+| 500 | 5.60e12 | 45.68e12 | 12% |
+| 1,500 | 7.94e12 | 10.36e12 | 77% |
 
-So about half the weighted crossings, at about 4 to 5 times the time (still under 30 ms). The two tools place the columns differently, so this is one yardstick on three charts, not a proof for every chart. A chart with a loop (a to b to c to a): d3-sankey throws "circular link"; netflow-sankey draws it (2 bands and 1 loop).
+So 12% to 77% of the weighted crossings, at 0.4 to 3.8 times the speed of d3-sankey depending on size and browser (table in the Speed paragraph above). The two tools place the columns differently, so this is one yardstick on four charts, not a proof for every chart. The earlier generated charts (64, 118 and 222 links; 47% to 58%) were replaced. A chart with a loop (a to b to c to a): d3-sankey throws "circular link"; netflow-sankey draws it.
 
 ## WebAssembly (since 2.3.0)
 
@@ -122,15 +123,16 @@ Chromium and Firefox rows are the median of 3 passes of 5 rounds; WebKitGTK's ch
 **Honest limits.** Gains are in Chromium and Firefox (up to 1.9x on small charts, about 1.05 to 1.2x on big ones). In WebKitGTK the chart rows are a wash (0.98x to 1.24x). Costs bytes: +11,578 as written (37,790 to 49,368), +9,493 minified (19,377 to 28,870) and +4,301 gzipped (8,097 to 12,398) with terser 5.51.2 (smaller is better). Not run: a phone, Safari.
 
 ## Limits
-- `quick: true` (opt-in, 2.10.0) trades some tidiness for speed. Small charts (6 columns, made-up flows, 40 charts each) were laid out warm, ms per chart, median (lower is better):
+- `quick: true` (opt-in, 2.10.0) trades some tidiness for speed. Measured on real retail revenue flows (2026.11.22, medians of 5 warm runs, ms per chart; d3-sankey / quick / default; Chromium 156 / Firefox 158 / WebKitGTK 2.52.6):
 
-  | Browser | 72 items: d3-sankey / quick / default | 100 items: d3-sankey / quick / default |
-  |---|---|---|
-  | Chromium 155 | 0.50 / 0.34 / 0.80 | 0.72 / 0.50 / 2.00 |
-  | Firefox 158 | 0.60 / 0.40 / 1.00 | 1.00 / 0.60 / 2.20 |
-  | WebKitGTK 2.52.6 | 0.60 / 0.40 / 0.80 | 0.80 / 0.60 / 2.20 |
+  | Links | Chromium | Firefox | WebKitGTK |
+  |---|---|---|---|
+  | 72 | 1.6 / 0.7 / 1.2 | 2 / 1 / 1 | 1 / 1 / 1 |
+  | 200 | 2.7 / 1.5 / 1.6 | 3 / 2 / 2 | 2 / 1 / 2 |
+  | 500 | 8.3 / 2.0 / 4.8 | 7 / 2 / 6 | 5 / 2 / 7 |
+  | 1,500 | 46.9 / 4.6 / 15.5 | 47 / 6 / 17 | 31 / 5 / 15 |
 
-  Weighted crossings were counted on straight band centerlines, the same way for both tools (lower is tidier). Quick mode has 74 to 78% of d3-sankey's crossings and is tidier or equal on 35 to 39 of every 40 charts. The default has 68 to 73%. The first chart on a fresh page was not compared fairly (one sample each).
+  Quick mode is level with or faster than d3-sankey at every size; the default is slower than d3-sankey at 500 links in WebKitGTK (7 against 5 ms) and level elsewhere below 500 links. Firefox and WebKitGTK report whole milliseconds, so the small cells carry a rounding of up to 1 ms. Crossings for the default are in the Numbers section; the earlier generated-chart figures (74 to 78% for quick, 68 to 73% for the default) were removed and quick mode's crossings have not been re-counted on real charts.
 - The search is a heuristic (it restarts several times within a time budget); it finds a good order, not always the best.
 - Items are placed in columns by flow direction; you cannot pin an item to a chosen column.
 - No dragging or editing: it returns numbers, and `toSvg` is a simple drawing. For anything fancier draw `nodes`, `bands` and `loops` yourself.
@@ -141,7 +143,7 @@ Chromium and Firefox rows are the median of 3 passes of 5 rounds; WebKitGTK's ch
 Used right now in Netflow Map (its repository is private, so there is no link). Checked in each app's shipped file on its main branch on 2026.10.29. The module's own page is `demo.html` in this folder.
 
 ## Prior art and credits
-- [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3, 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape): the standard. Smaller, and faster on small charts (72 nodes); 3.7 to 5.5 times slower at 200 and 500 nodes in laptop Firefox 160; it throws on a loop, and its crossing order is not weighted by flow. d3-sankey-circular and similar forks add loops. Use d3-sankey if you already use D3 and your data has no loops. Used here only as the thing to measure against; no d3-sankey code is in this module.
+- [d3-sankey](https://github.com/d3/d3-sankey) (BSD-3-Clause, 0.12.3, 5.7 KB minified, 2.0 KB gzipped, plus d3-array and d3-shape): the standard. Smaller, and faster or level on charts up to about 200 links; 2.1 to 3.8 times slower at 1,500 links on real retail flows in the three test browsers; it throws on a loop, and its crossing order is not weighted by flow. d3-sankey-circular and similar forks add loops. Use d3-sankey if you already use D3 and your data has no loops. Used here only as the thing to measure against; no d3-sankey code is in this module.
 - Google Charts and Plotly draw Sankey diagrams too, as part of larger libraries. Not used.
 - Idea only, no code: scoring a layout by the sum, over every pair of crossing links, of the two flows multiplied together (Zarate, Le Bodic, Dwyer, Gange and Stuckey, ["Optimal Sankey Diagrams via Integer Programming"](https://doi.org/10.1109/PacificVis.2018.00025), PacificVis 2018; their method needs a commercial solver, which is not used here).
 - Idea only, no code: ordering each column by flow-weighted averages of the neighbors' places (Li, Li, Tan and Li, ["Crossing Reduction of Sankey Diagram with Barycentre Ordering via Markov Chain"](https://arxiv.org/abs/1912.05339), 2019), and the rules of many random restarts and keeping the best order by weighted crossings (OmicsSankey).

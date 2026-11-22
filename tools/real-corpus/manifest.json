@@ -1,0 +1,10 @@
+{
+ "note": "Real files used as benchmark inputs. They are project uploads (testing only, never tuning) and are not stored in this repository. Slices are made by the prep scripts.",
+ "files": [
+  {"name": "retail", "what": "e-commerce transactions, 541,909 rows x 8 columns, Latin-1, CRLF", "path": "/mnt/project-files/lfc-workbench/holdout-datasets-2026.11.15/ecommerce/data.csv", "sha256_file": "SHA256SUMS.txt beside it", "slice": "first 8 MB for text tests; 60,000 rows as records; customer to product graph; product path graph; country to month to product flows"},
+  {"name": "sec", "what": "SEC financial statement data sets 2026 Q1, num.txt, tab separated", "path": "/mnt/project-files/2026q1 SEC.zip (num.txt)", "slice": "first 9 MB cut at a line end (8 MB used); filing to tag graph; 60,000 rows as records"},
+  {"name": "sba", "what": "SBA federal assistance transactions FY2025, 116 columns, CRLF", "path": "/mnt/project-files/FY2025_073_Assistance_Full_20261106.zip", "slice": "first 8 MB; county to ZIP graph"},
+  {"name": "elias-fano sets", "what": "sorted number lists from retail, SEC, SBA and FHIR", "path": "js-modules-research/elias-fano-beyond-2026.11.22/extract.js", "slice": "see that report"}
+ ],
+ "tests": {"csv": "text-columns vs Papa Parse", "comp": "lz4-kit and zstd-kit vs browser gzip and fflate", "mem": "memory-compression vs msgpackr records and fflate", "graph": "graph-walk vs graphology", "layers": "netflow-layers vs dagre", "sankey": "netflow-sankey vs d3-sankey", "sankeyq": "netflow-sankey quick mode", "zip": "zip-open vs fflate"}
+}
