@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.2.0 (API 2)
+ * Version 2.2.1 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -826,14 +826,36 @@
     }
     return c === n && dst[n - 1] === u - 1 ? n : -1;
   }
+  var TRP = 0;   // tFast: where the last varint ended
+  function tVar(b, p) { var c = b[p++], v; if (c < 128) { TRP = p; return c; } v = c & 127; c = b[p++]; if (c < 128) { TRP = p; return v | (c << 7); } v |= (c & 127) << 7; c = b[p++]; if (c < 128) { TRP = p; return v | (c << 14); } v |= (c & 127) << 14; c = b[p++]; if (c < 128) { TRP = p; return v | (c << 21); } v |= (c & 127) << 21; c = b[p++]; TRP = p; return v + c * 268435456; }
+  function tFast(b, dst) {   // the reader for a blob tDecode already accepted: no objects, integer steps, never reads past the end
+    var n = tVar(b, 1), p = TRP, i, v, c, len = b.length;
+    if (b[0] === TGAP) {
+      if (!n) return 0; v = tVar(b, p); p = TRP; dst[0] = v;
+      for (i = 1; i < n; i++) { c = b[p]; if (c < 128) { v += c; p++; } else { v += tVar(b, p); p = TRP; } dst[i] = v; }
+      return n;
+    }
+    tVar(b, p); p = TRP; var l = b[p++], lo = p, hi = lo + ((n * l + 7) >> 3), q = hi, w = 0, base = 0, lb = 0, lmask = l === 0 ? 0 : (l === 31 ? 0x7fffffff : (1 << l) - 1), x, k, sh, low;
+    for (i = 0; i < n; i++) {
+      while (w === 0) { w = b[q]; base = (q - hi) << 3; q++; }
+      x = w & -w; w ^= x; var hv = base + 31 - Math.clz32(x) - i;
+      if (l) {
+        k = lo + (lb >> 3); sh = lb & 7; lb += l;
+        if (k + 4 < len) { low = (b[k] | (b[k + 1] << 8) | (b[k + 2] << 16) | (b[k + 3] << 24)) >>> sh; if (sh + l > 32) low |= b[k + 4] << (32 - sh); }
+        else { low = (b[k] | ((k + 1 < len ? b[k + 1] : 0) << 8) | ((k + 2 < len ? b[k + 2] : 0) << 16) | ((k + 3 < len ? b[k + 3] : 0) << 24)) >>> sh; if (sh + l > 32 && k + 4 < len) low |= b[k + 4] << (32 - sh); }
+        dst[i] = ((hv << l) | (low & lmask)) >>> 0;
+      } else dst[i] = hv;
+    }
+    return n;
+  }
   function TList(bytes) {
     var n = tDecode(bytes, TS); TLAST = null;
     if (n < 0) throw new RangeError('elias-fano: truncated or invalid tiny list');
     this.bytes = bytes; this.length = n; TLAST = this;
   }
   var TP = TList.prototype;
-  TP._v = function () { if (TLAST !== this) { tDecode(this.bytes, TS); TLAST = this; } return TS; };   // the values, in the shared scratch (valid until another tiny list is read)
-  TP._v2 = function () { if (TLAST2 !== this) { tDecode(this.bytes, TS2); TLAST2 = this; } return TS2; };
+  TP._v = function () { if (TLAST !== this) { tFast(this.bytes, TS); TLAST = this; } return TS; };   // the values, in the shared scratch (valid until another tiny list is read)
+  TP._v2 = function () { if (TLAST2 !== this) { tFast(this.bytes, TS2); TLAST2 = this; } return TS2; };
   TP._lb = function (a, x) { var lo = 0, hi = this.length; while (lo < hi) { var m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; };
   TP.get = function (i) { if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined; return this._v()[i]; };   // decodes the list when another tiny list was read in between: for a loop over every value use toArray
   TP.getMany = function (idx, out) { checkIdx(idx, this.length); var k = idx.length, r = out || new Uint32Array(k), a = this._v(); for (var j = 0; j < k; j++) r[j] = a[idx[j]]; return r; };
@@ -936,7 +958,7 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.2.0', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    version: '2.2.1', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
     buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
