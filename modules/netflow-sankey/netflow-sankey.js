@@ -429,15 +429,14 @@
     };
     var bestC = keepOrder ? total() : run(nV > 1500 ? 2 : 8), bestSnap = snap();
     var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? opts.quick === true ? 0 : (nV <= 300 ? 8 : nV <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
-    var stallMax = opts.stall === undefined ? 0 : opts.stall, stall = 0;      // since 2.15.0, opt-in: stall: 3 stops after 3 restarts in a row that found no better order. 2 times faster at 500 links with the same picture on three real flows, but a later restart did find a better order on a 30-item real flow and on the 70-item test network, so it is off until the owner decides
-    for (i = 0; i < restarts && bestC > 0 && Date.now() - t0 < budget && (!stallMax || stall < stallMax); i++) {
+    for (i = 0; i < restarts && bestC > 0 && Date.now() - t0 < budget; i++) {
       restore(bestSnap);
       for (k = 0; k < nL; k++) {
         var lst = ord[k], ln = lst.length || 1;
         for (qi = 0; qi < lst.length; qi++) key2[lst[qi]] = (pos[lst[qi]] + 0.5) / ln + (rnd() + rnd() + rnd() - 1.5) * 0.35;
         sortSlots(lst, lst.length, tmp, key2, pos, false);
       }
-      syncPos(); var c2 = run(6); if (c2 < bestC - 1e-12) { bestC = c2; bestSnap = snap(); stall = 0; } else stall++;
+      syncPos(); var c2 = run(6); if (c2 < bestC - 1e-12) { bestC = c2; bestSnap = snap(); }
     }
     restore(bestSnap); var crossingWeight = bestC;
     for (k = 0; k < nL; k++) { var fin = ord[k], outList = new Array(fin.length); for (qi = 0; qi < fin.length; qi++) { outList[qi] = fin[qi]; bPos[fin[qi]] = qi; } layers[k] = outList; }

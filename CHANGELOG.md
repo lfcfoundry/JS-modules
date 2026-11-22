@@ -68,7 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-22 · **walker-sim** 2.5.0 · API 2: Single-walker trials run faster on sparse graphs.
 - 2026-11-22 · **text-columns** 0.8.1 · API 0: Empty fields skip the substring call: wide text tables parse 15 to 25% faster.
 - 2026-11-22 · **text-columns** 0.8.0 · API 0: Files with accents or other non-ASCII text read 2 to 4 times faster (text is decoded once instead of per field); lazy columns stay lazy.
-- 2026-11-22 · **netflow-sankey** 2.15.0 · API 2: Warms itself while the page is idle; new opt-in stall setting makes mid-size charts about 2 times faster.
+- 2026-11-22 · **netflow-sankey** 2.15.0 · API 2: Warms itself while the page is idle, so the first layout no longer pays the start-up cost.
 - 2026-11-22 · **memory-compression** 2.19.0 · API 2: A Float64Array in balanced or small mode packs 40% smaller than gzip on real decimals; balanced is faster than gzip level 6 on large columns.
 - 2026-11-22 · **lfc-pack** 0.24.1 · API 0: Tail estimates from sampled summaries are no longer biased high.
 - 2026-11-22 · **image-decode** 1.2.3 · API 1: Uses the browser's built-in base64 decoder when it has one.

@@ -5,10 +5,10 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 2.15.0 · API 2 · 2026-11-22
 
 ### Quick
-The layout engine now compiles its WebAssembly and warms its code in idle time when it is loaded in a page (requestIdleCallback, or a short timeout where that is missing), so the first layout on a fresh page no longer pays the start-up cos…
+The layout engine now compiles its WebAssembly and warms its code in idle time when it is loaded in a page (requestIdleCallback, or a short timeout where that is missing).
 
 ### Deep
-The layout engine now compiles its WebAssembly and warms its code in idle time when it is loaded in a page (requestIdleCallback, or a short timeout where that is missing), so the first layout on a fresh page no longer pays the start-up cost. New opt-in setting stall (default 0, so every picture is the same as before): stall: 3 stops the order search after three restarts in a row without a better order. On three real flows (200, 500 and 1,500 links) it gives the identical picture; on the 500-link flow the layout takes about 2.0 times less in WebKitGTK, 2.8 in Chromium and 2.4 in Firefox compared with d3-sankey. A later restart does find a better order on a 30-item real flow and on the 70-item test network, so making it the default is the owner's call.
+The layout engine now compiles its WebAssembly and warms its code in idle time when it is loaded in a page (requestIdleCallback, or a short timeout where that is missing). Before, the first layout on a page paid that cost, which is why d3-sankey won on small flows (under about 200 links) on a fresh page. Layouts are unchanged; calling warm() yourself still works and is not needed.
 
 ## 2.14.0 · API 2 · 2026-11-15
 
