@@ -32,6 +32,24 @@ const J = require('../lfc-pack.js');
     const bad1 = async (g, m) => { let x = null; try { await J.packColumnsParallel({ a: [1] }, { graph: g }); } catch (y) { x = y; } ok(x && /graph/.test(x.message), m); };
     await bad1({ from: [0, -1], to: [1, 1] }, 'negative node'); await bad1({ from: [0], to: [1, 2] }, 'length mismatch'); await bad1({ from: 'nope', to: 'a' }, 'unknown column'); await bad1({ from: [5], to: [1], nodes: 3 }, 'nodes too small');
   }
+  { // since 0.21.0: pack: smaller region, same links per node (each row sorted by target, weights alongside)
+    let a = 3; const r = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const NN = 5000, MM = 40000, F = new Int32Array(MM), T = new Int32Array(MM), W = new Float64Array(MM), W2 = new Float64Array(MM);
+    for (let i = 0; i < MM; i++) { F[i] = i < 300 ? 7 : r() * NN | 0; T[i] = r() * NN | 0; W[i] = Math.round(r() * 100) / 4; W2[i] = r(); }
+    const rows = (G, off, tg, wt) => { const out = []; for (let u = 0; u < G.nodes; u++) { const s = []; for (let p = G[off][u]; p < G[off][u + 1]; p++) s.push(G[tg][p] + ':' + (wt && G[wt] ? G[wt][p] : '')); s.sort(); out.push(s.join(',')); } return out.join('|'); };
+    const sortedRows = (G, off, tg) => { for (let u = 0; u < G.nodes; u++) for (let p = G[off][u] + 1; p < G[off][u + 1]; p++) if (G[tg][p] < G[tg][p - 1]) return false; return true; };
+    for (const [nm, g] of [['directed + reverse, dict weights', { from: 'f', to: 't', weight: 'w', reverse: true }], ['undirected', { from: 'f', to: 't', weight: 'w', directed: false }], ['many weights (raw f32)', { from: 'f', to: 't', weight: 'w2', reverse: true }], ['no weights', { from: 'f', to: 't' }]]) {
+      const tb = { f: F, t: T, w: W, w2: W2 }, f0 = await J.packColumnsParallel(tb, { graph: g }), f1 = await J.packColumnsParallel(tb, { graph: Object.assign({ pack: true }, g) }), A = J.graph(f0), B = J.graph(f1);
+      ok(B.nodes === A.nodes && B.edges === A.edges && B.pairs === A.pairs && rows(A, 'offsets', 'targets', 'weights') === rows(B, 'offsets', 'targets', 'weights'), 'pack ' + nm + ': same links and weights per node');
+      ok(sortedRows(B, 'offsets', 'targets') && Array.from(A.offsets).join() === Array.from(B.offsets).join(), 'pack ' + nm + ': offsets equal, rows sorted by target');
+      if (g.reverse) ok(rows(A, 'rOffsets', 'rTargets', 'rWeights') === rows(B, 'rOffsets', 'rTargets', 'rWeights'), 'pack ' + nm + ': reverse equal');
+      ok(f1.length < f0.length, 'pack ' + nm + ': file ' + f0.length + ' -> ' + f1.length);
+      const R = await J.open(f1), C = await R.graph(); ok(rows(C, 'offsets', 'targets', 'weights') === rows(A, 'offsets', 'targets', 'weights'), 'pack ' + nm + ': open().graph()');
+    }
+    const plain = await J.packColumnsParallel({ f: F, t: T }, {}), ag = J.addGraph(plain, { from: F, to: T, weight: W, pack: true }), G2 = J.graph(ag);
+    ok(G2.edges === MM && G2.weights.length === MM && J.unpack(ag).length === MM, 'addGraph with pack');
+    let e2 = null; try { J.graph(ag.subarray(0, ag.length)); } catch (x) { e2 = x; } ok(e2 === null, 'packed region checksum verified');
+  }
   console.log(bad ? bad + ' of ' + n + ' graph checks FAILED' : 'graph section: all ' + n + ' checks pass');
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
