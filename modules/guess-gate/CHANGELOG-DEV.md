@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.0.2 · API 1 · 2026-11-21
+
+### Quick
+Wording: the README promised guesses never cost more than the share, but nothing can interrupt a running guess, and the first guess's default estimate is 0, so a 1 s first guess at 40 ms used 96% of the time against a 5% share (fake-clock…
+
+### Deep
+Wording: the README promised guesses never cost more than the share, but nothing can interrupt a running guess, and the first guess's default estimate is 0, so a 1 s first guess at 40 ms used 96% of the time against a 5% share (fake-clock probe). The gate already recovers: no guess runs until spent <= share x elapsed again (new test). The README now calls the share a target, advises an estimate for a long first guess, and says thrown guesses count. Fix: stats() after finish() kept growing elapsed with the clock; it now stops at the finish time. No change to allowed(), run() or nextIn(), so timing is unchanged.
+
 ## 1.0.1 · API 1 · 2026-11-21
 
 ### Quick
