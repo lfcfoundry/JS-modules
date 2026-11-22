@@ -283,7 +283,11 @@
         bw = rng < 1 ? 0 : Math.floor(Math.log2(rng)) + 1; sh = Math.max(0, bw - 8); div = Math.pow(2, sh);
         if (bound && n * sh / 8 > bound) return null;                      // the low bits alone are already bigger than the best so far: it cannot win
         syms = new Uint8Array(n); low = new Uint32Array(n); cnt = new Uint32Array(256);
-        for (i = 0; i < n; i++) { x = a[i] - mn; y = Math.floor(x / div); syms[i] = y; low[i] = x - y * div; cnt[y]++; }
+        if (sh < 32 && KWC && n >= 1024 && (q = KWC.base, kwRoom(kal(kal(kal(q + n * 8) + n) + n * 4) + 1024 - KWC.base + 64))) {   // since 2.19.0: the split in the WebAssembly helper
+          i = kal(q + n * 8); y = kal(i + n); x = kal(y + n * 4);
+          new Float64Array(KWC.mem.buffer, q, n).set(a); KWC.x.ent_split(q, n, mn, sh, i, y, x);
+          syms.set(new Uint8Array(KWC.mem.buffer, i, n)); low.set(new Uint32Array(KWC.mem.buffer, y, n)); cnt.set(new Uint32Array(KWC.mem.buffer, x, 256));
+        } else for (i = 0; i < n; i++) { x = a[i] - mn; y = Math.floor(x / div); syms[i] = y; low[i] = x - y * div; cnt[y]++; }
         if (bound) {                                                         // a quick estimate first: if the entropy coder cannot get under the best size so far, it is not run
           x = 0; y = 0; for (i = 0; i < 256; i++) if (cnt[i]) { y++; x -= cnt[i] * Math.log2(cnt[i] / n); }
           if (x / 8 + y * 0.5 + n * sh / 8 > bound) return null;
@@ -768,6 +772,7 @@
       KWC = opts && opts.wasm === false ? null : kwGet(); STAT = null;
       try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
     }
+    function alpInner(part) { try { var r = new Rd(part.subarray(1)); r.u8(); r.u8(); r.vi(); return r.u8(); } catch (e) { return -1; } }
     var AUTO_MAX = 100000;
     function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
@@ -785,6 +790,7 @@
         if (autoQ && k === 1) stable = part[0] === CS.INTS;
         if (won.indexOf(part[0]) < 0 && part[0] !== CS.RAWF) won.push(part[0]);
         if (part[0] === CS.INTS && wonInts.indexOf(part[1]) < 0 && part[1] !== IS.RAW) wonInts.push(part[1]);
+        else if (part[0] === CS.ALP) { qk = alpInner(part); if (qk >= 0 && qk !== IS.RAW && wonInts.indexOf(qk) < 0) wonInts.push(qk); }     // since 2.19.0: the way that packed the whole numbers of a decimal block is also the only one the next blocks try (every 8th block tries all)
         w.vi(part.length); w.bytes(part);
         if (opts && opts.labels) opts.labels.push(describe(part));
       }

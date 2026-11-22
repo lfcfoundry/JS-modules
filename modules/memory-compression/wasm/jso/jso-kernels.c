@@ -358,6 +358,12 @@ EXPORT u32 dec_split(const double *a, u32 n, double *m, double *k) {
   }
   return cnt;
 }
+/* ENT (picker): the top bits of (a[i] - mn) go to syms (a byte), the low sh bits to low, cnt (256 words) counts the symbols. Whole numbers, 0 <= a[i] - mn < 2^39, sh <= 31. */
+EXPORT void ent_split(const double *a, u32 n, double mn, u32 sh, u8 *syms, u32 *low, u32 *cnt) {
+  u32 i, mask = sh ? (0xFFFFFFFFu >> (32 - sh)) : 0;
+  for (i = 0; i < 256; i++) cnt[i] = 0;
+  for (i = 0; i < n; i++) { u64 x = (u64)(a[i] - mn); u32 y = (u32)(x >> sh); syms[i] = (u8)y; low[i] = (u32)x & mask; cnt[y & 255]++; }
+}
 /* EG (picker): size class of each zigzag number in syms (0 to 53), the counts of each class in cnt (256 words), and the bits below the leading one packed into o (zeroed here;
  * the caller leaves n * 2 + 2 words). Returns the number of bits written. The same bytes as egEncode in picker.js. */
 EXPORT u32 eg_enc(const double *a, u32 n, u8 *syms, u32 *cnt, u32 *o) {

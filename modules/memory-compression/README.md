@@ -2,7 +2,7 @@
 
 **Version 2.19.0 · API 2**
 
-**Tested in:** node test/run.js, 98 checks; wasm rebuilt with the pinned clang, --check
+**Tested in:** node test/run.js, 98 checks; wasm rebuilt, --check
 
 ## What it is and how it works
 

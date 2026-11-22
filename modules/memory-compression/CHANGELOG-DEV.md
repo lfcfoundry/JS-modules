@@ -5,10 +5,10 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 2.19.0 · API 2 · 2026-11-22
 
 ### Quick
-New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten) for integer-like and short-decimal columns.
+New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten).
 
 ### Deep
-New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten) for integer-like and short-decimal columns. A Float64Array packed with mode balanced or small now tries the picker and keeps it when smaller (new tag T_TYPEDA); the default mode is unchanged and still the fastest. On real decimal columns of 8 MB files: SEC numbers 1.01 MB balanced and 0.96 MB small against gzip level 6 at 1.66 MB; SBA 36.6 KB balanced against 62.5 KB. Cost: balanced takes about 210 to 240 ms for those files, slower than the default and about 0.5 to 1.4 times gzip level 6 time, so the speed lead is only kept in the default mode, which stays larger than gzip on these columns. File format 5 is needed to read these tags.
+New in the picker: an Elias-Gamma-style size class plus raw bits (EG) and a decimal way (DEC: whole mantissas times a power of ten). A Float64Array packed with mode balanced or small now tries the picker and keeps it when smaller (new tag T_TYPEDA); the default mode is unchanged and still the fastest. Decimal blocks remember which way packed their whole numbers, so later blocks try only that one (every 8th block tries all), and the entropy split runs in the WebAssembly helper (ent_split). Real decimal columns, 8 MB files, Node: SEC numbers balanced 1.01 MB in 84 ms against gzip level 6 at 1.66 MB in 169 ms (smaller and about 2 times faster); small 0.96 MB. SBA: balanced 36.7 KB in 63 ms against gzip level 6 at 62.5 KB in 27 ms: much smaller, but 2.3 times slower than gzip level 6. The default mode stays faster than both and larger than gzip on these columns. File format 5 is needed to read these tags.
 
 ## 2.18.1 · API 2 · 2026-11-19
 
