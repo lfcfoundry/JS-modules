@@ -2,6 +2,66 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.4 · API 2 · 2026-11-21
+
+### Quick
+Same output as 2.6.3 to the last digit (positions, item and link records, key order), less memory churn while the records are filled. No API change, no new option, saved layouts stay valid.
+
+### Details
+Median build time of 2.6.3 against 2.6.4 (a guess on the first half of the rows, not counted, then one final build), fresh page, one browser at a time, the two versions taking turns three times, 9 builds per case; cases that first read slower were repeated with 16 to 20 more builds per version and everything is pooled. Lower is better. Middle case per browser: Chromium 156 7% less (11 of 14 maps faster, best 19% less), Firefox 158 2% less (9 of 14), WebKitGTK 2.52.6 no change (6 of 14). Worst reading 5% more (WebKitGTK bigshufB, which read 0% in its own five-turn repeat); page-to-page noise on this machine is about 8%, so single cases under that are not findings.
+
+| Browser | Map | Build ms 2.6.3 | Build ms 2.6.4 | Change | Same picture numbers |
+|---|---|---|---|---|---|
+| Chromium 156 | big50k | 769 | 708 | -8% | yes |
+| Chromium 156 | shuffled50k | 696 | 564 | -19% | yes |
+| Chromium 156 | communities10k | 200 | 186 | -7% | yes |
+| Chromium 156 | communities50k | 730 | 696 | -5% | yes |
+| Chromium 156 | bigshufB | 663 | 595 | -10% | yes |
+| Chromium 156 | commshuf10k | 194 | 180 | -7% | yes |
+| Chromium 156 | mesh22k | 424 | 398 | -6% | yes |
+| Chromium 156 | ba30k | 342 | 306 | -11% | yes |
+| Chromium 156 | tree20k | 235 | 210 | -11% | yes |
+| Chromium 156 | smallworld20k | 340 | 320 | -6% | yes |
+| Chromium 156 | ba3k | 259 | 262 | +1% | yes |
+| Chromium 156 | tree1500 | 99 | 103 | +4% | yes |
+| Chromium 156 | mesh1600 | 78 | 74 | -5% | yes |
+| Chromium 156 | comm3500 | 343 | 343 | +0% | yes |
+| Firefox 158 | big50k | 742 | 702 | -5% | yes |
+| Firefox 158 | shuffled50k | 675 | 660 | -2% | yes |
+| Firefox 158 | communities10k | 208 | 195 | -6% | yes |
+| Firefox 158 | communities50k | 798 | 785 | -2% | yes |
+| Firefox 158 | bigshufB | 678 | 639 | -6% | yes |
+| Firefox 158 | commshuf10k | 199 | 191 | -4% | yes |
+| Firefox 158 | mesh22k | 385 | 399 | +4% | yes |
+| Firefox 158 | ba30k | 339 | 333 | -2% | yes |
+| Firefox 158 | tree20k | 228 | 219 | -4% | yes |
+| Firefox 158 | smallworld20k | 334 | 322 | -4% | yes |
+| Firefox 158 | ba3k | 244 | 244 | +0% | yes |
+| Firefox 158 | tree1500 | 97 | 99 | +2% | yes |
+| Firefox 158 | mesh1600 | 76 | 78 | +3% | yes |
+| Firefox 158 | comm3500 | 324 | 330 | +2% | yes |
+| WebKitGTK 2.52.6 | big50k | 676 | 682 | +1% | yes |
+| WebKitGTK 2.52.6 | shuffled50k | 685 | 661 | -4% | yes |
+| WebKitGTK 2.52.6 | communities10k | 242 | 249 | +3% | yes |
+| WebKitGTK 2.52.6 | communities50k | 694 | 697 | +0% | yes |
+| WebKitGTK 2.52.6 | bigshufB | 633 | 664 | +5% | yes |
+| WebKitGTK 2.52.6 | commshuf10k | 234 | 234 | +0% | yes |
+| WebKitGTK 2.52.6 | mesh22k | 417 | 402 | -4% | yes |
+| WebKitGTK 2.52.6 | ba30k | 341 | 322 | -6% | yes |
+| WebKitGTK 2.52.6 | tree20k | 244 | 241 | -1% | yes |
+| WebKitGTK 2.52.6 | smallworld20k | 327 | 329 | +1% | yes |
+| WebKitGTK 2.52.6 | ba3k | 348 | 325 | -7% | yes |
+| WebKitGTK 2.52.6 | tree1500 | 139 | 127 | -9% | yes |
+| WebKitGTK 2.52.6 | mesh1600 | 105 | 106 | +1% | yes |
+| WebKitGTK 2.52.6 | comm3500 | 439 | 440 | +0% | yes |
+
+### Deep
+A memory sample of a 50,000-item build showed 42 MB per build made while the item records were filled: an item started life with 3 keys and got about 25 more one at a time, and each few added keys made the browser copy the item's storage.
+- Item objects are now created in mapGraph with their 25 always-set record keys already in place, in the same order, holding undefined until the record loop sets them (every one of them is always set, so no undefined is left and the key order of the output is unchanged). Link objects get their 5 always-set keys (label, count, flow, weight, orig) the same way. Keys that are set only sometimes (sizeK, absent) and the keys the layouts add are still added as before.
+- importance: the dominator loop no longer makes a helper function per item per round; the same merges run in the same order.
+- Looked at and left alone: the fitting sweeps (their cost is square roots and divisions two at a time; anything faster changes the last digits of the positions, so it would be a look change), and the placing loop (its cost is the by-name position table, which is part of the output).
+Tests: the module tests (20 checks), 36 whole-output comparisons on file maps (JSON text of all records, so key order too), 480 story-map comparisons over all views with folding, 120 position comparisons over all arrangements and 3 big-map position comparisons, all against 2.6.3: 0 differences.
+
 ## 2.6.3 · API 2 · 2026-11-21
 
 ### Quick
