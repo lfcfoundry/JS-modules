@@ -37,7 +37,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [text-columns](modules/text-columns/README.md) | 0.7.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.6.3 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.6.4 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
@@ -77,6 +77,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-hierarchy** 1.8.2 · API 1: Circle pack is faster, most of all on trees where items have two children; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.10.0 · API 1: Rows as they are (sizeKey, write: false) and much faster small trees
+- 2026-11-21 · **netflow-engine** 2.6.4 · API 2: Big maps build a little faster in Chromium-based browsers (about 7% less time in the middle case, up to 19% less) with exactly the same output; Firefox gains about 2%, WebKitGTK is unchanged.
 - 2026-11-21 · **netflow-engine** 2.6.3 · API 2: Big Network maps shaped like a mesh or a tree (Distances layout) build in about a fifth less time (9 to 26% less), with exactly the same picture as 2.6.2. Other maps are unchanged within measuring noise.
 - 2026-11-21 · **netflow-engine** 2.6.2 · API 2: Big Network maps (Distances layout) build in about a tenth less time again (up to 31% less), with exactly the same picture as 2.6.1. The saving is in the work around the layout.
 - 2026-11-21 · **netflow-engine** 2.6.1 · API 2: Big Network maps (Distances layout) build in about a fifth less time again (up to 47% less), with exactly the same picture as 2.6.0.
