@@ -1,6 +1,6 @@
 # netflow-engine
 
-**Version 2.6.4 · API 2**
+**Version 2.6.5 · API 2**
 
 **Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
 
@@ -93,7 +93,7 @@ Layout time, lower is better, one run each, cold start, the same network (1,000,
 
 The 10,000-item map is quicker than the 3,000-item one because the first big layout in a fresh page is cold (the wasm code warms up); a layout after that is about 1.4× faster in Chromium. Against the first version of Netflow Map's engine (2026-10-14), the same maps in the app took: 10,000 items 7.25 s to 456 ms (16×, Firefox 159), 30,000 items 42.1 s to 812 ms (52×), 100,000 items from over 60 s to 4.29 s. Netflow Map's numbers come from the app's build of this same engine (identical layouts, see Tests).
 
-Since 2.6.0 the Distances layout of a big Network map takes 12 to 73% less time than 2.5.0 (48 cases: 16 maps of 1,500 to 50,000 items in Chromium 156, Firefox 158 and WebKitGTK 2.52.6), for example a 50,000-item drop in 1,105 to 1,460 ms instead of 2,904 to 3,502 ms, with the same or lower stress and fewer crossings. 2.6.1 takes about a fifth less again with the same picture (middle of 42 cases; up to 47% less). The tables on this page were measured before 2.6.0. 2.6.1 and 2.6.2 cut the build time again with exactly the same picture: 2.6.1 by about a fifth (hop counts from 64 items at once), 2.6.2 by about a tenth (leaner work around the layout; 39 of 42 cases faster, up to 31% less). 2.6.3 cuts maps shaped like a mesh or a tree by about a fifth more (9 to 26% less), again with the same picture. 2.6.4 fills the item and link records with less memory churn (about 7% less build time in Chromium, same output).
+Since 2.6.0 the Distances layout of a big Network map takes 12 to 73% less time than 2.5.0 (48 cases: 16 maps of 1,500 to 50,000 items in Chromium 156, Firefox 158 and WebKitGTK 2.52.6), for example a 50,000-item drop in 1,105 to 1,460 ms instead of 2,904 to 3,502 ms, with the same or lower stress and fewer crossings. 2.6.1 takes about a fifth less again with the same picture (middle of 42 cases; up to 47% less). The tables on this page were measured before 2.6.0. 2.6.1 and 2.6.2 cut the build time again with exactly the same picture: 2.6.1 by about a fifth (hop counts from 64 items at once), 2.6.2 by about a tenth (leaner work around the layout; 39 of 42 cases faster, up to 31% less). 2.6.3 cuts maps shaped like a mesh or a tree by about a fifth more (9 to 26% less), again with the same picture. 2.6.4 fills the item and link records with less memory churn (about 7% less build time in Chromium, same output). Since 2.6.5 the every-pair fitting runs in single precision, four pairs at a time: 15% less build time in the middle case and up to 49% less under 4,000 items, with items in different spots than 2.6.4 and stress and crossings within a few percent.
 
 ## How it compares
 
