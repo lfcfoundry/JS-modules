@@ -1,4 +1,24 @@
-**Against d3-hierarchy 3.1.3, cloud-browser runs.** The same job from the same rows: build the tree, sum, sort the children and lay out 100,000 items into positioned boxes, all five views. A fresh page for every library, one browser at a time, shared 4-core cloud machine. Time is shown as a percent of d3-hierarchy's time, so d3-hierarchy is always 100 and lower is faster.
+**Measured on real trees: cloud Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6 against d3-hierarchy 3.1.3, one browser at a time, 2026.11.22.** The trees are real: the SEC 2026 Q1 numbers file (filing, then statement tag, then each value row) and the retail e-commerce file (country, then item, then each order line), cut to the first 1,000, 10,000 and 100,000 rows, sizes from the real value and quantity columns. Same job both ways: build the tree from rows, sum, sort, lay out (the method of `testers/hierarchy-icicle-vs-d3-tester.html`, 7 alternating rounds, 3 at 100,000 items). Whole milliseconds are all Firefox and WebKitGTK report, so small cells carry a rounding of up to 1 ms. This replaces the earlier generated trees.
+
+Compared: netflow-hierarchy against d3-hierarchy on real trees (layout of 100,000 rows, percent of d3-hierarchy's time, lower is faster; Chromium / Firefox / WebKitGTK).
+
+<!-- title: netflow-hierarchy lays out 100,000 real rows in 21% to 80% of d3-hierarchy's time in all five views and all three browsers -->
+| real tree | view | Chromium | Firefox | WebKitGTK |
+|---|---|---:|---:|---:|
+| SEC filing > tag > row | Icicle | 52 | 35 | 58 |
+|  | Treemap | 36 | 26 | 52 |
+|  | Sunburst | 37 | 31 | 28 |
+|  | Pack | 43 | 36 | 33 |
+|  | Tree | 80 | 24 | 62 |
+| Retail country > item > line | Icicle | 25 | 27 | 21 |
+|  | Treemap | 40 | 32 | 27 |
+|  | Sunburst | 26 | 21 | 23 |
+|  | Pack | 40 | 35 | 37 |
+|  | Tree | 51 | 22 | 38 |
+
+Across all 108 cells (2 real trees x 3 sizes x 6 layouts x 3 browsers) netflow-hierarchy is faster in 106, at 21% to 125% of d3's time; the two cells that are not faster are small (WebKitGTK tree at 1,000 SEC rows 1.25, Firefox unsorted icicle at 1,000 retail rows 1.13, within the clock steps). Harness and raw results: `tools/real-corpus`.
+
+**Against d3-hierarchy 3.1.3 on generated trees (earlier measurement, not re-run on real trees here).** The same job from the same rows: build the tree, sum, sort the children and lay out 100,000 items into positioned boxes, all five views. A fresh page for every library, one browser at a time, shared 4-core cloud machine. Time is shown as a percent of d3-hierarchy's time, so d3-hierarchy is always 100 and lower is faster.
 
 Compared: netflow-hierarchy against d3-hierarchy 3.1.3 (layout of 100,000 items, percent of d3-hierarchy's time, lower is faster).
 

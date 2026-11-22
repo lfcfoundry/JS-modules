@@ -138,11 +138,11 @@
    ]
   },
   {
-   "label": "lzma-decode (WebAssembly) vs LZMA-JS",
-   "x": 12,
+   "label": "lzma-decode (WebAssembly) vs LZMA-JS, real files (low end)",
+   "x": 26,
    "module": "lzma-decode",
    "proof": [
-    "12 to 24 times"
+    "26 to 184 times"
    ]
   },
   {

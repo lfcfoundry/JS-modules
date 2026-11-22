@@ -70,7 +70,7 @@ Use with netflow-engine: load the files as page scripts (or keep the folders sid
 
 ## How it compares
 
-Against d3-hierarchy 3.1.2, measured by Netflow Map on its own copy of this code (the same layouts to the last digit) in the cloud test browsers, one at a time, early-stop A/B: ahead on 35 of 36 cases (treemap, icicle, pack and tree at 1,000, 10,000 and 100,000 items), at 0.29 to 0.98 of d3's time; one tie (WebKitGTK icicle at 1,000 items, 1.03, range 0.86 to 1.20). At 100,000 items: 0.29 to 0.78 of d3's time.
+Real trees (2026.11.22; SEC filings and retail orders, 1,000 to 100,000 rows; ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6, against d3-hierarchy 3.1.3): ahead in 106 of 108 cells at 21% to 125% of d3's time, 21% to 80% at 100,000 rows; the two cells that are not ahead are 1,000-row cells within the clock step. Earlier, on generated trees, against d3-hierarchy 3.1.2, measured by Netflow Map on its own copy of this code (the same layouts to the last digit) in the cloud test browsers, one at a time, early-stop A/B: ahead on 35 of 36 cases (treemap, icicle, pack and tree at 1,000, 10,000 and 100,000 items), at 0.29 to 0.98 of d3's time; one tie (WebKitGTK icicle at 1,000 items, 1.03, range 0.86 to 1.20). At 100,000 items: 0.29 to 0.78 of d3's time.
 
 ## Prior art and credits
 

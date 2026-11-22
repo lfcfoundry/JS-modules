@@ -5,12 +5,15 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd); repo="$here/../.."; W=/tmp/real-corpus; PP=/tmp/pp
 mkdir -p "$W" "$PP"
-npm install --prefix "$PP" puppeteer-core esbuild papaparse fflate msgpackr fzstd jszip graphology graphology-components graphology-shortest-path dagre d3-sankey
+npm install --prefix "$PP" puppeteer-core esbuild papaparse fflate msgpackr fzstd jszip d3-hierarchy lzma graphology graphology-components graphology-shortest-path dagre d3-sankey
 cp "$here/gl-entry.js" "$here/ds-entry.js" "$PP/"
 (cd "$PP" && ./node_modules/.bin/esbuild gl-entry.js --bundle --minify --format=iife --outfile="$W/gl.js" && ./node_modules/.bin/esbuild ds-entry.js --bundle --minify --format=iife --outfile="$W/d3s.js")
 cp "$PP/node_modules/papaparse/papaparse.min.js" "$W/"; cp "$PP/node_modules/fflate/umd/index.js" "$W/fflate.js"; cp "$PP/node_modules/fzstd/umd/index.js" "$W/fzstd.js"; cp "$PP/node_modules/jszip/dist/jszip.min.js" "$W/"
 cp "$PP/node_modules/msgpackr/dist/index.min.js" "$W/msgpackr.js"; cp "$PP/node_modules/dagre/dist/dagre.min.js" "$W/"
 for m in text-columns lz4-kit zstd-kit memory-compression graph-walk netflow-layers netflow-sankey zip-open; do cp "$repo/modules/$m/$m.js" "$W/"; done
+cp "$PP/node_modules/d3-hierarchy/dist/d3-hierarchy.min.js" "$W/" 2>/dev/null || true; cp "$here/d3h-entry.js" "$PP/"; (cd "$PP" && ./node_modules/.bin/esbuild d3h-entry.js --bundle --minify --format=iife --outfile="$W/d3h.js"); cp "$repo/modules/netflow-hierarchy/netflow-hierarchy.js" "$W/"
+cp "$PP/node_modules/lzma/src/lzma-d-min.js" "$W/lzmajs.js"; cp "$repo/modules/lzma-decode/lzma-decode-with-wasm.js" "$W/"
+cp "$repo/modules/pcodec-js/pcodec-js-pack.js" "$W/"
 cp "$here/page.html" "$W/index.html"
-node "$here/prep-slices.js" && node "$here/prep-layers.js" && node "$here/prep-sankey.js"
+node "$here/prep-slices.js" && node "$here/prep-layers.js" && node "$here/prep-sankey.js" && node "$here/prep-floats.js" && node "$here/prep-trees.js" && node "$here/prep-lzma.js"
 echo "ready: node tools/real-corpus/run.js chromium csv comp mem graph layers sankey sankeyq zip"
