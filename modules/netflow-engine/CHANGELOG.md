@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.4 · API 2 · 2026-11-21
+- Big maps build a little faster in Chromium-based browsers (about 7% less time in the middle case, up to 19% less) with exactly the same output; Firefox gains about 2%, WebKitGTK is unchanged.
+
 ## 2.6.3 · API 2 · 2026-11-21
 - Big Network maps shaped like a mesh or a tree (Distances layout) build in about a fifth less time (9 to 26% less), with exactly the same picture as 2.6.2. Other maps are unchanged within measuring noise.
 
