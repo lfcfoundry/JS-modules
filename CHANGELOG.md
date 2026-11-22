@@ -29,7 +29,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.3.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.18.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.1.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.1.3 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.17.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.0 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
@@ -37,7 +37,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [text-columns](modules/text-columns/README.md) | 0.7.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
 | [netflow-sankey](modules/netflow-sankey/README.md) | 2.14.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
-| [netflow-engine](modules/netflow-engine/README.md) | 2.6.0 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
+| [netflow-engine](modules/netflow-engine/README.md) | 2.6.2 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.1 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
 | [netflow-circular](modules/netflow-circular/README.md) | 1.5.2 · API 1 | [changelog](modules/netflow-circular/CHANGELOG.md) |
@@ -77,6 +77,8 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **netflow-hierarchy** 1.8.2 · API 1: Circle pack is faster, most of all on trees where items have two children; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.8.1 · API 1: Treemap pictures are built about 10% faster in Firefox and WebKit; same picture.
 - 2026-11-21 · **netflow-hierarchy** 1.10.0 · API 1: Rows as they are (sizeKey, write: false) and much faster small trees
+- 2026-11-21 · **netflow-engine** 2.6.2 · API 2: Big Network maps (Distances layout) build in about a tenth less time again (up to 31% less), with exactly the same picture as 2.6.1. The saving is in the work around the layout.
+- 2026-11-21 · **netflow-engine** 2.6.1 · API 2: Big Network maps (Distances layout) build in about a fifth less time again (up to 47% less), with exactly the same picture as 2.6.0.
 - 2026-11-21 · **netflow-engine** 2.6.0 · API 2: Big Network maps (Distances layout) build in 12 to 73% less time, most about 60% less, with the same or lower stress, fewer link crossings and no touching items. Items now spread more evenly instead of packing into a dense middle.
 - 2026-11-21 · **netflow-engine** 2.5.0 · API 2: New quickNetwork(graph): a rough first picture of a partly read map to draw while the rest arrives. 10,000 items: 5.9 ms Chromium 156, 4.6 Firefox 158, 6 WebKitGTK 2.52.6; 50,000 items: 23.5, 39.5, 60 ms.
 - 2026-11-21 · **netflow-circular** 1.5.2 · API 1: Smaller file: the old object form of the Chord layout (unused since 1.5.0) is gone, 326 bytes less when minified and gzipped (6,769 to 6,443). Same output, same speed.
@@ -97,6 +99,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-21 · **idle-core** 1.3.0 · API 1: Prices of 1e10 and up are now exact to the coin and the same in every browser (before, from about 1e12 a price could be a coin low). Ordinary prices are as fast or a little faster.
 - 2026-11-21 · **guess-gate** 1.0.1 · API 1: Guesses use at most 5% of the time so far by default (was 10%): at 10% a progressive import ran 12% slower than none in WebKitGTK 2.52.6; at 5% Chromium 156, Firefox 158 and WebKitGTK are within noise of none.
 - 2026-11-21 · **guess-gate** 1.0.0 · API 1: New module: a time-boxed scheduler for first guesses during an import; guesses may use only a set share (10% by default) of the time so far, so a progressive import costs about the same total time as one without guesses.
+- 2026-11-21 · **elias-fano** 2.1.3 · API 2: "First value at or above" no longer crawls through long runs of one repeated value (24 to 42 times faster on a 100,000-copy run); same blobs and answers.
 - 2026-11-20 · **netflow-scene** 1.14.1 · API 1: SVG export of long lines and curves is about 20% faster (100,000-point line: 16 to 13.5 ms in Chromium); the SVG text is the same
 - 2026-11-20 · **netflow-plot** 2.19.0 · API 2: A table can be given as columns, { name: array } with plain or typed arrays (what lfc-pack's unpackColumns returns); the chart is the same as from rows, and a 100,000-point line builds in about 4 ms instead of 5 (Chromium 156) A Voronoi chart with an infinite value no longer hangs
 - 2026-11-20 · **netflow-plot** 2.18.1 · API 2: A line chart of many points builds about 3 times faster (100,000 points: 15 to 5 ms in Chromium 156, 20 to 5 in Firefox 158, 21 to 10 in WebKitGTK 2.52.6); the chart is exactly the same
