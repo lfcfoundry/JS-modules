@@ -36,7 +36,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.2 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.8.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.15.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.16.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.6.5 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
@@ -64,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-26 · **netflow-sankey** 2.16.0 · API 2: Charts above 150 items stop the order search after three restarts in a row that find nothing better: about 2 times faster at 500 links, same picture on the real flows tried. stall: 0 runs every restart.
 - 2026-11-22 · **zstd-kit** 1.0.1 · API 1: The encoder's setting search is smaller and quicker to run.
 - 2026-11-22 · **walker-sim** 2.5.0 · API 2: Single-walker trials run faster on sparse graphs.
 - 2026-11-22 · **text-columns** 0.8.1 · API 0: Empty fields skip the substring call: wide text tables parse 15 to 25% faster.

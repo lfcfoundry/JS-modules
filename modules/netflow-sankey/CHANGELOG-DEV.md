@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.0 · API 2 · 2026-11-26
+
+### Quick
+stall defaults to 3 above 150 items (was off). Pass stall: 0 for the old behavior.
+
+### Details
+Above 150 items, layout() stops its random restarts after 3 in a row that found no better order. About 2x faster at 500 links; the same picture on the three real flows tried, but a later restart can find a better order on some networks. Small charts (150 items or fewer) are unchanged. Set stall: 0 for every restart.
+
+### Deep
+Owner chose 'only above 150 items' on 2026-11-22. The stall option existed as opt-in; the default is now 3 when the chart has more than 150 items, 0 otherwise. Pinned v1.0.0 pictures are on small charts and unchanged; netflow-sankey tests pass. Limits: identical pictures were checked on three real flows only; the 2x figure comes from the earlier browser runs at 500 links.
+
 ## 2.15.0 · API 2 · 2026-11-22
 
 ### Quick
