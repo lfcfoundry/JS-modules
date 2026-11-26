@@ -74,7 +74,7 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
 }
 (async () => {
   let threw = false; try { K.compress(new Uint8Array(1)); } catch (e) { threw = /init\(\)/.test(e.message); } ok(threw, 'calls before init() say so');
-  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.1.2', 'version labels');
+  await K.init(); ok(K.ready(), 'ready after init'); ok(K.lz4Version === '1.11.1' && K.version === '1.1.3', 'version labels');
   const sizes = [0, 1, 7, 13, 100, 4096, 65537, 300000, 2100000];
   for (const n of sizes) for (const kind of ['random', 'text', 'pattern']) {
     const b = sample(n, kind);
@@ -113,6 +113,13 @@ function decodeLinked(src, hist, bmax) {   // a block that may reach back into t
   const bad = ff.slice(); bad[bad.length - 1] ^= 1; ok(t(() => K.decompress(bad), /damaged/), 'frame with a wrong content checksum throws');
   ok(t(() => K.decompress(new Uint8Array([1, 2, 3, 4, 5, 6])), /damaged/), 'not a frame throws');
   ok(t(() => K.decompress(ff, 999), /damaged|larger|holds/), 'frame with a wrong size given throws');
+  { // since 1.1.3 the recorded content size sets the room: frames that shrink far more than 8 times still come back whole, and a header claiming
+    // far more than LZ4 can hold is not trusted with memory
+    const z = new Uint8Array(3 << 20); for (let i = 0; i < z.length; i += 4096) z[i] = i & 255;
+    for (const lv of [0, 9]) { const fz = K.compress(z, lv); ok(fz.length * 8 < z.length && eq(K.decompress(fz), z), 'frame that shrank ' + Math.round(z.length / fz.length) + ' times, level ' + lv); }
+    const big = ff.slice(); if (big[4] & 8) { big[9] = 0x7D; ok(t(() => K.decompress(big), /damaged/), 'frame whose header claims 2 GB throws'); }
+    else ok(false, 'own frames record the content size');
+  }
   ok(t(() => K.compress(small, 13), /level/) && t(() => K.compress(small, -1), /level/) && t(() => K.compress(small, 1.5), /level/), 'bad levels are refused');
   ok(t(() => K.compressBlock(small, 0, 0), /acceleration/), 'bad acceleration is refused');
   ok(t(() => K.compress(5), /Uint8Array/), 'wrong input type is refused');

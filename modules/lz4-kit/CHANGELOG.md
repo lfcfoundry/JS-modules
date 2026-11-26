@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.1.3 · API 1 · 2026-11-26
+- decompress() without a size is up to 2x faster on data that shrinks more than 8 times: it reads the size the frame records instead of decoding twice.
+
 ## 1.1.2 · API 1 · 2026-11-21
 - Default-speed .lz4 frames of 64 KiB and more are 23 to 26% faster and 12% smaller on 4 MiB of logs: 6.3 to 6.4 ms against 8.5 before (Chromium 156, Firefox 158, WebKitGTK 2.52.6). Still a standard frame with size and checksum.
 

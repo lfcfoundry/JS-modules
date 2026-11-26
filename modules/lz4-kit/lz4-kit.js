@@ -1,7 +1,7 @@
 /*!
  * lz4-kit.js: LZ4 compression and decompression (blocks and the .lz4 frame) in the browser and Node, from one WebAssembly build of the official library.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
- * Version 1.1.2 (API 1)
+ * Version 1.1.3 (API 1)
  * Copyright (c) 2026 LFC Foundry. MIT License (this wrapper and wasm/lz4-glue.c).
  * The WebAssembly inside is LZ4 1.11.1 by Yann Collet, compiled unchanged, BSD-2-Clause: https://lz4.org/ (see NOTICE-lz4.txt).
  * Release 1.11.1 is the first one without the 1.11.0 overflow in LZ4_resetStreamHC at high compression levels (10 and up).
@@ -12,6 +12,15 @@
   'use strict';
   // ================================================================ LZ4 on top of a wasm instance (wasm/lz4-glue.c)
   var FAIL = 0xFFFFFFFF, SMALL = 0xFFFFFFFE, MAX_IN = 0x7E000000;
+  // Room to decompress a frame into when no size is given. Since 1.1.3 the content size that compress() records in the frame header is used (one pass;
+  // before, a frame that shrank more than 8 times was decompressed twice); a frame without it, or more frames after it, still grows the room and tries again.
+  function headSize(f) {
+    var guess = Math.max(65536, Math.min(MAX_IN, f.length * 8));
+    if (f.length < 15 || f[0] !== 0x04 || f[1] !== 0x22 || f[2] !== 0x4D || f[3] !== 0x18 || (f[4] & 0xC0) !== 0x40 || !(f[4] & 0x08)) return guess;
+    if (f[13] || f[12] || f[11] & 0x80) return guess;   // 2 GiB or more: over the limit anyway
+    var n = f[6] + f[7] * 256 + f[8] * 65536 + f[9] * 16777216 + f[10] * 4294967296 + f[11] * 1099511627776;
+    return n > MAX_IN || n > f.length * 256 + 65536 ? guess : Math.max(n, 64);   // LZ4 cannot shrink data more than about 255 times: a larger claim is not trusted with memory
+  }
   function makeLz4(inst) {
     var X = inst.exports, mem = X.memory, inP = 0, inCap = 0, outP = 0, outCap = 0;
     function view(p, n) { return new Uint8Array(mem.buffer, p, n); }
@@ -49,7 +58,7 @@
         return asView ? view(outP, r) : view(outP, r).slice();
       },
       unframe: function (frame, size, asView) {
-        put(frame); var cap = size != null ? size : Math.max(65536, Math.min(MAX_IN, frame.length * 8)), r;
+        put(frame); var cap = size != null ? size : headSize(frame), r;
         for (;;) {
           ensureOut(cap); r = X.frame_decompress(outP, cap, inP, frame.length) >>> 0;
           if (r === SMALL && size == null && cap < MAX_IN) { cap = Math.min(MAX_IN, cap * 4); continue; }
@@ -89,7 +98,7 @@
     return level;
   }
   return {
-    version: '1.1.2',
+    version: '1.1.3',
     lz4Version: '1.11.1',
     init: init,
     ready: function () { return !!Z; },
