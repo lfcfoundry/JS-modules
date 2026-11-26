@@ -1,14 +1,14 @@
 # lz4-kit
 
-**Version 1.1.2 · API 1**
+**Version 1.1.3 · API 1**
 
-**Tested in:** ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (phone and owner laptop not run)
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. The WebAssembly inside is LZ4 1.11.1 (BSD-2-Clause, see [NOTICE-lz4.txt](NOTICE-lz4.txt)).
 
 ## What it is and how it works
 
-LZ4 compression and decompression in the browser and in Node, from one WebAssembly build of the official LZ4 library, version 1.11.1. It reads and writes raw LZ4 blocks and the standard `.lz4` frame (the format of the `lz4` command and of LZ4 frames in other tools). `lz4-kit.js` is one file (49.3 KB gzipped, the WebAssembly is inside as text).
+LZ4 compression and decompression in the browser and in Node, from one WebAssembly build of the official LZ4 library, version 1.11.1. It reads and writes raw LZ4 blocks and the standard `.lz4` frame (the format of the `lz4` command and of LZ4 frames in other tools). `lz4-kit.js` is one file (50.0 KB gzipped, the WebAssembly is inside as text).
 
 - `await Lz4Kit.init()` once. It compiles the WebAssembly, which took 5 to 13 ms in the test browsers.
 - `Lz4Kit.compress(bytes, level)` gives one `.lz4` frame that records the content size and a content checksum. `level` is 0 (fast mode, the default) or 1 to 12 (high compression, slower and smaller).
@@ -46,7 +46,7 @@ Call `release()` after a big job to free the working memory. WebAssembly memory 
 
 Real files (2026.11.22, ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6, first 4 MiB of the retail, SEC and SBA tables): lz4-kit compresses 4.2 to 13 times faster than the browser's gzip and decompresses 2.1 to 4.3 times faster, into a frame 1.4 to 1.6 times the size of gzip's. The other LZ4 libraries were not re-run on real files. The rest of this section comes from 4 MB of generated web-server log lines (JSON, 4,194,304 bytes; the page and its generator are in bench/bench.html), on a fresh page each time, as the median of 3 pages. Each call ran 5 times on the page; the table shows the middle of the last 4 (steady) and the first call where noted. Times are in ms. "Browser gzip" is the page's own `CompressionStream` and `DecompressionStream`, median of 3 calls.
 
-Against other LZ4 libraries on the same real files (first 4 MiB of retail, SEC, SBA and the FHIR training set; lz4js 0.2.0 and lz4-wasm 0.9.2; raw blocks for lz4-kit and lz4-wasm, frames for lz4js; median of 5 runs in one page per browser; Chromium 156 / Firefox 158 / WebKitGTK 2.52.6): lz4-kit blocks compress 1.2x to 2x faster than lz4-wasm (retail 7.5 / 8 / 7 ms against 9.6 / 12 / 10) and 2.2x to 4x faster than lz4js, into output 2% to 8% smaller than lz4-wasm's and 0.7% to 8% smaller than lz4js's. On decompress a copy is level with lz4-wasm (retail 4.4 / 4 / 4 against 4.2 / 6 / 3 ms) and the view option is 2.3x to 5x faster than lz4-wasm in Chromium (retail 1.8 against 4.2, SBA 0.6 against 2.9) and 2x to 3x in Firefox. **Where it gives something up:** decoding a lz4-kit frame is 2.5x slower than decoding its block on the SBA and FHIR slices (7.4 against 2.9 ms in Chromium, 6 against 3 in Firefox), which makes frame decoding slower than lz4-wasm there; use blocks when speed matters more than the frame header and checksum. gorhill/lz4-wasm could not be fetched in this container, so it was not re-run; the 'generated logs' table below still stands for it. Raw results: `js-modules-research/audit-synthetic-claims-2026.11.22/lz4rivals-*.json`.
+Against other LZ4 libraries on the same real files (first 4 MiB of retail, SEC, SBA and the FHIR training set; lz4js 0.2.0 and lz4-wasm 0.9.2; raw blocks for lz4-kit and lz4-wasm, frames for lz4js; median of 5 runs in one page per browser; Chromium 156 / Firefox 158 / WebKitGTK 2.52.6): lz4-kit blocks compress 1.2x to 2x faster than lz4-wasm (retail 7.5 / 8 / 7 ms against 9.6 / 12 / 10) and 2.2x to 4x faster than lz4js, into output 2% to 8% smaller than lz4-wasm's and 0.7% to 8% smaller than lz4js's. On decompress a copy is level with lz4-wasm (retail 4.4 / 4 / 4 against 4.2 / 6 / 3 ms) and the view option is 2.3x to 5x faster than lz4-wasm in Chromium (retail 1.8 against 4.2, SBA 0.6 against 2.9) and 2x to 3x in Firefox. **Fixed in 1.1.3:** decoding a frame without a size given used to guess 8 times the frame's size for the output, so a frame that shrank more (SBA and FHIR shrink 11 to 12 times) was decoded twice and took 2.5x as long as its block (7.4 against 2.9 ms in Chromium, 6 against 3 in Firefox). It now reads the content size the frame records. Same slices, frame decode 1.1.3 / 1.1.2, ms, two runs: SBA Chromium 3.5 to 3.6 / 5.8 to 7.4, Firefox 3 to 4 / 6, WebKitGTK 4 / 5; FHIR training Chromium 4.5 / 4.9 to 6.4, Firefox 3 to 4 / 5 to 6, WebKitGTK 2 / 4. A frame now costs its block plus the content checksum check (lz4-wasm's raw blocks have none): SBA is level with lz4-wasm, FHIR is 0.5 to 1 ms behind it in Chromium. gorhill/lz4-wasm could not be fetched in this container, so it was not re-run; the 'generated logs' table below still stands for it. Raw results: `js-modules-research/audit-synthetic-claims-2026.11.22/lz4rivals-*.json`.
 
 | | ungoogled Chromium 156 | Firefox 158 | WebKitGTK 2.52.6 |
 |---|---|---|---|
@@ -69,7 +69,7 @@ Sizes in bytes for the same data (4,194,304 bytes in): fast frame 955,395; level
   - It reads and writes the standard `.lz4` frame and raw blocks, with high-compression levels up to 12, from the fixed release.
 - **Where it loses:**
   - Size: on these logs the fast frame was 1.7 to 1.9 times the size of gzip when this table was measured (1.5 to 1.7 times from 1.1.2), and level 12 is still 18 to 26% bigger than gzip. LZ4 trades size for speed.
-  - Download size: the file is 49.3 KB gzipped; the browser's gzip is free.
+  - Download size: the file is 50.0 KB gzipped; the browser's gzip is free.
   - Compression at levels 9 to 12 takes 110 to 290 ms for 4 MB, slower than gzip here.
 - **Against other LZ4 libraries and gzip** (page `bench/laptop-tester.html`, which anyone can open from the web and run; 4 MiB of the same generated logs, raw blocks for lz4-kit, gorhill and lz4-wasm, frames for lz4js, wasm-lz4 reading lz4-kit frames; median of 3 pages per browser, each timed over a batch of at least 60 ms so a 1 to 2 ms clock cannot blur it; ms for the whole 4 MiB, lower is faster). Every row was measured again on 2026-11-21 in one session for 1.1.1; the shared cloud machine was slower that day than for 1.1.0, so compare rows inside these tables, not with older ones. Versions: lz4-kit 1.1.1, lz4js 0.2.0, lz4-wasm 0.9.2, wasm-lz4 2.0.0, gorhill/lz4-wasm master (no release exists and no commit hash could be read from here; the page prints a SHA-256 of each file it loads). "view" rows return a window into the library's memory without a copy (valid until the next call), the way gorhill/lz4-wasm does; "copy" rows return a private copy, the way lz4-kit does by default.
 

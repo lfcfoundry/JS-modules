@@ -1,5 +1,13 @@
 # lz4-kit developer changelog
 
+## 1.1.3 · API 1 · 2026-11-26
+
+### Quick
+unframe without a size: the room is now the content size recorded in the frame header (trusted only up to the input length x 256 + 64 KiB, the most LZ4 can expand), instead of a guess of 8x the input that made frames shrinking more than 8x…
+
+### Deep
+unframe without a size: the room is now the content size recorded in the frame header (trusted only up to the input length x 256 + 64 KiB, the most LZ4 can expand), instead of a guess of 8x the input that made frames shrinking more than 8x decode twice. Real 4 MiB slices, frame decode 1.1.3 / 1.1.2 ms (2 runs): SBA Chromium 156 3.5-3.6 / 5.8-7.4, Firefox 158 3-4 / 6, WebKitGTK 2.52.6 4 / 5; FHIR training Chromium 4.5 / 4.9-6.4, Firefox 3-4 / 5-6, WebKitGTK 2 / 4. Tests: 1,335 (new: frames shrinking 3,000x and 700x at levels 0 and 9; a header claiming 2 GB throws damaged without taking that memory).
+
 ## 1.1.2 · API 1 · 2026-11-21
 
 ### Quick
