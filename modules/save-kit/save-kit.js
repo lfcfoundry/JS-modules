@@ -2,7 +2,7 @@
  * save-kit.js: safe localStorage saves, a rolling backup slot, and checksummed copy-paste save codes.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.5.0 (API 2)
+ * Version 2.6.0 (API 2)
  *
  * What it gives you
  *  - validate(): rebuilds a state object from untrusted data using a field schema. Every field falls back on its own, so one
@@ -151,11 +151,20 @@
   // The field rules read once: [name, normalized rule] pairs (create() keeps them, so a save or load does not parse the rules again).
   function fieldsOf(schema) {
     var ks = Object.keys(schema), f = [], i;
-    for (i = 0; i < ks.length; i++) f.push([ks[i], norm(schema[ks[i]]), ks[i] in Object.prototype]);   // third: the name also exists on Object.prototype, so only an own value counts
+    for (i = 0; i < ks.length; i++) { var sp = norm(schema[ks[i]]); f.push([ks[i], sp, ks[i] in Object.prototype, sp.max == null ? Number.MAX_SAFE_INTEGER : sp.max]); }   // third: the name also exists on Object.prototype, so only an own value counts
     return f;
   }
+  // A plain object holding every schema name (value 0) in schema order, made by JSON.parse: copying it with {...} gives V8 a ready shape, so the
+  // fields below are filled in place instead of growing an object name by name (which V8 turns into a slow dictionary past a dozen names).
+  function shapeOf(fields) {
+    if (fields.shape === undefined) {
+      fields.shape = null;
+      try { var o = {}, i; for (i = 0; i < fields.length; i++) { if (BAD_KEYS[fields[i][0]]) return null; o[fields[i][0]] = 0; } var t = JSON.parse(JSON.stringify(o)); if (Object.keys(t).length === fields.length) fields.shape = t; } catch (e) {}
+    }
+    return fields.shape;
+  }
   function validateWith(fields, defaults, input) {
-    var out = {}, i, f, k, v, t, d, plain;
+    var sh = fields.length > 8 ? shapeOf(fields) : null, out = sh ? { ...sh } : {}, i, f, k, v, t, d, plain;
     input = isObj(input) ? input : {};
     shortKeys = JSC && shortRoots.has(input);
     plain = Object.getPrototypeOf(input) === Object.prototype;   // a plain object (what JSON.parse makes) has no inherited fields to mistake for saved ones, apart from the names on Object.prototype
@@ -165,6 +174,7 @@
       d = defaults ? defaults[k] : undefined;
       if (t === 'num') out[k] = isNum(v) ? v : d;   // the two commonest types are done here, the rest in cleanField
       else if (t === 'flag') out[k] = v === 1 ? 1 : v === 0 ? 0 : (d === 1 ? 1 : 0);
+      else if (t === 'int') out[k] = isNum(v) ? (v === Math.floor(v) && v <= f[3] ? v : Math.min(Math.floor(v), f[3])) : d;   // f[3]: the cap, read once
       else out[k] = cleanField(f[1], v, d);
     }
     return out;
@@ -424,7 +434,7 @@
     var plainText = new WeakSet(), hasRaw = kinds('raw').length > 0;   // parsed slots whose text names no __proto__, constructor or prototype key: JSON.parse already made fresh plain objects of them (only looked for when the schema has a raw field)
     function parseSlot(t) {
       try {
-        var x = JSON.parse(t || 'null');
+        var x = strip && t ? parseStripped(t) : JSON.parse(t || 'null');
         if (isObj(x)) { if (JSC && t.indexOf('\\') < 0 && !longRun(t)) shortRoots.add(x); if (countRules.length && t.indexOf('[[') >= 0) unpack(x); if (hasRaw && t.indexOf('__proto__') < 0 && t.indexOf('constructor') < 0 && t.indexOf('prototype') < 0) plainText.add(x); return x; }
       } catch (e) {}
       return null;
@@ -432,11 +442,12 @@
     function readSlot(slot) { return parseSlot(textOf(slot)); }
     // Schema check, then the game's own afterValidate(clean, raw) if there is one: it may change `clean` in place, return a replacement object, or return
     // false/null to refuse the save. A hook that throws is ignored (the schema-checked state is used). Returns null when refused.
-    function finish(raw) {
+    function finish(raw) { return hook(finishC(raw), raw); }
+    function finishC(raw) {   // the schema-checked state, before afterValidate
       var c, was = trusted;
       trusted = plainText.has(raw) && !(typeof migrate !== 'undefined' && migrate && version && isNum(raw.v) && raw.v < version);
       try { c = validateWith(fields, defaults, upgrade(raw)); } finally { trusted = was; }
-      return hook(c, raw);
+      return c;
     }
     // The main slot checked once, before it is known whether the backup is needed: { c: clean state, bad: broken fields }. When every counts field came through the
     // clean fast path unchanged, none of them can hold a broken number, so only the plain number fields are counted again. null when a migrate would change the save.
@@ -460,18 +471,126 @@
     // Since 2.3.0, trust: true (off by default) skips every check: load() hands back the stored JSON as it is (the backup only when the main slot is
     // missing or not a JSON object), and save() writes the state without looking at it. No schema, defaults, soundKeys, migrate or afterValidate.
     var trustMe = o.trust === true;
+    // Since 2.6.0, in Chromium-family browsers, when nothing can look at the stored stamp (no afterValidate, no migrate, not trust, the stamp is not a schema field or in soundKeys),
+    // a slot text ending in ,"seen":<digits>} (how save() writes it) is parsed without that last name, and the stamp is kept beside the object. load() drops
+    // the stamp anyway; parsing it away spares V8 a delete that turns the object into a slow dictionary (WebKitGTK and Firefox delete cheaply, and in
+    // WebKitGTK the cut text parsed slower, so they keep the plain parse).
+    var strip = V8 && !trustMe && !after && !(typeof migrate !== 'undefined' && migrate) && !has(schema, stamp) && soundKeys.indexOf(stamp) < 0 && typeof WeakMap === 'function';
+    var stamps = strip ? new WeakMap() : null, tail = ',' + JSON.stringify(String(stamp)) + ':';
+    function parseStripped(t) {
+      var n = t.length, i, j, c, k, x;
+      if (t.charCodeAt(n - 1) === 125 && (i = t.lastIndexOf(tail)) > 1) {
+        j = i + tail.length; c = t.charCodeAt(j); k = t.charCodeAt(i - 1);
+        if (c >= 49 && c <= 57 && n - 1 - j <= 16 && (k === 34 || k === 93 || k === 125 || k === 101 || k === 108 || (k >= 48 && k <= 57))) {   // a whole number with no leading zero, right after the end of a value
+          for (k = j + 1; k < n - 1; k++) { c = t.charCodeAt(k); if (c < 48 || c > 57) break; }
+          if (k === n - 1) {
+            try { x = JSON.parse(t.slice(0, i) + '}'); } catch (e) { x = undefined; }
+            if (isObj(x)) { stamps.set(x, +t.slice(j, n - 1)); return x; }
+          }
+        }
+      }
+      return JSON.parse(t);
+    }
+    function stampOf(x) { return has(x, stamp) ? x[stamp] : stamps ? stamps.get(x) : undefined; }
+    // Since 2.6.0, for the main slot (just parsed, so nobody else holds it): when every field already holds what validate() would give, or only needs a
+    // value put in its place, the parsed object itself is the clean state (no new object, no second set of names). null when anything needs the
+    // ordinary path: a broken number (the backup may then win), a name the schema does not list, a counts map of 32 names or more, or an afterValidate,
+    // migrate or trust option. The result is the same as validate() gives, names in the stored order.
+    var reusable = !trustMe && !after && !(typeof migrate !== 'undefined' && migrate);
+    var extraSound = null;   // soundKeys that reuse() does not see as num/int fields (looked at as badFields() does); worked out at the first reuse(), so create() stays cheap
+    function extras() {
+      var ni = {}, i, out = [];
+      for (i = 0; i < fields.length; i++) if (fields[i][1].type === 'num' || fields[i][1].type === 'int') ni[fields[i][0]] = 1;
+      for (i = 0; i < soundKeys.length; i++) if (soundKeys[i] in Object.prototype || !has(ni, soundKeys[i])) out.push(soundKeys[i]);
+      return out;
+    }
+    function reuse(x) {
+      if (Object.getPrototypeOf(x) !== Object.prototype) return null;
+      var i, j, f, k, t, v, w, d, n = 0, fix = null, ks, wasT;
+      for (i = 0; i < fields.length; i++) {
+        f = fields[i]; k = f[0]; t = f[1].type;
+        v = f[2] ? (has(x, k) ? x[k] : undefined) : x[k];
+        d = defaults[k];
+        if (v === undefined) { (fix || (fix = [])).push(k, cleanField(f[1], undefined, d)); continue; }
+        n++;
+        if (t === 'int') { if (!isNum(v)) return null; if (v !== Math.floor(v) || v > f[3]) (fix || (fix = [])).push(k, Math.min(Math.floor(v), f[3])); }
+        else if (t === 'num') { if (!isNum(v)) return null; }
+        else if (t === 'flag') { if (v !== 1 && v !== 0) (fix || (fix = [])).push(k, d === 1 ? 1 : 0); }
+        else if (t === 'str') { if (!(typeof v === 'string' && v.length <= (f[1].max === 0 ? 0 : f[1].max || 200))) (fix || (fix = [])).push(k, d == null ? '' : d); }
+        else if (t === 'counts') {
+          if (isObj(v)) { ks = Object.keys(v); if (ks.length >= 32) return null; for (j = 0; j < ks.length; j++) if (!isNum(v[ks[j]])) return null; }
+          (fix || (fix = [])).push(k, cleanField(f[1], v, d));   // small maps are copied into a map without a prototype, as validate() does
+        } else {
+          wasT = trusted; trusted = plainText.has(x);
+          try { w = cleanField(f[1], v, d); } finally { trusted = wasT; }
+          if (w !== v) (fix || (fix = [])).push(k, w);
+        }
+      }
+      if (!extraSound) extraSound = extras();
+      for (i = 0; i < extraSound.length; i++) { v = x[extraSound[i]]; if (v !== undefined && !isNum(v)) return null; }
+      var drop = !has(schema, stamp) && has(x, stamp);
+      j = 0; for (k in x) j++;
+      if (j !== n + (drop ? 1 : 0)) return null;   // a name the schema does not list
+      if (fix) for (i = 0; i < fix.length; i += 2) x[fix[i]] = fix[i + 1];
+      if (drop) delete x[stamp];
+      return x;
+    }
+    // Since 2.6.0: from the third load() of the same main-slot text on, load() starts from a copy of the schema-checked state made then (the main slot was
+    // sound, so the backup never mattered) instead of parsing and checking the text again. afterValidate still runs on every load, on fresh copies of
+    // that state and of the parsed slot, so a hook that answers differently now is still heard (a refusal reads both slots again). Not with migrate or trust.
+    var memoOK = !trustMe && !(typeof migrate !== 'undefined' && migrate);
+    var memoT = null, memo = null, lastT = null;   // lastT: the main-slot text of the last full load (the copy is only made when the same text comes back, so a page's first load pays nothing for it)
+    function deep(v, depth) {
+      if (v === null || typeof v !== 'object' || depth > 40) return v;
+      var c, i, ks;
+      if (Array.isArray(v)) { c = new Array(v.length); for (i = 0; i < v.length; i++) c[i] = deep(v[i], depth + 1); return c; }
+      c = Object.getPrototypeOf(v) === null ? bag() : {}; ks = Object.keys(v);
+      for (i = 0; i < ks.length; i++) { if (ks[i] === '__proto__') Object.defineProperty(c, ks[i], { value: deep(v[ks[i]], depth + 1), enumerable: true, writable: true, configurable: true }); else c[ks[i]] = deep(v[ks[i]], depth + 1); }
+      return c;
+    }
+    function flat(x, nest) { var c = { ...x }, i; if (nest) for (i = 0; i < nest.length; i++) c[nest[i]] = deep(c[nest[i]], 0); return c; }
+    // A private copy of the checked state c (and, with afterValidate, of the parsed slot raw), taken before anyone can change them; null if c is not a plain object.
+    function snap(c, raw) {
+      if (!isObj(c) || Object.getPrototypeOf(c) !== Object.prototype || has(c, '__proto__')) return null;
+      var n = [], k, m = { c: null, n: null, r: null, rn: null, at: 0, plain: false, short: false };
+      for (k in c) if (typeof c[k] === 'object' && c[k] !== null) n.push(k);
+      m.n = n.length ? n : null; m.c = flat(c, m.n);
+      if (after) {
+        if (!raw || Object.getPrototypeOf(raw) !== Object.prototype || has(raw, '__proto__')) return null;
+        n = []; for (k in raw) if (typeof raw[k] === 'object' && raw[k] !== null) n.push(k);
+        m.rn = n.length ? n : null; m.r = flat(raw, m.rn); m.plain = plainText.has(raw); m.short = shortRoots.has(raw);
+      }
+      return m;
+    }
+    function recall() {
+      var c = flat(memo.c, memo.n), r;
+      if (!after) return c;
+      r = flat(memo.r, memo.rn); if (memo.plain) plainText.add(r); if (memo.short) shortRoots.add(r);
+      return hook(c, r);
+    }
     function trustSlot(t) { try { var x = JSON.parse(t || 'null'); if (!isObj(x)) return null; if (countRules.length && t.indexOf('[[') >= 0) unpack(x); return x; } catch (e) { return null; } }
-    function readNow() {
+    function readNow(given, want) {
       try {
-        if (trustMe) { var tm = textOf(key), tx = trustSlot(tm), tb; if (!tx && (tm !== null || orphan)) tx = trustSlot(tb = textOf(bak)); return { out: tx, mt: tm, bt: tb }; }
-        var mt = textOf(key), a = parseSlot(mt), b = null, bt, first, second, out = null, used = null;
+        if (trustMe) { var tm = given !== undefined ? given : textOf(key), tx = trustSlot(tm), tb; if (!tx && (tm !== null || orphan)) tx = trustSlot(tb = textOf(bak)); return { out: tx, mt: tm, bt: tb }; }
+        var mt = given !== undefined ? given : textOf(key), a = parseSlot(mt), b = null, bt, first, second, out = null, used = null, r, pend = null;
         if (mt === null && !orphan) return { out: null, mt: mt };
+        var sa = a ? stampOf(a) : undefined;   // read before reuse() takes the stamp off
+        if (a && reusable && (r = reuse(a))) {
+//@begin durable
+          loadedAt = isNum(sa) ? sa : 0;
+//@end
+          if (want && memoOK) { try { pend = snap(r, null); } catch (e) { pend = null; } }
+          return { out: r, mt: mt, bt: undefined, pend: pend };
+        }
         var pre = a && countKeys.length ? checkMain(a) : null, badA = pre ? pre.bad : a ? badFields(a) : 0;
         if (!a || badA > 0) b = parseSlot(bt = textOf(bak));   // a sound main slot can never lose to the backup, so only read the backup when it could matter
         if (a || b) {
           first = !b ? a : !a ? b : (badFields(b) < badA ? b : a);
-          if (pre && first === a) out = hook(pre.c, a);
-          else { fresh = true; try { out = finish(first); } finally { fresh = false; } }
+          var c0;
+          if (pre && first === a) c0 = pre.c;
+          else { fresh = true; try { c0 = finishC(first); } finally { fresh = false; } }
+          if (want && first === a && !b && memoOK) { try { pend = snap(c0, a); } catch (e) { pend = null; } }
+          out = hook(c0, first);
           used = first;
           if (!out) {   // refused by afterValidate: try the other slot
             second = first === a ? (b || parseSlot(bt = textOf(bak))) : a;
@@ -480,9 +599,9 @@
         }
         if (damaged && mt && (!a || used !== a)) { try { storage.setItem(damaged, mt); } catch (e) {} }
 //@begin durable
-        loadedAt = used && isNum(used[stamp]) ? used[stamp] : 0;
+        var su = used ? stampOf(used) : undefined; loadedAt = isNum(su) ? su : 0;
 //@end
-        return { out: out, mt: mt, bt: bt };
+        return { out: out, mt: mt, bt: bt, pend: out && used === a && bt === undefined ? pend : null };
       } catch (e) { return { out: null, mt: undefined, bt: undefined }; }
     }
     var api = {
@@ -493,7 +612,25 @@
         var w = warmed;
         warmed = null;
         if (w) { try { if (textOf(key) === w.mt && (w.bt === undefined || textOf(bak) === w.bt)) return w.out; } catch (e) {} }   // warm() already did this load and neither slot changed since
-        return readNow().out;
+        var t = textOf(key), c;
+        if (memoT !== null && t === memoT) {
+          try { c = recall(); } catch (e) { c = null; }
+          if (c) {
+//@begin durable
+            loadedAt = memo.at;
+//@end
+            return c;
+          }
+        }
+        var r = readNow(t, typeof t === 'string' && t === lastT);
+        memoT = null; lastT = typeof r.mt === 'string' && r.out ? r.mt : null;
+        if (r.pend && typeof r.mt === 'string') {
+          memo = r.pend; memoT = r.mt;
+//@begin durable
+          memo.at = loadedAt;
+//@end
+        }
+        return r.out;
       },
       // Since 2.1.0 (off unless called): does load()'s reading and checking now, for example while the game's page is still starting, so the next
       // load() only compares the stored text (a few microseconds) and hands over the same result. Any save() or a changed slot makes load() read again.
@@ -552,10 +689,11 @@
           try {
             if (off || !rec || typeof rec.t !== 'string' || rec.t.length !== rec.n) return null;
             var base = loadedAt;
-            if (base === null) { var l = readSlot(key); base = l && isNum(l[stamp]) ? l[stamp] : 0; }
+            if (base === null) { var l = readSlot(key), sl = l ? stampOf(l) : undefined; base = isNum(sl) ? sl : 0; }
             if (isNum(rec.at) && rec.at <= base) return null;   // the usual case, nothing lost: no need to parse the copy
             var x = parseSlot(rec.t);
-            if (!x || badFields(x) > 0 || !isNum(x[stamp]) || x[stamp] <= base) return null;
+            var sx = x ? stampOf(x) : undefined;
+            if (!x || badFields(x) > 0 || !isNum(sx) || sx <= base) return null;
             var out = finish(x);
             if (out) { try { storage.setItem(key, rec.t); } catch (e) {} }
             return out;
