@@ -260,7 +260,7 @@
     }
     function decPick(opt, which, a, depth) {   // one stream of DEC: blocks that only try the ways that won before (opt.prefer) also keep the inner way that won last time, unless it fails
       var e = null, mm = range(a), pk = opt.prefer && opt.decWon ? opt.decWon[which] : -1, o2;
-      if (pk >= 0) e = tryInt(pk, a, depth, opt, mm, 0);
+      if (pk >= 0 && !REC && !RPL) e = tryInt(pk, a, depth, opt, mm, 0);
       if (!e) { o2 = Object.assign({}, opt); o2.dictGate = true; o2.order = which ? [IS.FOR, IS.PFOR, IS.DICT, IS.ENT, IS.EG] : [IS.CONST, IS.FOR, IS.ENT, IS.RLE, IS.DICT]; e = encInts(a, depth, o2); }   // the zeros are a few kinds, the rest is a list of smaller numbers: no need to try differences or common factors
       (opt.decWon || (opt.decWon = [-1, -1]))[which] = e[0];
       return e;
@@ -377,20 +377,59 @@
       return out;
     }
     var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA, IS.RLE, IS.DICT, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
+    // Since 2.19.2 the ways that won for a block are written down as a tree (REC) and the next blocks of the column replay that tree (RPL): each level tries only the way that won there, with no sample trials,
+    // and a level whose way does not apply falls back to the full search. Every block still comes out as ordinary bytes any decoder reads; every 32nd block records a new tree.
+    var REC = null, RPL = null;
     function encInts(a, depth, opt) {
-      var n = a.length, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, i, sub, mm = range(a);
+      var nd, sv, e;
+      if (RPL) {
+        nd = RPL.node.kids && RPL.node.kids[RPL.k++]; sv = RPL;
+        if (nd) {
+          if (KWC && a.length >= 64 && (e = encTreeWasm(a, nd, depth))) return e;        // the whole tree in one WebAssembly call, when every way in it is one the helper knows
+          RPL = { node: nd, k: 0 };
+          try { e = tryInt(nd.sch, a, depth, opt, range(a), 0); } finally { RPL = sv; }
+          if (e) return e;
+        }
+        RPL = null; try { return encIntsFull(a, depth, opt); } finally { RPL = sv; }
+      }
+      return encIntsFull(a, depth, opt);
+    }
+    function treeBytes(nd) {      // the tree as bytes for enc_tree (way, number of parts, parts), or null when a way in it is not one the helper knows
+      var out = [];
+      function put(x) { if (x.sch !== 1 && x.sch !== 2 && x.sch !== 4 && x.sch !== 8 && x.sch !== 9 && x.sch !== 10) throw 0; out.push(x.sch, x.kids.length); for (var i = 0; i < x.kids.length; i++) put(x.kids[i]); }
+      if (nd.tb === undefined) { try { put(nd); nd.tb = Uint8Array.from(out); } catch (e) { nd.tb = null; } }
+      return nd.tb;
+    }
+    function encTreeWasm(a, nd, depth) {
+      var kw = KWC, tb = treeBytes(nd), n = a.length, aP, oP, cap, tP, sP, scap, len;
+      if (!tb || !kw.x.enc_tree) return null;
+      aP = kw.base; oP = kal(aP + n * 8); cap = n * 10 + 4096; tP = kal(oP + cap); sP = kal(tP + tb.length + 16); scap = n * 40 + 4096;
+      if (!kwRoom(sP + scap - kw.base + 64)) return null;
+      new Float64Array(kw.mem.buffer, aP, n).set(a); new Uint8Array(kw.mem.buffer, tP, tb.length).set(tb);
+      len = kw.x.enc_tree(aP, n, tP, oP, cap, sP, scap, depth) >>> 0;
+      return len ? new Uint8Array(kw.mem.buffer, oP, len).slice() : null;
+    }
+    function runWay(way, a, depth, opt, mm, bound, rec) {     // tryInt, with the ways it uses for its parts written down when rec is on
+      var sv = REC, kids = null, e;
+      if (rec) REC = kids = []; else REC = null;
+      try { e = tryInt(way, a, depth, opt, mm, bound); } finally { REC = sv; }
+      runWay.kids = kids; return e;
+    }
+    function encIntsFull(a, depth, opt) {
+      var n = a.length, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
       if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
-        for (i = 0; i < opt.prefer.length; i++) { e = tryInt(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0); if (e && (!best || e.length < best.length)) best = e; }
-        if (best) return best;
+        for (i = 0; i < opt.prefer.length; i++) { e = runWay(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
+        if (best) { if (rec) par.push({ sch: best[0], kids: bestKids }); return best; }
       }
       if (opt.sample && n > 4096) {        // choose the top way on a sample, then encode only with it
         s = sampleOf(a); sub = { noEntropy: opt.noEntropy, sample: false }; e = range(s);
-        for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = tryInt(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0); if (e && e.length < bs) { bs = e.length; pick = order[i]; } }
-        if (pick >= 0) { e = tryInt(pick, a, depth, opt, mm); if (e) return e; }
+        for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = runWay(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0, false); if (e && e.length < bs) { bs = e.length; pick = order[i]; } }
+        if (pick >= 0) { e = runWay(pick, a, depth, opt, mm, 0, rec); if (e) { if (rec) par.push({ sch: e[0], kids: runWay.kids }); return e; } }
       }
-      for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = tryInt(order[i], a, depth, opt, mm, best ? best.length : 0); if (e && (!best || e.length < best.length)) best = e; }
-      if (!best || best.length > n * 8) { e = tryInt(IS.RAW, a, depth, opt, mm); if (e && (!best || e.length < best.length)) best = e; }      // plain doubles only when nothing else is smaller
+      for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = runWay(order[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
+      if (!best || best.length > n * 8) { e = runWay(IS.RAW, a, depth, opt, mm, 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }      // plain doubles only when nothing else is smaller
+      if (rec && best) par.push({ sch: best[0], kids: bestKids });
       return best;
     }
     function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
@@ -730,7 +769,7 @@
     function isIntegral(a) { var i, v, st; if (KWC && a.length >= 1024 && (st = statsOf(KWC, a))) return st.ok; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
     function rawDoubles(a) { var w = new Wr(), i; w.need(a.length * 8); for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
     function encChunk(a, depth, opt, only) {      // only: the ways that won earlier blocks of this column; given on most blocks so the others are not tried
-      var cands = [], best = null, bs = -1, k, e, w;
+      var cands = [], best = null, bs = -1, k, e, w, tn, bt = null;
       if (isIntegral(a)) cands.push([CS.INTS, function () { return encInts(a, depth, opt); }]);
       else {
         cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt); }]);
@@ -742,11 +781,14 @@
         if (cands[k][0] === CS.RAWF) continue;                                    // plain doubles are written last, only when nothing else is smaller
         if (only && cands[k][0] !== CS.INTS && only.indexOf(cands[k][0]) < 0) continue;
         if (cands[k][0] === CS.RD && best && best.length < a.length * 6) continue;      // this way cannot be under 6 bytes a value (4 for the back bits, at least 2 for the front)
+        REC = opt.recTpl ? [] : null; RPL = opt.tplNode && opt.tplCS === cands[k][0] ? { node: { kids: opt.tplNode }, k: 0 } : null;
         try { e = cands[k][1](); } catch (err) { e = null; }
-        if (e && (!best || e.length < best.length)) { best = e; bs = cands[k][0]; }
+        tn = REC; REC = null; RPL = null;
+        if (e && (!best || e.length < best.length)) { best = e; bs = cands[k][0]; bt = tn; }
       }
       if (only && !best) return encChunk(a, depth, opt, null);                          // none of the ways that won before applies to this block: try them all
       if (!best || best.length >= a.length * 8) { best = rawDoubles(a); bs = CS.RAWF; }
+      opt.outCS = bs; opt.outTpl = bt;
       w = new Wr(); w.need(best.length + 1); w.u8(bs); w.bytes(best); return w.out();
     }
     function into1(out, at, n, got) { if (got.buffer !== out.buffer || got.byteOffset !== out.byteOffset + at * 8) out.set(got, at); }      // a block that was not decoded in place is copied in
@@ -776,15 +818,19 @@
     var AUTO_MAX = 100000;
     function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
-      var autoQ = !!(opts && opts.auto), stable = false, stableD = false, prevBpn = 0, blk, qk;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
+      var autoQ = !!(opts && opts.auto), stable = false, stableD = false, prevBpn = 0, blk, qk, tplNode = null, tplCS = -1, tplMiss = 0, tplOff = false;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
+      if (autoQ && opts.tplIn && opts.tplIn.node) { tplNode = opts.tplIn.node; tplCS = opts.tplIn.cs; won = opts.tplIn.won.slice(); wonInts = opts.tplIn.wonInts.slice(); k = 1; stable = opts.tplIn.stable; stableD = opts.tplIn.stableD; }      // since 2.19.2: the ways a first pack on this column's first 8,192 numbers found, so the first block is not searched again
       w.vi(n); w.vi(CHUNK);
       for (i = 0; i < n; i += CHUNK) {
         k++; blk = a.subarray(i, Math.min(n, i + CHUNK));
         qk = o.quick || (autoQ && stable && n <= AUTO_MAX);
-        full = !(k > (qk ? 1 : 2) && k % (autoQ && (stable || stableD) ? 32 : 8) !== 0 && won.length);
+        full = !(k > (qk || (autoQ && tplNode) ? 1 : 2) && k % (autoQ && tplNode ? 128 : autoQ && (stable || stableD) ? 32 : 8) !== 0 && won.length);
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
-        part = encChunk(blk, 2, o, full ? null : won);   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
+        o.recTpl = autoQ && !tplOff && (full || !tplNode); o.tplNode = autoQ && !tplOff && !full ? tplNode : null; o.tplCS = tplCS;      // since 2.19.2: a full block writes down the way that won at each level, the others replay it
+        part = encChunk(blk, 2, o, full ? null : won);
+        if (autoQ && !tplOff && (full || !tplNode) && o.outTpl) { tplNode = o.outTpl; tplCS = o.outCS; }
+        else if (autoQ && !full && tplNode && prevBpn > 0 && part.length / blk.length > prevBpn * 1.6) { o = Object.assign({}, o, { prefer: null, recTpl: true, tplNode: null }); part = encChunk(blk, 2, o, null); if (o.outTpl && ++tplMiss < 3) { tplNode = o.outTpl; tplCS = o.outCS; } else { tplNode = null; tplOff = true; } }      // a replayed block 25% bigger than the one before: try every way again   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
         if (autoQ && !full && stable && prevBpn > 0 && part.length / blk.length > prevBpn * 99) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stable = false; }
         else if (autoQ && !full && stableD && prevBpn > 0 && part.length / blk.length > prevBpn * 1.5) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stableD = false; }   // since 2.19.0: a decimal column trusts the first blocks too (every 32nd block tries all), until a block comes out 1.5 times bigger   // a block far worse than the one before: try every way again and stop skipping
         prevBpn = part.length / blk.length;
@@ -798,6 +844,7 @@
         if (opts && opts.labels) opts.labels.push(describe(part));
       }
       if (H) H.k = k;
+      if (autoQ && opts.tplOut && tplNode) { opts.tplOut.node = tplNode; opts.tplOut.cs = tplCS; opts.tplOut.won = won; opts.tplOut.wonInts = wonInts; opts.tplOut.stable = stable; opts.tplOut.stableD = stableD; }
       return w.out();
     }
     // unpack(bytes, count): the Float64Array, exactly as it was packed. count is checked against the data. Damaged or cut data throws an Error whose message starts with MemoryCompressionJSO:.

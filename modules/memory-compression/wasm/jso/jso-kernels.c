@@ -382,3 +382,102 @@ EXPORT u32 eg_enc(const double *a, u32 n, u8 *syms, u32 *cnt, u32 *o) {
   (void)w;
   return pos;
 }
+
+/* ---- enc_tree (picker, since 2.19.2): the bytes of one whole-number block for a recorded tree of ways, in one call. Same bytes as encIntWith in src/picker.js for the ways it knows:
+ * CONST 1, FOR 2, RLE 4, ENT 8, EG 9, DEC 10. tree = for each way: its number, its number of parts, then the parts' trees one after another.
+ * Returns the number of bytes written, or 0 when a way does not apply (JavaScript then goes its own way). */
+typedef struct { u8 *p; u8 *end; u8 *sp; u8 *send; int bad; } TW;
+static void tw_b(TW *w, u32 v) { if (w->p < w->end) *w->p++ = (u8)v; else w->bad = 1; }
+static void tw_vi(TW *w, u64 x) { while (x >= 128) { tw_b(w, (u32)(x & 127) | 128); x >>= 7; } tw_b(w, (u32)x); }
+static void tw_zi(TW *w, double x) { u64 z = x < 0 ? (((u64)(-x)) << 1) - 1 : ((u64)x) << 1; tw_vi(w, z); }
+static void *tw_alloc(TW *w, u32 bytes) { u8 *r = w->sp; bytes = (bytes + 15) & ~15u; if (w->sp + bytes > w->send) { w->bad = 1; return 0; } w->sp += bytes; return r; }
+static u32 tw_bw(double rng) { return rng <= 0 ? 0 : 64 - (u32)__builtin_clzll((u64)rng); }
+/* bits: the low nb bits of each value, packed one after another from the lowest bit, as many bytes as ceil(n * nb / 8) */
+static void tw_bits(TW *w, const u32 *v, u32 n, u32 nb) {
+  u64 acc = 0; u32 cnt = 0, i;
+  if (!nb) return;
+  for (i = 0; i < n; i++) { acc |= (u64)v[i] << cnt; cnt += nb; while (cnt >= 8) { tw_b(w, (u32)acc); acc >>= 8; cnt -= 8; } }
+  if (cnt) tw_b(w, (u32)acc);
+}
+/* the frequency table of 4096 and the rANS bytes of syms, written the way picker.js writes them (bitmap, frequencies minus one, length, bytes) */
+static int tw_ans(TW *w, const u8 *syms, u32 n, const u32 *cnt) {
+  unsigned short f[256]; u32 tot = 0, big = 0, i, len; u8 bm[32]; u8 *tmp; u32 cap = n * 2 + 64;
+  for (i = 0; i < 256; i++) f[i] = 0;
+  for (i = 0; i < 32; i++) bm[i] = 0;
+  for (i = 0; i < 256; i++) if (cnt[i]) { u64 q = ((u64)cnt[i] * 4096u) / n; f[i] = (unsigned short)(q < 1 ? 1 : q); tot += f[i]; if (cnt[i] > cnt[big]) big = i; }
+  { i32 fb = (i32)f[big] + 4096 - (i32)tot; if (fb < 1) return 0; f[big] = (unsigned short)fb; }
+  for (i = 0; i < 256; i++) if (f[i]) bm[i >> 3] |= (u8)(1u << (i & 7));
+  for (i = 0; i < 32; i++) tw_b(w, bm[i]);
+  for (i = 0; i < 256; i++) if (f[i]) tw_vi(w, (u32)f[i] - 1);
+  tmp = tw_alloc(w, cap); if (!tmp) return 0;
+  len = rans_enc(syms, n, f, tmp, cap);
+  tw_vi(w, len); for (i = 0; i < len; i++) tw_b(w, tmp[cap - len + i]);
+  return 1;
+}
+static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth) {
+  u32 sch = (*tp)[0], nk = (*tp)[1], i; double mn, mx; const u8 *t0 = *tp; u8 *sp0 = w->sp; int ok = 0;
+  *tp += 2;
+  if (n == 0) return 0;
+  mn = mx = a[0];
+  for (i = 1; i < n; i++) { double v = a[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+  (void)t0;
+  if (sch == 1) { if (mn != mx || nk) return 0; tw_b(w, 1); tw_zi(w, mn); ok = 1; }
+  else if (sch == 2) {
+    double rng = mx - mn; u32 bw; u32 *v;
+    if (rng > 4294967295.0 || nk) return 0;
+    bw = tw_bw(rng); tw_b(w, 2); tw_zi(w, mn); tw_b(w, bw);
+    if (bw) { v = tw_alloc(w, n * 4); if (!v) return 0; for (i = 0; i < n; i++) v[i] = (u32)(long long)(a[i] - mn); tw_bits(w, v, n, bw); }
+    ok = 1;
+  } else if (sch == 8) {
+    double rng = mx - mn; u32 bw, sh, mask; u8 *syms; u32 *low; u32 cnt[256];
+    if (rng >= 549755813888.0 || n < 64 || nk) return 0;
+    bw = tw_bw(rng); sh = bw > 8 ? bw - 8 : 0; mask = sh ? (0xFFFFFFFFu >> (32 - sh)) : 0;
+    syms = tw_alloc(w, n); low = tw_alloc(w, n * 4); if (!syms || !low) return 0;
+    for (i = 0; i < 256; i++) cnt[i] = 0;
+    for (i = 0; i < n; i++) { u64 x = (u64)(a[i] - mn); u32 y = (u32)(x >> sh); syms[i] = (u8)y; low[i] = (u32)x & mask; cnt[y & 255]++; }
+    tw_b(w, 8); tw_zi(w, mn); tw_b(w, sh);
+    if (!tw_ans(w, syms, n, cnt)) return 0;
+    tw_bits(w, low, n, sh); ok = 1;
+  } else if (sch == 9) {
+    u8 *syms; u32 *o; u32 cnt[256], bitsK, k; double m1 = -mn > mx ? -mn : mx;
+    if (n < 64 || !(m1 < 2251799813685248.0) || nk) return 0;
+    syms = tw_alloc(w, n); o = tw_alloc(w, (n * 2 + 2) * 4); if (!syms || !o) return 0;
+    bitsK = eg_enc(a, n, syms, cnt, o);
+    tw_b(w, 9);
+    if (!tw_ans(w, syms, n, cnt)) return 0;
+    k = (bitsK + 7) / 8; for (i = 0; i < k; i++) tw_b(w, ((const u8 *)o)[i]);
+    ok = 1;
+  } else if (sch == 4) {
+    double *vals, *runs; u32 j = 1, m = 0, p; 
+    if (depth <= 0 || nk != 2) return 0;
+    for (i = 1; i < n; i++) if (a[i] != a[i - 1] && ++j * 2 > n) return 0;
+    if (j * 2 > n) return 0;
+    vals = tw_alloc(w, j * 8); runs = tw_alloc(w, j * 8); if (!vals || !runs) return 0;
+    i = 0; while (i < n) { p = i + 1; while (p < n && a[p] == a[i]) p++; vals[m] = a[i]; runs[m] = (double)(p - i - 1); m++; i = p; }
+    tw_b(w, 4); tw_vi(w, m);
+    if (!tw_node(w, vals, m, tp, depth - 1)) return 0;
+    if (!tw_node(w, runs, m, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
+  } else if (sch == 10) {
+    double *g, *d; u32 j = 0, m = n < 256 ? n : 256, q = 0;
+    double m1 = -mn > mx ? -mn : mx;
+    if (depth <= 0 || nk != 2 || n < 16 || !(m1 < 2251799813685248.0)) return 0;
+    for (i = 0; i < m; i++) { double x = a[i]; if (x != 0 && __builtin_floor(x / 10) * 10 == x) j++; }
+    if (j * 16 < m) return 0;
+    d = tw_alloc(w, n * 8); g = tw_alloc(w, n * 8); if (!d || !g) return 0;
+    q = dec_split(a, n, d, g);
+    if (q * 8 < n) return 0;
+    tw_b(w, 10);
+    if (!tw_node(w, g, n, tp, depth - 1)) return 0;
+    if (!tw_node(w, d, n, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
+  }
+  if (!ok) return 0;
+  w->sp = sp0; return w->bad ? 0 : 1;
+}
+EXPORT u32 enc_tree(const double *a, u32 n, const u8 *tree, u8 *out, u32 cap, u8 *scratch, u32 scap, u32 depth) {
+  TW w; const u8 *tp = tree;
+  w.p = out; w.end = out + cap; w.sp = scratch; w.send = scratch + scap; w.bad = 0;
+  if (!tw_node(&w, a, n, &tp, (int)depth) || w.bad) return 0;
+  return (u32)(w.p - out);
+}

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.19.2 · API 2 · 2026-11-22
+
+### Quick
+The picker writes down which way won at each level of the first block of a column (a tree: for example decimals, then the zero counts as runs, then the numbers as size classes) and later blocks replay that tree instead of trying every way…
+
+### Deep
+The picker writes down which way won at each level of the first block of a column (a tree: for example decimals, then the zero counts as runs, then the numbers as size classes) and later blocks replay that tree instead of trying every way again; a block that comes out 1.6 times bigger than the one before, or a way that no longer applies, falls back to the full search. When every way in the tree is one the WebAssembly helper knows (constant, frame of reference, runs, entropy split, size classes, trailing-zero split) the whole block is encoded in one call (enc_tree in jso-kernels.c); the bytes are the same as the JavaScript code writes, checked by a test on five column shapes with and without the helper. The first pack of a long column no longer searches its first block twice, and the general compressor pass is skipped when the chooser already beats it by 30% on the first 8,192 numbers. Real files, 8 MB, balanced mode, median of two runs in Chromium / Firefox / WebKitGTK, before and after: SEC numbers 105 / 88 / 97 ms to 51 / 54 / 57 ms (1,012,257 B, was 1,010,924 B); covid Confirmed counts (held out) 24 / 19 / 28 ms to 12 / 10 / 9 ms (same size); covid Deaths 43 / 26 / 30 ms to 22 / 16 / 20 ms (105,108 B, was 105,331 B); SBA floats 85 / 57 / 65 ms to 75 / 47 / 45 ms (36,961 B, was 36,658 B, blocks there change shape so replay helps less). Timing noise on this machine is about 15%. pcodec-js packs SEC in 22 / 44 / 24 ms and the covid Confirmed counts in 7 / 8 / 8 ms, so memory-compression balanced is still 1.2 to 2.5 times slower on SEC and about 1.5 times on the counts; it is smaller than pcodec-js on SEC (15%) and SBA (41%) and bigger on the counts (14%). The browser's own gzip takes 154 / 74 / 104 ms on SEC. Every value comes back identical in all three browsers.
+
 ## 2.19.1 · API 2 · 2026-11-22
 
 ### Quick
