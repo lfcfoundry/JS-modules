@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.0 · API 2 · 2026-11-26
+
+### Quick
+load(): a sound main slot is checked in place and handed back without building a second object (V8 had turned that object into a slow dictionary past a dozen names); in Chromium-family browsers the trailing stamp is parsed away instead of…
+
+### Deep
+load(): a sound main slot is checked in place and handed back without building a second object (V8 had turned that object into a slow dictionary past a dozen names); in Chromium-family browsers the trailing stamp is parsed away instead of deleted; validate() builds its result from a ready shape and does whole-number fields inline; from the third load() of the same main-slot text on, load() starts from a copy kept at the second (afterValidate still runs every time on fresh copies; not with migrate or trust). Real game saves (Pineapple Defense 400 B, Fancy 275 B, Apple Press 352 B), steady state per call, save-kit 2.6.0 / localForage, us: Chromium 156 0.55-0.6/2.4-3.45, 1.5-2/1.6-2.2, 2.65-5.5/1.95-2.6; Firefox 158 0.5/5.5-9, 2-2.5/5-7.5, 2-2.5/5-6; WebKitGTK 2.52.6 1/3-4.5, 2.5-3/2, 3.5-5/2.5. First load (new text each call, memory storage, Pineapple), 2.6.0/2.5.0: Chromium 4.7-5.6/8.5-9.3, Firefox 2.9-3.2/4.7-4.9, WebKitGTK 3.0-4.4/3.5-5.2. Still losing: Apple Press load in Chromium/WebKitGTK (its afterValidate alone ~5 us) and Apple Press save 1.5-2.2x. New test/load-paths.js: 90,000 random slot pairs under Node, Chromium and WebKit user agents, 4 loads each, same answers as 2.5.0. Names now come in stored order on the in-place path; the file uses object spread.
+
 ## 2.5.0 · API 2 · 2026-11-07
 
 ### Quick

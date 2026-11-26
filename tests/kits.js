@@ -91,6 +91,7 @@ var steps = [
   ['save-kit', 'node', ['modules/save-kit/test/run.js']],
   ['save-kit lean', 'node', ['modules/save-kit/test/lean.js']],
   ['save-kit lite', 'node', ['modules/save-kit/test/lite.js']],
+  ['save-kit load paths', 'node', ['modules/save-kit/test/load-paths.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
   ['image-decode', 'node', ['modules/image-decode/test/run.js']],
   ['gpu-blur', 'node', ['modules/gpu-blur/test/run.js']],

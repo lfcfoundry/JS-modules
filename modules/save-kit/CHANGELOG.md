@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.6.0 · API 2 · 2026-11-26
+- Loads of small real game saves are faster: a save that needs no repair is used as it is, and a repeated load of the same save starts from a kept copy.
+
 ## 2.5.0 · API 2 · 2026-11-07
 - New save-kit-small.min.js: create() only, the fastest page open.
 

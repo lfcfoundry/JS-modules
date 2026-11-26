@@ -7,7 +7,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | Module or tool | Version | History |
 |---|---|---|
 | [stage-curtains](modules/stage-curtains/README.md) | 1.4.3 · API 1 | [changelog](modules/stage-curtains/CHANGELOG.md) |
-| [save-kit](modules/save-kit/README.md) | 2.5.0 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
+| [save-kit](modules/save-kit/README.md) | 2.6.0 · API 2 | [changelog](modules/save-kit/CHANGELOG.md) |
 | [hold-press](modules/hold-press/README.md) | 1.1.0 · API 1 | [changelog](modules/hold-press/CHANGELOG.md) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 · API 1 | [changelog](modules/env-probes/CHANGELOG.md) |
 | [fx-governor](modules/fx-governor/README.md) | 1.1.1 · API 1 | [changelog](modules/fx-governor/CHANGELOG.md) |
@@ -64,6 +64,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-26 · **save-kit** 2.6.0 · API 2: Loads of small real game saves are faster: a save that needs no repair is used as it is, and a repeated load of the same save starts from a kept copy.
 - 2026-11-26 · **netflow-sankey** 2.16.0 · API 2: Charts above 150 items stop the order search after three restarts in a row that find nothing better: about 2 times faster at 500 links, same picture on the real flows tried. stall: 0 runs every restart.
 - 2026-11-26 · **lz4-kit** 1.1.3 · API 1: decompress() without a size is up to 2x faster on data that shrinks more than 8 times: it reads the size the frame records instead of decoding twice.
 - 2026-11-22 · **zstd-kit** 1.0.1 · API 1: The encoder's setting search is smaller and quicker to run.

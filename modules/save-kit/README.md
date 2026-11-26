@@ -1,12 +1,12 @@
 # save-kit
 
-**Version 2.5.0 · API 2**
+**Version 2.6.0 · API 2**
 
-**Tested in:** Firefox 158, ungoogled Chromium 155, WebKitGTK 2.52.6 (cloud)
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 ## What it is and how it works
 
-save-kit stores game or app progress in the browser safely. One file, 18.6 KB gzipped (9.9 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves. Since 2.4.1 `save-kit.min.js` is the same code minified (27.4 KB, 10.1 KB gzipped, MIT header kept), and it opens a page with a saved game a little faster than localForage in Chrome and about even in Firefox on a laptop and a phone (see "How it compares"). Since 2.5.0 `save-kit-small.min.js` (14.0 KB) leaves out codes, `createLarge` and the crash copy, and opens a saved game about a third faster than localForage on a laptop and phone.
+save-kit stores game or app progress in the browser safely. One file, 21.4 KB gzipped (11.2 KB minified and gzipped), no dependencies. `createLarge` does the same over IndexedDB for big saves. Since 2.4.1 `save-kit.min.js` is the same code minified (31.4 KB, 11.5 KB gzipped in 2.6.0; 27.4 KB and 10.1 KB before; MIT header kept), and it opens a page with a saved game a little faster than localForage in Chrome and about even in Firefox on a laptop and a phone (see "How it compares"). Since 2.5.0 `save-kit-small.min.js` (17.9 KB in 2.6.0, 14.0 KB before) leaves out codes, `createLarge` and the crash copy, and opens a saved game about a third faster than localForage on a laptop and phone.
 
 - You describe the save as a schema, and every field is checked on save and load.
 - A backup slot is kept, and a damaged value falls back alone instead of ruining the save.
@@ -219,6 +219,20 @@ The save speed claims above were measured on generated saves. This check drove t
 
 What this changes: for real game saves the claim "small loads stay 1.0 to 1.2 of localForage" does not hold in steady state in Chromium and WebKitGTK (the games' checks and backup cost 1 to 5 microseconds more per load); Firefox is even to faster, and saves are even to faster there. A game loads once per visit, so the difference is a few microseconds, and the page-open figures above (script compile included) were not repeated here. save-kit is at least 17 times faster than idb-keyval to load and at least 22 times faster to save in every browser. The 20 KB rows above are still generated: real saves from these games are under 0.5 KB, and a long play session may store more. Not measured: Thumb Circuit (its game is not in this container).
 
+**Since 2.6.0** load() does less work on these saves: when the main slot needs no repair, the parsed save itself becomes the result (no second object built name by name, which V8 turns into a slow dictionary past a dozen names), and from the third load() of the same unchanged text on, it starts from a copy kept at the second one (`afterValidate` still runs every time, on fresh copies). Same harness and saves, two runs per browser, steady state per call, microseconds, smaller is better, save-kit 2.6.0 / localForage:
+
+| Browser | Pineapple Defense (400 B) | Fancy, the Banana (275 B) | Apple Press (352 B) |
+|---|---|---|---|
+| Chromium 156 | 0.55 to 0.6 / 2.4 to 3.45 | 1.5 to 2 / 1.6 to 2.2 | 2.65 to 5.5 / 1.95 to 2.6 |
+| Firefox 158 | 0.5 / 5.5 to 9 | 2 to 2.5 / 5 to 7.5 | 2 to 2.5 / 5 to 6 |
+| WebKitGTK 2.52.6 | 1 / 3 to 4.5 | 2.5 to 3 / 2 | 3.5 to 5 / 2.5 |
+
+A page's first load() (the one a game actually waits for) also got cheaper. One kit loading a different Pineapple Defense text each call (in-memory storage, so the browser's own storage cost is left out), 3 to 5 fresh pages, microseconds, 2.6.0 / 2.5.0: Chromium 4.7 to 5.6 / 8.5 to 9.3, Firefox 2.9 to 3.2 / 4.7 to 4.9, WebKitGTK 3.0 to 4.4 / 3.5 to 5.2.
+
+Opening the page with `save-kit.min.js` (script, `create()` and the first `load()` of the Pineapple Defense save, fresh pages, median ms, 2.6.0 / 2.5.0) is unchanged within what these runs can tell: Chromium 4.4 / 4.5 (30 pages each), WebKitGTK 5.0 / 5.0 (20 each); in Firefox two identical files differed by 1 ms in the same test, so its 5.3 / 4.7 cannot be read either way. The file is 4 KB bigger (31.4 KB minified, now above localForage's 29.2 KB; gzipped it was already larger).
+
+Where it still loses: Apple Press loads in Chromium and WebKitGTK, because the game's own `afterValidate` check costs more than localForage's whole load (about 5 us in Chromium, measured alone), and Apple Press saves (its crash copy and counts maps; 1.5x to 2.2x of localForage in Chromium and WebKitGTK, unchanged in 2.6.0). Fancy in WebKitGTK is 1.25x to 1.5x on a whole-microsecond clock. The games still ship their own older save-kit copies; these numbers are for the 2.6.0 file with each game's options.
+
 ## What it is not
 
 - Not encryption and not anti-cheat: a code can be edited by anyone, and codes are only as private as the place they are pasted. Checksums catch copy mistakes, not tampering.
@@ -234,6 +248,7 @@ What this changes: for real game saves the claim "small loads stay 1.0 to 1.2 of
 
 - **Counts have no prototype** (`Object.create(null)`), so `owned.hasOwnProperty('a')` fails. Use `SaveKit.has(owned, 'a')`, `'a' in owned` or `Object.keys(owned)`.
 - **`seen`** (or your `stamp` name) is stamped on every save and export and removed again by `load()`/`validate()` unless your schema lists it (`seen: 'num'`). Idle games that need the time away should list it. Saving adds `seen` (and `v` with `version`) to your state object; hand it a copy if that matters.
+- **Names in the order they were saved (since 2.6.0):** when a saved main slot needs no repair, `load()` hands back the parsed save itself, so its names come in the stored order rather than the schema's (same names, same values). A repeated `load()` of the same text still gives a fresh object each time. The file now uses object spread (`{ ...x }`), so it needs Chrome 60, Firefox 55, Safari 11.1 or newer.
 - **`flag` uses its default** when missing or broken, so a new on-by-default setting stays on for players who saved before it existed. A saved `0` stays `0`.
 - **Never throws:** `create()`, `load()`, `save()`, `exportCode()`, `importCode()`, `autosave()`. `save(null)` returns `false`; `exportCode(null)` rejects with a message; a `getState()` that throws is skipped for that tick.
 
