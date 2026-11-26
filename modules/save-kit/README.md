@@ -207,6 +207,18 @@ Where it loses: not in this large-save table; the one tie is the WebKitGTK 0.8 M
 
 Where it loses: larger than a hand-written save (the lean build cuts parts a game does not use); `create()` is `localStorage` only (or any object with synchronous `getItem`/`setItem`); `createLarge()` covers IndexedDB; squeezed codes need `CompressionStream`, with no old-browser fallback.
 
+### On real game saves (2026.11.22)
+
+The save speed claims above were measured on generated saves. This check drove the shipped single-file games (Pineapple Defense, Fancy Banana, Apple Press; random taps and keys for 40 to 60 s in Chromium), read what each game really stored (275 to 400 bytes, one main slot and one backup slot each), and timed `kit.load()` and `kit.save()` with each game's own save-kit options (its schema, backup and crash copy) on that text, against localForage 1.10.0's localStorage driver and idb-keyval 6.3.0 (scripts and saves: project folder `js-modules-research/audit-synthetic-claims-2026.11.22/save-real-games/`). Steady state per call, median of 5 rounds of 2,000 calls (idb-keyval 200), microseconds, smaller is better. Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6 (whole-microsecond clock there).
+
+| Browser | load, save-kit / localForage | save, save-kit / localForage | idb-keyval load / save |
+|---|---|---|---|
+| Chromium 156 | 1.8 to 6.7 / 1.2 to 1.7 (1.6x to 4.0x slower) | 8.5 to 15.8 / 8.9 to 11.4 (0.95x to 1.4x) | 112 to 164 / 350 to 539 |
+| Firefox 158 | 2 to 4.5 / 3.5 to 4 (0.6x to 1.1x) | 1.5 to 2 / 5.5 (0.3x to 0.4x, faster) | 155 to 195 / 295 to 350 |
+| WebKitGTK 2.52.6 | 2.5 to 5 / 1.5 to 3 (1.3x to 1.7x slower) | 1 to 5 / 1.5 to 2.5 (0.7x to 2x) | 160 to 870 / 170 to 1,130 |
+
+What this changes: for real game saves the claim "small loads stay 1.0 to 1.2 of localForage" does not hold in steady state in Chromium and WebKitGTK (the games' checks and backup cost 1 to 5 microseconds more per load); Firefox is even to faster, and saves are even to faster there. A game loads once per visit, so the difference is a few microseconds, and the page-open figures above (script compile included) were not repeated here. save-kit is at least 17 times faster than idb-keyval to load and at least 22 times faster to save in every browser. The 20 KB rows above are still generated: real saves from these games are under 0.5 KB, and a long play session may store more. Not measured: Thumb Circuit (its game is not in this container).
+
 ## What it is not
 
 - Not encryption and not anti-cheat: a code can be edited by anyone, and codes are only as private as the place they are pasted. Checksums catch copy mistakes, not tampering.

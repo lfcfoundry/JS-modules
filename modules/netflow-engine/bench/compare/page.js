@@ -25,7 +25,8 @@
     }
     return { n: id, edges: E, layer: layer };
   }
-  var G = task === 'layered' ? layered(n) : network(n), N = G.n;
+  // ?real=name: a real map (window.__REAL, loaded by a script tag the runner adds) instead of the generated one; no row labels, so the layered score is not computed.
+  var G = Q.get('real') ? { n: window.__REAL.n, edges: window.__REAL.edges, layer: null } : task === 'layered' ? layered(n) : network(n), N = G.n;
   function ids() { var a = [], i; for (i = 0; i < N; i++) a.push('n' + i); return a; }
   var P = [];   // x, y per item after a run
   // Each runner takes no arguments, lays out the graph and fills P; it may return a promise.
@@ -97,7 +98,7 @@
     var out = { lib: lib, task: task, n: N, links: G.edges.length };
     time(RUN[lib]).then(function (ms) { out.cold = ms; return time(RUN[lib]); }).then(function (ms) {
       out.warm = ms; var bad = P.some(function (p) { return !p || !isFinite(p[0]) || !isFinite(p[1]); });
-      out.finite = !bad; if (!bad) { out.quality = task === 'layered' ? crossings() : stress(); out.stacked = overlap(); }
+      out.finite = !bad; if (!bad) { out.quality = task === 'layered' ? (G.layer ? crossings() : null) : stress(); out.stacked = overlap(); }
       window.__res = out;
     }, function (e) { out.error = String(e && e.message || e); window.__res = out; });
   }, 30);

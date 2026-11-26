@@ -18,12 +18,15 @@ const SRC = {
 const NEEDS = { engine: ['layers', 'engine'], d3: ['d3'], cytoscape: ['cytoscape'], dagre: ['dagre'], elk: ['elk'] };
 const MATRIX = [['force', ['engine', 'd3', 'cytoscape']], ['stress', ['engine', 'elk']], ['layered', ['engine', 'dagre', 'elk']]];
 const files = {}; for (const k in SRC) files[SRC[k][0]] = fs.readFileSync(SRC[k][1]);
+const REAL = process.env.REAL || '';   // name of a real map made by prep-real.js (files /tmp/real-corpus/eng-<name>-<n>.js); with it the page lays out that map, sizes name the slice
+if (REAL) for (const n of SIZES) files['/real-' + n + '.js'] = fs.readFileSync(`/tmp/real-corpus/eng-${REAL}-${n}.js`);
 const server = http.createServer((q, r) => {
   const u = new URL(q.url, 'http://x');
   if (u.pathname === '/page.html') {
-    const lib = u.searchParams.get('lib'), tags = NEEDS[lib].map((k) => `<script src="${SRC[k][0]}"></script>`).join('');
+    const lib = u.searchParams.get('lib'), tags = NEEDS[lib].map((k) => `<script src="${SRC[k][0]}"></script>`).join('')
+    const realTag = REAL ? `<script src="/real-${u.searchParams.get('n')}.js"></script>` : '';
     r.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' });
-    return r.end(`<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:"><title>bench</title><link rel="icon" href="data:,">${tags}<script src="/page.js"></script>`);
+    return r.end(`<!doctype html><meta charset=utf-8><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:"><title>bench</title><link rel="icon" href="data:,">${tags}${realTag}<script src="/page.js"></script>`);
   }
   const f = files[u.pathname]; if (!f) { r.writeHead(404); return r.end(); }
   r.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-store' }); r.end(f);
@@ -44,7 +47,7 @@ const med = (a) => { a = a.filter((x) => x != null).sort((x, y) => x - y); retur
     const order = c.libs.map((_, i) => c.libs[(i + rep) % c.libs.length]);
     for (const lib of order) {
       const k = key(lib, c.task, c.n); if (skip.has(k) || slow.includes(k) || (ONLY && !ONLY.test(k)) || once.has(k)) continue;
-      const p = await newPage(); await p.goto(`${base}/page.html?lib=${lib}&task=${c.task}&n=${c.n}`);
+      const p = await newPage(); await p.goto(`${base}/page.html?lib=${lib}&task=${c.task}&n=${c.n}${REAL ? '&real=' + REAL : ''}`);
       let res = null; const t0 = Date.now();
       while (!res && Date.now() - t0 < LIMIT) { res = await Promise.race([p.evaluate(() => window.__res || null), sleep(LIMIT)]); if (!res) await sleep(100); }
       if (!res) { slow.push(k); console.log(`${k}: did not finish in ${LIMIT / 1000} s`); if (which === 'chromium' || which === 'firefox') { try { b.process().kill('SIGKILL'); } catch (e) {} await sleep(500);
