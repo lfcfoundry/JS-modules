@@ -4,7 +4,7 @@
  * minimizes WEIGHTED crossings (big flows crossing big flows cost most), and links that run backwards are drawn as bands under the picture.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.15.0 (API 2)
+ * Version 2.16.0 (API 2)
  *
  *   var R = NetflowSankey.layoutFlows({ links: [{ from: "Wages", to: "Rent", value: 40 }, { from: "Wages", to: "Food", value: 25 }] });
  *   svgElement.innerHTML = NetflowSankey.toSvg(R);          // or draw R.nodes, R.bands and R.loops yourself (see README)
@@ -429,14 +429,15 @@
     };
     var bestC = keepOrder ? total() : run(nV > 1500 ? 2 : 8), bestSnap = snap();
     var restarts = keepOrder || opts.unweighted ? 0 : opts.restarts === undefined ? opts.quick === true ? 0 : (nV <= 300 ? 8 : nV <= 800 ? 3 : 0) : opts.restarts, rnd = rng(opts.seed || 7), budget = opts.budgetMs || 400;
-    for (i = 0; i < restarts && bestC > 0 && Date.now() - t0 < budget; i++) {
+    var stallMax = opts.stall === undefined ? (nN > 150 ? 3 : 0) : opts.stall, stall = 0;      // since 2.16.0: on charts above 150 items stop after 3 restarts in a row that found no better order (owner's choice); stall: 0 runs every restart
+    for (i = 0; i < restarts && bestC > 0 && Date.now() - t0 < budget && (!stallMax || stall < stallMax); i++) {
       restore(bestSnap);
       for (k = 0; k < nL; k++) {
         var lst = ord[k], ln = lst.length || 1;
         for (qi = 0; qi < lst.length; qi++) key2[lst[qi]] = (pos[lst[qi]] + 0.5) / ln + (rnd() + rnd() + rnd() - 1.5) * 0.35;
         sortSlots(lst, lst.length, tmp, key2, pos, false);
       }
-      syncPos(); var c2 = run(6); if (c2 < bestC - 1e-12) { bestC = c2; bestSnap = snap(); }
+      syncPos(); var c2 = run(6); if (c2 < bestC - 1e-12) { bestC = c2; bestSnap = snap(); stall = 0; } else stall++;
     }
     restore(bestSnap); var crossingWeight = bestC;
     for (k = 0; k < nL; k++) { var fin = ord[k], outList = new Array(fin.length); for (qi = 0; qi < fin.length; qi++) { outList[qi] = fin[qi]; bPos[fin[qi]] = qi; } layers[k] = outList; }

@@ -28,7 +28,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [gif-writer](modules/gif-writer/README.md) | 1.6.4 · API 1 | [changelog](modules/gif-writer/CHANGELOG.md) |
 | [clip-writer](modules/clip-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
-| [memory-compression](modules/memory-compression/README.md) | 2.19.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
+| [memory-compression](modules/memory-compression/README.md) | 2.19.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.3.0 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.12.0 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.24.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
@@ -36,7 +36,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.3 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.8.1 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
 | [pcodec-js](modules/pcodec-js/README.md) | 1.6.3 · API 1 | [changelog](modules/pcodec-js/CHANGELOG.md) |
-| [netflow-sankey](modules/netflow-sankey/README.md) | 2.15.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
+| [netflow-sankey](modules/netflow-sankey/README.md) | 2.16.0 · API 2 | [changelog](modules/netflow-sankey/CHANGELOG.md) |
 | [netflow-engine](modules/netflow-engine/README.md) | 2.6.5 · API 2 | [changelog](modules/netflow-engine/CHANGELOG.md) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 · API 1 | [changelog](modules/guess-gate/CHANGELOG.md) |
 | [netflow-chord](modules/netflow-chord/README.md) | 1.0.0 · API 1 | [changelog](modules/netflow-chord/CHANGELOG.md) |
@@ -64,12 +64,14 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-26 · **netflow-sankey** 2.16.0 · API 2: Charts above 150 items stop the order search after three restarts in a row that find nothing better: about 2 times faster at 500 links, same picture on the real flows tried. stall: 0 runs every restart.
 - 2026-11-26 · **lz4-kit** 1.1.3 · API 1: decompress() without a size is up to 2x faster on data that shrinks more than 8 times: it reads the size the frame records instead of decoding twice.
 - 2026-11-22 · **zstd-kit** 1.0.1 · API 1: The encoder's setting search is smaller and quicker to run.
 - 2026-11-22 · **walker-sim** 2.5.0 · API 2: Single-walker trials run faster on sparse graphs.
 - 2026-11-22 · **text-columns** 0.8.1 · API 0: Empty fields skip the substring call: wide text tables parse 15 to 25% faster.
 - 2026-11-22 · **text-columns** 0.8.0 · API 0: Files with accents or other non-ASCII text read 2 to 4 times faster (text is decoded once instead of per field); lazy columns stay lazy.
 - 2026-11-22 · **netflow-sankey** 2.15.0 · API 2: Warms itself while the page is idle, so the first layout no longer pays the start-up cost.
+- 2026-11-22 · **memory-compression** 2.19.2 · API 2: Balanced and small modes pack float columns about 2 times faster: later blocks replay the winning ways in one WebAssembly call.
 - 2026-11-22 · **memory-compression** 2.19.1 · API 2: Balanced and small modes trust the first blocks of a decimal column: SEC floats pack 1.0% smaller and 25% faster in Chromium.
 - 2026-11-22 · **memory-compression** 2.19.0 · API 2: A Float64Array in balanced or small mode packs about 40% smaller than gzip on real decimals; default mode is unchanged.
 - 2026-11-22 · **lfc-pack** 0.24.1 · API 0: Tail estimates from sampled summaries are no longer biased high.

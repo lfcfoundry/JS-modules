@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.19.1 · API 2**
+**Version 2.19.2 · API 2**
 
-**Tested in:** node test/run.js, 98 checks; round trip in Chromium, Firefox and WebKitGTK
+**Tested in:** node test/run.js, 99 checks; round trip in Chromium, Firefox and WebKitGTK; wasm rebuilt, --check
 
 ## What it is and how it works
 

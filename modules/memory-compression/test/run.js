@@ -391,6 +391,23 @@ t('2.19.0: a Float64Array in balanced and small modes goes through the number pi
   back = MC.unpack(MC.pack(big, { mode: 'balanced' })); for (i = 0; i < 5000; i++) assert(Object.is(back[i], big[i]), 'whole numbers ' + i);
   var into = new Float64Array(n); back = MC.unpack(MC.pack(a, { mode: 'balanced' }), { into: into }); assert.strictEqual(back, into, 'into');
 });
+t('2.19.2: later blocks of a column replay the ways that won on the first one; the WebAssembly helper and the JavaScript code write the same bytes, and a column that changes its shape still comes back bit for bit', function () {
+  var MC = require('../memory-compression.js'), r = D.rng(2192), n = 8192 * 7 + 100, cols = {}, i, name, a, x, y, back;
+  cols.money = new Float64Array(n); cols.counts = new Float64Array(n); cols.shifting = new Float64Array(n); cols.sparse = new Float64Array(n); cols.mixed = new Float64Array(n);
+  for (i = 0; i < n; i++) {
+    cols.money[i] = Math.round(r() * 1e6) / 100 * (r() < 0.1 ? 1000 : 1); cols.counts[i] = Math.floor(Math.pow(r(), 3) * 5000);
+    cols.shifting[i] = i < 20000 ? Math.round(r() * 1e5) / 100 : i < 40000 ? Math.floor(r() * 3) : r() * 1e3;           // decimals, then a few small whole numbers, then plain doubles
+    cols.sparse[i] = r() < 0.9 ? 0 : Math.round(r() * 1e4) * 1000; cols.mixed[i] = r() < 0.03 ? r() : Math.round(r() * 1e4) / 100;
+  }
+  for (name in cols) {
+    a = cols[name]; x = MC.picker.pack(a, { auto: true, sample: true }); y = MC.picker.pack(a, { auto: true, sample: true, wasm: false });
+    assert.deepStrictEqual(Buffer.from(x), Buffer.from(y), name + ': the helper and the JavaScript code write the same bytes');
+    back = MC.picker.unpack(x, n); for (i = 0; i < n; i++) if (!Object.is(back[i], a[i])) assert.fail(name + ' value ' + i + ': ' + back[i] + ' vs ' + a[i]);
+  }
+  var seed = {}, first = a = cols.money.subarray(0, 8192), p1 = MC.picker.pack(first, { auto: true, sample: true, tplOut: seed }), p2 = MC.picker.pack(cols.money, { auto: true, sample: true, tplIn: seed });
+  back = MC.picker.unpack(p2, n); for (i = 0; i < n; i++) if (!Object.is(back[i], cols.money[i])) assert.fail('seeded money value ' + i);
+  assert(seed.node && p1.length > 0, 'the first pack hands over its tree');
+});
 t('number picker: balanced and small modes, format 5, off switch, view, damaged files', function () {
   var r = D.rng(41), rows = many(6000, function (i) { var d = Math.round((37 + (r() - 0.5)) * 1e4) / 1e4; return { id: i, lat: i % 2 ? d : d * (1 + Number.EPSILON * Math.floor(r() * 6)), price: Math.round(r() * 1e4) / 100, t: 1.7e9 + i * 2 + Math.floor(r() * 3), n: 'n' + i }; });
   var plain = J.pack(rows, opt()), ap = J.pack(rows, opt({ mode: 'balanced' })), small = J.pack(rows, opt({ mode: 'small' })), rep = [];

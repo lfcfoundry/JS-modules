@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.16.0 · API 2 · 2026-11-26
+- Charts above 150 items stop the order search after three restarts in a row that find nothing better: about 2 times faster at 500 links, same picture on the real flows tried. stall: 0 runs every restart.
+
 ## 2.15.0 · API 2 · 2026-11-22
 - Warms itself while the page is idle, so the first layout no longer pays the start-up cost.
 
