@@ -171,25 +171,30 @@ void ef_decode(const u8 *b, u32 *out) {
 }
 
 #ifdef __wasm_simd128__
-static u8 QT[256][8], Q8[256]; static u32 qtOk;   // for each byte value: where its set bits are, each minus its rank, and how many there are
-static void qtInit(void) { for (u32 x = 0; x < 256; x++) { u32 n = 0; for (u32 b = 0; b < 8; b++) if (x >> b & 1) { QT[x][n] = (u8)(b - n); n++; } Q8[x] = (u8)n; } qtOk = 1; }
+static u8 QT[256][8], Q8[256]; static u32 qtOk; static u8 SW8[17][16], SW16[17][32]; static u16 MU8[17][8]; static u32 MU16[17][8];   // for each byte value: where its set bits are, each minus its rank, and how many there are
+static void qtInit(void) { for (u32 x = 0; x < 256; x++) { u32 n = 0; for (u32 b = 0; b < 8; b++) if (x >> b & 1) { QT[x][n] = (u8)(b - n); n++; } Q8[x] = (u8)n; }
+  for (u32 l = 1; l <= 16; l++) {
+    for (u32 t = 0; t < 8; t++) {
+      u32 bo = t * l;
+      if (l <= 8) { SW8[l][2 * t] = (u8)(bo >> 3); SW8[l][2 * t + 1] = (u8)((bo >> 3) + 1); MU8[l][t] = (u16)(1u << (8 - (bo & 7))); }
+      else { u32 h2 = (4 * l) >> 3, base = t < 4 ? 0 : h2, by = (bo >> 3) - base + (t < 4 ? 0 : 8); for (u32 z = 0; z < 4; z++) SW16[l][4 * t + z] = (u8)(by + z); MU16[l][t] = 1u << (16 - (bo & 7)); }
+    }
+  }
+  qtOk = 1; }
 #endif
 // like ef_decode but 8 values at a time with a byte table for the high parts and swizzle+multiply for the low parts (l up to 16); out needs 32 spare bytes after the n values
-void ef_decode_fast(const u8 *b, u32 *out) {
 #ifdef __wasm_simd128__
-  OPEN(b)
-  if (n < 16 || l > 16) { ef_decode(b, out); return; }
+// writes up to 7 values past out[n]; n >= 16, l <= 16; low: n*l packed bits, Hb: high bits as bytes
+static void efFastCore(const u8 *low, const u8 *Hb, u32 n, u32 l, u32 *out) {
   if (!qtOk) qtInit();
-  const u8 *Hb = (const u8 *)H; u32 i = 0;
+  u32 i = 0;
   for (u32 k = 0; i < n; k++) {
     u32 x = Hb[k]; v128_t q = wasm_u16x8_load8x8(QT[x]); v128_t base = wasm_i32x4_splat((int)(k * 8 - i));
     wasm_v128_store(out + i, wasm_i32x4_add(wasm_u32x4_extend_low_u16x8(q), base)); wasm_v128_store(out + i + 4, wasm_i32x4_add(wasm_u32x4_extend_high_u16x8(q), base)); i += Q8[x];
   }
   if (l == 0) return;
   if (l <= 8) {
-    u8 sw[16]; u16 mu[8];
-    for (u32 t = 0; t < 8; t++) { u32 bo = t * l; sw[2 * t] = (u8)(bo >> 3); sw[2 * t + 1] = (u8)((bo >> 3) + 1); mu[t] = (u16)(1u << (8 - (bo & 7))); }
-    v128_t SW = wasm_v128_load(sw), MU = wasm_v128_load(mu), MK = wasm_i16x8_splat((short)mask(l));
+    v128_t SW = wasm_v128_load(SW8[l]), MU = wasm_v128_load(MU8[l]), MK = wasm_i16x8_splat((short)mask(l));
     for (u32 g = 0; g < n; g += 8) {
       v128_t f = wasm_i8x16_swizzle(wasm_v128_load64_zero((const u8 *)low + (g >> 3) * l), SW);
       f = wasm_v128_and(wasm_u16x8_shr(wasm_i16x8_mul(f, MU), 8), MK);
@@ -198,9 +203,8 @@ void ef_decode_fast(const u8 *b, u32 *out) {
     }
     return;
   }
-  u8 sw[32]; u32 mu[8]; u32 h2 = (4 * l) >> 3;
-  for (u32 t = 0; t < 8; t++) { u32 bo = t * l, base = t < 4 ? 0 : h2, by = (bo >> 3) - base + (t < 4 ? 0 : 8); for (u32 z = 0; z < 4; z++) sw[4 * t + z] = (u8)(by + z); mu[t] = 1u << (16 - (bo & 7)); }
-  v128_t S0 = wasm_v128_load(sw), S1 = wasm_v128_load(sw + 16), M0 = wasm_v128_load(mu), M1 = wasm_v128_load(mu + 4), MK = wasm_i32x4_splat((int)mask(l));
+  u32 h2 = (4 * l) >> 3;
+  v128_t S0 = wasm_v128_load(SW16[l]), S1 = wasm_v128_load(SW16[l] + 16), M0 = wasm_v128_load(MU16[l]), M1 = wasm_v128_load(MU16[l] + 4), MK = wasm_i32x4_splat((int)mask(l));
   for (u32 g = 0; g < n; g += 8) {
     const u8 *p = (const u8 *)low + (g >> 3) * l; v128_t v = wasm_v128_load64_lane(p + h2, wasm_v128_load64_zero(p), 1);
     v128_t f0 = wasm_v128_and(wasm_u32x4_shr(wasm_i32x4_mul(wasm_i8x16_swizzle(v, S0), M0), 16), MK);
@@ -208,6 +212,15 @@ void ef_decode_fast(const u8 *b, u32 *out) {
     wasm_v128_store(out + g, wasm_v128_or(wasm_i32x4_shl(wasm_v128_load(out + g), l), f0));
     wasm_v128_store(out + g + 4, wasm_v128_or(wasm_i32x4_shl(wasm_v128_load(out + g + 4), l), f1));
   }
+
+}
+#endif
+void ef_decode_fast(const u8 *b, u32 *out) {
+#ifdef __wasm_simd128__
+  OPEN(b)
+  if (n < 16 || l > 16) { ef_decode(b, out); return; }
+  efFastCore(low, (const u8 *)H, n, l, out);
+  return;
 #else
   ef_decode(b, out);
 #endif
@@ -323,6 +336,23 @@ void pef_decode_range(const u8 *b, u32 a, u32 e, u32 *out) {
   if (e <= a) return;
   for (u32 c = a >> logC; c <= (e - 1) >> logC; c++) {
     u32 nci = chunkN(n, logC, nc, c), base = c << logC, from = a > base ? a - base : 0, to = e - base < nci ? e - base : nci;
+#ifdef __wasm_simd128__
+    if (from == 0 && to == nci && nci >= 16) {   // whole chunk: decode straight into out (writes up to 7 values past it, the next chunk or the 32 spare bytes take them)
+      u32 *o = out + (base - a), f = first[c], mt = meta[c], t = mt & 3, l = mt >> 2; const u32 *p = pay + (off[c] >> 2);
+      if (t == 0) { v128_t f4 = wasm_i32x4_splat((int)f), st = wasm_i32x4_make(0, 1, 2, 3), fo = wasm_i32x4_splat(4); for (u32 j = 0; j < nci; j += 4) { wasm_v128_store(o + j, wasm_i32x4_add(f4, st)); st = wasm_i32x4_add(st, fo); } continue; }
+      if (t == 1) {   // bitmap: the set bit positions are what the high-part stage yields (each minus its rank), so add rank and the chunk's first value
+        efFastCore((const u8 *)p, (const u8 *)p, nci, 0, o);
+        v128_t f4 = wasm_i32x4_splat((int)f), st = wasm_i32x4_make(0, 1, 2, 3), fo = wasm_i32x4_splat(4);
+        for (u32 j = 0; j < nci; j += 4) { wasm_v128_store(o + j, wasm_i32x4_add(wasm_i32x4_add(wasm_v128_load(o + j), st), f4)); st = wasm_i32x4_add(st, fo); }
+        continue;
+      }
+      if (t == 2 && l <= 16) {
+        efFastCore((const u8 *)p, (const u8 *)(p + (((nci * l + 31) >> 5) + 1)), nci, l, o);
+        v128_t f4 = wasm_i32x4_splat((int)f); for (u32 j = 0; j < nci; j += 4) wasm_v128_store(o + j, wasm_i32x4_add(wasm_v128_load(o + j), f4));
+        continue;
+      }
+    }
+#endif
     pChunkDecode(pay + (off[c] >> 2), meta[c], nci, first[c], tmp);
     for (u32 j = from; j < to; j++) out[base + j - a] = tmp[j];
   }
@@ -392,7 +422,7 @@ static void rangeOf(const u8 *b, u32 kind, u32 a, u32 cnt, u32 *out) { if (kind 
 static u32 nextOf(const u8 *b, u32 kind, u32 x) { return kind == 0 ? nextOne(b, x) : pef_next(b, x); }
 // two lists, a the shorter; writes the distinct common values to out, returns how many
 static u32 mergePair(const u8 *a, u32 ka, const u8 *b, u32 kb, u32 *out) {
-  u32 na = lenOf(a), nb = lenOf(b), o = 0, ia = 0, jb = 0, bufA[BLK], bufB[BBLK];
+  u32 na = lenOf(a), nb = lenOf(b), o = 0, ia = 0, jb = 0, bufA[BLK + 8], bufB[BBLK + 8];
   int have = 0; u32 lastOut = 0;
   while (ia < na && jb < nb) {
     u32 ca = na - ia < BLK ? na - ia : BLK;
@@ -456,9 +486,7 @@ static u32 blkU16(Blk B, u16 *out) {
   const u8 *Hb = (const u8 *)H;
   for (u32 k = 0; i < c; k++) { u32 x = Hb[k]; wasm_v128_store(out + i, wasm_i16x8_add(wasm_u16x8_load8x8(QT[x]), wasm_i16x8_splat((short)(k * 8 - i)))); i += Q8[x]; }
   if (l <= 8) {   // low parts, 8 values (l bytes) at a time: each lane takes the 2 bytes holding its bits, a multiply lines them up, a shift and a mask cut them out
-    u8 sw[16]; u16 mu[8];
-    for (u32 t = 0; t < 8; t++) { u32 bo = t * l; sw[2 * t] = (u8)(bo >> 3); sw[2 * t + 1] = (u8)((bo >> 3) + 1); mu[t] = (u16)(1u << (8 - (bo & 7))); }
-    v128_t SW = wasm_v128_load(sw), MU = wasm_v128_load(mu), MK = wasm_i16x8_splat((short)mask(l));
+    v128_t SW = wasm_v128_load(SW8[l]), MU = wasm_v128_load(MU8[l]), MK = wasm_i16x8_splat((short)mask(l));
     for (u32 g = 0; g < c; g += 8) {
       v128_t f = wasm_i8x16_swizzle(wasm_v128_load64_zero(low + (g >> 3) * l), SW);
       f = wasm_v128_and(wasm_u16x8_shr(wasm_i16x8_mul(f, MU), 8), MK);
