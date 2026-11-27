@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.0 · API 0 · 2026-11-26
+
+### Quick
+Section 20 grid points in the outer 1/90.5 at each end (the 40 tail points and the even steps that far out) are now exact on sampled columns; same format, same readers.
+
+### Details
+Writer only. Each block sorts its sample before its pass (whole hundredths and whole numbers by a two-pass integer radix sort, other values by a top-32-bit radix sort with an insertion fix-up, crowded values by the old full sort), cuts each end a little past 1/90.5 of the block, and the pass keeps every value past the cuts; the merge walks the blocks' sorted ends to the grid's ranks and replaces a point only where every block's cut is inside it. Accuracy (1M-row lognormal 2-decimal column): countAbove(50) 6,497 to 5,912 (exact 5,862), p99 2.5% to 0.4% off; real retail prices (541,909 rows): counts above the 1-in-500 to 1-in-5,000 values from 3-14% off to under 3%. Save cost, alternating runs in one page, 0.26.0 against 0.25.0: real retail 2 columns 0.93-0.97 (Chromium 156, Firefox 158), 1.00-1.02 (WebKitGTK 2.52.6); generated 5 columns (1M rows) 1.00-1.06 (machine noise about 5% here). Footer recompressed at zstd level 1 (was 3): under 0.1% bigger file. Helpers move their summary buffers instead of copying them. Text columns that are not dates are summarized while blocks are still being written.
+
+### Deep
+lfc-pack 0.26.0: exact summary tails (see CHANGELOG-DEV details). Tests: quantile.cjs 55 checks (new: tail points exact on 4 sampled columns of 300,000 rows; sort paths exact on 6 kinds of data; the 0.25.0 build fails the tail checks), all lfc-pack checks pass.
+
 ## 0.25.0 · API 0 · 2026-11-26
 
 ### Quick
