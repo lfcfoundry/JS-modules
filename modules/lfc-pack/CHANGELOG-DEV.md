@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.1 · API 0 · 2026-11-27
+
+### Quick
+manyDistinctBC/DC (fast mode's nearly-all-distinct test, 1,024 values a column a block) count distinct byte strings or distinct codes first and only decode text when more than 900 differ and a byte is non-ASCII; same answer, same bytes (ch…
+
+### Deep
+manyDistinctBC/DC (fast mode's nearly-all-distinct test, 1,024 values a column a block) count distinct byte strings or distinct codes first and only decode text when more than 900 differ and a byte is non-ASCII; same answer, same bytes (checked in 3 browsers on text, dict, row and fast:false saves). From the Beat DuckDB thread: real taxi Workbench import -13 to -15% in Chromium on vendored 0.14.10 (that test was ~27% of pack CPU). Synthetic 200K-row text and dict saves in this repo: within noise in all 3 browsers.
+
 ## 0.26.0 · API 0 · 2026-11-26
 
 ### Quick
