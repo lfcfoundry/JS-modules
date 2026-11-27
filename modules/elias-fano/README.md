@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.3.2 · API 2**
+**Version 2.3.3 · API 2**
 
 **Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 

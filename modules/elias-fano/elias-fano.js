@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.2 (API 2)
+ * Version 2.3.3 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -873,8 +873,12 @@
   TP.nextGEQ = function (x) { if (!(x > 0)) x = 0; if (x > 4294967295) return this.length; if (x % 1 !== 0) x = Math.ceil(x); return this._lb(this._v(), x); };
   TP.lowerBound = TP.nextGEQ;
   TP.nextGEQMany = function (xs, out) {
-    var k = xs.length, r = out || new Uint32Array(k), a = this._v(), n = this.length;
-    for (var j = 0; j < k; j++) { var x = xs[j]; if (!(x > 0)) x = 0; else if (x > 4294967295) { r[j] = n; continue; } else if (x % 1 !== 0) x = Math.ceil(x); r[j] = this._lb(a, x); }
+    var k = xs.length, r = out || new Uint32Array(k), a = this._v(), n = this.length, j, x, lo, hi, m;
+    if (xs instanceof Uint32Array) {   // whole numbers in range: no checks, the search inline
+      for (j = 0; j < k; j++) { x = xs[j]; lo = 0; hi = n; while (lo < hi) { m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } r[j] = lo; }
+      return r;
+    }
+    for (j = 0; j < k; j++) { x = xs[j]; if (!(x > 0)) x = 0; else if (x > 4294967295) { r[j] = n; continue; } else if (x % 1 !== 0) x = Math.ceil(x); r[j] = this._lb(a, x); }
     return r;
   };
   TP.rank = P.rank; TP.rankMany = P.rankMany; TP.nextValue = P.nextValue; TP.count = P.count;
@@ -886,6 +890,14 @@
   TP.free = function () { if (TLAST === this) TLAST = null; if (TLAST2 === this) TLAST2 = null; };
   TP.compact = function () { return false; };
   function openTiny(bytes) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); return new TList(bytes); }
+  var TR = new Uint32Array(64);   // intersectTiny2: the answers, before the one copy that is returned
+  function intersectTiny2(A, B) {   // two tiny lists: one merge over both decoded lists, no helper arrays
+    if (A.length > B.length) { var t = A; A = B; B = t; }
+    var n = A.length, nb = B.length; if (n === 0) return new Uint32Array(0);
+    var c = A._v2(), b = B._v(), i = 0, j = 0, m = 0, prev = -1, x, y;
+    while (i < n && j < nb) { x = c[i]; y = b[j]; if (x < y) i++; else if (y < x) j++; else { if (x !== prev) { TR[m++] = x; prev = x; } i++; j++; } }
+    return TR.slice(0, m);
+  }
   function intersectTiny(ls) {   // ls sorted by length and one of them tiny, so ls[0] has at most 63 values: keep those every other list contains
     var A = ls[0], n = A.length, c = A instanceof TList ? A._v2() : A.toArray(), res = new Uint32Array(n), m = 0, i, j, prev = -1;
     if (ls.length === 2 && ls[1] instanceof TList) {   // two tiny lists: one merge over both decoded lists
@@ -934,6 +946,7 @@
   /* ---- intersection of sorted lists: leapfrog over nextGEQ, nothing is decoded. Lists may be flat or partitioned, in any mix; each common value comes out once ---- */
   function intersect(lists) {
     var k = lists.length, i, ls = [];
+    if (k === 2 && lists[0] instanceof TList && lists[1] instanceof TList) return intersectTiny2(lists[0], lists[1]);
     if (k === 0) return new Uint32Array(0);
     if (k > 64) throw new RangeError('elias-fano: intersect takes at most 64 lists');
     for (i = 0; i < k; i++) { if (!lists[i] || typeof lists[i].nextGEQ !== 'function') throw new TypeError('elias-fano: intersect takes opened lists'); ls.push(lists[i]); }
@@ -971,7 +984,7 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.3.2', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    version: '2.3.3', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
     buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },

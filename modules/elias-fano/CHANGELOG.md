@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.3 · API 2 · 2026-11-27
+- Two tiny lists intersect faster, and nextGEQMany on a tiny list is quicker with a Uint32Array of queries; same answers.
+
 ## 2.3.2 · API 2 · 2026-11-26
 - Partitioned lists decode faster: whole chunks are decoded 8 values at a time with SIMD.
 
