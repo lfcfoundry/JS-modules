@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.1 · API 0 · 2026-11-27
+- Fast saves of text columns skip most text decoding in the nearly-all-different test; same bytes.
+
 ## 0.26.0 · API 0 · 2026-11-26
 - Far percentiles and counts above a value from the summary are now close to exact (count above 50 on a million-row test column: 5,912 against 5,862, was 6,497).
 

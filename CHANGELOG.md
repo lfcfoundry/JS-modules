@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.20.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.3.3 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.13.1 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.26.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.26.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.3 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.9.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -65,6 +65,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 ## Changes since labels began
 
+- 2026-11-27 · **lfc-pack** 0.26.1 · API 0: Fast saves of text columns skip most text decoding in the nearly-all-different test; same bytes.
 - 2026-11-27 · **elias-fano** 2.3.3 · API 2: Two tiny lists intersect faster, and nextGEQMany on a tiny list is quicker with a Uint32Array of queries; same answers.
 - 2026-11-26 · **text-columns** 0.9.0 · API 0: The default number of helper workers now follows the shared core-plan rule: one per real core (threads / 2 from 8 threads up), at most 8, fewer on low memory.
 - 2026-11-26 · **save-kit** 2.6.0 · API 2: Loads of small real game saves are faster: a save that needs no repair is used as it is, and a repeated load of the same save starts from a kept copy.
