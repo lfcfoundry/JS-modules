@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.2 · API 2 · 2026-11-26
+
+### Quick
+pef_decode_range decodes whole chunks of 16+ values straight into the output with SIMD; swizzle and multiply tables are built once; same answers.
+
+### Details
+SIMD build only (plain wasm and JS unchanged). Real retail posting lists (3,671 mid lists of 64 to 4,095 values, 9 long), toArray, one build per page, 3 alternating pages: Chromium 156 mid 0.80-0.97, long 0.85-0.97; Firefox 158 mid 0.50, long 0.75-0.86; WebKitGTK 2.52.6 mid 0.58, long 0.75 of the 2.3.1 time. Writes up to 7 values past a chunk, so PP.slice now asks for 32 spare bytes and the intersect merge buffers have 8 spare entries.
+
+### Deep
+elias-fano 2.3.2 from the Elias-Fano research brief (v2, tables built once) plus part 5 fixes for two buffer overruns the first diff caused (intersect stack buffers, PP.slice). Tests: all 11 elias-fano suites incl. new pef-random.js (3,000 random partitioned lists), elias-fano-pef-browser answers equal in 3 browsers. Note: two builds in one page bias Chromium (second copy 14-44% slower in an A/A), so speed was measured one build per page.
+
 ## 2.3.1 · API 2 · 2026-11-26
 
 ### Quick

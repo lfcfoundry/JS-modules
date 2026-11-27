@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 2.3.1 · API 2**
+**Version 2.3.2 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (A/B against 2.3.0, 6 alternating page loads each; research thread's real-list A/B in the same three); Node: all elias-fano tests, view.js with 12 new checks. Not run: a phone
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
