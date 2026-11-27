@@ -1,0 +1,232 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    APPLICATION : Elias-Fano tester: elias-fano against its fastest rivals on real lists
+    FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><link rel="icon" href="data:,">
+<title>Elias-Fano tester</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1b2433;--muted:#566277;--soft:#f1f4f9;--line:#dde3ee;--hero:#0f2a47;--hero-fg:#f3f7fc;--hero-muted:#a9bdd6;--accent:#1f7ae0;--us:#1f6fb5;--us-pale:#b9d3ea;--dot:#0b2e52;--rival:#7b8494;--bad:#c62828;--good:#1b7f4b;--font:'Segoe UI',system-ui,sans-serif;--mono:ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1522;--fg:#e4ebf5;--muted:#9db0c8;--soft:#13233a;--line:#25364f;--hero:#08111d;--accent:#4c9bf5;--us:#4c9bf5;--us-pale:#23466e;--dot:#d7e8fb;--rival:#8f9bb0;--bad:#ff7b72;--good:#56d08e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--font)}
+header{background:var(--hero);color:var(--hero-fg);padding:22px 16px 20px}
+.in{max-width:1080px;margin:0 auto}
+header .tag{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--hero-muted)}
+h1{font-size:clamp(24px,5vw,34px);font-weight:800;letter-spacing:-.01em;line-height:1.15;margin:6px 0 6px}
+header p{margin:0;color:var(--hero-muted);max-width:46rem}
+main{padding:16px 16px 40px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}.bar button{flex:1 1 130px;max-width:220px}
+button{font:inherit;font-weight:600;min-height:48px;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button small{display:block;font-weight:400;font-size:12px;opacity:.85}
+.card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 14px;background:var(--bg)}
+.prog{height:12px;border-radius:6px;background:var(--soft);overflow:hidden;margin:10px 0 8px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);border-radius:6px;transition:width .25s}
+#st{font-weight:600}
+#sub{color:var(--muted);font-size:14px;min-height:1.5em}
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}
+.score div{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.score b{display:block;font-size:28px;line-height:1.1;font-weight:800;letter-spacing:-.01em}
+.score span{color:var(--muted);font-size:13px}
+h2{font-size:20px;margin:0 0 2px;line-height:1.2}
+.note{color:var(--muted);font-size:13px;margin:0 0 10px}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}.panels>div{max-width:520px}
+.panels h3{font-size:15px;margin:0 0 2px}
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--font)}
+details{margin:0 0 14px}
+summary{cursor:pointer;font-weight:600;padding:6px 0}
+pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.45 var(--mono);padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);margin:8px 0 0;max-height:60vh;overflow:auto}
+.key{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);margin:0 0 8px}
+.key i{display:inline-block;width:22px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+</style></head><body>
+<header><div class="in"><div class="tag">LFC Foundry tester</div><h1>Elias-Fano against its fastest rivals</h1>
+<p>Races our elias-fano module against roaring, a BP128-style coder, a Stream VByte-style coder and a plain array on real lists, and draws the result as it goes. Measure only; nothing is sent anywhere.</p></div></header>
+<main><div class="in">
+<div class="bar"><button id="quick" class="primary">Quick run<small>about 3 minutes</small></button><button id="go">Full run<small>about 8 minutes</small></button><button id="long">Long run<small>about 14 minutes</small></button><button id="stop" disabled>Stop<small>keeps results</small></button><button id="copy" disabled>Copy results<small>as text</small></button></div>
+<div class="card"><div id="st">Ready. Close other tabs and keep the screen on, then tap Quick run. The first tap downloads about 21 MB of lists.</div><div class="prog"><i id="pb"></i></div><div id="sub"></div></div>
+<div class="score"><div><b id="s1">-</b><span>races where elias-fano was faster or smaller</span></div><div><b id="s2">-</b><span>its typical share of the rival's time or bytes</span></div><div><b id="s3">-</b><span>its closest loss or tie</span></div><div><b id="s4">-</b><span>its best race</span></div></div>
+<div class="card"><h2 id="head">Share of the rival's time or bytes, by list length</h2><p class="note">Shorter is better. The grey line is the rival. One dot per set of real lists; the solid bar is the middle set, the pale bar the worst.</p>
+<div class="key"><span><i style="background:var(--us)"></i>middle set</span><span><i style="background:var(--us-pale)"></i>worst set</span><span><i style="background:var(--dot);width:10px;border-radius:5px"></i>each set</span><span><i style="background:var(--rival);width:4px;height:14px"></i>the rival</span></div>
+<div class="panels" id="panels"></div></div>
+<details><summary>What is measured</summary><p class="note">Real lists (sorted row numbers: every value of a column of retail, federal-assistance, SEC or FHIR files is a list of the rows that hold it). FHIR is the generated-patient training set (100 patients). Short lists have 2 to 63 values, mid 64 to 1,023, long 1,024 or more; each set contributes up to 600 long, 1,500 mid and 1,500 short lists picked at random. Races: decode every list of a set into your own array; 50 lookups per list (first value at or above); 300 random pairs intersected; size of all lists. Ours is the tiny kind for short lists, block lists with arrays for mid-length lists (flat lists for lookups) and flat lists for long lists (decode and lookups; block lists intersect). Both sides do the same job, take turns with the order swapped every round, and answers are checked equal before each race. Rivals: roaring-wasm 1.1.0 (portable bitmap), a BP128-style and a Stream VByte-style coder (our own WebAssembly prototypes, measure only), binary interpolative coding (size only), varint gaps (FastIntegerCompression 0.1.0, size only) and a plain Uint32Array (4 bytes a value, binary search). The lists are random samples; they were made on a cloud machine and are used for testing only. Quick run uses four of the five sets and the closest rivals only.</p></details>
+<details id="rawd"><summary>Results as text</summary><pre id="out"></pre></details>
+</div></main>
+<script src="../modules/elias-fano/elias-fano.js"></script>
+<script src="ef-rivals/FastIntegerCompression.js"></script>
+<script type="module">
+import * as RO from './ef-rivals/roaring.mjs';
+var report=[],out=document.getElementById('out'),st=document.getElementById('st'),sub=document.getElementById('sub'),pb=document.getElementById('pb');
+function $(id){return document.getElementById(id);}
+function show(){out.textContent=report.join('\n');}
+function med(a){a=a.slice().sort(function(x,y){return x-y;});return a[a.length>>1];}
+function tick(){return new Promise(function(r){setTimeout(r,20);});}
+function clock(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+(s%60<10?'0':'')+(s%60);}
+var SETS=['retail','geo','secsub','fhir100','sec'],SETNAME={retail:'retail',geo:'SBA geography',secsub:'SEC filers',fhir100:'FHIR (generated)',sec:'SEC filings'};
+var BUCKETS=['short','mid','long'],BNAME={short:'Short lists (2 to 63 values)',mid:'Mid lists (64 to 1,023)',long:'Long lists (1,024 or more)'};
+/* rows of the charts: [key, label, metric, rival] */
+var ROWS=[['dec_bp','Decode vs BP128','dec','bp128'],['dec_svb','Decode vs Stream VByte','dec','svb'],['dec_ro','Decode vs roaring','dec','roaring'],
+ ['lk_bp','Lookups vs BP128','lk','bp128'],['lk_pl','Lookups vs plain array','lk','plain'],['lk_ro','Lookups vs roaring','lk','roaring'],
+ ['in_bp','Intersect vs BP128','in','bp128'],['in_ro','Intersect vs roaring','in','roaring'],
+ ['sz_bic','Size vs interpolative','sz','bic'],['sz_ro','Size vs roaring','sz','roaring'],['sz_var','Size vs varint gaps','sz','varint'],['sz_bp','Size vs BP128','sz','bp128'],['sz_svb','Size vs Stream VByte','sz','svb'],['sz_pl','Size vs plain array','sz','plain']];
+var CLOSE={dec:['dec_bp','dec_svb'],lk:['lk_pl','lk_bp'],in:['in_bp','in_ro']};   /* the quick run races these rivals only */
+var stopped=false,RES=[];   /* RES: one { set, b, key, ratio } per finished race (size rows are measured once, not raced) */
+var cache={};
+async function loadSet(name){
+ if(cache[name])return cache[name];
+ var r=await fetch('ef-rivals/'+name+'.bin.gz');if(!r.ok)throw new Error('could not load ef-rivals/'+name+'.bin.gz ('+r.status+')');
+ var buf=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+ var dv=new DataView(buf),nl=dv.getUint32(0,true),o=4,lists=[],i;
+ for(i=0;i<nl;i++){var len=dv.getUint32(o+4,true);o+=8;lists.push(new Uint32Array(buf.slice(o,o+len*4)));o+=len*4;}
+ return(cache[name]=lists);}
+var RIV=null;
+async function rivals(){
+ if(RIV)return RIV;
+ var wb=new Uint8Array(await (await fetch('ef-rivals/rivals.wasm')).arrayBuffer());
+ var inst=await WebAssembly.instantiate(wb,{}),X=inst.instance.exports;
+ if(RO.roaringLibraryInitialize)await RO.roaringLibraryInitialize();
+ RIV={X:X,MEM:X.memory,RB:RO.RoaringBitmap32};return RIV;}
+function eq(x,y){if(x.length!==y.length)return false;for(var i=0;i<x.length;i++)if(x[i]!==y[i])return false;return true;}
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+/* builds every structure of one set and one length bucket; returns the jobs (functions over all lists of the bucket) for each metric and the byte counts */
+function prepare(L,bn,R){
+ var X=R.X,MEM=R.MEM,RB=R.RB,EF=window.EliasFano,n=L.length,i,N,a,maxN=0,u32=function(off,k){return new Uint32Array(MEM.buffer,off,k);};
+ L.forEach(function(x){if(x.length>maxN)maxN=x.length;});
+ var bump=X.__heap_base.value+4096,alloc=function(bytes){var o=(bump+15)&~15;bump=o+bytes+64;return o;};
+ var tbl=alloc(4096),lens=alloc(256);X.svb_init(tbl,lens);
+ var cap=maxN*4+4096,tmpA=alloc(cap),tmpM=alloc(maxN/128*12+4096),tmpD=alloc(cap*2),tmpC=alloc(cap),tmpO=alloc(cap),sa=alloc(cap),sb=alloc(cap),pq=alloc(4096),pr=alloc(4096);
+ var H={ours:[],ro:[],bp:[],svb:[]},bytes={ours:0,bp128:0,svb:0,roaring:0,bic:0,varint:0,plain:0},FIC=window.FastIntegerCompression;
+ for(i=0;i<n;i++){a=L[i];N=a.length;bytes.plain+=N*4;
+  var F,m,best;
+  if(bn==='short'){var tb=EF.buildTiny(a);H.ours.push({t:EF.openTiny(tb)});best=tb.length;}
+  else{var e=EF.build(a),pbb=EF.buildPartitioned(a,{chunk:256}),b1=EF.buildBlocks(a),b2=EF.buildBlocks(a,{arrays:true});best=Math.min(e.length,pbb.length,b1.length,b2.length);
+   H.ours.push({f:EF.open(e),ba:EF.openBlocks(b2)});}
+  bytes.ours+=best;
+  var r=new RB(a);r.runOptimize();bytes.roaring+=r.getSerializationSizeInBytes('portable');H.ro.push(r);
+  u32(tmpA,N).set(a);var nb=(N+127)>>7,pb1=X.bp_enc(tmpA,N,tmpM,tmpD),meta=alloc(nb*12),dat=alloc(pb1+16);u32(meta,nb*3).set(u32(tmpM,nb*3));new Uint8Array(MEM.buffer,dat,pb1).set(new Uint8Array(MEM.buffer,tmpD,pb1));H.bp.push({meta:meta,dat:dat,N:N});bytes.bp128+=pb1+nb*9+8;
+  var bb=X.bic_enc(tmpA,N,tmpD);bytes.bic+=bb+8;
+  var sv=X.svb_enc(tmpA,N,tmpC,tmpD),cl=(N+3)>>2,sd=alloc(sv+32),sc=alloc(cl+16);new Uint8Array(MEM.buffer,sd,sv).set(new Uint8Array(MEM.buffer,tmpD,sv));new Uint8Array(MEM.buffer,sc,cl).set(new Uint8Array(MEM.buffer,tmpC,cl));H.svb.push({sd:sd,sc:sc,N:N});bytes.svb+=sv+cl+8;
+  var d=new Uint32Array(N),p=0;for(var j=0;j<N;j++){d[j]=a[j]-p;p=a[j];}bytes.varint+=FIC.compress(d).byteLength;}
+ var outs=L.map(function(x){return new Uint32Array(x.length);}),rnd=rng(9),Q=L.map(function(x){var q=new Uint32Array(50);for(var k=0;k<50;k++)q[k]=Math.floor(rnd()*x[x.length-1]);return q;}),rout=new Uint32Array(50),pairs=[];
+ for(var k=0;k<300&&n>1;k++){var x=Math.floor(rnd()*n),y=Math.floor(rnd()*n);if(x===y)y=(y+1)%n;if(L[x].length>L[y].length){var t=x;x=y;y=t;}pairs.push([x,y]);}
+ var ours=function(h){return bn==='short'?h.t:h.ba;},oursF=function(h){return bn==='short'?h.t:h.f;};
+ /* jobs: ours and each rival, one call does the whole bucket of a set */
+ var J={dec:{ours:function(){for(var q=0;q<n;q++)(bn==='long'?H.ours[q].f:ours(H.ours[q])).toArray(outs[q]);},
+   roaring:function(){for(var q=0;q<n;q++)H.ro[q].toUint32Array(outs[q]);},
+   bp128:function(){for(var q=0;q<n;q++){var h=H.bp[q];X.bp_dec(h.meta,h.N,h.dat,tmpO);outs[q].set(u32(tmpO,h.N));}},
+   svb:function(){for(var q=0;q<n;q++){var s=H.svb[q];X.svb_dec(s.sc,s.N,s.sd,tbl,lens,tmpO);outs[q].set(u32(tmpO,s.N));}}},
+  lk:{ours:function(){for(var q=0;q<n;q++)oursF(H.ours[q]).nextGEQMany(Q[q],rout);},
+   bp128:function(){for(var q=0;q<n;q++){var h=H.bp[q];u32(pq,50).set(Q[q]);X.bp_next_many(h.meta,h.N,h.dat,pq,50,pr,sa);rout.set(u32(pr,50));}},
+   plain:function(){var s=0;for(var q=0;q<n;q++){var arr=L[q],M=arr.length;for(var j=0;j<50;j++){var l=0,h=M,v=Q[q][j];while(l<h){var m2=(l+h)>>1;if(arr[m2]<v)l=m2+1;else h=m2;}s+=l;}}return s;},
+   roaring:function(){var s=0;for(var q=0;q<n;q++)for(var j=0;j<50;j++)s+=H.ro[q].rank(Q[q][j]-1);return s;}},
+  in:{ours:function(){for(var q=0;q<pairs.length;q++)EF.intersect([ours(H.ours[pairs[q][0]]),ours(H.ours[pairs[q][1]])]);},
+   roaring:function(){for(var q=0;q<pairs.length;q++){var z=RB.and(H.ro[pairs[q][0]],H.ro[pairs[q][1]]);z.toUint32Array();z.dispose&&z.dispose();}},
+   bp128:function(){for(var q=0;q<pairs.length;q++){var hx=H.bp[pairs[q][0]],hy=H.bp[pairs[q][1]],c=X.bp_and(hx.meta,hx.N,hx.dat,hy.meta,hy.N,hy.dat,tmpO,sa,sb);u32(tmpO,c).slice();}}}};
+ /* answers: every decode, lookup and intersection must agree */
+ var ok=true,why='';
+ for(i=0;i<n&&ok;i++){a=L[i];N=a.length;var h=H.bp[i];X.bp_dec(h.meta,N,h.dat,tmpO);if(!eq(u32(tmpO,N),a)){ok=false;why='BP128 decode';}
+  var s2=H.svb[i];X.svb_dec(s2.sc,N,s2.sd,tbl,lens,tmpO);if(!eq(u32(tmpO,N),a)){ok=false;why='Stream VByte decode';}
+  if(!eq(H.ro[i].toUint32Array(),a)){ok=false;why='roaring decode';}
+  if(!eq((bn==='long'?H.ours[i].f:ours(H.ours[i])).toArray(),a)){ok=false;why='elias-fano decode';}
+  var eo=oursF(H.ours[i]).nextGEQMany(Q[i]);u32(pq,50).set(Q[i]);X.bp_next_many(h.meta,N,h.dat,pq,50,pr,sa);var g=u32(pr,50);for(var j2=0;j2<50;j2++)if(g[j2]!==eo[j2]){ok=false;why='lookups';break;}}
+ for(var q2=0;q2<Math.min(40,pairs.length)&&ok;q2++){var px=pairs[q2][0],py=pairs[q2][1],ei=EF.intersect([ours(H.ours[px]),ours(H.ours[py])]),zz=RB.and(H.ro[px],H.ro[py]);if(zz.size!==ei.length){ok=false;why='intersect';}zz.dispose&&zz.dispose();}
+ return{J:J,bytes:bytes,ok:ok,why:why,n:n,values:L.reduce(function(s,x){return s+x.length;},0),free:function(){H.ro.forEach(function(r){r.dispose&&r.dispose();});}};}
+function split(lists){var B={short:[],mid:[],long:[]};lists.forEach(function(a){(a.length>=1024?B.long:a.length>=64?B.mid:B.short).push(a);});return B;}
+/* the charts: one panel per length bucket, one row per rival and metric; drawn again after every race */
+var LAB=ROWS.length;
+function draw(){
+ var host=$('panels'),html='',all=RES.map(function(r){return r.ratio;}),top=Math.min(3,Math.max(1.12,all.length?Math.max.apply(null,all)*1.06:0));
+ BUCKETS.forEach(function(bn){var rs=RES.filter(function(r){return r.b===bn;});if(!rs.length)return;
+  var W=400,L0=150,R0=44,rh=24,H=LAB*rh+34,pw=W-L0-R0,X=function(v){return L0+Math.min(v,top)/top*pw;},s='<div><h3>'+BNAME[bn]+'</h3><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Share of the rival at '+BNAME[bn]+'">';
+  [0,0.5,1,1.5,2,2.5].forEach(function(g){if(g>top)return;s+='<line x1="'+X(g)+'" y1="4" x2="'+X(g)+'" y2="'+(LAB*rh+4)+'" stroke="var(--line)"/><text x="'+X(g)+'" y="'+(LAB*rh+20)+'" font-size="10" fill="var(--muted)" text-anchor="middle">'+g+'</text>';});
+  ROWS.forEach(function(row,li){var vals=rs.filter(function(r){return r.key===row[0];}).map(function(r){return r.ratio;}),y=8+li*rh;
+   s+='<text x="'+(L0-8)+'" y="'+(y+13)+'" font-size="11" fill="var(--fg)" text-anchor="end">'+row[1]+'</text>';
+   if(!vals.length){s+='<text x="'+(L0+4)+'" y="'+(y+13)+'" font-size="10" fill="var(--muted)">not in this run</text>';return;}
+   var so=vals.slice().sort(function(a,b){return a-b;}),mid=so[so.length>>1],hi=so[so.length-1];
+   s+='<rect x="'+L0+'" y="'+y+'" width="'+(X(hi)-L0)+'" height="16" rx="2" fill="var(--us-pale)"/><rect x="'+L0+'" y="'+y+'" width="'+(X(mid)-L0)+'" height="16" rx="2" fill="var(--us)"/>';
+   vals.forEach(function(q){s+='<circle cx="'+X(q)+'" cy="'+(y+8)+'" r="2.6" fill="var(--dot)" stroke="var(--bg)" stroke-width="1"/>';});
+   s+='<text x="'+(W-2)+'" y="'+(y+12)+'" font-size="11" font-weight="700" text-anchor="end" fill="'+(mid>1.005?'var(--bad)':'var(--fg)')+'">'+(mid>top?'>':'')+mid.toFixed(2)+'</text>';});
+  s+='<line x1="'+X(1)+'" y1="2" x2="'+X(1)+'" y2="'+(LAB*rh+4)+'" stroke="var(--rival)" stroke-width="3"/><text x="'+X(1)+'" y="'+(LAB*rh+20)+'" font-size="10" font-weight="700" fill="var(--muted)" text-anchor="middle">rival = 1</text></svg></div>';
+  html+=s;});
+ host.innerHTML=html||'<p class="note">The charts appear here as races finish.</p>';
+ if(!RES.length){$('s1').textContent=$('s2').textContent=$('s3').textContent=$('s4').textContent='-';return;}
+ var ahead=RES.filter(function(r){return r.ratio<0.995;}).length,level=RES.filter(function(r){return r.ratio>=0.995&&r.ratio<=1.005;}).length,so2=all.slice().sort(function(a,b){return a-b;});
+ $('s1').textContent=ahead+' of '+RES.length;$('s1').style.color=ahead+level===RES.length?'var(--good)':'var(--fg)';
+ $('s2').textContent=med(all).toFixed(2);$('s3').textContent=so2[so2.length-1].toFixed(2);$('s3').style.color=so2[so2.length-1]>1.005?'var(--bad)':'var(--fg)';$('s4').textContent=so2[0].toFixed(2);
+ $('head').textContent=ahead===RES.length?'elias-fano was ahead in all '+RES.length+' races so far':'elias-fano was ahead in '+ahead+' of '+RES.length+' races'+(level?', level in '+level:'')+(RES.length-ahead-level?', behind in '+(RES.length-ahead-level):'');
+}
+function setsFor(mode){return mode==='quick'?['retail','geo','secsub','fhir100']:SETS;}
+function wantRow(mode,row,bn){if(row[2]==='sz')return true;if(mode!=='quick')return true;return CLOSE[row[2]].indexOf(row[0])>=0;}
+async function run(budget,label,mode,nominal){
+ var btns=['quick','go','long'].map($),bs=$('stop');btns.forEach(function(b){b.disabled=true;});bs.disabled=false;$('copy').disabled=true;$('copy').firstChild.nodeValue='Copy results';stopped=false;report=[];RES=[];draw();var maxR=mode==='quick'?121:61;
+ var ver='(version not read)';try{var vm=/Version (\d+\.\d+\.\d+)/.exec(await (await fetch('../modules/elias-fano/elias-fano.js')).text());if(vm)ver=vm[1];}catch(e){}
+ report.push('ELIAS-FANO vs rivals ('+label+') | '+navigator.userAgent+' | cores '+(navigator.hardwareConcurrency||'?')+' | elias-fano '+ver+' | roaring-wasm 1.1.0 | FastIntegerCompression 0.1.0 | own BP128 and Stream VByte prototypes');
+ report.push('each line: set, bucket, race: rival median ms, elias-fano median ms, ratio (under 1.00 = elias-fano faster), rounds it was faster. Size lines: ours bytes, rival bytes, ratio');show();
+ var cells=0,worst=0,worstAt='',best=9,bestAt='',ahead=0,T0=performance.now(),total=0,sets=setsFor(mode);
+ try{
+  if(!window.EliasFano)throw new Error('elias-fano did not load');await window.EliasFano.ready();
+  total=sets.length*BUCKETS.length*ROWS.filter(function(r){return wantRow(mode,r);}).length;
+  var eta=function(){var el=(performance.now()-T0)/1000;return cells<3?Math.max(0,nominal-el):el/cells*(total-cells);};
+  var R=await rivals();
+  for(var si=0;si<sets.length&&!stopped;si++){var name=sets[si];
+   st.textContent='Loading and preparing '+SETNAME[name]+' ('+(si+1)+' of '+sets.length+')';sub.textContent='';pb.style.width=(cells/total*100)+'%';await tick();
+   var lists=await loadSet(name),B=split(lists);delete cache[name];
+   for(var bi=0;bi<BUCKETS.length&&!stopped;bi++){var bn=BUCKETS[bi],Lb=B[bn];if(!Lb.length)continue;
+    await tick();var P=prepare(Lb,bn,R);
+    if(!P.ok){report.push(name+', '+bn+': ANSWERS DIFFER ('+P.why+'), races skipped');show();P.free();continue;}
+    var line=[];
+    for(var ri=0;ri<ROWS.length&&!stopped;ri++){var row=ROWS[ri];if(!wantRow(mode,row))continue;
+     var at=SETNAME[name]+' '+bn+' '+row[1];
+     if(row[2]==='sz'){var ob=P.bytes.ours,rb=P.bytes[row[3]],rt=rb>0?ob/rb:1;cells++;if(rt<1)ahead++;if(rt>worst){worst=rt;worstAt=at;}if(rt<best){best=rt;bestAt=at;}RES.push({set:name,b:bn,key:row[0],ratio:rt});line.push(row[1]+': '+ob+' B, '+rb+' B, '+rt.toFixed(2));draw();continue;}
+     var fd=P.J[row[2]][row[3]],fo=P.J[row[2]].ours;
+     st.textContent='Race '+(cells+1)+' of about '+total+': '+row[1]+', '+bn+' lists, '+SETNAME[name];sub.textContent='About '+clock(eta())+' left'+(cells?' · last race: '+RES[RES.length-1].ratio.toFixed(2):'');pb.style.width=(cells/total*100)+'%';await tick();
+     var t0,t1,k,rr,a=[],b=[],wins=0;
+     fd();fo();t0=performance.now();k=0;do{fd();fo();k++;}while(performance.now()-t0<8&&k<4000);t1=(performance.now()-t0)/(2*k);   /* sized over at least 8 ms: some browsers' clocks only tick once a millisecond */
+     var REP=Math.max(1,Math.min(1000,Math.ceil(10/Math.max(t1,0.01)))),warm=Math.min(3*REP,Math.ceil(150/Math.max(t1,0.01)));if(!cells)warm=Math.max(warm,Math.min(4000,Math.ceil(1200/Math.max(t1,0.01))));
+     for(k=0;k<warm;k++){fd();fo();}
+     t0=performance.now();k=0;do{fd();fo();k++;}while(performance.now()-t0<8&&k<4000);t1=(performance.now()-t0)/(2*k);REP=Math.max(1,Math.min(1000,Math.ceil(10/Math.max(t1,0.002))));
+     var start=performance.now();
+     for(k=0;k<maxR&&!stopped&&(k<9||performance.now()-start<budget);k++){var x,y;
+      if(k&1){t0=performance.now();for(rr=0;rr<REP;rr++)fo();y=(performance.now()-t0)/REP;t0=performance.now();for(rr=0;rr<REP;rr++)fd();x=(performance.now()-t0)/REP;}
+      else{t0=performance.now();for(rr=0;rr<REP;rr++)fd();x=(performance.now()-t0)/REP;t0=performance.now();for(rr=0;rr<REP;rr++)fo();y=(performance.now()-t0)/REP;}
+      a.push(x);b.push(y);if(y<x)wins++;if(k%4===3){sub.textContent='About '+clock(eta())+' left · round '+(k+1);await tick();}}
+     if(a.length<5)break;
+     var md=med(a),mo=med(b),ratio=(mo+1e-6)/(md+1e-6);cells++;if(ratio<1)ahead++;if(ratio>worst){worst=ratio;worstAt=at;}if(ratio<best){best=ratio;bestAt=at;}
+     line.push(row[1]+': '+md.toFixed(3)+', '+mo.toFixed(3)+', '+ratio.toFixed(2)+', '+wins+' of '+a.length);RES.push({set:name,b:bn,key:row[0],ratio:ratio});draw();}
+    if(line.length)report.push(name+' ('+P.n+' '+bn+' lists, '+P.values+' values) | '+line.join(' | '));show();P.free();}
+  }
+  if(cells)report.push((stopped?'STOPPED EARLY, results so far. ':'')+'SUMMARY: elias-fano ahead in '+ahead+' of '+cells+' races or sizes | best '+best.toFixed(2)+' ('+bestAt+') | worst '+worst.toFixed(2)+' ('+worstAt+') | took '+Math.round((performance.now()-T0)/1000)+' s');show();
+  pb.style.width=(stopped?cells/total*100:100)+'%';
+ }catch(e){report.push('ERROR '+(e&&e.message||e)+(e&&e.stack?' | '+e.stack:''));st.textContent='';show();$('rawd').open=true;}
+ st.textContent=(st.textContent===''?'Something went wrong (see Results as text). ':stopped?'Stopped after '+cells+' races. ':'Done in '+clock((performance.now()-T0)/1000)+'. ')+'Tap Copy results.';sub.textContent='';$('copy').disabled=false;btns.forEach(function(b){b.disabled=false;});bs.disabled=true;window.__res={done:true,text:report.join('\n')};}
+$('quick').onclick=function(){run(1500,'quick run','quick',180);};
+$('go').onclick=function(){run(1200,'full run','full',480);};
+$('long').onclick=function(){run(2600,'long run','long',840);};
+$('stop').onclick=function(){stopped=true;st.textContent='Stopping after this round...';};
+$('copy').onclick=function(){var t=document.createElement('textarea');t.value=report.join('\n');document.body.appendChild(t);t.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(report.join('\n'));document.body.removeChild(t);this.firstChild.nodeValue='Copied';};
+draw();
+if(/[?&]auto=quick/.test(location.search))$('quick').click();   /* lets a test harness start a run without a tap */
+</script></body></html>
