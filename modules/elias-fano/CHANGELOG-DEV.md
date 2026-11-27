@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.1 · API 2 · 2026-11-26
+
+### Quick
+toArray (flat and block lists), slice on partitioned lists and decodeAll on list sets now decode through the buffer view() keeps (outputs up to 4 MB, or larger when it is already that big) instead of an alloc and release per call; bigger o…
+
+### Deep
+toArray (flat and block lists), slice on partitioned lists and decodeAll on list sets now decode through the buffer view() keeps (outputs up to 4 MB, or larger when it is already that big) instead of an alloc and release per call; bigger outputs still get their own block, so one big decode does not keep that much memory held. Same answers, no format change. Measured new / 2.3.0 time, lower is faster: on real lists of 64 to 1,023 values (research thread: retail, SBA, SEC, FHIR training set) flat toArray 0.68 / 0.62 / 0.64 and block lists 0.69 / 0.67 / 0.55 (Chromium 156 / Firefox 158 / WebKitGTK 2.52.6), long lists 0.82 to 1.04 (noise); on 400 made-up lists of 64 to 1,023 values flat toArray 0.88 / 0.91 / 0.91, block 0.90 / 0.90 / 0.87, partitioned slice of 700 values 0.95 / 0.93 / 0.94, decodeAll of 3,000 short lists 1.02 / 0.96 / 0.94 (Chromium within noise). A view() taken earlier is now also made stale by these calls (the 2.3.0 rule already said any later call may do that).
+
 ## 2.3.0 · API 2 · 2026-11-22
 
 ### Quick
