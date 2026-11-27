@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- core-plan browser check. Copyright (c) 2026 LFC Foundry. MIT License. Opened by tests/core-plan-browser.js; also works by hand. -->
+<meta charset="utf-8"><meta name="robots" content="noindex"><title>core-plan check</title><pre id="o">running</pre>
+<script src="../core-plan.js"></script><script>
+var P = LfcCorePlan, out = [], ok = true;
+function eq(n, a, b) { var g = JSON.stringify(a) === JSON.stringify(b); if (!g) ok = false; out.push((g ? 'ok   ' : 'FAIL ') + n + (g ? '' : ': ' + JSON.stringify(a) + ' != ' + JSON.stringify(b))); }
+var d = P.detect(), p = P.plan();
+eq('detect reads this browser', d.logical === Math.floor(navigator.hardwareConcurrency || 4), true);
+eq('plan within bounds', p.workers >= 1 && p.workers <= 8 && p.workers <= Math.max(1, p.cores - 1), true);
+P.lastRun.clear(); eq('previous() empty at first', P.lastRun.previous(), '');
+P.lastRun.step('step two'); eq('previous() names the step', /step two/.test(P.lastRun.previous()), true);
+P.lastRun.done(); eq('done() clears it', P.lastRun.previous(), '');
+var blob = new Blob(["importScripts('" + new URL('../core-plan.js', location.href).href + "');postMessage(LfcCorePlan.plan().workers + '|' + LfcCorePlan.lastRun.previous())"], { type: 'text/javascript' }), w;
+try { w = new Worker(URL.createObjectURL(blob)); } catch (e) { w = null; }
+function finish() { out.unshift(p.label); document.getElementById('o').textContent = (ok ? 'ALL PASS\n' : 'FAILED\n') + out.join('\n'); window.__res = { ok: ok, out: out, label: p.label }; }
+if (!w || location.protocol === 'file:') { out.push('skip worker check (file page)'); finish(); }
+else { w.onmessage = function (e) { eq('works inside a worker (no sessionStorage there)', e.data, p.workers + '|'); finish(); }; w.onerror = function () { ok = false; out.push('FAIL worker'); finish(); }; }
+</script>

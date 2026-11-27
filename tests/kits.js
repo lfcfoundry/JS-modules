@@ -93,6 +93,7 @@ var steps = [
   ['save-kit lite', 'node', ['modules/save-kit/test/lite.js']],
   ['save-kit load paths', 'node', ['modules/save-kit/test/load-paths.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
+  ['core-plan', 'node', ['modules/core-plan/test/run.js']],
   ['image-decode', 'node', ['modules/image-decode/test/run.js']],
   ['gpu-blur', 'node', ['modules/gpu-blur/test/run.js']],
   ['gpu-blur mutants', 'node', ['modules/gpu-blur/test/mutants.js']],
@@ -107,6 +108,7 @@ var steps = [
   ['version labels agree', 'python3', ['tools/versions/versions.py', 'check'], false, false, true],   // sixth item: always runs, even with --changed (it takes a fraction of a second)
   ['house-rule hooks', 'sh', ['tools/hooks/test.sh']],
   ['tab-guard', 'python3', ['modules/tab-guard/test/run.py'], true, true],
+  ['core-plan browsers', 'node', ['tests/core-plan-browser.js'], true, true],
   ['back-close', 'python3', ['modules/back-close/test/run.py'], true, true],
   ['pad-nav', 'python3', ['modules/pad-nav/test/run.py'], true, true],
   ['frame-kit demo', 'python3', ['modules/frame-kit/test/check-example.py'], true, true],
