@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.1 · API 0 · 2026-11-26
+- betweennessAsync and closenessAsync go back to one helper per thread by default (at most 8): fewer helpers made them 17% slower on an 8-thread desktop.
+
 ## 0.13.0 · API 0 · 2026-11-26
 - betweennessAsync and closenessAsync start one helper per real core by default (shared core-plan rule), at most 8.
 
