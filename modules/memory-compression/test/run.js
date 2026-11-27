@@ -931,19 +931,19 @@ tAsync('warm({ sample }) (2.13.0): packs and opens the page rows too (4 more tas
   var g = typeof globalThis !== 'undefined' ? globalThis : self, M = require(path.resolve(modPath)), counts = [], count = 0, undo;
   var sample = many(500, function (i) { return { id: i, pt: [i % 97, i * 0.5], pair: ['n' + (i % 13), i % 9] }; }), before = J.pack(sample, opt({ mode: 'balanced' }));
   if (typeof g.setImmediate === 'function') { var si = g.setImmediate; g.setImmediate = function () { count++; return si.apply(this, arguments); }; undo = function () { g.setImmediate = si; }; }
-  else { var pm = MessagePort.prototype.postMessage; MessagePort.prototype.postMessage = function () { count++; return pm.apply(this, arguments); }; undo = function () { MessagePort.prototype.postMessage = pm; }; }
+  else { var pm = MessagePort.prototype.postMessage; MessagePort.prototype.postMessage = function () { if (!/ahead1/.test(new Error().stack || '')) count++; /* a pager an earlier test left running posts its read-ahead yields too (ahead1): not warm()'s */ return pm.apply(this, arguments); }; undo = function () { MessagePort.prototype.postMessage = pm; }; }
   var run = function (o) { count = 0; return M.warm(opt(o)).then(function (r) { assert.strictEqual(r, true, 'warm resolves true'); counts.push(count); }); };
-  return run({}).then(function () { return run({ sample: sample }); }).then(function () { return run({ sample: sample.slice(0, 10) }); }).then(function () { return run({ sample: 'no' }); }).then(function () {
+  return run({ sample: false }).then(function () { return run({ sample: sample }); }).then(function () { return run({ sample: sample.slice(0, 10) }); }).then(function () { return run({ sample: 'no' }); }).then(function () { return run({}); }).then(function () {      /* in Chromium a warm() with no list of rows packs made-up ones (router.js), so the base is sample: false and 'no' must act like no sample at all */
     undo();
     assert.strictEqual(counts[1] - counts[0], 4, 'sample adds 4 tasks, got ' + counts.join(','));
-    assert.strictEqual(counts[2], counts[0], 'short sample adds nothing'); assert.strictEqual(counts[3], counts[0], 'non-list sample adds nothing');
+    assert.strictEqual(counts[2], counts[0], 'short sample adds nothing'); assert.strictEqual(counts[3], counts[4], 'non-list sample acts as no sample');
     assert.strictEqual(Buffer.compare(Buffer.from(before), Buffer.from(J.pack(sample, opt({ mode: 'balanced' })))), 0, 'bytes changed after warm({ sample })');
   }, function (e) { undo(); throw e; });
 });
 tAsync('warm() works in short tasks: it yields to the page at least 18 times (a pack and an open for each of 9 columns) and never packs the whole list in one block', function () {
   var g = typeof globalThis !== 'undefined' ? globalThis : self, count = 0, undo, M = require(path.resolve(modPath));
   if (typeof g.setImmediate === 'function') { var si = g.setImmediate; g.setImmediate = function () { count++; return si.apply(this, arguments); }; undo = function () { g.setImmediate = si; }; }
-  else { var pm = MessagePort.prototype.postMessage; MessagePort.prototype.postMessage = function () { count++; return pm.apply(this, arguments); }; undo = function () { MessagePort.prototype.postMessage = pm; }; }
+  else { var pm = MessagePort.prototype.postMessage; MessagePort.prototype.postMessage = function () { if (!/ahead1/.test(new Error().stack || '')) count++; /* a pager an earlier test left running posts its read-ahead yields too (ahead1): not warm()'s */ return pm.apply(this, arguments); }; undo = function () { MessagePort.prototype.postMessage = pm; }; }
   return M.warm(opt()).then(function (r) { undo(); assert.strictEqual(r, true, 'warm() resolves true'); assert(count >= 18, 'warm() yielded only ' + count + ' times'); }, function (e) { undo(); throw e; });
 });
 tAsync('packAsync gives the same bytes as pack in every mode (long record lists in slices, short lists, number columns, rows that do not fit, a worker-less pool)', function () {
