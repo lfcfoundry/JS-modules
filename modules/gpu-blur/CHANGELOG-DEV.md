@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-26
+
+### Quick
+Default helper count for the helpers route now follows core-plan 1.0: real cores (threads / 2 from 8 threads up), at most half of the memory at 256 MB a helper, at most 16; the threads route keeps one more free.
+
+### Deep
+Default helper count for the helpers route now follows core-plan 1.0: real cores (threads / 2 from 8 threads up), at most half of the memory at 256 MB a helper, at most 16; the threads route keeps one more free. Before: every thread (helpers) or threads - 1 (threads route), so 8 or 7 on a 4-core, 8-thread laptop; now 4 or 3. Same count as before on 4-thread machines (the cloud test browsers), so speed there is unchanged; not measured on 8 threads and more. opts.workers still wins. The device tester gains Quick run, Stop, ?auto=quick, noindex and the plan line at the top and first in the report.
+
 ## 1.4.2 · API 1 · 2026-11-07
 
 ### Quick

@@ -1,8 +1,8 @@
 # lfc-pack
 
-**Version 0.24.1 · API 0**
+**Version 0.25.0 · API 0**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (tests/core-plan-defaults-browser.html for text-columns, graph-walk and lfc-pack; the module's own browser checks where it has them; tests/core-plan-copies.js in Node). Not run: a phone, an 8-thread or larger machine
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry. Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), see [NOTICE-zstd.txt](NOTICE-zstd.txt).
 
@@ -85,7 +85,7 @@ LfcPack.unpack(file, { rows: 'lazycols' });  // a column is decoded only when so
 // Uint8Array of NDJSON text (exact if packed with exact: true)
 LfcPack.unpackText(file);
 // opt-in: same file bytes as pack(), blocks packed by helper Web Workers
-// (max min(cores, 8)); exact mode and small inputs stay on one thread
+// (default: one per real core, core-plan rule, at most 8); exact mode and small inputs stay on one thread
 LfcPack.packParallel(bytes, { workers: 4 }).then(function (file) { /* ... */ });
 // helper Web Workers do the byte work; rows are built on the calling thread;
 // without workers you get 2 (at 105 MB more helpers did not help in Chromium

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.25.0 · API 0 · 2026-11-26
+
+### Quick
+Default helper counts now follow core-plan 1.0 (real cores = threads / 2 from 8 threads up, at most half of the memory at 256 MB a helper, at most 8): packParallel, packParallelStream and warmPack use real cores (before: threads, up to 8),…
+
+### Deep
+Default helper counts now follow core-plan 1.0 (real cores = threads / 2 from 8 threads up, at most half of the memory at 256 MB a helper, at most 8): packParallel, packParallelStream and warmPack use real cores (before: threads, up to 8), the parallel readers and packRowsParallel use real cores - 1 (before: threads - 1), makePool stays at most 2. A 4-core, 8-thread laptop now packs with 4 helpers instead of 8. Same counts as before on 4-thread machines (the cloud test browsers and Node there), so speed there is unchanged; not measured on 8 threads and more. opts.workers still wins; packParallel gives the same bytes as pack in all three test browsers.
+
 ## 0.24.1 · API 0 · 2026-11-22
 
 ### Quick

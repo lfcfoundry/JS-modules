@@ -1,5 +1,13 @@
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
+  // How many helpers by default: the core-plan rule (modules/core-plan 1.0): real cores (threads / 2 from 8 threads up) minus keep, at most half of
+  // the memory at 256 MB a helper (memory unknown: 4 GB), at most 8, at least 1. Node: its own thread count by the same rule. opts.workers still wins.
+  function planHelpers(keep) {
+    var nav = typeof navigator !== 'undefined' && navigator || {}, t = Math.floor(+nav.hardwareConcurrency) || (typeof require === 'function' && typeof process === 'object' && require('os').cpus().length) || 4;
+    var c = t >= 8 ? Math.ceil(t / 2) : t, m = +nav.deviceMemory || 4;
+    return Math.max(1, Math.min(c - (keep || 0), Math.floor(m * 2), 8));
+  }
+
   // ================================================================ helper workers: only byte work moves (CRC, zstd, number columns); strings and rows are built on the calling thread
   function workerSource(full) {
     return 'var JF = (' + jfFactory.toString() + ')(), ready = JF.init(' + (full ? '{}' : '{ readOnly: true }') + '), send, onMsg;\n' +
@@ -24,8 +32,8 @@
   function tmNow() { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
   function makePool(opts) {   // -> Promise of { unpack(bytes, opts), size, close() }
     opts = opts || {};
-    var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
-    var size = opts.workers || Math.min(2, Math.max(1, hc - 1)), src = workerSource(), ws = [], i, url = null, W, inflight = [], pending = new Map(), nextJob = 0;
+    var hc = planHelpers(0);
+    var size = opts.workers || Math.min(2, planHelpers(1)), src = workerSource(), ws = [], i, url = null, W, inflight = [], pending = new Map(), nextJob = 0;
     function spawn() {
       var w;
       if (typeof Worker === 'function') { url = url || URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); w = new Worker(url); w.onmessage = function (e) { done(w, e.data); }; w.onerror = function (e) { failAll(new Error('helper worker failed: ' + (e && e.message))); }; w.post = function (m, t) { w.postMessage(m, t); }; w.kill = function () { w.terminate(); }; }
@@ -144,7 +152,7 @@
   }
   function packParallel0(input, opts, bcuts) {
     return init().then(function () {
-      var T0 = Date.now(), blob = bcuts ? input : null, b = blob ? { length: blob.size } : bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+      var T0 = Date.now(), blob = bcuts ? input : null, b = blob ? { length: blob.size } : bytesOf(input), bb = opts.blockBytes || BLOCK_BYTES, cuts = [0], q = 0, e, nl, hc = planHelpers(0);
       if (opts.balance && !opts.blockBytes) bb = Math.max(4 << 20, Math.min(bb, Math.ceil(b.length / Math.min(opts.workers || hc, 8))));   // experimental: about one block per helper; the file differs from pack() unless pack gets the same blockBytes
       if (opts.balance === 'even' && !opts.blockBytes) { var nb0 = Math.ceil(b.length / bb), w0 = Math.min(opts.workers || hc, 8); if (w0 > 1 && nb0 > 1) bb = Math.ceil(b.length / (Math.ceil(nb0 / w0) * w0)); }   // experimental: as many blocks as a whole number of rounds for the helpers, so none waits alone at the end; the file differs from pack() unless pack gets the same blockBytes
       var hd = headOn(b.length, bb); if (blob) cuts = bcuts; else while (q < b.length) { e = Math.min(b.length, q + (hd ? HEAD_BYTES : bb)); hd = false; if (e < b.length) { nl = b.indexOf(10, e); e = nl < 0 ? b.length : nl + 1; } cuts.push(e); q = e; }
@@ -262,7 +270,7 @@
       res = b35Join(blocks, n, opts.nulls === 'NaN', opts.into); Object.defineProperty(res, 'dates', { value: info }); return res;
     });
     return init({ readOnly: true }).then(function () {
-      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
+      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, nest = false, hc = planHelpers(0), w = Math.min(opts.workers || planHelpers(1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] === 'n') nest = true; n += file.blocks[i][3]; }
       if (nest) return here(bytes, n);   // a nested block (helpers read flat blocks only): this thread
       if (nb < 2 || w < 1) return here(bytes, n);
@@ -289,7 +297,7 @@
     if (B38_WK && !opts._b38) return init({ readOnly: true }).then(function () { var r = {}, k, o = false; for (k in opts) if (k !== 'workers') { r[k] = opts[k]; o = true; } return unpackRows(bytes, o ? r : undefined); });
     return init({ readOnly: true }).then(function () {
       var rest = {}, k, other = false; for (k in opts) if (k !== 'workers') { rest[k] = opts[k]; other = true; }
-      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, flat = true, hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(opts.workers || Math.max(1, hc - 1), 4);
+      var file = openFile(bytes), nb = file.blocks.length, n = 0, i, flat = true, hc = planHelpers(0), w = Math.min(opts.workers || planHelpers(1), 4);
       for (i = 0; i < nb; i++) { if (file.blocks[i][4] !== 'f') flat = false; n += file.blocks[i][3]; }
       if (rowIndexOf(file)) return unpackRows(bytes, other ? rest : undefined);   // since 0.16.0: a keepOrder file (its row-position column left out, or original order) reads on this thread
       if (other || !flat || nb < 2 || w < 1) return unpackRows(bytes, other ? rest : undefined);
@@ -402,7 +410,7 @@
     if (so) { var sr; try { sr = sortRowArray(rows, so); } catch (e) { return Promise.reject(e); }   // since 0.16.0: sortBy on a row array
       return packRowsParallel(sr.rows, Object.assign({}, opts, { sortBy: null, keepOrder: false, scramble: null })).then(function (b) { return addSections(b, [[SEC_SUMMARY, sortSection(so, rows.length, sr.keys)]]); }); }
     return init().then(function () {
-      var pay = 1, po = packOpts(opts), hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, w = Math.min(po.workers || Math.max(1, hc - 1), B28_MAXW);
+      var pay = 1, po = packOpts(opts), hc = planHelpers(0), w = Math.min(po.workers || planHelpers(1), B28_MAXW);
       if (po.exact || po.block || po.share || rows.length <= 4096 || w < 1 || !flatScalars(ctNaN(rows, rows.length > 2048 ? rows.slice(0, 1024).concat(rows.slice(-1024)) : rows)) || (!rows.__ct && !(pay = b18Pays(rows)))) return packRows(rows.__ct ? rows.slice(0, rows.length) : rows, opts);
       if (JSON.stringify(rows.slice(0, 1024)).length / Math.min(1024, rows.length) * rows.length < B28_TEXT * (po.blockBytes || BLOCK_BYTES)) return b34Plain(rows, opts);   // under B28_TEXT blocks of text the helpers' start and cold code cost more than they save
       if (B28_AUTO && !idleHelpers.length) { var out0 = b34Plain(rows, opts); if (!b28Starting) { b28Starting = true; setTimeout(function () { b28Starting = false; if (idleHelpers.length) return; clearTimeout(idleTimer); for (var h0 = 0, hw; h0 < w; h0++) { hw = newHelper(); hw.listen(function () {}, function () {}); hw.post({ id: -1, kind: 'w' }, []); idleHelpers.push(hw); } armIdle(10000); }, 0); } return out0; }   // no helpers yet: save this call on this thread first, then start them (laptop Firefox: starting them before the save made it 1.06x)   // no helpers yet: start them (they load while this call runs) and save this one on this thread; a cold helper start made first calls up to 1.39x slower
@@ -483,7 +491,7 @@
     opts = packOpts(opts);
     if (opts.exact) throw new Error('LfcPack: packParallelStream does not support exact mode');
     if (opts.share) throw new Error('LfcPack: packParallelStream does not support share (each helper would build its own tables); pass share: false');
-    var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4;
+    var hc = planHelpers(0);
     var bb = opts.blockBytes || BLOCK_BYTES, maxW = Math.max(1, Math.min(opts.workers || hc, 8)), jopts = {}, k;
     for (k in opts) if (k !== 'workers' && k !== 'timing') jopts[k] = opts[k]; jopts._nohead = true;   // B22: chunks are single blocks, the head rule is applied where they are cut
     var acc = new Uint8Array(0), plen = 0, scan = 0, headP = true, total = 0, queue = [], results = [], jobs = 0, left = 0, helpers = [], free = [], failed = null, done = false, finishing = null, resolveFn = null, rejectFn = null;
@@ -551,7 +559,7 @@
   // warmPack(n, { keepMs }): start n pack helpers now (default: as many as packParallel would use, at most 8) and keep them keepMs (default 10,000) for the next packParallel call, which then skips the helper start-up
   function warmPack(n, o) {
     return init().then(function () {
-      var hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || (typeof require === 'function' && require('os').cpus().length) || 4, k = Math.min(n || hc, 8), keep = (o && o.keepMs) || 10000, made = [], i;
+      var hc = planHelpers(0), k = Math.min(n || hc, 8), keep = (o && o.keepMs) || 10000, made = [], i;
       clearTimeout(idleTimer); for (i = idleHelpers.length; i < k; i++) made.push(newHelper());   // new ones only: taking idle ones here started too few
       var pending = made.map(function (w2, j) { return new Promise(function (res, rej) { w2.listen(function (m) { if (m.error) rej(new Error(m.error)); else res(); }, rej); w2.post({ id: -1 - j, kind: 'w' }, []); }); });
       return Promise.all(pending).then(function () {

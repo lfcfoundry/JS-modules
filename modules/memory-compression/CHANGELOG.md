@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.20.0 · API 2 · 2026-11-26
+- packAsync's helper pool follows the shared core-plan rule: at most 3 helpers, never more than real cores minus one.
+
 ## 2.19.2 · API 2 · 2026-11-22
 - Balanced and small modes pack float columns about 2 times faster: later blocks replay the winning ways in one WebAssembly call.
 

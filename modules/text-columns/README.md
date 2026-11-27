@@ -1,8 +1,8 @@
 # text-columns
 
-**Version 0.8.1 · API 0**
+**Version 0.9.0 · API 0**
 
-**Tested in:** node test/run.js, 15 checks; three browsers, real files
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (tests/core-plan-defaults-browser.html for text-columns, graph-walk and lfc-pack; the module's own browser checks where it has them; tests/core-plan-copies.js in Node). Not run: a phone, an 8-thread or larger machine
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

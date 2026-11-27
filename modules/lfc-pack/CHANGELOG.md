@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.25.0 · API 0 · 2026-11-26
+- Parallel packing and reading start helpers by the shared core-plan rule: one per real core (minus one where the page works too), at most 8.
+
 ## 0.24.1 · API 0 · 2026-11-22
 - Tail estimates from sampled summaries are no longer biased high.
 

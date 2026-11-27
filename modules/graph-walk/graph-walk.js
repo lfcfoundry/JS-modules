@@ -2,7 +2,7 @@
  * graph-walk.js: the small walks over a link list that map and flow tools keep rewriting: breadth-first distances from an item, and a depth-first pass that marks the links that close a loop and lists the items in finishing order, connected components, strongly connected components, topological order and shortest paths. Works on the plain "links of every item" layout (CSR) in typed arrays. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.12.0 (API 0)
+ * Version 0.13.0 (API 0)
  *
  *   var g = GraphWalk.csr(n, fromArray, toArray);         // item numbers 0..n-1; link i joins from[i] to to[i]
  *   var depth = GraphWalk.bfs(g, root);                    // Int32Array, -1 where not reached; bfs(g, root, skip) never enters item `skip`
@@ -568,9 +568,14 @@
    * The helpers stay alive for `idleMs` (default 5000) after the last job and keep the last graph they were given, so repeated jobs on one graph pay neither start-up nor the copy; `pool: false` makes them for the one call and closes them after.
    * Falls back to the calling thread when there are no workers (older browsers, a page whose policy forbids blob workers, tiny jobs). options: as `betweenness`, plus workers, pool, idleMs, minWork (start items times items-plus-links below which the calling thread does it, default 4e6).
    */
+  function planHelpers(keep, cap) {   // default helper count, the core-plan rule (modules/core-plan 1.0): real cores (threads / 2 from 8 threads up) minus keep,
+    // at most half of the memory at 256 MB a helper (memory unknown: 4 GB), at most cap, at least 1. A count the caller gives still wins.
+    var nav = typeof navigator === 'object' && navigator || {}, t = Math.floor(+nav.hardwareConcurrency) || 1, c = t >= 8 ? Math.ceil(t / 2) : t, m = +nav.deviceMemory || 4;
+    return Math.max(1, Math.min(c - (keep || 0), Math.floor(m * 2), cap || 8));
+  }
   function betweennessAsync(g, options) {
     options = options || {};
-    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool !== false && !busy();   // a second job while the kept helpers are busy gets helpers of its own (the kept ones hold one graph and one running sum)
+    var n = g.n, srcs = [], i, k, count = options.workers || planHelpers(0, 8), src = options.sources, keep = options.pool !== false && !busy();   // a second job while the kept helpers are busy gets helpers of its own (the kept ones hold one graph and one running sum)
     for (i = 0; i < (src ? src.length : n); i++) { k = src ? src[i] : i; if (k >= 0 && k < n) srcs.push(k); }
     if (count < 2 || typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || srcs.length < 2 * count || srcs.length * (n + g.m) < (options.minWork === undefined ? 4e6 : options.minWork)) return Promise.resolve(betweenness(g, options));   // small jobs finish faster on the calling thread
     reverse(g);
@@ -615,7 +620,7 @@
    */
   function closenessAsync(g, options) {
     options = options || {};
-    var n = g.n, srcs = [], i, k, hw = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, count = options.workers || Math.min(8, hw), src = options.sources, keep = options.pool !== false && !busy();   // a second job while the kept helpers are busy gets helpers of its own (the kept ones hold one graph and one running sum)
+    var n = g.n, srcs = [], i, k, count = options.workers || planHelpers(0, 8), src = options.sources, keep = options.pool !== false && !busy();   // a second job while the kept helpers are busy gets helpers of its own (the kept ones hold one graph and one running sum)
     for (i = 0; i < (src ? src.length : n); i++) { k = src ? src[i] : i; if (k >= 0 && k < n) srcs.push(k); }
     if (count < 2 || typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL !== 'function' || srcs.length < 2 * count || srcs.length * (n + g.m) < (options.minWork === undefined ? 4e6 : options.minWork)) return Promise.resolve(closeness(g, options));
     reverse(g);
@@ -1043,5 +1048,5 @@
     while ((e = r.via[v]) >= 0) { out.push(e); v = g.from[e]; }
     return out.reverse();
   }
-  return { version: '0.12.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closenessAsync: closenessAsync, closePool: closePool, trim: trim, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
+  return { version: '0.13.0', api: 0, csr: csr, bfs: bfs, loops: loops, components: components, scc: scc, topo: topo, shortest: shortest, pathTo: pathTo, path: path, maxflow: maxflow, closeness: closeness, triangles: triangles, communities: communitiesJS, criticalPath: criticalPath, landmarks: landmarks, landmarkPath: landmarkPath, kcore: kcore, mst: mst, pagerank: pagerank, betweenness: betweenness, betweennessAsync: betweennessAsync, closenessAsync: closenessAsync, closePool: closePool, trim: trim, free: free, ready: start, accelerated: useWasm, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; } };
 }));

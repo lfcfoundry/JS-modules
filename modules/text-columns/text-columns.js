@@ -3,7 +3,7 @@
  * The field scan runs in WebAssembly (SIMD when the browser has it, 16 bytes at a time); plain JavaScript gives the same answers when it does not. No dependencies, no network.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.8.1 (API 0)
+ * Version 0.9.0 (API 0)
  *
  *   var t = TextColumns.parse(bytesOrString, { delimiter: ',', header: true });   // delimiter '\t' for TSV
  *   t.names;  t.count;                                                              // column names, number of data rows
@@ -484,9 +484,13 @@
     }
   }
   var POOL = [], nextId = 1, PAR_MIN = 32000000, WARM_MIN = 4000000;   // floors: helpers still to start (about 30 to 130 ms) / helpers already running
+  function planHelpers(keep, cap) {   // default helper count, the core-plan rule (modules/core-plan 1.0): real cores (threads / 2 from 8 threads up) minus keep,
+    // at most half of the memory at 256 MB a helper (memory unknown: 4 GB), at most cap, at least 1. A count the caller gives still wins.
+    var nav = typeof navigator === 'object' && navigator || {}, t = Math.floor(+nav.hardwareConcurrency) || 4, c = t >= 8 ? Math.ceil(t / 2) : t, m = +nav.deviceMemory || 4;
+    return Math.max(1, Math.min(c - (keep || 0), Math.floor(m * 2), cap || 8));
+  }
   function helperCount(opts) {
-    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4;
-    return Math.max(1, Math.min(opts && opts.workers > 0 ? Math.floor(opts.workers) : Math.min(hc, 8), 64));
+    return Math.max(1, Math.min(opts && opts.workers > 0 ? Math.floor(opts.workers) : planHelpers(0, 8), 64));   // the page waits while the helpers parse, so none is kept free for it
   }
   function makeHelper(opts) {
     var code = 'var TextColumns=(' + SELF_SRC + ')();(' + workerBody.toString() + ')();', w, h;
@@ -765,5 +769,5 @@
     return col;
   }
 
-  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.8.1', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
+  return { _helperIdle: function (ms) { if (ms !== undefined) { HIDLE.ms = +ms; if (HIDLE.ms < 0 && HIDLE.timer) { clearTimeout(HIDLE.timer); HIDLE.timer = 0; } else idleClose(); } return HIDLE.ms; }, _win: function (v) { if (v !== undefined) WIN = +v || 0; return WIN; }, idleTrim: function (ms, keep) { TRIM.ms = ms === undefined ? 3000 : +ms; TRIM.keep = keep > 0 ? +keep : 0; if (TRIM.ms < 0 && TRIM.timer) { clearTimeout(TRIM.timer); TRIM.timer = 0; } return TRIM.ms; }, _sharePending: function () { return SHARE.q.length; }, _spareCount: function () { return SPARE.a.length; }, _trim: TRIM, _memBytes: function () { return W ? W.x.memory.buffer.byteLength : 0; }, _helperMem: helperMem, version: '0.9.0', parse: parse, parseParallel: parseParallel, warm: warm, closeHelpers: closeHelpers, _qscan: qscan, ready: function () { return !!W; }, simd: function () { return !!(W && W.simd); } };
 }));

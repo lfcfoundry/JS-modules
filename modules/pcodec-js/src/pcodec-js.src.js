@@ -459,10 +459,15 @@
     for (i = 0; i < np; i++) out.push(i < r ? lo + 1 : lo);
     return out;
   }
+  function planHelpers(keep, cap) {   // default helper count, the core-plan rule (modules/core-plan 1.0): real cores (threads / 2 from 8 threads up) minus keep,
+    // at most half of the memory at 256 MB a helper (memory unknown: 4 GB), at most cap, at least 1. A count the caller gives still wins.
+    var nav = typeof navigator === 'object' && navigator || {}, t = Math.floor(+nav.hardwareConcurrency) || 4, c = t >= 8 ? Math.ceil(t / 2) : t, m = +nav.deviceMemory || 4;
+    return Math.max(1, Math.min(c - (keep || 0), Math.floor(m * 2), cap || 8));
+  }
   function pool(opts) {
     opts = opts || {};
-    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4, lo = { program: opts.program, lean: opts.lean },
-      size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, hc - 1)))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false,
+    var lo = { program: opts.program, lean: opts.lean },
+      size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, planHelpers(1))))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false,
       idleMs = opts.idleMs === undefined ? 4000 : Math.max(0, +opts.idleMs || 0), busy = 0, timer = null;
     var started = 0;                                                   // workers started so far in this turn of the page
     function turns(n) { var q = Promise.resolve(), i; for (i = 0; i < n; i++) q = q.then(yieldNow); return q; }

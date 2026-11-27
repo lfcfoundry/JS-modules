@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.0 · API 0 · 2026-11-26
+
+### Quick
+Default helper count for betweennessAsync and closenessAsync now follows core-plan 1.0: real cores (threads / 2 from 8 threads up), at most half of the memory at 256 MB a helper, at most 8.
+
+### Deep
+Default helper count for betweennessAsync and closenessAsync now follows core-plan 1.0: real cores (threads / 2 from 8 threads up), at most half of the memory at 256 MB a helper, at most 8. Before: min(8, threads), so 8 on a 4-core, 8-thread laptop; now 4. Same count as before on 4-thread machines (the cloud test browsers), so speed there is unchanged; not measured on 8 threads and more. options.workers still wins; same values as one thread (largest gap 8.3e-17 in all three test browsers).
+
 ## 0.12.0 · API 0 · 2026-11-05
 
 ### Quick
