@@ -1,8 +1,8 @@
 # elias-fano
 
-**Version 2.3.0 · API 2**
+**Version 2.3.1 · API 2**
 
-**Tested in:** Chromium 156, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (A/B against 2.3.0, 6 alternating page loads each; research thread's real-list A/B in the same three); Node: all elias-fano tests, view.js with 12 new checks. Not run: a phone
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 
@@ -199,7 +199,7 @@ Reads decode the list into one shared scratch array, so a tiny list keeps no mem
 
 **Faster decoding (since 2.2.2):** in browsers with WebAssembly SIMD, `toArray` on a flat list of 16 or more values with up to 16 low bits decodes eight values at a time. On the real lists it takes 0.68 / 0.54 / 0.56 of the time on long lists and 0.70 / 0.60 / 0.69 on mid-size lists (Chromium / Firefox / WebKitGTK). The format and answers are the same.
 
-**Zero-copy reads (since 2.3.0):** `list.view()` returns the values as a Uint32Array over the module's memory, with no copy, for flat and block lists when WebAssembly is in use. Other kinds return a fresh array. On the real lists it takes 0.12 to 0.18 of `toArray`'s time in Chromium, 0.33 to 0.41 in Firefox and 0.38 to 0.43 in WebKitGTK. **It is short-lived:** the next elias-fano call, on any list, may overwrite it, move it or leave it empty. Read it right away, or keep a copy with `view().slice()`. One buffer, the size of the largest list viewed, stays allocated until `trim()`.
+**Zero-copy reads (since 2.3.0):** `list.view()` returns the values as a Uint32Array over the module's memory, with no copy, for flat and block lists when WebAssembly is in use. Other kinds return a fresh array. On the real lists it takes 0.12 to 0.18 of `toArray`'s time in Chromium, 0.33 to 0.41 in Firefox and 0.38 to 0.43 in WebKitGTK. **It is short-lived:** the next elias-fano call, on any list, may overwrite it, move it or leave it empty. Read it right away, or keep a copy with `view().slice()`. One buffer, the size of the largest list viewed, stays allocated until `trim()`. Since 2.3.1 `toArray`, `slice` on partitioned lists and `decodeAll` decode through that same buffer too (outputs up to 4 MB, or larger when the buffer is already that big), instead of taking and giving back memory on every call; their results are still your own copies.
 
 ```js
 var v = list.view();            // read now: for (...) use(v[i]);

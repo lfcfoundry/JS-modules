@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.0 (API 2)
+ * Version 2.3.1 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -76,6 +76,10 @@
   /* view() (since 2.3.0): the decoded values as a Uint32Array over the module's memory, with no copy. Short-lived: the next elias-fano call (any list) may overwrite,
      move or empty it, so read it right away or copy it (view().slice()). One buffer, the size of the largest list viewed, is kept until trim(). */
   var VIEW = 0, VIEWN = 0;
+  // Decode output (2.3.1): reuse the view buffer instead of an alloc and release per call (mid lists 0.55 to 0.69x of the time); an output bigger than
+  // 4 MB that the view buffer cannot already hold gets its own block as before, so one big decode does not keep that much memory held for good.
+  function outBuf(n) { return n <= VIEWN || n <= 4194304 ? viewBuf(n) : alloc(n); }
+  function outDone(p, n) { if (p !== VIEW) release(p, n); }
   function viewBuf(n) { n = (n + 7) & ~7; if (n > VIEWN) { if (VIEW) release(VIEW, VIEWN); VIEW = 0; VIEWN = n; VIEW = alloc(VIEWN); } return VIEW; }
   function start() {
     if (readyPromise) return readyPromise;
@@ -271,7 +275,7 @@
   };
   P.toArray = function (out) {   // out: optional Uint32Array of exactly this.length to fill (a repeat decode then writes no fresh memory: 22-27% faster at 8M values)
     var n = this.length, r = outOf(out, n); if (n === 0) return r;
-    if (this._wasm()) { var op = alloc(n * 4 + 32); W.ef_decode_fast(this._ptr, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + n)); release(op, n * 4 + 32); return r; }
+    if (this._wasm()) { var op = outBuf(n * 4 + 32); W.ef_decode_fast(this._ptr, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + n)); outDone(op, n * 4 + 32); return r; }
     return this._decodeJS(r);
   };
   P.view = function () { var n = this.length; if (n === 0) return new Uint32Array(0); if (!this._wasm()) return this.toArray(); var op = viewBuf(n * 4 + 32); W.ef_decode_fast(this._ptr, op); return u32.subarray(op >>> 2, (op >>> 2) + n); };   // short-lived, see viewBuf
@@ -420,9 +424,9 @@
       if (!this._chunks[c]) continue;
       var a = c * C, e = Math.min(n, a + C), cs = offsets[a], cnt = offsets[e] - cs, cp = this._chunks[c];
       if (useWasm() && W.ef_lists_decode && cp._wasm()) {   // decoded and unshifted in WebAssembly, then one copy into place
-        var po = alloc((e - a + 1) * 4), op = alloc(cnt * 4);
+        var po = take((e - a + 1) * 4), op = outBuf(cnt * 4);   // scratch and the view buffer: no alloc and release per chunk (2.3.1)
         try { u32.set(offsets.subarray(a, e + 1), po >>> 2); W.ef_lists_decode(cp._ptr, K, po, e - a, op); values.set(u32.subarray(op >>> 2, (op >>> 2) + cnt), cs); }
-        finally { release(po, (e - a + 1) * 4); release(op, cnt * 4); }
+        finally { done(po, (e - a + 1) * 4); outDone(op, cnt * 4); }
         continue;
       }
       var all = cp.toArray();
@@ -582,7 +586,7 @@
   PP.slice = function (a, b) {
     var n = this.length; a = Math.max(0, a | 0); b = Math.min(n, b === undefined ? n : b | 0); if (b <= a) return new Uint32Array(0);
     var r = new Uint32Array(b - a);
-    if (this._wasm()) { var op = alloc(r.length * 4); W.pef_decode_range(this._ptr, a, b, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + r.length)); release(op, r.length * 4); return r; }
+    if (this._wasm()) { var op = outBuf(r.length * 4); W.pef_decode_range(this._ptr, a, b, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + r.length)); outDone(op, r.length * 4); return r; }
     return this._decodeJS(a, b, r);
   };
   PP.toArray = function () { return this.slice(0, this.length); };
@@ -732,7 +736,7 @@
   BP.view = function () { var n = this.length; if (n === 0) return new Uint32Array(0); if (!this._wasm()) return this.toArray(); var op = viewBuf(n * 4 + 32); W.bl_decode(this._ptr, op); return u32.subarray(op >>> 2, (op >>> 2) + n); };   // short-lived, see viewBuf
   BP.toArray = function (out) {
     var n = this.length, r = outOf(out, n), k; if (n === 0) return r;
-    if (this._wasm()) { var op = alloc(n * 4 + 32); W.bl_decode(this._ptr, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + n)); release(op, n * 4 + 32); return r; }
+    if (this._wasm()) { var op = outBuf(n * 4 + 32); W.bl_decode(this._ptr, op); r.set(u32.subarray(op >>> 2, (op >>> 2) + n)); outDone(op, n * 4 + 32); return r; }
     for (k = 0; k < this._nb; k++) this._blockTo(k, r, this._st[k]);
     return r;
   };
@@ -967,7 +971,7 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.3.0', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    version: '2.3.1', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
     buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },

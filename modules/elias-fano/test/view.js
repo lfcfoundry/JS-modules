@@ -24,5 +24,13 @@ const same = (a, b, m) => { assert.strictEqual(a.length, b.length, m + ' length'
   A.compact(); B.compact(); EF.trim(); same(A.view(), a, 'view after trim'); same(B.toArray(), b, 'toArray after trim'); assert.strictEqual(A.nextGEQ(31), 11); checks += 3;
   // growing the memory after a view empties or moves it; the list itself is fine
   const v2 = A.view(), G = EF.open(EF.build(Uint32Array.from({ length: 4000000 }, (_, i) => i))); G.toArray(); assert.ok(v2.length === 0 || v2.length === a.length, 'a view after the memory grew is empty (detached) or moved'); same(A.view(), a, 'fresh view after growth'); G.free(); checks += 2;
+  // 2.3.1: toArray, slice and decodeAll decode through the same buffer, so they too make an earlier view stale; their own results are copies and stay right
+  { const vc = A.view(), tb = B.toArray(); assert.strictEqual(vc[10], b[10], 'a view is stale after toArray on another list (documented)'); same(tb, b, 'toArray result'); same(A.toArray(), a, 'toArray of the first list'); checks += 3;
+    const P = EF.openPartitioned(EF.buildPartitioned(a)), sl = P.slice(100, 4000); same(sl, a.subarray(100, 4000), 'partitioned slice'); same(B.toArray(), b, 'toArray after a slice'); same(sl, a.subarray(100, 4000), 'slice stays after the next decode'); checks += 3;
+    const Bk = EF.openBlocks(EF.buildBlocks(b)), bt = Bk.toArray(); same(A.toArray(), a, 'flat after block'); same(bt, Bk.toArray(), 'block toArray stays'); checks += 2;
+    EF.trim(); same(A.toArray(), a, 'toArray after trim'); same(Bk.toArray(), bt, 'block toArray after trim'); checks += 2;
+    // many lists of growing size in a row (the buffer grows, never a wrong value), then a big one over 4 MB that gets its own block
+    for (let n = 1; n <= 200000; n = Math.ceil(n * 1.7)) { const w = Uint32Array.from({ length: n }, (_, i) => i * 5 + (i & 3)), L = EF.open(EF.build(w)); same(L.toArray(), w, 'growing ' + n); same(L.toArray(), w, 'growing again ' + n); L.free(); checks += 2; }
+    const big = Uint32Array.from({ length: 1500000 }, (_, i) => i * 2), Lb = EF.open(EF.build(big)); same(Lb.toArray(), big, 'over 4 MB'); same(A.toArray(), a, 'small after big'); checks += 2; }
   console.log('ok   elias-fano view: ' + checks + ' checks (flat, partitioned, block, pinned and tiny lists in WebAssembly and JavaScript; stale after the next view; trim and memory growth)');
 })().catch((e) => { console.error(e); process.exit(1); });
