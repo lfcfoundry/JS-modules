@@ -44,6 +44,26 @@ const J = require('../lfc-pack.js');
     { const x99 = ex(0.99), a99 = N - srt.findIndex((v) => v > x99), got = S.countAbove('logn', x99); ok(Math.abs(got - a99) <= a99 * 0.04, 'sampled grid not biased in the tail: countAbove at the 99th percentile within 4% (' + got + ' vs ' + a99 + ')'); }
     const x = ex(0.999), above = N - srt.findIndex((v) => v > x); ok(Math.abs(S.countAbove('logn', x) - above) <= above * 0.15, 'countAbove at the 99.9th percentile within 15% (' + S.countAbove('logn', x) + ' vs ' + above + ')');
   }
+  { // exact tails (since 0.26.0): in a sampled grid (more than 65,536 rows, several blocks) every point in the outer 1/90.5 equals the exact sort's value there, on skewed, trending and repeated data
+    const M = 300000, mk2 = (f) => { const x = new Float64Array(M); for (let i = 0; i < M; i++) x[i] = f(i); return x; };
+    const T = { logn2: mk2(() => Math.exp(gauss() * 1.2)), cents: mk2(() => Math.round(Math.exp(2 + gauss() * 0.8) * 100) / 100), trend: mk2((i) => i / 1000 + gauss() * 5), counts: mk2(() => Math.floor(Math.exp(gauss() * 2)) * (r() < 0.02 ? -1 : 1)) };
+    const ft = await J.packColumnsParallel(T, { blockBytes: 300000 }), St = J.summary(ft);
+    const QS = []; for (let k = 0; k < 257; k++) QS.push([k / 256, 0, k]); for (let j = 0; j < 20; j++) { QS.push([Math.pow(2, -(32 - j) / 2), 1, j]); QS.push([1 - Math.pow(2, -(13 + j) / 2), 1, 20 + j]); }
+    for (const key in T) {
+      const c = St.cols.find((x) => x.key === key), v = Float64Array.from(T[key]).sort(), at = (p) => { const R = p * (M - 1), lo = Math.floor(R); return R > lo && lo + 1 < M ? v[lo] + (R - lo) * (v[lo + 1] - v[lo]) : v[lo]; };
+      let tails = 0, off = 0; if (c.qExact) { ok(true, key + ': exact entry'); continue; }
+      for (const [p, t, k] of QS) { if (p > 1 / 90.5 && p < 1 - 1 / 90.5) continue; tails++; const got = t ? c.qt[k] : c.q[k]; if (k === 0 && !t || k === 256 && !t) continue; if (got !== at(p)) off++; }
+      ok(c.qSample > 0 && off === 0, key + ': ' + (tails - off) + ' of ' + tails + ' tail points exact (sampled grid of ' + c.qSample + ')');
+    }
+  }
+  { // the sample sort's paths (whole hundredths, whole numbers, top words, crowded top words, mixed signs): a grid read from every value matches an exact sort exactly
+    const M = 60000, mk3 = (f) => { const x = new Float64Array(M); for (let i = 0; i < M; i++) x[i] = f(i); return x; };
+    const P = { cents: mk3(() => Math.round(r() * 5e6) / 100), whole: mk3(() => Math.round((r() - 0.3) * 1e6)), floats: mk3(() => gauss() * 1e3), ms: mk3(() => 1.7e12 + Math.floor(r() * 3e10)), crowd: mk3((i) => i % 50 ? 1.7e12 + Math.floor(r() * 6e5) : 0), tiny: mk3(() => (r() - 0.5) * 1e-300) };
+    const fp = await J.packColumnsParallel(P), Sp = J.summary(fp);
+    for (const key in P) { const c = Sp.cols.find((x) => x.key === key), v = Float64Array.from(P[key]).sort(); let off = 0;
+      for (let k = 0; k < 257; k++) { const R = k / 256 * (M - 1), lo = Math.floor(R), w = R > lo ? v[lo] + (R - lo) * (v[lo + 1] - v[lo]) : v[lo]; if (c.q[k] !== w) off++; }
+      ok(!c.qSample && off === 0, key + ': grid from every value matches an exact sort (' + off + ' off)'); }
+  }
   console.log(bad ? bad + ' of ' + n + ' quantile checks FAILED' : 'quantile: all ' + n + ' checks pass');
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

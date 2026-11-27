@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.20.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.3.2 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.13.1 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.25.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.26.0 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.3 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.9.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -72,6 +72,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-26 · **netflow-engine** 2.7.0 · API 2: Force pictures score better than Cytoscape and d3-force on real maps and keep fans close to their center; dense maps lay out about 2x faster. Pictures move.
 - 2026-11-26 · **memory-compression** 2.20.0 · API 2: packAsync's helper pool follows the shared core-plan rule: at most 3 helpers, never more than real cores minus one.
 - 2026-11-26 · **lz4-kit** 1.1.3 · API 1: decompress() without a size is up to 2x faster on data that shrinks more than 8 times: it reads the size the frame records instead of decoding twice.
+- 2026-11-26 · **lfc-pack** 0.26.0 · API 0: Far percentiles and counts above a value from the summary are now close to exact (count above 50 on a million-row test column: 5,912 against 5,862, was 6,497).
 - 2026-11-26 · **lfc-pack** 0.25.0 · API 0: Parallel packing and reading start helpers by the shared core-plan rule: one per real core (minus one where the page works too), at most 8.
 - 2026-11-26 · **graph-walk** 0.13.1 · API 0: betweennessAsync and closenessAsync go back to one helper per thread by default (at most 8): fewer helpers made them 17% slower on an 8-thread desktop.
 - 2026-11-26 · **graph-walk** 0.13.0 · API 0: betweennessAsync and closenessAsync start one helper per real core by default (shared core-plan rule), at most 8.
