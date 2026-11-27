@@ -1,0 +1,154 @@
+<!doctype html>
+<!--
+    ===================================================================================
+    APPLICATION : Helper count tester: old default against core-plan
+    FORGED BY : LFC Foundry (https://github.com/lfcfoundry)
+    LICENSE : MIT License
+    ===================================================================================
+    Copyright (c) 2026 LFC Foundry
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    BRANDING NOTICE: While the code is open under MIT, the name "LFC Foundry" and 
+    associated project identities are reserved. If you fork, significantly modify, 
+    or commercially redistribute this software, you must change the external public 
+    product name and branding.
+    ===================================================================================
+    -->
+
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Helper count tester</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1b2433;--muted:#566277;--soft:#f1f4f9;--line:#dde3ee;--hero:#0f2a47;--hero-fg:#f3f7fc;--hero-muted:#a9bdd6;--accent:#1f7ae0;--us:#1f6fb5;--us-pale:#b9d3ea;--dot:#0b2e52;--rival:#7b8494;--bad:#c62828;--good:#1b7f4b;--font:'Segoe UI',system-ui,sans-serif;--mono:ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1522;--fg:#e4ebf5;--muted:#9db0c8;--soft:#13233a;--line:#25364f;--hero:#08111d;--accent:#4c9bf5;--us:#4c9bf5;--us-pale:#23466e;--dot:#d7e8fb;--rival:#8f9bb0;--bad:#ff7b72;--good:#56d08e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--font)}
+header{background:var(--hero);color:var(--hero-fg);padding:22px 16px 20px}
+.in{max-width:1080px;margin:0 auto}
+header .tag{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--hero-muted)}
+h1{font-size:clamp(24px,5vw,34px);font-weight:800;letter-spacing:-.01em;line-height:1.15;margin:6px 0 6px}
+header p{margin:0;color:var(--hero-muted);max-width:46rem}
+main{padding:16px 16px 40px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}.bar button{flex:1 1 130px;max-width:220px}
+button{font:inherit;font-weight:600;min-height:48px;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button small{display:block;font-weight:400;font-size:12px;opacity:.85}
+.card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 14px;background:var(--bg)}
+.prog{height:12px;border-radius:6px;background:var(--soft);overflow:hidden;margin:10px 0 8px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);border-radius:6px;transition:width .25s}
+#st{font-weight:600}
+#sub{color:var(--muted);font-size:14px;min-height:1.5em}
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}
+.score div{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.score b{display:block;font-size:28px;line-height:1.1;font-weight:800;letter-spacing:-.01em}
+.score span{color:var(--muted);font-size:13px}
+h2{font-size:20px;margin:0 0 2px;line-height:1.2}
+.note{color:var(--muted);font-size:13px;margin:0 0 10px}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}.panels>div{max-width:460px}
+.panels h3{font-size:15px;margin:0 0 2px}
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--font)}
+details{margin:0 0 14px}
+summary{cursor:pointer;font-weight:600;padding:6px 0}
+pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.45 var(--mono);padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);margin:8px 0 0;max-height:60vh;overflow:auto}
+.key{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);margin:0 0 8px}
+.key i{display:inline-block;width:22px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+#plan{font-weight:600;margin:0 0 4px}#prev{display:none;color:var(--bad);font-weight:600;margin:0 0 4px}
+</style></head><body>
+<header><div class="in"><div class="tag">LFC Foundry tester</div><h1>Fewer helpers: same speed?</h1>
+<p>Races each module with the helper count it used before against the smaller count it uses now (one per real core). Measure only; nothing is sent anywhere.</p></div></header>
+<main><div class="in">
+<div class="card"><p id="plan">Reading this device...</p><p id="prev"></p><p class="note" style="margin:0">On a device that reports 8 or more threads, the old count is every thread (up to 8) and the new one is half of that.</p></div>
+<div class="bar"><button id="quick" class="primary">Quick run<small>about 1 minute</small></button><button id="go">Full run<small>about 2 to 3 minutes</small></button><button id="stop" disabled>Stop<small>keeps results</small></button><button id="copy" disabled>Copy results<small>as text</small></button></div>
+<div class="card"><div id="st">Ready. Close other tabs and keep the screen on, then tap Quick run.</div><div class="prog"><i id="pb"></i></div><div id="sub"></div></div>
+<div class="score"><div><b id="s1">-</b><span>races where the new count was within 5% or faster</span></div><div><b id="s2">-</b><span>typical new time as a share of the old</span></div><div><b id="s3">-</b><span>worst race</span></div><div><b id="s4">-</b><span>best race</span></div></div>
+<div class="card"><h2 id="head">Share of the old count's time</h2><p class="note">Shorter is better. The grey line is the old count. Above 1.05 (red) means the new, smaller count is more than 5% slower.</p>
+<div class="key"><span><i style="background:var(--us)"></i>middle round</span><span><i style="background:var(--us-pale)"></i>slowest round</span><span><i style="background:var(--dot);width:10px;border-radius:5px"></i>each round</span><span><i style="background:var(--rival);width:4px;height:14px"></i>old count</span></div>
+<div class="panels" id="panels"></div></div>
+<details><summary>What is measured</summary><p class="note">Three jobs, each run with the module's old default helper count and with the new one, on the same data: text-columns reading a 40 MB made-up CSV in parallel, lfc-pack packing 30 MB of made-up NDJSON in parallel, and graph-walk's betweenness on a 6,000-item made-up network. Each round closes the helpers, makes one warm-up call, then times one call; the two counts take turns and swap order every round (9 rounds in Quick, 21 in Full). The data is made up because this compares a module with itself; the answers are the same either way. A count the device gives the same both ways is skipped.</p></details>
+<details id="rawd"><summary>Results as text</summary><pre id="out"></pre></details>
+</div></main>
+<script src="../modules/core-plan/core-plan.js"></script>
+<script src="../modules/text-columns/text-columns.js"></script>
+<script src="../modules/lfc-pack/lfc-pack.js"></script>
+<script src="../modules/graph-walk/graph-walk.js"></script>
+<script>
+function $(id){return document.getElementById(id);}
+var report=[],out=$('out'),st=$('st'),sub=$('sub'),pb=$('pb'),stopped=false,RES=[];
+var Q=new URLSearchParams(location.search),FT=+Q.get('threads')||0;   /* ?threads=8 pretends the device reports 8 threads (cloud checks) */
+var NAV={hardwareConcurrency:FT||navigator.hardwareConcurrency||4,deviceMemory:navigator.deviceMemory};
+var PLAN=LfcCorePlan.plan({env:LfcCorePlan.detect(NAV)}),FULL=LfcCorePlan.plan({env:LfcCorePlan.detect(NAV),keepFree:0}).workers,HC=NAV.hardwareConcurrency,PREV=LfcCorePlan.lastRun.previous();
+$('plan').textContent=PLAN.label+(FT?' (threads forced by ?threads='+FT+')':'');if(PREV){$('prev').textContent=PREV;$('prev').style.display='block';}
+function show(){out.textContent=report.join('\n');}
+function med(a){a=a.slice().sort(function(x,y){return x-y;});return a[a.length>>1];}
+function tick(ms){return new Promise(function(r){setTimeout(r,ms||20);});}
+function clock(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+(s%60<10?'0':'')+(s%60);}
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+/* the races: each module with the count it used before core-plan (old) and the count it uses now (new); the work is the same */
+var RACES=[
+ {name:'text-columns parse, 40 MB CSV',old:Math.min(HC,8),now:FULL,
+  setup:function(){var r=rng(5),L=['id,price,qty,city,note'],i;for(i=0;i<700000;i++)L.push(i+','+(r()*1000-300).toFixed(2)+','+Math.floor(r()*99)+',city'+Math.floor(r()*500)+',note '+Math.floor(r()*1e5));this.b=new TextEncoder().encode(L.join('\n')+'\n');},
+  reset:function(){TextColumns.closeHelpers();},
+  run:function(k){var b=this.b;return TextColumns.parseParallel(b,{workers:k,minBytes:0}).then(function(t){return t.count;});}},
+ {name:'lfc-pack packParallel, 30 MB NDJSON',old:Math.min(HC,8),now:FULL,
+  setup:function(){var r=rng(6),J=[],i;for(i=0;i<300000;i++)J.push(JSON.stringify({id:i,v:Math.round(r()*1e6)/100,s:'k'+Math.floor(r()*500),t:'2026-01-'+(10+i%20)+'T10:00:00Z',n:{a:i%7,b:r()<0.5}}));this.b=new TextEncoder().encode(J.join('\n')+'\n');return LfcPack.init();},
+  reset:function(){},
+  run:function(k){return LfcPack.packParallel(this.b,{workers:k}).then(function(f){return f.length;});}},
+ {name:'graph-walk betweennessAsync, 6,000 items',old:Math.min(HC,8),now:FULL,
+  setup:function(){var r=rng(7),n=6000,fr=[],to=[],i;for(i=1;i<n;i++){fr.push(Math.floor(r()*i));to.push(i);}for(i=0;i<9000;i++){fr.push(Math.floor(r()*n));to.push(Math.floor(r()*n));}this.g=GraphWalk.csr(n,Int32Array.from(fr),Int32Array.from(to));return GraphWalk.ready?GraphWalk.ready():null;},
+  reset:function(){GraphWalk.closePool();},
+  run:function(k){return GraphWalk.betweennessAsync(this.g,{workers:k,minWork:0}).then(function(a){return a.length;});}}];
+function draw(){
+ var W=360,L=150,R=46,rh=34,n=RACES.length,H=n*rh+34,all=RES.map(function(r){return r.hi;}),top=Math.max(1.12,all.length?Math.max.apply(null,all)*1.06:0),pw=W-L-R,X=function(v){return L+v/top*pw;};
+ var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="New count time as a share of the old count time">';
+ [0,0.5].forEach(function(g){s+='<line x1="'+X(g)+'" y1="4" x2="'+X(g)+'" y2="'+(n*rh+4)+'" stroke="var(--line)"/><text x="'+X(g)+'" y="'+(n*rh+20)+'" font-size="10" fill="var(--muted)" text-anchor="middle">'+g+'</text>';});
+ RACES.forEach(function(rc,i){var y=8+i*rh,r=RES.filter(function(x){return x.i===i;})[0];
+  s+='<text x="'+(L-8)+'" y="'+(y+15)+'" font-size="11" fill="var(--fg)" text-anchor="end">'+rc.name.split(',')[0]+' ('+rc.old+' vs '+rc.now+')</text>';
+  if(!r){s+='<text x="'+(L+4)+'" y="'+(y+15)+'" font-size="10.5" fill="var(--muted)">'+(rc.old===rc.now?'same count here: nothing to race':'not run yet')+'</text>';return;}
+  s+='<rect x="'+L+'" y="'+y+'" width="'+(X(r.hi)-L)+'" height="20" rx="2" fill="var(--us-pale)"/><rect x="'+L+'" y="'+y+'" width="'+(X(r.mid)-L)+'" height="20" rx="2" fill="var(--us)"/>';
+  r.dots.forEach(function(q){s+='<circle cx="'+X(q)+'" cy="'+(y+10)+'" r="3" fill="var(--dot)" stroke="var(--bg)" stroke-width="1"/>';});
+  s+='<text x="'+(W-2)+'" y="'+(y+14)+'" font-size="11.5" font-weight="700" text-anchor="end" fill="'+(r.mid>1.05?'var(--bad)':'var(--fg)')+'">'+r.mid.toFixed(2)+'</text>';});
+ s+='<line x1="'+X(1)+'" y1="2" x2="'+X(1)+'" y2="'+(n*rh+4)+'" stroke="var(--rival)" stroke-width="3"/><text x="'+X(1)+'" y="'+(n*rh+20)+'" font-size="10" font-weight="700" fill="var(--muted)" text-anchor="middle">old count = 1</text></svg>';
+ $('panels').innerHTML=s;
+ if(!RES.length){$('s1').textContent=$('s2').textContent=$('s3').textContent=$('s4').textContent='-';return;}
+ var ms=RES.map(function(r){return r.mid;}),bad=ms.filter(function(m){return m>1.05;}).length,so=ms.slice().sort(function(a,b){return a-b;});
+ $('s1').textContent=(RES.length-bad)+' of '+RES.length;$('s1').style.color=bad?'var(--bad)':'var(--good)';$('s2').textContent=med(ms).toFixed(2);$('s3').textContent=so[so.length-1].toFixed(2);$('s3').style.color=so[so.length-1]>1.05?'var(--bad)':'var(--fg)';$('s4').textContent=so[0].toFixed(2);
+ $('head').textContent=bad?'Fewer helpers was more than 5% slower in '+bad+' of '+RES.length+' races':'Fewer helpers was within 5% (or faster) in all '+RES.length+' races so far';}
+async function run(rounds,label){
+ var btns=['quick','go'].map($);btns.forEach(function(b){b.disabled=true;});$('stop').disabled=false;$('copy').disabled=true;$('copy').firstChild.nodeValue='Copy results';stopped=false;report=[];RES=[];draw();
+ var T0=performance.now(),todo=RACES.filter(function(r){return r.old!==r.now;}),total=todo.length*rounds*2,done=0;
+ report.push($('plan').textContent);
+ report.push('HELPER COUNT, old default against core-plan ('+label+') | '+navigator.userAgent+' | text-columns '+TextColumns.version+', lfc-pack '+LfcPack.version+', graph-walk '+GraphWalk.version+' | each round: close the helpers, one warm-up call, then one timed call; the two counts take turns, order swapped every round; ms, lower is better');show();
+ if(!todo.length)report.push('This device gets the same helper count as before in every module, so there is nothing to race.');
+ try{
+  for(var ti=0;ti<todo.length&&!stopped;ti++){var rc=todo[ti],i=RACES.indexOf(rc),a=[],b=[],rt=[];
+   LfcCorePlan.lastRun.step(rc.name+': making the data');st.textContent='Race '+(ti+1)+' of '+todo.length+': '+rc.name+', making the data';await tick();await rc.setup();
+   for(var r=0;r<rounds&&!stopped;r++){var ord=r%2?[rc.now,rc.old]:[rc.old,rc.now],res={};
+    for(var q=0;q<2;q++){var k=ord[q];LfcCorePlan.lastRun.step(rc.name+', '+k+' helpers, round '+(r+1));st.textContent='Race '+(ti+1)+' of '+todo.length+': '+rc.name+', '+k+' helpers, round '+(r+1)+' of '+rounds;
+     rc.reset();await tick(50);await rc.run(k);var t0=performance.now();await rc.run(k);res[k]=performance.now()-t0;done++;pb.style.width=(100*done/total)+'%';var el=(performance.now()-T0)/1000;sub.textContent='About '+clock(el/done*(total-done))+' left';await tick(50);}
+    a.push(res[rc.old]);b.push(res[rc.now]);rt.push(res[rc.now]/res[rc.old]);}
+   rc.reset();if(rt.length<3)break;
+   var so=rt.slice().sort(function(x,y){return x-y;}),mid=med(rt);RES.push({i:i,mid:mid,hi:so[so.length-1],dots:so});
+   report.push(rc.name+': '+rc.old+' helpers (old) '+med(a).toFixed(0)+' ms, '+rc.now+' helpers (core-plan) '+med(b).toFixed(0)+' ms, ratio '+mid.toFixed(3)+' (below 1 = fewer helpers faster), rounds '+rt.length+', per round '+rt.map(function(x){return x.toFixed(2);}).join(' '));show();draw();}
+  var ms=RES.map(function(r){return r.mid;});
+  report.push((stopped?'STOPPED EARLY, results so far. ':'')+'SUMMARY: '+(ms.length?'core-plan count / old count typical '+med(ms).toFixed(3)+', worst '+Math.max.apply(null,ms).toFixed(3)+', races over 5% slower '+ms.filter(function(m){return m>1.05;}).length+' of '+ms.length:'nothing raced')+' | took '+Math.round((performance.now()-T0)/1000)+' s');
+  LfcCorePlan.lastRun.done();show();st.textContent=(stopped?'Stopped. ':'Done in '+clock((performance.now()-T0)/1000)+'. ')+'Tap Copy results.';
+ }catch(e){report.push('ERROR '+(e&&e.message||e)+(e&&e.stack?' | '+e.stack:''));show();$('rawd').open=true;st.textContent='Something went wrong (see Results as text). Tap Copy results.';LfcCorePlan.lastRun.done();}
+ sub.textContent='';$('copy').disabled=false;btns.forEach(function(b){b.disabled=false;});$('stop').disabled=true;}
+$('quick').onclick=function(){run(9,'quick run');};
+$('go').onclick=function(){run(21,'full run');};
+$('stop').onclick=function(){stopped=true;st.textContent='Stopping after this round...';};
+$('copy').onclick=function(){var t=document.createElement('textarea');t.value=report.join('\n');document.body.appendChild(t);t.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(report.join('\n'));document.body.removeChild(t);this.firstChild.nodeValue='Copied';};
+draw();
+if(/[?&]auto=quick/.test(location.search))$('quick').click();   /* lets a test harness start a run without a tap */
+</script></body></html>
