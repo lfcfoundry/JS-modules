@@ -14,18 +14,20 @@ html{background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
 body{max-width:860px;margin:0 auto;padding:18px 16px 60px}
 h1{font-size:26px;margin:0 0 6px}p{margin:8px 0}.mut{color:var(--mut);font-size:14px}
 button{font:inherit;padding:10px 18px;margin:4px 8px 4px 0;border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:6px;cursor:pointer}
-button[disabled]{opacity:.45;cursor:default}button.alt{background:transparent;color:var(--acc)}
+button[disabled]{opacity:.45;cursor:default}button{min-height:48px}button small{display:block;font-size:12px;opacity:.85}button.alt{background:transparent;color:var(--acc)}
 progress{width:100%;height:14px;margin:8px 0}
 pre,textarea{width:100%;box-sizing:border-box;font:13px/1.4 ui-monospace,Consolas,monospace;border:1px solid var(--line);background:transparent;color:var(--fg);padding:10px;border-radius:6px;white-space:pre;overflow:auto}
 textarea{height:220px}.ok{color:var(--ok)}.bad{color:var(--bad)}
 </style></head><body>
 <h1>lz4-kit tester</h1>
-<p>Runs lz4-kit, the browser's gzip and four other LZ4 libraries on the same 4 MB of generated log lines, then checks that they read each other's output. Takes about 1 to 2 minutes. Leave the tab in front and close heavy tabs first.</p>
-<p><button id="go">Run the test</button><button id="copy" class="alt" disabled>Copy results</button><span id="msg" class="mut"></span></p>
+<p>Runs lz4-kit, the browser's gzip and four other LZ4 libraries on the same 4 MB of generated log lines, then checks that they read each other's output. Leave the tab in front and close heavy tabs first. Measure only; nothing is sent anywhere.</p>
+<p id="plan" style="font-weight:600">Reading this device...</p><p id="prev" class="bad" style="display:none"></p>
+<p><button id="quick">Quick run<small>under 30 seconds</small></button><button id="go" class="alt">Full run<small>about 1 minute</small></button><button id="stop" class="alt" disabled>Stop<small>keeps results</small></button><button id="copy" class="alt" disabled>Copy results<small>as text</small></button><span id="msg" class="mut"></span></p>
 <progress id="pg" value="0" max="1"></progress>
 <pre id="out">Press "Run the test".</pre>
 <p class="mut">If Copy results does nothing, select the box below with a long press or Ctrl+A, copy it, and paste it into the chat.</p>
 <textarea id="ta" readonly placeholder="Results appear here"></textarea>
+<script src="../../core-plan/core-plan.js"></script>
 <script>
 (function () {
 'use strict';
@@ -36,6 +38,10 @@ var U = {
 var $ = function (i) { return document.getElementById(i); };
 var lines = [], hashes = {}, libs = {}, res = { env: {}, loads: {}, speed: {}, checks: [] };
 function say(t) { $('msg').textContent = t; }
+var PLAN = window.LfcCorePlan ? LfcCorePlan.plan() : null, PREV = PLAN ? LfcCorePlan.lastRun.previous() : '', stopped = false, QUICK = false;   // no helpers here: the plan line only says what this device reports
+function step(t) { if (PLAN) LfcCorePlan.lastRun.step(t); }
+if (PLAN) $('plan').textContent = PLAN.label; else $('plan').textContent = 'core-plan did not load: this device reports ' + (navigator.hardwareConcurrency || '?') + ' threads.';
+if (PREV) { $('prev').textContent = PREV; $('prev').style.display = 'block'; }
 function tick() { return new Promise(function (r) { setTimeout(r, 0); }); }
 function med(a) { a = a.slice().sort(function (x, y) { return x - y; }); return a[a.length >> 1]; }
 function f1(x) { return x < 10 ? Math.round(x * 100) / 100 : Math.round(x * 10) / 10; }
@@ -127,11 +133,12 @@ var SC = [['4 MiB in one call', 4 << 20], ['64 KiB x 64 calls', 64 << 10], ['4 K
 function perChunk(list, fn) { for (var i = 0; i < list.length; i++) fn(list[i], i); }
 
 async function speed(data) {
-  var o = ops(), keys = Object.keys(o), rounds = 3, total = SC.length * rounds * keys.length, done = 0;
+  var o = ops(), keys = Object.keys(o), rounds = QUICK ? 1 : 3, total = SC.length * rounds * keys.length, done = 0;
   SC.forEach(function (s) { res.speed[s[0]] = {}; keys.forEach(function (k) { res.speed[s[0]][k] = { name: o[k].name, c: [], d: [], cf: [], df: [], size: 0 }; }); });
   var kitFrames = {};
-  for (var round = 0; round < rounds; round++) {
-    for (var si = 0; si < SC.length; si++) {
+  for (var round = 0; round < rounds && !stopped; round++) {
+    for (var si = 0; si < SC.length && !stopped; si++) {
+      step('speed: ' + SC[si][0] + ', round ' + (round + 1));
       var list = chunks(data, SC[si][1]), nm = SC[si][0];
       var order = keys.slice(round % keys.length).concat(keys.slice(0, round % keys.length));
       for (var ki = 0; ki < order.length; ki++) {
@@ -156,10 +163,11 @@ async function speed(data) {
     }
   }
   // gzip: the browser's own, one buffer, 3 runs (it is asynchronous)
-  if (typeof CompressionStream === 'function') {
+  if (typeof CompressionStream === 'function' && !stopped) {
+    step('speed: browser gzip');
     async function gz(kind, b) { var cs = new (kind === 'c' ? CompressionStream : DecompressionStream)('gzip'), w = cs.writable.getWriter(), ch = [], tt = 0, rd = cs.readable.getReader(); w.write(b); w.close(); for (;;) { var x = await rd.read(); if (x.done) break; ch.push(x.value); tt += x.value.length; } var out = new Uint8Array(tt), p = 0; ch.forEach(function (c) { out.set(c, p); p += c.length; }); return out; }
     var tc = [], td = [], c0, nm0 = SC[0][0];
-    for (var g = 0; g < 4; g++) { say('browser gzip, run ' + (g + 1) + ' of 4'); await tick(); var a = performance.now(); c0 = await gz('c', data); tc.push(performance.now() - a); a = performance.now(); var back = await gz('d', c0); td.push(performance.now() - a); if (g === 0 && !same(back, data)) res.checks.push('FAIL gzip round trip'); }
+    for (var g = 0; g < (QUICK ? 2 : 4); g++) { say('browser gzip, run ' + (g + 1) + ' of 4'); await tick(); var a = performance.now(); c0 = await gz('c', data); tc.push(performance.now() - a); a = performance.now(); var back = await gz('d', c0); td.push(performance.now() - a); if (g === 0 && !same(back, data)) res.checks.push('FAIL gzip round trip'); }
     res.speed[nm0].gzip = { name: 'browser gzip (4 MiB, one call)', c: tc.slice(1), d: td.slice(1), cf: [tc[0]], df: [td[0]], size: c0.length };
   }
 }
@@ -168,7 +176,7 @@ async function speed(data) {
 async function checks(data) {
   var K = libs.kit, list = res.checks, n = 0;
   function ok(name, cond) { n++; if (!cond) list.push('FAIL ' + name); }
-  say('correctness: lz4-kit levels'); await tick();
+  step('correctness checks'); say('correctness: lz4-kit levels'); await tick();
   var mb = data.subarray(0, 1 << 20), lv, i;
   for (lv = 0; lv <= 12; lv++) {
     var fr = K.compress(mb, lv); ok('frame level ' + lv, same(K.decompress(fr), mb));
@@ -191,14 +199,15 @@ async function checks(data) {
 // ---------- report
 function report() {
   var L = [], e = res.env;
-  L.push('lz4-kit tester ' + new Date().toISOString());
+  if (PLAN) L.push(PLAN.label);
+  L.push('lz4-kit tester ' + (QUICK ? '(quick run) ' : '(full run) ') + (stopped ? 'STOPPED EARLY, results so far ' : '') + new Date().toISOString());
   L.push('browser: ' + e.ua); L.push('cores: ' + e.cores + '  memory hint (GB): ' + e.mem + '  page: ' + location.origin + location.pathname);
   L.push('lz4-kit ' + (libs.kit ? libs.kit.version + ' (LZ4 ' + libs.kit.lz4Version + ')' : 'NOT LOADED'));
   Object.keys(res.loads).forEach(function (k) { L.push('load ' + k + ': ' + res.loads[k]); });
   Object.keys(hashes).forEach(function (k) { L.push('  sha256 ' + k + ' ' + hashes[k]); });
-  L.push(''); L.push('Speed, ms per 4 MiB of data, steady (first call in brackets), median of 3 rounds. Lower is faster.');
+  L.push(''); L.push('Speed, ms per 4 MiB of data, steady (first call in brackets), median of ' + (QUICK ? '1 round' : '3 rounds') + '. Lower is faster.');
   SC.forEach(function (s) {
-    var r = res.speed[s[0]]; L.push(''); L.push(s[0]); L.push(pad('library', 46) + pad('compress', 17) + pad('decompress', 17) + 'bytes out');
+    var r = res.speed[s[0]]; if (!r) return; L.push(''); L.push(s[0]); L.push(pad('library', 46) + pad('compress', 17) + pad('decompress', 17) + 'bytes out');
     Object.keys(r).forEach(function (k) { var x = r[k]; L.push(pad(x.name, 46) + pad(x.c.length ? f1(med(x.c)) + ' (' + f1(med(x.cf)) + ')' : '-', 17) + pad(x.d.length ? f1(med(x.d)) + ' (' + f1(med(x.df)) + ')' : '-', 17) + x.size); });
   });
   L.push(''); L.push('Checks: ' + res.checkCount + ' run, ' + res.checks.length + ' failed'); res.checks.forEach(function (c) { L.push('  ' + c); });
@@ -207,8 +216,8 @@ function report() {
 }
 function pad(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }
 
-$('go').onclick = async function () {
-  $('go').disabled = true; $('copy').disabled = true; $('ta').value = ''; res = { env: {}, loads: {}, speed: {}, checks: [] }; hashes = {}; libs = {};
+async function run(quick) {
+  QUICK = quick; stopped = false; $('go').disabled = $('quick').disabled = true; $('stop').disabled = false; $('copy').disabled = true; $('ta').value = ''; res = { env: {}, loads: {}, speed: {}, checks: [] }; hashes = {}; libs = {};
   res.env = { ua: navigator.userAgent, cores: navigator.hardwareConcurrency, mem: navigator.deviceMemory || 'n/a' };
   $('out').textContent = 'Loading the libraries...';
   var jobs = [['lz4-kit', loadKit], ['lz4js 0.2.0', loadJs], ['lz4-wasm 0.9.2', loadWasm], ['gorhill/lz4-wasm master', loadGor], ['wasm-lz4 2.0.0', loadWl]];
@@ -219,11 +228,15 @@ $('go').onclick = async function () {
     var data = logData(4 << 20); say('data ready'); await tick();
     await checks(data); await speed(data);
   } catch (e) { res.checks.push('PAGE ERROR ' + (e && e.stack || e)); }
-  var t = report(); $('out').textContent = t; $('ta').value = t; $('pg').value = 1; say('Done. Press Copy results.');
-  $('go').disabled = false; $('copy').disabled = false;
+  var t = report(); $('out').textContent = t; $('ta').value = t; $('pg').value = 1; say((stopped ? 'Stopped. ' : 'Done. ') + 'Press Copy results.');
+  if (PLAN) LfcCorePlan.lastRun.done();
+  $('go').disabled = $('quick').disabled = false; $('stop').disabled = true; $('copy').disabled = false;
   if (q.get('auto')) { window.R = { ms: 1, bytes: { report: t } }; document.title = 'DONE'; }
-};
-if (q.get('auto')) window.addEventListener('load', function () { $('go').click(); });
+}
+$('quick').onclick = function () { run(true); };
+$('go').onclick = function () { run(false); };
+$('stop').onclick = function () { stopped = true; say('Stopping after this step...'); };
+if (q.get('auto')) window.addEventListener('load', function () { $(q.get('auto') === 'quick' ? 'quick' : 'go').click(); });   // ?auto=quick starts a Quick run, any other value a Full run
 $('copy').onclick = function () {
   var t = $('ta').value;
   function fallback() { $('ta').focus(); $('ta').select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) { } say(ok ? 'Copied.' : 'Select the box and copy it by hand.'); }
