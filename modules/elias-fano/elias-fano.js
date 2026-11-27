@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.3.3 (API 2)
+ * Version 2.4.0 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -780,13 +780,14 @@
        0x75 E-F:   varint n, varint u (= last value + 1), byte l (= floor(log2(u / n))), n * l low bits (byte aligned, low bit first), then n + floor(u / 2^l) + 1 high bits
                    (bit i + floor(value i / 2^l) set), with no samples
      Reads decode the list into one shared scratch array (no memory kept per list); the last list decoded stays there, so repeat questions to the same list skip the decode. ---- */
-  var TMAX = 63, TGAP = 0x74, TEF = 0x75, TS = new Uint32Array(64), TS2 = new Uint32Array(64), TLAST = null, TLAST2 = null;
+  var TMAX = 63, SMAX = 1023, TGAP = 0x74, TEF = 0x75, TS = new Uint32Array(1024), TS2 = new Uint32Array(1024), TLAST = null, TLAST2 = null;
   function tVarint(out, v) { while (v > 127) { out.push((v % 128) | 128); v = Math.floor(v / 128); } out.push(v); }
   function tLog(u, n) { var q = Math.floor(u / n), l = 0; while (l < 32 && Math.pow(2, l + 1) <= q) l++; return l; }   // floor(log2(u / n)), 0 when u < 2n
-  function buildTiny(values) {
-    if (!values || typeof values.length !== 'number') throw new TypeError('elias-fano: buildTiny takes an array of numbers');
+  function buildTiny(values) { return tBuild(values, TMAX, 'buildTiny'); }
+  function tBuild(values, max, name) {
+    if (!values || typeof values.length !== 'number') throw new TypeError('elias-fano: ' + name + ' takes an array of numbers');
     var n = values.length, i, v, p;
-    if (n > TMAX) throw new RangeError('elias-fano: buildTiny takes at most ' + TMAX + ' values (use build for longer lists)');
+    if (n > max) throw new RangeError('elias-fano: ' + name + ' takes at most ' + max + ' values (use build for longer lists)');
     check(values);
     var g = [TGAP]; tVarint(g, n); if (n) { tVarint(g, values[0]); for (i = 1; i < n; i++) tVarint(g, values[i] - values[i - 1]); }
     if (n === 0) return new Uint8Array(g);
@@ -811,9 +812,9 @@
     for (var k = 0; k < 5; k++) { if (st.p >= b.length) return -1; c = b[st.p++]; v += (c & 127) * m; if (!(c & 128)) return v > 4294967296 ? -1 : v; m *= 128; }
     return -1;
   }
-  function tDecode(b, dst) {   // fills dst[0 .. n) and returns n, or -1 when the blob is not a valid tiny list (used once on open; reads never pass the end)
+  function tDecode(b, dst, max) {   // fills dst[0 .. n) and returns n, or -1 when the blob is not a valid tiny list of at most max values (used once on open; reads never pass the end)
     var st = { p: 1 }, n = tRead(b, st), i, v, t = b[0];
-    if (n < 0 || n > TMAX) return -1;
+    if (n < 0 || n > max) return -1;
     if (t === TGAP) {
       if (n === 0) return st.p === b.length ? 0 : -1;
       v = tRead(b, st); if (v < 0 || v > 4294967295) return -1; dst[0] = v;
@@ -859,9 +860,9 @@
     }
     return n;
   }
-  function TList(bytes) {
-    var n = tDecode(bytes, TS); TLAST = null;
-    if (n < 0) throw new RangeError('elias-fano: truncated or invalid tiny list');
+  function TList(bytes, max) {
+    var n = tDecode(bytes, TS, max); TLAST = null;
+    if (n < 0) throw new RangeError(max > TMAX ? 'elias-fano: truncated or invalid stored list (at most ' + max + ' values)' : 'elias-fano: truncated or invalid tiny list (at most ' + max + ' values; a stored list of more opens with openStored)');
     this.bytes = bytes; this.length = n; TLAST = this;
   }
   var TP = TList.prototype;
@@ -889,16 +890,21 @@
   TP.stats = function () { return { count: this.length, bytes: this.bytes.length, bitsPerValue: this.length ? this.bytes.length * 8 / this.length : 0, tiny: this.bytes[0] === TGAP ? 'gaps' : 'elias-fano', compact: false }; };
   TP.free = function () { if (TLAST === this) TLAST = null; if (TLAST2 === this) TLAST2 = null; };
   TP.compact = function () { return false; };
-  function openTiny(bytes) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); return new TList(bytes); }
-  var TR = new Uint32Array(64);   // intersectTiny2: the answers, before the one copy that is returned
-  function intersectTiny2(A, B) {   // two tiny lists: one merge over both decoded lists, no helper arrays
+  function openTiny(bytes) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); return new TList(bytes, TMAX); }
+  /* stored lists (since 2.4.0, opt-in): the tiny layout for up to 1,023 values. On real mid lists (64 to 1,023 values) 0.67 to 0.81x the bytes of a flat list, smaller
+     than varint gaps and roaring there, but 2 to 8 times slower to read and with no fast lookups: for lists that are saved and read once or rarely. buildAuto is unchanged.
+     A blob of 63 values or fewer is the same bytes as buildTiny. Readers before 2.4.0 refuse a longer one with a RangeError. */
+  function buildStored(values) { return tBuild(values, SMAX, 'buildStored'); }
+  function openStored(bytes) { if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes); return new TList(bytes, SMAX); }
+  var TR = new Uint32Array(1024);   // intersectTiny2: the answers, before the one copy that is returned
+  function intersectTiny2(A, B) {   // two tiny or stored lists: one merge over both decoded lists, no helper arrays
     if (A.length > B.length) { var t = A; A = B; B = t; }
     var n = A.length, nb = B.length; if (n === 0) return new Uint32Array(0);
     var c = A._v2(), b = B._v(), i = 0, j = 0, m = 0, prev = -1, x, y;
     while (i < n && j < nb) { x = c[i]; y = b[j]; if (x < y) i++; else if (y < x) j++; else { if (x !== prev) { TR[m++] = x; prev = x; } i++; j++; } }
     return TR.slice(0, m);
   }
-  function intersectTiny(ls) {   // ls sorted by length and one of them tiny, so ls[0] has at most 63 values: keep those every other list contains
+  function intersectTiny(ls) {   // ls sorted by length and one of them tiny or stored, so ls[0] has at most 1,023 values: keep those every other list contains
     var A = ls[0], n = A.length, c = A instanceof TList ? A._v2() : A.toArray(), res = new Uint32Array(n), m = 0, i, j, prev = -1;
     if (ls.length === 2 && ls[1] instanceof TList) {   // two tiny lists: one merge over both decoded lists
       var b = ls[1]._v(), nb = ls[1].length; i = 0; j = 0;
@@ -933,12 +939,12 @@
   PP.view = function () { return this.toArray(); }; TP.view = function () { return this.toArray(); };   // no zero-copy path for these kinds: a fresh array
   P.pin = pin; PP.pin = pin; P.pinned = PP.pinned = function () { return !!this._pin; };
   var freeFlat = P.free; P.free = PP.free = function () { if (this._pin) this.pin(false); return freeFlat.call(this); };
-  // buildAuto / openAuto: a tiny list for 63 values or fewer, a flat list otherwise (longer tiny lists were smaller but 2 to 6 times slower to read); openAuto opens any single list blob
+  // buildAuto / openAuto: a tiny list for 63 values or fewer, a flat list otherwise (longer tiny lists were smaller but 2 to 6 times slower to read); openAuto opens any single list blob, stored lists too
   function buildAuto(values) { return values && values.length <= TMAX ? buildTiny(values) : build(values); }
   function openAuto(bytes, opts) {
     if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes);
     var b0 = bytes.length ? bytes[0] : -1;
-    if (b0 === TGAP || b0 === TEF) return openTiny(bytes);
+    if (b0 === TGAP || b0 === TEF) return openStored(bytes);   // tiny and stored lists share the layout
     if (bytes.length >= 4) { var m = (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) >>> 0; if (m === PMAGIC) return openPartitioned(bytes, opts); if (m === BMAGIC) return openBlocks(bytes); }
     return open(bytes, opts);
   }
@@ -984,8 +990,8 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.3.3', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
-    buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
+    version: '2.4.0', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildStored: buildStored, openStored: openStored, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
     _buildJS: buildJS, _layout: layout

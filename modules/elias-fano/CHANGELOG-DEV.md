@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.0 · API 2 · 2026-11-27
+
+### Quick
+buildStored/openStored: the tiny layout with its count limit raised to 1,023 (owner card 11.27 4:35 PM Detroit: add it, off by default).
+
+### Deep
+buildStored/openStored: the tiny layout with its count limit raised to 1,023 (owner card 11.27 4:35 PM Detroit: add it, off by default). Real mid lists 64-1,023 values (retail 1,500, SBA 1,500, SEC filers 69, FHIR training 440): size 0.663/0.752/0.608/0.702 of flat; warm decode 3.3-8.5x slower; open plus one decode 0.42-2.2x (Chromium/Firefox/WebKitGTK). openTiny still refuses more than 63; openAuto opens stored lists; intersectTiny2 answer buffer 1,024. Test stored.js (600 lists, cut and flipped blobs, intersect in any mix).
+
 ## 2.3.3 · API 2 · 2026-11-27
 
 ### Quick
