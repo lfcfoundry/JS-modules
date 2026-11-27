@@ -71,7 +71,7 @@ Licenses and links checked on 2026-11-20 (npm registry, the repositories' licens
 
 ## Rivals we measure against
 
-Rivals run only as comparisons. None of their code ships here. They are named, with versions, in each module's "Numbers" and credits sections. For example, lfc-pack is compared against Parquet readers and Arrow, memory-compression against msgpackr, cbor-x, FlatBuffers and bson, and netflow-layers against Graphviz and ELK.
+Rivals run only as comparisons. None of their code ships in a module. They are named, with versions, in each module's "Numbers" and credits sections. For example, lfc-pack is compared against Parquet readers and Arrow, memory-compression against msgpackr, cbor-x, FlatBuffers and bson, and netflow-layers against Graphviz and ELK. The Elias-Fano tester (`testers/elias-fano-vs-rivals-tester.html`) runs [roaring-wasm 1.1.0](https://github.com/SalvatorePreviti/roaring-wasm) and [FastIntegerCompression.js 0.1.0](https://github.com/lemire/FastIntegerCompression.js) (both Apache-2.0, kept in `testers/ef-rivals/` for the tester only), plus our own measure-only versions of SIMD-BP128 (Lemire and Boytsov, [2015](https://arxiv.org/abs/1209.2137)), Stream VByte (Lemire, Kurz and Rupp, [2018](https://arxiv.org/abs/1709.08990)) and binary interpolative coding (Moffat and Stuiver, 2000; no online copy found).
 
 ---
 Part of [JS-modules](README.md) · MIT License · Copyright (c) 2026 LFC Foundry
