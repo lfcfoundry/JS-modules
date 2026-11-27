@@ -129,7 +129,7 @@ function prepare(L,bn,R){
   u32(tmpA,N).set(a);var nb=(N+127)>>7,pb1=X.bp_enc(tmpA,N,tmpM,tmpD),meta=alloc(nb*12),dat=alloc(pb1+16);u32(meta,nb*3).set(u32(tmpM,nb*3));new Uint8Array(MEM.buffer,dat,pb1).set(new Uint8Array(MEM.buffer,tmpD,pb1));H.bp.push({meta:meta,dat:dat,N:N});bytes.bp128+=pb1+nb*9+8;
   var bb=X.bic_enc(tmpA,N,tmpD);bytes.bic+=bb+8;
   var sv=X.svb_enc(tmpA,N,tmpC,tmpD),cl=(N+3)>>2,sd=alloc(sv+32),sc=alloc(cl+16);new Uint8Array(MEM.buffer,sd,sv).set(new Uint8Array(MEM.buffer,tmpD,sv));new Uint8Array(MEM.buffer,sc,cl).set(new Uint8Array(MEM.buffer,tmpC,cl));H.svb.push({sd:sd,sc:sc,N:N});bytes.svb+=sv+cl+8;
-  var d=new Uint32Array(N),p=0;for(var j=0;j<N;j++){d[j]=a[j]-p;p=a[j];}bytes.varint+=FIC.compress(d).byteLength;}
+  var d=new Uint32Array(N),p=0;for(var j=0;j<N;j++){d[j]=a[j]-p;p=a[j];}bytes.varint+=FIC.compress(d).byteLength+8;}   /* +8: the list count, as every other rival stores it (varints alone do not say where a list ends) */
  var outs=L.map(function(x){return new Uint32Array(x.length);}),rnd=rng(9),Q=L.map(function(x){var q=new Uint32Array(50);for(var k=0;k<50;k++)q[k]=Math.floor(rnd()*x[x.length-1]);return q;}),rout=new Uint32Array(50),pairs=[];
  for(var k=0;k<300&&n>1;k++){var x=Math.floor(rnd()*n),y=Math.floor(rnd()*n);if(x===y)y=(y+1)%n;if(L[x].length>L[y].length){var t=x;x=y;y=t;}pairs.push([x,y]);}
  var ours=function(h){return bn==='short'?h.t:h.ba;},oursF=function(h){return bn==='short'?h.t:h.f;};
