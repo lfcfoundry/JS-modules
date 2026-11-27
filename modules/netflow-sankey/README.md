@@ -2,7 +2,7 @@
 
 **Version 2.16.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (picture check on three real flows; speed not re-measured in all three)
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6: speed and picture match measured in all three on 6 real flows (2026.11.26); not run on devices
 
 ## What it is and how it works
 

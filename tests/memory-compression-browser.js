@@ -29,6 +29,7 @@ async function battery(src, jsOnly, full) {
   assert.strictEqual = (a, b, m) => { if (!Object.is(a, b)) fail(m, 'expected ' + String(b) + ' got ' + String(a)); };
   assert.notStrictEqual = (a, b, m) => { if (Object.is(a, b)) fail(m, 'did not expect ' + String(a)); };
   assert.deepStrictEqual = (a, b, m) => { if (!eq(a, b)) fail(m, 'not deeply equal'); };
+  assert.ok = assert;
   assert.fail = (m) => fail(m, 'failed');
   assert.throws = (fn, re, m) => { try { fn(); } catch (e) { if (re && !re.test(String(e && e.message))) fail(m, 'threw the wrong error: ' + (e && e.message)); return; } fail(m, 'did not throw'); };
   const mods = {};
