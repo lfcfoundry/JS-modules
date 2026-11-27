@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.3.3 · API 2**
+**Version 2.4.0 · API 2**
 
 **Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -195,6 +195,15 @@ Reads decode the list into one shared scratch array, so a tiny list keeps no mem
 
 `pin()` returns false and changes nothing outside 64 to 1,023 values. `pin(false)` and `free()` drop the copy.
 
+**Stored lists (since 2.4.0, opt-in):** `buildStored` keeps a list of up to 1,023 values in the tiny layout, for mid-size lists that are saved and read once or rarely (a saved file, an index on disk). On the real mid lists (64 to 1,023 values: retail, SBA, SEC filers, FHIR training set) it takes 0.61 to 0.75x the bytes of a flat list, which also puts it below varint gaps and roaring there. Once open it is 3 to 8 times slower to read than a flat list and has no fast lookups. Opening and reading a list once takes 0.4 to 2.2x the time of a flat list (ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6). `buildAuto` is unchanged and still stops at 63.
+
+```js
+var b = EliasFano.buildStored(values);   // 0 to 1,023 values; more throws a RangeError
+var s = EliasFano.openStored(b);         // or openAuto(b); openTiny refuses more than 63 values
+```
+
+A stored list of 63 values or fewer is the same bytes as `buildTiny`. Readers before 2.4.0 refuse a longer one with a RangeError.
+
 **Many short lists read together:** a list set from `buildLists` was already about 4x smaller than one list each (156 KB against 609 KB on the same short lists), and `decodeAll` takes 0.22 to 0.25x the time of a loop over separate lists. Lists longer than about 64 values do better on their own, and on long lists a list set is about 2x bigger. Choose a list set when the lists are always read together, and tiny lists when each is read on its own. These list-set figures come from the research run that proposed tiny lists.
 
 **Faster decoding (since 2.2.2):** in browsers with WebAssembly SIMD, `toArray` on a flat list of 16 or more values with up to 16 low bits decodes eight values at a time. On the real lists it takes 0.68 / 0.54 / 0.56 of the time on long lists and 0.70 / 0.60 / 0.69 on mid-size lists (Chromium / Firefox / WebKitGTK). The format and answers are the same.
@@ -212,7 +221,7 @@ var keep = list.view().slice(); // or copy it to keep it
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.
 - Lists must be sorted (duplicates allowed); anything else throws a `RangeError`.
 - `open`, `openLists` and `openPartitioned` refuse (RangeError) a blob whose header, section sizes or counts do not add up, or that is truncated or cut, instead of reading past it. For partitioned lists the bits of every chunk are checked against the counts as well; for flat lists and list sets only the headers and offsets are checked (a flipped bit inside the data can give wrong values, never a read outside the blob).
-- `openTiny` refuses (RangeError) a tiny list whose counts, layout byte or bits do not add up, or that is cut short.
+- `openTiny` refuses (RangeError) a tiny list whose counts, layout byte or bits do not add up, or that is cut short; `openStored` does the same for up to 1,023 values.
 - Little-endian machines only (all browsers on current hardware).
 - `buildLists` adds `j × (biggest value + 1)` to list j inside a chunk and cuts a new chunk before that would pass 2^32, so a list set whose values reach 2^32 − 1 is refused.
 
