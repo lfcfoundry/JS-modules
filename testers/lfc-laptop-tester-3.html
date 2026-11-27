@@ -317,7 +317,7 @@ async function run(quick){
  stopped=false;report=[];R1=[];R2=[];R3=[];draw();
  var file=$('pq').files[0],rounds=quick?9:31,reps2=quick?2:3,T0=performance.now();
  var units=CASES.length*rounds*2+(file?KS.length*reps2+combos(quick).length*(quick?2:4):0),done=0,nominal=quick?(file?110:45):(file?300:150);
- var prog=function(what){done++;pb.style.width=(100*done/units)+'%';var el=(performance.now()-T0)/1000;sub.textContent='About '+clock(done<4?nominal-el:el/done*(units-done))+' left · '+what;};
+ var prog=function(what){done++;pb.style.width=(100*done/units)+'%';var el=(performance.now()-T0)/1000;sub.textContent='About '+clock(done<4?nominal-el:el/done*(units-done))+' left \u00b7 '+what;};
  report.push(PLAN.label);
  report.push('LAPTOP TESTER 3 ('+(quick?'quick':'full')+' run) | '+navigator.userAgent+' | core-plan '+LfcCorePlan.version+(file?'':' | no Parquet file chosen, so tests 2 and 3 are skipped'));show();
  try{
