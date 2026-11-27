@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.3.3 · API 2 · 2026-11-27
+
+### Quick
+Two tiny lists: intersect goes straight to one merge into a shared 64-value array (no helper arrays, sort or closure).
+
+### Deep
+Two tiny lists: intersect goes straight to one merge into a shared 64-value array (no helper arrays, sort or closure). TList.nextGEQMany with a Uint32Array skips per-query checks and searches inline. Short intersect vs BP128 on the tester (real lists, quick run): Chromium 0.74-1.03, Firefox 0.70-1.11, WebKitGTK 0.58-0.86 (research thread before: up to 1.96 / 1.5 / 1.57). Tests: tiny-pairs.js 20,000 random pairs vs a set intersection, all suites pass.
+
 ## 2.3.2 · API 2 · 2026-11-26
 
 ### Quick
