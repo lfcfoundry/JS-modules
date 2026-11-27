@@ -1,8 +1,8 @@
 # graph-walk
 
-**Version 0.13.0 · API 0**
+**Version 0.13.1 · API 0**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (tests/core-plan-defaults-browser.html for text-columns, graph-walk and lfc-pack; the module's own browser checks where it has them; tests/core-plan-copies.js in Node). Not run: a phone, an 8-thread or larger machine
+**Tested in:** Firefox 161 on a 4-core, 8-thread desktop (testers/helper-count-tester.html, quick run: 8 helpers 386 ms, 4 helpers 447 ms); ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (tests/core-plan-defaults-browser.html; graph-walk Node tests); tests/core-plan-copies.js
 
 Part of [JS-modules](../../README.md). MIT License, Copyright (c) 2026 LFC Foundry.
 

@@ -362,7 +362,7 @@
     },
     {
       "id": "graph-walk",
-      "version": "0.13.0",
+      "version": "0.13.1",
       "api": 0,
       "global": "GraphWalk",
       "summary": "Graph walks on typed arrays with no recursion, in WebAssembly with a plain JavaScript fallback: distances, loops, components, topological order, shortest and landmark paths, PageRank, betweenness and closeness (with helper threads), k-core, triangles, Louvain communities, max-flow and critical path. Same answers as Netflow Map's inline walks.",

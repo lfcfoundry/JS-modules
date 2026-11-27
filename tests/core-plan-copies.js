@@ -18,6 +18,11 @@ for (const f of FILES) {
     const got = new Function('navigator', 'process', 'require', src + '; return planHelpers(' + keep + ');')(nav, undefined, undefined);
     const want = CP.plan({ env: CP.detect(nav), keepFree: keep }).workers;
     checks++; if (got !== want) { fails++; if (fails < 10) console.log('FAIL ' + f + ': ' + t + ' threads, ' + (mem || 'no') + ' GB, keep ' + keep + ': ' + got + ', core-plan says ' + want); }
+    if (/planHelpers\(keep, cap, threads\)/.test(src)) {   // the threads variant (graph-walk): every thread counted as a core
+      const gotT = new Function('navigator', 'process', 'require', src + '; return planHelpers(' + keep + ', 8, true);')(nav, undefined, undefined), e = CP.detect(nav); e.cores = e.logical;
+      const wantT = CP.plan({ env: e, keepFree: keep }).workers;
+      checks++; if (gotT !== wantT) { fails++; if (fails < 10) console.log('FAIL ' + f + ' (threads): ' + t + ' threads, ' + (mem || 'no') + ' GB, keep ' + keep + ': ' + gotT + ', core-plan with every thread says ' + wantT); }
+    }
   }
 }
 console.log(fails ? fails + ' FAILED of ' + checks : 'every planHelpers copy agrees with core-plan (' + FILES.length + ' files, ' + checks + ' checks)');

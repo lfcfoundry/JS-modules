@@ -104,7 +104,7 @@ var RACES=[
   setup:function(){var r=rng(6),J=[],i;for(i=0;i<300000;i++)J.push(JSON.stringify({id:i,v:Math.round(r()*1e6)/100,s:'k'+Math.floor(r()*500),t:'2026-01-'+(10+i%20)+'T10:00:00Z',n:{a:i%7,b:r()<0.5}}));this.b=new TextEncoder().encode(J.join('\n')+'\n');return LfcPack.init();},
   reset:function(){},
   run:function(k){return LfcPack.packParallel(this.b,{workers:k}).then(function(f){return f.length;});}},
- {name:'graph-walk betweennessAsync, 6,000 items',old:Math.min(HC,8),now:FULL,
+ {name:'graph-walk betweennessAsync, 6,000 items',old:Math.min(HC,8),now:(function(){var e=LfcCorePlan.detect(NAV);e.cores=e.logical;return LfcCorePlan.plan({env:e,keepFree:0}).workers;})(),   /* since graph-walk 0.13.1 every thread counts: 4 of 8 was 1.17x slower on a 4-core, 8-thread desktop */
   setup:function(){var r=rng(7),n=6000,fr=[],to=[],i;for(i=1;i<n;i++){fr.push(Math.floor(r()*i));to.push(i);}for(i=0;i<9000;i++){fr.push(Math.floor(r()*n));to.push(Math.floor(r()*n));}this.g=GraphWalk.csr(n,Int32Array.from(fr),Int32Array.from(to));return GraphWalk.ready?GraphWalk.ready():null;},
   reset:function(){GraphWalk.closePool();},
   run:function(k){return GraphWalk.betweennessAsync(this.g,{workers:k,minWork:0}).then(function(a){return a.length;});}}];

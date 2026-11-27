@@ -205,7 +205,7 @@ Walk graphs (shortest paths, centrality, communities) and simulate random walker
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
-| [graph-walk](modules/graph-walk/README.md) | 0.13.0 | 99.5 | 31.5 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
+| [graph-walk](modules/graph-walk/README.md) | 0.13.1 | 99.8 | 31.6 | Graph walks in typed arrays: distances, loops, shortest paths, centrality, communities. | — |
 | [walker-sim](modules/walker-sim/README.md) | 2.5.0 | 75.8 | 24.6 | Simulates random walkers on a network: seeded runs, 95% ranges, exact odds. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/walker-sim/demo.html) |
 
 #### Visualization

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.13.1 · API 0 · 2026-11-26
+
+### Quick
+Fix: 0.13.0 counted real cores (threads / 2 from 8 threads up), so a 4-core, 8-thread desktop got 4 helpers instead of 8, and betweennessAsync on 6,000 items took 447 ms instead of 386 ms there (1.17x, Firefox 161, testers/helper-count-tes…
+
+### Deep
+Fix: 0.13.0 counted real cores (threads / 2 from 8 threads up), so a 4-core, 8-thread desktop got 4 helpers instead of 8, and betweennessAsync on 6,000 items took 447 ms instead of 386 ms there (1.17x, Firefox 161, testers/helper-count-tester.html quick run, every one of 9 rounds 1.10 to 1.19x). graph-walk's helpers are pure compute and gain from the second thread of a core, so the default is again every thread, at most 8, now also at most half of the reported memory at 256 MB a helper (the same 8 as 0.12.0 on every device with 4 GB or more, or with memory not reported). options.workers still wins.
+
 ## 0.13.0 · API 0 · 2026-11-26
 
 ### Quick
