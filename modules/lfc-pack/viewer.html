@@ -2841,25 +2841,12 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     var N = R.n, bin = R.bin, tl = null, i, x, s, e, lmn, lmx, lc, mn = Infinity, mx = -Infinity, asc = true, desc = true, prev = 0, first = NaN, last = NaN, have = false, nul = 0, t, j, p, G, sv = null, svn = 0, gv = null, cnt = null;
     var b0 = bin ? Math.floor(a0 / bin) : 0, nb = bin && c ? Math.floor((a0 + c - 1) / bin) - b0 + 1 : 1, bmn = null, bmx = null, bct = null;
     if (bin) { bmn = new Float64Array(nb); bmx = new Float64Array(nb); bct = new Uint32Array(nb); }
-    // since 0.26.0 a long column's sample is read (and sorted, unless it is in order) before the pass, so the pass can also take every value past the tail cuts (blockTails)
-    var tk = false, th = Infinity, tlo = -Infinity, cap = 0, B = null, nh = 0, nl = 0, pre = false, sa = true, sd = true;
-    if (R.q && N > SUM_QS) {
-      j = Math.max(0, Math.floor(a0 * SUM_QS / N) - 1); while (j < SUM_QS && sposAt(j, N) < a0) j++;
-      sv = new Float64Array(Math.min(SUM_QS - j, Math.ceil(c * SUM_QS / N) + 2)); t = 0;   // positions rise by at least one slice each, so the block holds at most this many
-      for (; j < SUM_QS && (p = sposAt(j, N)) < a0 + c; j++) { x = r[p - a0]; if (x - x === 0) sv[t++] = x; } sv = sv.subarray(0, t);
-      for (i = 1; i < t && (sa || sd); i++) { if (sv[i] < sv[i - 1]) sa = false; else if (sv[i] > sv[i - 1]) sd = false; }
-      if (t && !sa && !sd) { lmn = Infinity; lmx = -Infinity; for (i = 0; i < t; i++) { x = sv[i]; if (x !== Math.floor(x)) break; if (x < lmn) lmn = x; if (x > lmx) lmx = x; }
-        if (i === t && lmx - lmn <= SUM_CNT) sa = sd = true; }   // whole numbers close together: the block will most likely be counted (exact without tails), so no early sort and no cuts
-      if (t && !sa && !sd) { sortF64(sv); pre = true; j = Math.ceil((1.15 / 90.5 + 3 * Math.sqrt(t / 90.5) / t) * t) + 1;   // the cuts: 15% past 1/90.5 of the block from each end, plus three standard errors of the sample
-        tk = true; if (j >= t) { th = -Infinity; tlo = Infinity; cap = c; } else { th = sv[t - 1 - j]; tlo = sv[j]; cap = Math.max(512, c >> 3); }
-        if (!TAILBUF || TAILBUF.length < 2 * cap) TAILBUF = new Float64Array(2 * cap); B = TAILBUF; }
-    }
+    var ct = R.q && N > SUM_QS ? blockCuts(r, c, a0, N) : null, pre = !!(ct && ct.pre);   // since 0.26.0 a long column's sample is read first (blockCuts)
+    if (ct) sv = ct.sv;
     for (t = 0; t < nb; t++) {
       s = bin ? Math.max(0, (b0 + t) * bin - a0) : 0; e = bin ? Math.min(c, (b0 + t + 1) * bin - a0) : c; lmn = Infinity; lmx = -Infinity; lc = 0; i = s;
-      if (asc || desc) for (; i < e && (asc || desc); i++) { x = r[i]; if (x - x !== 0) continue; lc++; if (x < lmn) lmn = x; if (x > lmx) lmx = x; if (have) { if (x < prev) asc = false; else if (x > prev) desc = false; } else { have = true; first = x; } prev = x;
-        if (tk) { if (x >= th) { if (nh < cap) B[nh] = x; nh++; } else if (x <= tlo) { if (nl < cap) B[cap + nl] = x; nl++; } } }
-      if (tk) for (; i < e; i++) { x = r[i]; if (x - x !== 0) continue; lc++; if (x < lmn) lmn = x; if (x > lmx) lmx = x; if (x >= th) { if (nh < cap) B[nh] = x; nh++; } else if (x <= tlo) { if (nl < cap) B[cap + nl] = x; nl++; } }
-      else for (; i < e; i++) { x = r[i]; if (x - x !== 0) continue; lc++; if (x < lmn) lmn = x; if (x > lmx) lmx = x; }   // once the order is settled as neither: range and count alone
+      if (asc || desc) for (; i < e && (asc || desc); i++) { x = r[i]; if (x - x !== 0) continue; lc++; if (x < lmn) lmn = x; if (x > lmx) lmx = x; if (have) { if (x < prev) asc = false; else if (x > prev) desc = false; } else { have = true; first = x; } prev = x; }
+      for (; i < e; i++) { x = r[i]; if (x - x !== 0) continue; lc++; if (x < lmn) lmn = x; if (x > lmx) lmx = x; }   // once the order is settled as neither: range and count alone
       if (lc) { if (lmn < mn) mn = lmn; if (lmx > mx) mx = lmx; }
       nul += e - s - lc;
       if (bin) { bmn[t] = lc ? lmn : NaN; bmx[t] = lc ? lmx : NaN; bct[t] = lc; }
@@ -2873,21 +2860,38 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       svn = sv.length;
       if (N > SUM_QS && svn > SUM_KEEP && c < N) { var kp = new Float64Array(SUM_KEEP), z; for (z = 0; z < SUM_KEEP; z++) kp[z] = sv[Math.floor((z + 0.5) * svn / SUM_KEEP)]; sv = kp; }   // a long block keeps SUM_KEEP order statistics of its sample, each the middle one of the svn / SUM_KEEP values it stands for (since 0.24.1; taking the sample's two ends too gave them the weight of a whole slice and read the tails high: p99 1.9% and the 99.9th 12% over on a skewed column, now 0.5% and 2.7%)
       G = R.G; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= a0 && G[j] < a0 + c) gv.push(G[j], r[G[j] - a0]);
-      if (tk && !asc && !desc && !cnt) tl = blockTails(r, c, th, tlo, cap, nh, nl);   // (a counted block needs none: a column counted in every block has an exact grid)
+      if (ct && ct.cap && !asc && !desc && !cnt) tl = blockTails(r, c, ct.th, ct.tlo, ct.cap);   // (a counted block needs none: a column counted in every block has an exact grid)
     }
     return { a: a0, n: c, nulls: nul, have: have, mn: mn, mx: mx, asc: have && asc, desc: have && desc, first: first, last: last, sv: sv, svn: svn, gv: gv, cnt: cnt, b0: b0, bmn: bmn, bmx: bmx, bct: bct, tl: tl };
   }
   // since 0.26.0: every value in each end of the block, so the grid points in the outer 1/91 of the column (the tail points, and the last two even steps at each end) are read from all values, not the
   // sample (on skewed columns the sample put "count above" 10% to 70% off there). The cuts come from the block's own sorted sample, a little past 1/90.5 of the block, so a block a little heavier
-  // in a tail still gives all it holds; blockStats' pass takes every value at or past them into TAILBUF (high side from 0, low side from cap; nh and nl counted past cap).
+  // in a tail still gives all it holds; one more pass (blockTails) takes every value at or past them into TAILBUF (high side from 0, low side from cap).
   var TAILBUF = null;
-  function blockTails(r, c, th, tlo, cap, nh, nl) {   // -> { th, hs, hv, tlo, ls, lv }: hv every value >= th (> th when hs), rising; lv every value <= tlo (< tlo when ls); a side whose cut value is shared by too many values takes the strict side of it
-    var B = TAILBUF, i, x, hs = false, ls = false;
-    if (nh > cap) { hs = true; nh = 0; for (i = 0; i < c; i++) { x = r[i]; if (x > th && x - x === 0) { if (nh === cap) return null; B[nh++] = x; } } }
-    if (nl > cap) { ls = true; nl = 0; for (i = 0; i < c; i++) { x = r[i]; if (x < tlo && x - x === 0) { if (nl === cap) return null; B[cap + nl++] = x; } } }
+  // the block's sample (at the fixed positions sposAt gives), read before the pass; unless it is in order or looks counted (whole numbers within SUM_CNT), also sorted, with the tail cuts:
+  // 15% past 1/90.5 of the block from each end, plus three standard errors of the sample. Kept apart from blockStats' pass (a pass with the cuts inside it ran slower in Firefox and WebKitGTK).
+  function blockCuts(r, c, a0, N) {
+    var j = Math.max(0, Math.floor(a0 * SUM_QS / N) - 1), t = 0, i, p, x, sv, sa = true, sd = true, lo = Infinity, hi = -Infinity, d;
+    while (j < SUM_QS && sposAt(j, N) < a0) j++;
+    sv = new Float64Array(Math.min(SUM_QS - j, Math.ceil(c * SUM_QS / N) + 2));   // positions rise by at least one slice each, so the block holds at most this many
+    for (; j < SUM_QS && (p = sposAt(j, N)) < a0 + c; j++) { x = r[p - a0]; if (x - x === 0) sv[t++] = x; } sv = sv.subarray(0, t);
+    for (i = 1; i < t && (sa || sd); i++) { if (sv[i] < sv[i - 1]) sa = false; else if (sv[i] > sv[i - 1]) sd = false; }
+    if (!t || sa || sd) return { sv: sv, pre: false };
+    for (i = 0; i < t; i++) { x = sv[i]; if (x !== Math.floor(x)) break; if (x < lo) lo = x; if (x > hi) hi = x; }
+    if (i === t && hi - lo <= SUM_CNT) return { sv: sv, pre: false };   // whole numbers close together: the block will most likely be counted (exact without tails)
+    sortF64(sv); d = Math.ceil((1.15 / 90.5 + 3 * Math.sqrt(t / 90.5) / t) * t) + 1;
+    return d >= t ? { sv: sv, pre: true, th: -Infinity, tlo: Infinity, cap: c } : { sv: sv, pre: true, th: sv[t - 1 - d], tlo: sv[d], cap: Math.max(512, c >> 3) };
+  }
+  function blockTails(r, c, th, tlo, cap) {   // -> { th, hs, hv, tlo, ls, lv }: hv every value >= th (> th when hs), rising; lv every value <= tlo (< tlo when ls); a side whose cut value is shared by too many values takes the strict side of it
+    var B, i, x, nh = 0, nl = 0, hs = false, ls = false;
+    if (!TAILBUF || TAILBUF.length < 2 * cap) TAILBUF = new Float64Array(2 * cap); B = TAILBUF;
+    for (i = 0; i < c; i++) { x = r[i]; if (x >= th) { if (nh < cap) B[nh] = x; nh++; } else if (x <= tlo) { if (nl < cap) B[cap + nl] = x; nl++; } }   // NaN fails both
+    if (th > -Infinity && nh > cap) { hs = true; nh = 0; for (i = 0; i < c; i++) { x = r[i]; if (x > th) { if (nh === cap) return null; B[nh++] = x; } } }
+    if (tlo < Infinity && nl > cap) { ls = true; nl = 0; for (i = 0; i < c; i++) { x = r[i]; if (x < tlo) { if (nl === cap) return null; B[cap + nl++] = x; } } }
+    if (nh > cap || nl > cap) return null;
     return { th: th, hs: hs, hv: tailVals(B.subarray(0, nh)), tlo: tlo, ls: ls, lv: tailVals(B.subarray(cap, cap + nl)) };
   }
-  function tailVals(a) { return sortF64(a.slice()); }   // a copy, rising (the pass takes finite values only)
+  function tailVals(a) { var o = new Float64Array(a.length), n = 0, i, x; for (i = 0; i < a.length; i++) { x = a[i]; if (x - x === 0) o[n++] = x; } return sortF64(n < o.length ? o.slice(0, n) : o); }   // finite values only (an infinity can pass a cut), rising
   // ascending sort of finite doubles in place (since 0.26.0): an LSD radix sort over the top 32 bits only (sign, exponent and 20 bits of the fraction: three 11-bit digits, digits every value shares
   // skipped), then one insertion pass puts values that share those bits right by the rest. 30% to 50% quicker than the full 64-bit sort below (and than sort()) from 1,500 values in all three browsers.
   // Columns whose values crowd few top words (dates in milliseconds share one per 17 minutes) take the full sort: when the top words span fewer than 4 per value, when 256 spread values show crowding,
