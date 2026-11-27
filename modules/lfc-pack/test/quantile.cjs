@@ -64,6 +64,18 @@ const J = require('../lfc-pack.js');
       for (let k = 0; k < 257; k++) { const R = k / 256 * (M - 1), lo = Math.floor(R), w = R > lo ? v[lo] + (R - lo) * (v[lo + 1] - v[lo]) : v[lo]; if (c.q[k] !== w) off++; }
       ok(!c.qSample && off === 0, key + ': grid from every value matches an exact sort (' + off + ' off)'); }
   }
+  { // tied values (qv, since 0.26.2): counts above and below a value many rows share; exact in the tails (every value kept there), within the grid's 0.44% rank error in the middle (sampled)
+    const T = 400000, prices = [0.99, 1.25, 2.5, 4.95, 9.95, 18, 25, 70, 120, 250], mk4 = () => { const x = new Float64Array(T); for (let i = 0; i < T; i++) { const u = r(); x[i] = u < 0.6 ? Math.round(Math.exp(gauss() + 2) * 100) / 100 : prices[Math.floor(Math.pow(r(), 2.2) * prices.length)]; } return x; };
+    const cols = { tied: mk4(), tied2: mk4() }, ft = await J.packColumnsParallel(cols), St = J.summary(ft), St2 = (await J.open(ft)).summary();
+    for (const key in cols) { const v = Float64Array.from(cols[key]).sort(), N = v.length, c = St.cols.find((x) => x.key === key);
+      ok(c.qSample && c.qv && c.qv.length >= 15, key + ': tied values listed (' + (c.qv ? c.qv.length / 3 : 0) + ')');
+      const cntA = (x) => { let lo = 0, hi = N; while (lo < hi) { const m = (lo + hi) >> 1; if (v[m] <= x) lo = m + 1; else hi = m; } return N - lo; }, cntB = (x) => { let lo = 0, hi = N; while (lo < hi) { const m = (lo + hi) >> 1; if (v[m] < x) lo = m + 1; else hi = m; } return lo; };
+      for (const x of prices) { const ea = cntA(x), eb = cntB(x), ga = St.countAbove(key, x), gb = St.countBelow(key, x), tail = ea < N / 91;
+        ok(St2.countAbove(key, x) === ga, key + ' ' + x + ': open().summary() agrees');
+        ok(tail ? ga === ea : Math.abs(ga - ea) <= N * 0.0044, key + ' countAbove(' + x + ') ' + ga + ' vs exact ' + ea + (tail ? ' (tail: exact)' : ''));
+        ok(Math.abs(gb - eb) <= N * 0.0044, key + ' countBelow(' + x + ') ' + gb + ' vs exact ' + eb); }
+      for (let t = 0; t < 40; t++) { const x = Math.round(Math.exp(gauss() + 2) * 100) / 100 + 0.001, ea = cntA(x), ga = St.countAbove(key, x); ok(Math.abs(ga - ea) <= N * 0.004, key + ' countAbove between values ' + x + ': ' + ga + ' vs ' + ea); } }
+  }
   console.log(bad ? bad + ' of ' + n + ' quantile checks FAILED' : 'quantile: all ' + n + ' checks pass');
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
