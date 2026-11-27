@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.4.0 · API 2**
+**Version 2.4.1 · API 2**
 
 **Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -170,8 +170,8 @@ t.get(3); t.nextGEQ(9); t.nextGEQMany(xs); t.rank(8); t.contains(20); t.contains
 var l = EliasFano.openAuto(EliasFano.buildAuto(values));            // tiny for 63 or fewer, flat otherwise; openAuto also opens partitioned and block lists
 EliasFano.intersect([t, flatList, blockList]);                       // tiny lists mix with every other kind
 
-var hot = EliasFano.open(blob, { pin: true });                       // or list.pin() / list.pin(false); partitioned lists too
-hot.pinned();                                                        // true only for lists of 64 to 1,023 values
+var hot = EliasFano.open(blob, { pin: true });                       // or list.pin() / list.pin(false); partitioned, tiny and stored lists too
+hot.pinned();                                                        // true only for lists of 2 to 1,023 values
 ```
 
 Measured on the short lists (2 to 63 values) of five real files (retail orders, federal assistance by place, SEC filings, SEC filers, a FHIR sample), Chromium 156 / Firefox 158 / WebKitGTK 2.52.6, against flat lists:
@@ -185,7 +185,7 @@ Measured on the short lists (2 to 63 values) of five real files (retail orders, 
 
 Reads decode the list into one shared scratch array, so a tiny list keeps no memory besides its bytes. The last list read stays decoded, so `get(i)` in a loop over one list is cheap. A loop that reads two tiny lists in turn decodes each time, so take `toArray()` first. Above 63 values a tiny list is smaller still (about 0.77x of flat) but 2 to 4 times slower to decode and 4 to 6 times slower to intersect, so `buildAuto` stops at 63. Against a plain array of 4 bytes a value, tiny lists win on size, decoding and intersecting, not on single lookups. Plain binary search is as fast in Chromium and 1.4x / 1.8x faster in Firefox / WebKitGTK.
 
-**Pinning (off by default):** `pin()` gives a list of 64 to 1,023 values a plain copy of its values, 4 bytes a value on top of the compressed list, and answers lookups from it. The compressed list stays as it is (intersect, saving and `compact()` still use it). On the mid-size real lists, pinned against unpinned, Chromium / Firefox / WebKitGTK:
+**Pinning (off by default):** `pin()` gives a list of 2 to 1,023 values (64 to 1,023 before 2.4.1) a plain copy of its values, 4 bytes a value on top of the compressed list, and answers lookups from it. The compressed list stays as it is (intersect, saving and `compact()` still use it). On the mid-size real lists, pinned against unpinned, Chromium / Firefox / WebKitGTK:
 
 | Mid-size lists (64 to 1,023 values) | Pinned |
 |---|---|
@@ -193,7 +193,9 @@ Reads decode the list into one shared scratch array, so a tiny list keeps no mem
 | `nextGEQMany`, 50 at a time | 1.12 / 0.75 / 0.78 (slower in Chromium, whose WebAssembly batch beats plain JavaScript search) |
 | `getMany` | 0.11 / 0.12 / 0.12 |
 
-`pin()` returns false and changes nothing outside 64 to 1,023 values. `pin(false)` and `free()` drop the copy.
+`pin()` returns false and changes nothing outside 2 to 1,023 values. `pin(false)` and `free()` drop the copy.
+
+**Pinning short lists (since 2.4.1):** tiny and stored lists can be pinned too. On the real short lists (fewer than 64 values), pinned lookups match a plain array in Firefox and WebKitGTK (0.91 to 1.14x and 1.0x of a plain array, against 1.11 to 1.37x and 1.0 to 1.22x unpinned). In Chromium an unpinned tiny list already beats a plain array (0.62 to 0.79x) and pinning makes it about 1.0x, so pin short lists for Firefox and WebKitGTK only. Since 2.4.1 a pinned list's `nextGEQMany` with a Uint32Array of queries skips the per-query checks, as tiny lists do since 2.3.3.
 
 **Stored lists (since 2.4.0, opt-in):** `buildStored` keeps a list of up to 1,023 values in the tiny layout, for mid-size lists that are saved and read once or rarely (a saved file, an index on disk). On the real mid lists (64 to 1,023 values: retail, SBA, SEC filers, FHIR training set) it takes 0.61 to 0.75x the bytes of a flat list, which also puts it below varint gaps and roaring there. Once open it is 3 to 8 times slower to read than a flat list and has no fast lookups. Opening and reading a list once takes 0.4 to 2.2x the time of a flat list (ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6). `buildAuto` is unchanged and still stops at 63.
 

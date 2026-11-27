@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.20.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.4.0 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 2.4.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.13.1 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.26.1 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-27 · **lfc-pack** 0.26.1 · API 0: Fast saves of text columns skip most text decoding in the nearly-all-different test; same bytes.
+- 2026-11-27 · **elias-fano** 2.4.1 · API 2: pin() now also works on tiny, stored and short lists (2 to 1,023 values), for faster lookups in Firefox and WebKitGTK; off by default.
 - 2026-11-27 · **elias-fano** 2.4.0 · API 2: New opt-in stored lists (buildStored/openStored): up to 1,023 values in 0.61 to 0.75x the bytes of a flat list, for lists read rarely.
 - 2026-11-27 · **elias-fano** 2.3.3 · API 2: Two tiny lists intersect faster, and nextGEQMany on a tiny list is quicker with a Uint32Array of queries; same answers.
 - 2026-11-26 · **text-columns** 0.9.0 · API 0: The default number of helper workers now follows the shared core-plan rule: one per real core (threads / 2 from 8 threads up), at most 8, fewer on low memory.

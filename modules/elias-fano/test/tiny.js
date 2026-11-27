@@ -74,22 +74,34 @@ let checks = 0; const eq = (a, b, m) => { checks++; assert.strictEqual(a, b, m);
     eq(Array.from(EF.intersect([F, Pl])).length, 200000, backend + ': intersect after trim'); G.free(); F.free(); Pl.free(); B.free();
   }
   EF.setBackend('auto');
-  // 6: pin (off by default): pinned lists of 64 to 1,023 values answer exactly as unpinned ones; outside that range pin() says false; pin(false) and free() undo it
+  // 6: pin (off by default): pinned lists of 2 to 1,023 values (64 before 2.4.1) answer exactly as unpinned ones; outside that range pin() says false; pin(false) and free() undo it
   let pins = 0;
   for (const backend of ['auto', 'js']) {
     EF.setBackend(backend);
     for (let t = 0; t < 300; t++) {
       const n = 1 + Math.floor(r() * 1100), v = randList(n), part = t % 2 === 1, b = part ? EF.buildPartitioned(v) : EF.build(v), U = part ? EF.openPartitioned(b) : EF.open(b), Pn = part ? EF.openPartitioned(b, { pin: true }) : EF.open(b, { pin: true });
-      eq(U.pinned(), false, 'off by default'); eq(Pn.pinned(), n >= 64 && n <= 1023, 'pinned only for 64 to 1,023 values (' + n + ')'); if (Pn.pinned()) pins++;
+      eq(U.pinned(), false, 'off by default'); eq(Pn.pinned(), n >= 2 && n <= 1023, 'pinned only for 2 to 1,023 values (' + n + ')'); if (Pn.pinned()) pins++;
       const xs = [0, v[0], v[n - 1], v[n - 1] + 1, 4294967295, 4294967296, -1, 1.5, NaN]; for (let q = 0; q < 30; q++) xs.push(Math.floor(r() * (v[n - 1] + 2)));
       const idx = Array.from({ length: 20 }, () => Math.floor(r() * n)), ints = xs.filter(x => x >= 0 && x <= 4294967295 && x % 1 === 0);
-      const sig = (L) => JSON.stringify([xs.map(x => [L.nextGEQ(x), L.rank(x), L.contains(x), L.get(x)]), Array.from(L.nextGEQMany(ints)), Array.from(L.rankMany(xs)), Array.from(L.getMany(idx)), Array.from(L.toArray()), Array.from(L.slice(3, n - 2)), L.count(5, 900), L.nextValue(v[n >> 1])]);
+      const sig = (L) => JSON.stringify([xs.map(x => [L.nextGEQ(x), L.rank(x), L.contains(x), L.get(x)]), Array.from(L.nextGEQMany(ints)), Array.from(L.nextGEQMany(Uint32Array.from(ints))), Array.from(L.rankMany(xs)), Array.from(L.getMany(idx)), Array.from(L.toArray()), Array.from(L.slice(3, n - 2)), L.count(5, 900), L.nextValue(v[n >> 1])]);
       eq(sig(Pn), sig(U), 'pinned answers ' + t);
       if (Pn.pinned()) { eq(Array.from(EF.intersect([Pn, U])).join(), Array.from(new Set(v)).join(), 'intersect with a pinned list'); eq(Pn.pin(false), false, 'unpin'); eq(Pn.pinned(), false); eq(sig(Pn), sig(U), 'unpinned answers'); Pn.pin(); Pn.free(); eq(Pn.pinned(), false, 'free unpins'); }
       U.free(); Pn.free();
     }
   }
   assert.ok(pins > 100, 'pinned lists tested: ' + pins);
+  // 7: pin on tiny and stored lists (since 2.4.1): same answers pinned and not; one value stays unpinned; free() drops the copy
+  let tpins = 0;
+  for (let t = 0; t < 400; t++) {
+    const n = t % 2 ? Math.floor(r() * 64) : Math.floor(r() * 1024), v = randList(n), b = n < 64 && t % 4 === 1 ? EF.buildTiny(v) : EF.buildStored(v), U = EF.openStored(b), Pn = EF.openStored(b);
+    eq(Pn.pinned(), false, 'tiny off by default'); eq(Pn.pin(), n >= 2, 'tiny pin for 2 to 1,023 values (' + n + ')'); if (Pn.pinned()) tpins++;
+    const xs = [0, 4294967295, 4294967296, -1, 1.5, NaN]; for (let q = 0; q < 20; q++) xs.push(Math.floor(r() * 4294967296));
+    const ints = xs.filter(x => x >= 0 && x <= 4294967295 && x % 1 === 0), idx = n ? Array.from({ length: 10 }, () => Math.floor(r() * n)) : [];
+    const sig = (L) => JSON.stringify([xs.map(x => [L.nextGEQ(x), L.rank(x), L.contains(x), L.get(x)]), Array.from(L.nextGEQMany(ints)), Array.from(L.nextGEQMany(Uint32Array.from(ints))), Array.from(L.getMany(idx)), Array.from(L.toArray()), Array.from(L.slice(1, n - 1))]);
+    eq(sig(Pn), sig(U), 'tiny pinned answers ' + t);
+    if (Pn.pinned()) { eq(Array.from(EF.intersect([Pn, U])).join(), Array.from(new Set(v)).join(), 'intersect with a pinned tiny list'); Pn.free(); eq(Pn.pinned(), false, 'free unpins a tiny list'); }
+  }
+  assert.ok(tpins > 300, 'pinned tiny lists tested: ' + tpins);
   EF.setBackend('auto');
   console.log('ok   elias-fano tiny: ' + checks + ' checks (4000 random lists, both layouts ' + JSON.stringify(kinds) + ', ' + refused + ' truncations refused, ' + flips + ' of 600 flipped blobs refused, 600 mixed intersects, scratch around trim and ' + pins + ' pinned lists in WebAssembly and JavaScript)');
 })().catch((e) => { console.error(e); process.exit(1); });

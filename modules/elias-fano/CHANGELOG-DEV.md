@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.4.1 · API 2 · 2026-11-27
+
+### Quick
+PIN_MIN 64 -> 2; TP.pin/TP.pinned; TP.free drops the copy; PINNED.nextGEQMany Uint32Array fast path.
+
+### Deep
+PIN_MIN 64 -> 2; TP.pin/TP.pinned; TP.free drops the copy; PINNED.nextGEQMany Uint32Array fast path. Research thread, tester short lists, 2.4.0 vs patch: lookups vs plain array Chromium 0.62-0.79 -> 0.96-1.03 (pin short lists only outside Chromium), Firefox 1.11-1.37 -> 0.91-1.14, WebKitGTK 1.0-1.22 -> 1.0. Off by default, the setting the owner approved for 2.2.0. tiny.js: pinned tiny/stored lists answer as unpinned (400 lists), flat/partitioned pin range 2-1,023.
+
 ## 2.4.0 · API 2 · 2026-11-27
 
 ### Quick
