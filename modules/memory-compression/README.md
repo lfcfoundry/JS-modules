@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.19.2 · API 2**
+**Version 2.20.0 · API 2**
 
-**Tested in:** node test/run.js, 99 checks; round trip in Chromium, Firefox and WebKitGTK; wasm rebuilt, --check
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6 (tests/core-plan-defaults-browser.html for text-columns, graph-walk and lfc-pack; the module's own browser checks where it has them; tests/core-plan-copies.js in Node). Not run: a phone, an 8-thread or larger machine; memory-compression browser checks pass in Firefox 158 and WebKitGTK 2.52.6; in Chromium 156 one check (warm sample task count) fails on main too, before this change
 
 ## What it is and how it works
 

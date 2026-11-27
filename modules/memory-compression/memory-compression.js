@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.19.2 (API 2)
+ * Version 2.20.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -6053,9 +6053,14 @@
   // ================================================================ packAsync's workers
   // makePool({ size }): workers that run the number picker for packAsync(value, { workers: pool }). Each worker is this same file loaded from a blob: URL, so a page that sets a content-security-policy
   // needs worker-src blob: for it. Without Worker, or when new Worker() throws, pool.run answers on the page; when a worker is blocked later (the error event) or goes silent for 10 s, the waiting runs reject and packAsync packs the plain way, so the bytes never differ and the promise always settles. pool.close() ends the workers.
+  function planHelpers(keep, cap) {   // default helper count, the core-plan rule (modules/core-plan 1.0): real cores (threads / 2 from 8 threads up) minus keep,
+    // at most half of the memory at 256 MB a helper (memory unknown: 4 GB), at most cap, at least 1. A count the caller gives still wins.
+    var nav = typeof navigator === 'object' && navigator || {}, t = Math.floor(+nav.hardwareConcurrency) || 4, c = t >= 8 ? Math.ceil(t / 2) : t, m = +nav.deviceMemory || 4;
+    return Math.max(1, Math.min(c - (keep || 0), Math.floor(m * 2), cap || 8));
+  }
   function makePool(opts) {
     opts = opts || {};
-    var cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency || 4, size = opts.size > 0 ? Math.floor(opts.size) : Math.max(1, Math.min(3, cores - 1)), ws = [], url = null, pending = {}, nextId = 1, watchdog = opts.timeout > 0 ? opts.timeout : 10000, usable = typeof Worker === 'function' && typeof Blob === 'function' && typeof URL === 'function' && typeof URL.createObjectURL === 'function';
+    var size = opts.size > 0 ? Math.floor(opts.size) : Math.min(3, planHelpers(1)), ws = [], url = null, pending = {}, nextId = 1, watchdog = opts.timeout > 0 ? opts.timeout : 10000, usable = typeof Worker === 'function' && typeof Blob === 'function' && typeof URL === 'function' && typeof URL.createObjectURL === 'function';
     function fail(why) {                                           // a worker could not start, was blocked (content-security-policy), crashed or went silent: this pool answers on the page from now on, and every waiting run rejects so packAsync packs the plain way
       var id, p, k;
       usable = false;

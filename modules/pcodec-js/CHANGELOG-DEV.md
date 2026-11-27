@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 1.7.0 · API 1 · 2026-11-26
+
+### Quick
+pool() default size now follows core-plan 1.0: min(4, real cores - 1), with real cores = threads / 2 from 8 threads up and at most half of the memory at 256 MB a helper.
+
+### Deep
+pool() default size now follows core-plan 1.0: min(4, real cores - 1), with real cores = threads / 2 from 8 threads up and at most half of the memory at 256 MB a helper. Before: min(4, threads - 1), so 4 on a 4-core, 8-thread laptop; now 3. Same count as before on 4-thread machines (the cloud test browsers), so speed there is unchanged; not measured on 8 threads and more. opts.size still wins.
+
 ## 1.6.3 · API 1 · 2026-10-31
 
 ### Quick

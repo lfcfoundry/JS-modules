@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.20.0 · API 2 · 2026-11-26
+
+### Quick
+makePool default size now follows core-plan 1.0: min(3, real cores - 1), with real cores = threads / 2 from 8 threads up and at most half of the memory at 256 MB a helper.
+
+### Deep
+makePool default size now follows core-plan 1.0: min(3, real cores - 1), with real cores = threads / 2 from 8 threads up and at most half of the memory at 256 MB a helper. Before: min(3, threads - 1). The count is the same on every machine with 2 GB or more of reported memory (3 from 4 threads up), so nothing changes there; a 1 GB device now gets 2. opts.size still wins.
+
 ## 2.19.2 · API 2 · 2026-11-22
 
 ### Quick

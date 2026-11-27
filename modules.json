@@ -78,7 +78,7 @@
     },
     {
       "id": "gpu-blur",
-      "version": "1.4.2",
+      "version": "1.5.0",
       "api": 1,
       "global": "GpuBlur",
       "summary": "Blurs a picture (a canvas, an ImageBitmap or RGBA bytes) on the graphics card with WebGL 2, or in WebAssembly, or in plain JavaScript, whichever the device does best; every way gives the same picture, and a big blur never freezes the page.",
@@ -334,7 +334,7 @@
     },
     {
       "id": "memory-compression",
-      "version": "2.19.2",
+      "version": "2.20.0",
       "api": 2,
       "global": "MemoryCompression",
       "summary": "Keeps big data packed in memory and brings it back exactly, in one file with one pack/unpack: bytes and typed arrays (measured on the 1.0.0 core: a 120 MB scene shrinks to 52%, 41% in small mode, and restores in about 239 ms in Firefox 158.0, against 312 ms with lz4-wasm and 1.5 s with fflate; lower is better) and big lists of plain JavaScript objects (measured on 2.0.1: 300,000 link objects shrink to 14% of their JSON text, 35% for msgpackr with records). Picks the right layer by itself; MemoryCompressionJSO stays as an alias.",
@@ -362,7 +362,7 @@
     },
     {
       "id": "graph-walk",
-      "version": "0.12.0",
+      "version": "0.13.0",
       "api": 0,
       "global": "GraphWalk",
       "summary": "Graph walks on typed arrays with no recursion, in WebAssembly with a plain JavaScript fallback: distances, loops, components, topological order, shortest and landmark paths, PageRank, betweenness and closeness (with helper threads), k-core, triangles, Louvain communities, max-flow and critical path. Same answers as Netflow Map's inline walks.",
@@ -375,7 +375,7 @@
     },
     {
       "id": "lfc-pack",
-      "version": "0.24.1",
+      "version": "0.25.0",
       "api": 0,
       "global": "LfcPack",
       "summary": "Packs newline-delimited JSON (logs, events, API dumps) into LFC-pack (.json.lfc): every field becomes a typed column inside zstd blocks, with a footer of per-block number ranges. Reads back the same rows as JSON.parse (or the exact original bytes), only some keys, or only a time range, with helper workers for big files. WebAssembly is required; a Python reader is included.",
@@ -415,7 +415,7 @@
     },
     {
       "id": "text-columns",
-      "version": "0.8.1",
+      "version": "0.9.0",
       "api": 0,
       "global": "TextColumns",
       "summary": "Reads CSV or TSV text into typed columns: plain decimal columns come out as Float64Array straight from the bytes, the rest as text. The field scan runs in WebAssembly SIMD; plain JavaScript gives the same answers.",
@@ -429,7 +429,7 @@
     },
     {
       "id": "pcodec-js",
-      "version": "1.6.3",
+      "version": "1.7.0",
       "api": 1,
       "global": "PcodecJS",
       "summary": "Pcodec for web pages: unpacks (and optionally packs) big lists of numbers in a browser, one file, same bytes as any other Pcodec. The unpack-only file is 61 KB gzipped (the other JavaScript build of Pcodec is 324 KB), streams a 4,000,000-number file in 6.3 MB of memory, and WebAssembly is required (no plain-JavaScript backup).",

@@ -94,6 +94,7 @@ var steps = [
   ['save-kit load paths', 'node', ['modules/save-kit/test/load-paths.js']],
   ['tab-guard node', 'node', ['modules/tab-guard/test/run.js']],
   ['core-plan', 'node', ['modules/core-plan/test/run.js']],
+  ['core-plan copies', 'node', ['tests/core-plan-copies.js']],
   ['image-decode', 'node', ['modules/image-decode/test/run.js']],
   ['gpu-blur', 'node', ['modules/gpu-blur/test/run.js']],
   ['gpu-blur mutants', 'node', ['modules/gpu-blur/test/mutants.js']],

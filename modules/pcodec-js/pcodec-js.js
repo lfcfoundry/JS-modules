@@ -2,7 +2,7 @@
  * pcodec-js.js: Pcodec (a compressor for numbers) for web pages and Node, in one file with no dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.6.3 (API 1) · reader: unpacks and streams (to pack as well, use pcodec-js-pack.js)
+ * Version 1.7.0 (API 1) · reader: unpacks and streams (to pack as well, use pcodec-js-pack.js)
  *
  * Pcodec ("pco") is a number compressor by Martin Loncaric and contributors (https://github.com/pcodec/pcodec, Apache-2.0, notice in NOTICE-pcodec.txt).
  * This file holds pco 1.0.4 as WebAssembly programs (built from wasm/ with wasm/build.sh), so it writes and reads ordinary Pcodec files: any other Pcodec can open what this writes, and this opens what any other Pcodec 1.x writes.
@@ -459,10 +459,15 @@
     for (i = 0; i < np; i++) out.push(i < r ? lo + 1 : lo);
     return out;
   }
+  function planHelpers(keep, cap) {   // default helper count, the core-plan rule (modules/core-plan 1.0): real cores (threads / 2 from 8 threads up) minus keep,
+    // at most half of the memory at 256 MB a helper (memory unknown: 4 GB), at most cap, at least 1. A count the caller gives still wins.
+    var nav = typeof navigator === 'object' && navigator || {}, t = Math.floor(+nav.hardwareConcurrency) || 4, c = t >= 8 ? Math.ceil(t / 2) : t, m = +nav.deviceMemory || 4;
+    return Math.max(1, Math.min(c - (keep || 0), Math.floor(m * 2), cap || 8));
+  }
   function pool(opts) {
     opts = opts || {};
-    var hc = typeof navigator === 'object' && navigator && navigator.hardwareConcurrency || 4, lo = { program: opts.program, lean: opts.lean },
-      size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, hc - 1)))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false,
+    var lo = { program: opts.program, lean: opts.lean },
+      size = Math.max(1, Math.min(8, Math.floor(opts.size || Math.min(4, planHelpers(1))))), laneMs = opts.laneMs === undefined ? 25 : opts.laneMs, lanes = [], main = null, ended = false,
       idleMs = opts.idleMs === undefined ? 4000 : Math.max(0, +opts.idleMs || 0), busy = 0, timer = null;
     var started = 0;                                                   // workers started so far in this turn of the page
     function turns(n) { var q = Promise.resolve(), i; for (i = 0; i < n; i++) q = q.then(yieldNow); return q; }
@@ -575,5 +580,5 @@
       };
     });
   }
-  return { version: '1.6.3', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
+  return { version: '1.7.0', load: load, worker: worker, pool: pool, types: Object.keys(TYPES).filter(function (k) { return TYPES[k][1]; }) };
 });

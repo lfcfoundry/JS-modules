@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>gpu-blur device test</title>
 <!-- Copyright (c) 2026 LFC Foundry. MIT License. One file, no network. The shipped gpu-blur.js sits inline between the GPU_BLUR markers (python3 build.py copies it in; build.py --check says whether it is current). -->
 <style>
@@ -8,7 +8,7 @@
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,sans-serif;max-width:760px;margin:0 auto}
 h1{font-size:1.15rem;margin:0 0 4px}.mut{color:var(--mut);font-size:.9rem}
 button{font:inherit;font-weight:600;color:#fff;background:var(--btn);border:0;border-radius:10px;padding:14px 18px;min-height:52px;margin:6px 6px 6px 0}
-button:disabled{opacity:.4}#go{display:block;width:100%;font-size:1.25rem;min-height:68px}
+button:disabled{opacity:.4}#quick{display:block;width:100%;font-size:1.25rem;min-height:68px}button small{display:block;font-weight:400;font-size:12px;opacity:.85}button.alt{background:transparent;color:var(--fg);border:1px solid var(--mut)}#plan{font-weight:600;margin:8px 0 0}
 #warn{color:var(--bad);font-weight:700;margin:8px 0}#now{margin:10px 0;font-weight:600}
 .card{background:var(--card);border-radius:10px;padding:12px 14px;margin:10px 0}.card p{margin:.4em 0}
 pre,textarea{width:100%;font:12.5px/1.4 ui-monospace,monospace;background:var(--card);color:var(--fg);border:1px solid var(--mut);border-radius:8px;padding:8px}
@@ -16,8 +16,9 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 </style></head><body>
 <h1 id="title">gpu-blur device test</h1>
 <div class="mut" id="sub">Times a picture blur three ways on this device. Nothing leaves the page. Lower is better for every time.</div>
-<button id="go">Run the test</button>
-<div id="warn"></div><div id="now">Ready. Tap Run once and keep this tab open and in front until it says Done.</div>
+<div id="plan">Reading this device...</div><div id="prev" class="bad"></div>
+<button id="quick">Quick run<small>about 2 minutes</small></button><div><button id="go" class="alt">Full run<small>about 6 to 10 minutes</small></button><button id="stop" class="alt" disabled>Stop<small>keeps results</small></button></div>
+<div id="warn"></div><div id="now">Ready. Tap Quick run once and keep this tab open and in front until it says Done.</div>
 <div class="card" id="verdict" hidden></div>
 <div><button id="copy" disabled>Copy results</button><button id="save" disabled>Save as file</button><button id="share" disabled hidden>Share</button></div>
 <div id="hold" class="mut"></div>
@@ -26,12 +27,73 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <pre id="live"></pre>
 <script>window.__noTabGuard=1;</script>
 <script>
+/*CORE_PLAN:BEGIN*/
+/*!
+ * core-plan.js: sizes a pool of helper workers from what the device reports (threads and memory), so a page never starts more
+ * helpers than the machine can carry, and keeps a "last run" line so a page that crashed can say which step it was on.
+ * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
+ * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
+ * Version 1.0.0 (API 1)
+ *
+ *   var p = LfcCorePlan.plan({ workerMB: 256 });   // { logical, cores, memGB, workers, duckThreads, sweep, why, label }
+ *   for (var i = 0; i < p.workers; i++) startHelper();
+ *   show(p.label);                                // "This device reports 8 threads (about 4 real cores assumed) and 8 GB. Plan: 3 helpers, ..."
+ *   LfcCorePlan.lastRun.step('big file');         // before a risky step; after a crash and reload, lastRun.previous() names it
+ *
+ * navigator.hardwareConcurrency counts LOGICAL threads. With 8 or more, about half are real cores on most laptops and desktops, so the plan assumes
+ * half. navigator.deviceMemory (GB, rounded and capped at 8 by Chromium-based browsers, missing in Firefox and Safari) limits the count too.
+ * ES5, no network, no build step; safe to paste into a single-file page.
+ */
+(function (root) {
+  'use strict';
+  function num(x, d) { x = +x; return x > 0 && isFinite(x) ? x : d; }
+  function detect(nav) {
+    nav = nav || (typeof navigator === 'object' ? navigator : {});
+    var logical = Math.floor(num(nav.hardwareConcurrency, 4)), mem = num(nav.deviceMemory, 0);
+    var cores = logical >= 8 ? Math.ceil(logical / 2) : logical;   // assume hyper-threading from 8 threads up
+    return { logical: logical, cores: cores, memGB: mem || null, memKnown: !!mem };
+  }
+  // opts: workerMB (memory one helper needs, default 256), maxWorkers (default 8), keepFree (cores left for the page, default 1),
+  //       maxDuck (DuckDB threads cap, default 4), env (detect() result, for tests)
+  function plan(opts) {
+    opts = opts || {};
+    var d = opts.env || detect(), workerMB = num(opts.workerMB, 256), maxW = Math.floor(num(opts.maxWorkers, 8)), keep = opts.keepFree === 0 ? 0 : Math.floor(num(opts.keepFree, 1));
+    var memGB = d.memGB || 4;                                  // unknown memory: assume 4 GB (safe on phones)
+    var byMem = Math.max(1, Math.floor(memGB * 1024 * 0.5 / workerMB)); // use at most half of the reported memory
+    var byCores = Math.max(1, d.cores - keep);
+    var workers = Math.max(1, Math.min(byCores, byMem, maxW));
+    var duck = Math.max(1, Math.min(workers, Math.floor(num(opts.maxDuck, 4))));
+    var why = workers === byMem && byMem < byCores ? 'limited by memory' : workers === maxW && maxW < byCores ? 'capped at ' + maxW : 'cores minus ' + keep;
+    return {
+      logical: d.logical, cores: d.cores, memGB: d.memGB, memKnown: d.memKnown,
+      workers: workers, duckThreads: duck, why: why,
+      // sizes to sweep in a "how many helpers" test: 1, 2, 4, ... never above the plan
+      sweep: (function () { var s = [], k = 1; while (k < workers) { s.push(k); k *= 2; } s.push(workers); return s; })(),
+      label: 'This device reports ' + d.logical + ' thread' + (d.logical > 1 ? 's' : '') + ' (about ' + d.cores + ' real core' + (d.cores > 1 ? 's' : '') + ' assumed)' + (d.memGB ? ' and ' + d.memGB + ' GB' : ', memory not reported') + '. Plan: ' + workers + ' helper' + (workers > 1 ? 's' : '') + (opts.maxDuck ? ', ' + duck + ' DuckDB thread' + (duck > 1 ? 's' : '') : '') + ' (' + why + ').'
+    };
+  }
+  // Last-run line: call step('name') BEFORE each risky step and done() after the run. After a crash and reload,
+  // previous() tells which step was running. Uses sessionStorage only (cleared with the tab), never localStorage.
+  var KEY = 'lfc-core-plan-last-run';
+  function store(v) { try { if (v === undefined) return sessionStorage.getItem(KEY); if (v === null) sessionStorage.removeItem(KEY); else sessionStorage.setItem(KEY, v); } catch (e) {} return null; }
+  var lastRun = {
+    previous: function () { var v = store(); if (!v) return ''; try { var o = JSON.parse(v); return o.done ? '' : 'Last run did not finish. It stopped during: ' + o.step + ' (' + o.at + ').'; } catch (e) { return ''; } },
+    step: function (name) { store(JSON.stringify({ step: String(name), at: new Date().toLocaleTimeString(), done: false })); },
+    done: function () { store(JSON.stringify({ step: 'finished', at: new Date().toLocaleTimeString(), done: true })); },
+    clear: function () { store(null); }
+  };
+  var api = { detect: detect, plan: plan, lastRun: lastRun, version: '1.0.0', apiVersion: 1 };
+  if (typeof module === 'object' && module.exports) module.exports = api; else root.LfcCorePlan = api;
+})(typeof self !== 'undefined' ? self : this);
+/*CORE_PLAN:END*/
+</script>
+<script>
 /*GPU_BLUR:BEGIN*/
 /*!
  * gpu-blur.js: blur a picture on the graphics card (WebGL 2), or in WebAssembly, or in plain JavaScript, and give the same picture every way.
  * The module picks the way by what the browser can do, never by the browser's name. Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 1.4.2 (API 1)
+ * Version 1.5.0 (API 1)
  *
  *   GpuBlur.blur(source, width, height, radius[, opts])   -> Promise of { canvas | pixels | texture, width, height, route }
  *   GpuBlur.blurSync(source, width, height, radius[, opts]) -> the same result at once (the page waits for the whole job)
@@ -45,10 +107,10 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
  * opts.out:    'canvas' (default; a canvas you draw with drawImage), 'pixels' (RGBA bytes in a Uint8ClampedArray) or 'texture' (needs opts.gl: stays on the card).
  * opts.route:  'auto' (default), 'webgl2', 'wasm', 'js', 'helpers' or 'threads'. A route that cannot run gives way to the next one (webgl2, or threads then helpers, then wasm, then js);
  *               result.route says which one ran.
- * opts.workers: helpers for the 'helpers' route (blur() only, opt-in; default every core, and giving a number turns the route on). Used above about 0.3 megapixel with 3 or more cores;
+ * opts.workers: helpers for the 'helpers' route (blur() only, opt-in; default one per real core by the core-plan rule, and giving a number turns the route on). Used above about 0.3 megapixel with 3 or more cores;
  *               the wasm kernel runs on row bands in background workers made from a blob: address (needs worker-src blob:), same bytes. opts.idleMs: how long they wait for the next job (5000).
  *               'threads' (blur() only, opt-in) does the same on one shared memory, with no band copies; it needs a cross-origin isolated page (the two isolation headers),
- *               so it never runs in a page opened from a file; opts.workers (default cores - 1) and opts.idleMs work the same way. info().threads says whether this page can use it.
+ *               so it never runs in a page opened from a file; opts.workers (default real cores - 1, core-plan rule) and opts.idleMs work the same way. info().threads says whether this page can use it.
  * opts.into:   a canvas to draw the result into (out 'canvas'), or RGBA bytes of width * height * 4 to write the result into (out 'pixels': result.pixels is that same array,
  *               so a caller that blurs every frame makes no new megabyte arrays; an array of another length is left alone and a new one is made); opts.gl: your own WebGL 2 context (out 'texture'); opts.budget: ms of work per slice (default 3).
  *
@@ -61,7 +123,7 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var VERSION = '1.4.2';
+  var VERSION = '1.5.0';
   var MAX_PIXELS = 33554432;          // 8192 x 4096
   var STRIP = 16;                     // columns per vertical strip (the wasm kernel's limit)
   var WASM_B64 = /*WASM:BEGIN*/'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'/*WASM:END*/;
@@ -369,8 +431,13 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
     H.ready = Promise.all(starts).then(function () { return H; }, function (e) { if (helpers === H) closeHelpers(); throw e; });
     return H.ready;
   }
+  function planHelpers(keep, cap) {   // default helper count, the core-plan rule (modules/core-plan 1.0): real cores (threads / 2 from 8 threads up) minus keep,
+    // at most half of the memory at 256 MB a helper (memory unknown: 4 GB), at most cap, at least 1. A count the caller gives still wins.
+    var nav = typeof navigator === 'object' && navigator || {}, t = Math.floor(+nav.hardwareConcurrency) || 1, c = t >= 8 ? Math.ceil(t / 2) : t, m = +nav.deviceMemory || 4;
+    return Math.max(1, Math.min(c - (keep || 0), Math.floor(m * 2), cap || 8));
+  }
   function helperCount(opts, w, h, spare) {   // default: every core for helpers (the page only copies bands in and out while they work); spare: leave one core (the threads route)
-    var cores = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, n = opts.workers > 0 ? Math.floor(opts.workers) : spare ? cores - 1 : cores;
+    var cores = (typeof navigator === 'object' && navigator.hardwareConcurrency) || 1, n = opts.workers > 0 ? Math.floor(opts.workers) : cores < 2 ? 1 : planHelpers(spare ? 1 : 0, 16);
     return Math.max(0, Math.min(n, 16, h));
   }
   function helpersRoute(inp, w, h, b, out, opts) {
@@ -952,13 +1019,17 @@ textarea{height:240px}pre{white-space:pre-wrap;margin:6px 0}.good{color:var(--ok
 <script>
 (function () {
 'use strict';
-var BUILD = '2026.11.07.1223';   /*STAMP*/
+var BUILD = '2026.11.26.2131';   /*STAMP*/
 var G = window.GpuBlur, $ = function (id) { return document.getElementById(id); };
-var hash = location.hash || '', QUICK = /quick/.test(hash);
+var hash = location.hash || '', QUICK = /quick/.test(hash) || /[?&]auto=quick/.test(location.search), STOP = false;
+var CP = window.LfcCorePlan, PLAN = CP ? CP.plan() : null, PREV = CP ? CP.lastRun.previous() : '';
+$('plan').textContent = PLAN ? PLAN.label : 'This device reports ' + (navigator.hardwareConcurrency || '?') + ' threads.'; $('prev').textContent = PREV;
 var R = 12, ROUTES = ['webgl2', 'wasm', 'js', 'auto'], NAMES = { webgl2: 'WebGL 2 (the card way)', wasm: 'WebAssembly', js: 'plain JavaScript', auto: 'auto (what the module picks)' };
 var SIZES = [{ w: 480, h: 270, reps: 25, name: '480 x 270' }, { w: 640, h: 360, reps: 25, name: '640 x 360' }, { w: 960, h: 540, reps: 25, name: '960 x 540' }, { w: 1920, h: 1080, reps: 25, name: '1920 x 1080' }, { w: 3840, h: 2160, reps: 11, name: '3840 x 2160', big: true }];
 var CAP_MS = 110000;   // most time one size may take; the reps stop early (and the report says so)
-if (QUICK) SIZES.forEach(function (s) { s.reps = 5; });
+SIZES.forEach(function (s) { s.fullReps = s.reps; });
+function setQuick(qk) { QUICK = qk; SIZES.forEach(function (s) { s.reps = qk ? 5 : s.fullReps; }); }
+setQuick(QUICK);
 $('title').textContent = 'gpu-blur device test, build ' + BUILD;
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
@@ -997,7 +1068,7 @@ function glInfo() {
 var rep = { lines: [], sizes: [] }, started = false, firstReport = false, startTimer = 0;
 function say(t) { $('now').textContent = t; }
 function live(t) { $('live').textContent += t + '\n'; }
-function progress(t) { if (!firstReport) { firstReport = true; clearTimeout(startTimer); $('warn').textContent = ''; } say(t); }
+function progress(t) { if (!firstReport) { firstReport = true; clearTimeout(startTimer); $('warn').textContent = ''; } if (CP) CP.lastRun.step(t); say(t); }
 
 async function timeRoute(route, px, w, h) {
   var o = { out: 'canvas' }; if (route !== 'auto') o.route = route;
@@ -1017,7 +1088,7 @@ async function runSize(sz, step, steps) {
     await sleep(60);
   }
   var t00 = performance.now();
-  for (r = 0; r < sz.reps; r++) {
+  for (r = 0; r < sz.reps && !(STOP && r >= 3); r++) {
     // alternate the turns: the order rotates every round so each way takes every place in line
     var rot = order.slice(r % order.length).concat(order.slice(0, r % order.length));
     for (i = 0; i < rot.length; i++) {
@@ -1151,7 +1222,7 @@ function twoLines(o) {
 }
 
 async function main() {
-  started = true; $('go').disabled = true; $('live').textContent = ''; $('verdict').hidden = true; $('rep').value = '';
+  started = true; STOP = false; $('go').disabled = $('quick').disabled = true; $('stop').disabled = false; $('live').textContent = ''; $('verdict').hidden = true; $('rep').value = '';
   firstReport = false; $('warn').textContent = '';
   startTimer = setTimeout(function () { if (!firstReport) $('warn').textContent = 'The test did not start. Close other tabs of this page, then tap Run again.'; }, 15000);
   var t0 = performance.now();
@@ -1161,26 +1232,27 @@ async function main() {
     var gi = glInfo(), info = await G.ready(); info = G.info();
     $('onscreen').textContent = 'On-screen only (not in the report): graphics name reported by the browser: ' + (gi.raw || 'none');
     var steps = SIZES.length + 3, results = [], k;
-    for (k = 0; k < SIZES.length; k++) {
+    for (k = 0; k < SIZES.length && !STOP; k++) {
       var sz = SIZES[k];
       if (sz.big && ((navigator.deviceMemory && navigator.deviceMemory < 4) || QUICK && false)) { results.push({ sz: sz, stats: {}, notes: [], skipped: 'this device reports less than 4 GB of memory' }); continue; }
       var o = await runSize(sz, k + 1, steps); results.push(o);
       live(table(o).join('\n'));
     }
-    var fo = await filterStep(steps - 2, steps); live(filterLines(fo).join('\n'));
-    var to = await twoStep(steps - 1, steps); live(twoLines(to).join('\n'));
+    var fo = STOP ? null : await filterStep(steps - 2, steps); if (fo) live(filterLines(fo).join('\n'));
+    var to = STOP ? null : await twoStep(steps - 1, steps); if (to) live(twoLines(to).join('\n'));
     progress('Step ' + steps + ' of ' + steps + ': checking that the three ways draw the same picture');
     var match = await matchTest();
     // ---- report
     var T = [], V = [];
-    T.push('gpu-blur device test, build ' + BUILD);
+    T.push($('plan').textContent);
+    T.push('gpu-blur device test, build ' + BUILD + (QUICK ? ' (quick run)' : ' (full run)') + (STOP ? ', STOPPED EARLY: results so far' : ''));
     T.push('Module ' + G.version + ' (API 1). Device class: ' + deviceClass() + '. Browser: ' + browserLabel() + '. Graphics path: ' + gi.cls + '.');
     T.push('Blur: radius ' + R + ', bytes in, drawn canvas out; each way takes turns, the order rotates every round; 2 warm-up turns per way are thrown away; times are until the picture is really drawn (lower is better); page task = longest stretch the page could not respond (lower is better).');
     T.push('What auto found on this device (one probe, 480 x 270): WebGL 2 context ' + info.webgl2 + ', probe on the card way ' + (info.glMs == null ? 'n/a' : f1(info.glMs) + ' ms') + ', probe in WebAssembly ' + (info.wasmMs == null ? 'n/a' : f1(info.wasmMs) + ' ms') + ', drawn probe card ' + (info.drawGl == null ? 'n/a' : f1(info.drawGl) + ' ms') + ' against WebAssembly ' + (info.drawWasm == null ? 'n/a' : f1(info.drawWasm) + ' ms') + ', kept-in-memory canvas test ' + (info.keptMs == null ? 'n/a' : f1(info.keptMs) + ' ms against ' + f1(info.defMs) + ' ms for a default canvas, so kept in memory: ' + info.kept) + ', card way worth it: ' + info.webgl2Worth + ' (for big pictures: ' + info.glBig + '). Drawn pictures by (big): ' + info.canvasRoute + '. Bytes by: ' + info.pixelsRoute + '. ' + (info.why ? 'Why: ' + info.why : ''));
     T.push('');
     results.forEach(function (o) { T = T.concat(table(o)); T.push(''); });
-    filterLines(fo).forEach(function (l) { T.push(l); }); T.push('');
-    twoLines(to).forEach(function (l) { T.push(l); }); T.push('');
+    if (fo) { filterLines(fo).forEach(function (l) { T.push(l); }); T.push(''); }
+    if (to) { twoLines(to).forEach(function (l) { T.push(l); }); T.push(''); }
     T.push('Same picture (1920 x 1080, share of equal values against the plain JavaScript reference; higher is better): card way ' + (match.webgl2 == null ? 'not run (' + (match.webgl2Note || 'unavailable') + ')' : match.webgl2.toFixed(4) + '%') + ', WebAssembly ' + (match.wasm == null ? 'not run' : match.wasm.toFixed(4) + '%') + ', JavaScript ' + (match.js == null ? 'not run' : match.js.toFixed(4) + '%') + (match.canvasGL != null ? ', card way through a canvas ' + match.canvasGL.toFixed(4) + '%' : '') + '.');
     results.forEach(function (o) { V = V.concat(verdictFor(o, info)); });
     var pass = [match.webgl2, match.wasm, match.js].filter(function (x) { return x != null; }).every(function (x) { return x >= 99.5; });
@@ -1190,18 +1262,20 @@ async function main() {
     var text = T.join('\n'); $('rep').value = text;
     var vb = $('verdict'); vb.innerHTML = ''; V.forEach(function (v) { var p = document.createElement('p'); p.textContent = v; vb.appendChild(p); }); vb.hidden = false;
     ['copy', 'save', 'share'].forEach(function (id) { $(id).disabled = false; });
-    say('Done. Tap Copy results, then paste it into the chat.'); window.__gpuBlurTest = { done: true, text: text, rawGraphics: gi.raw };
+    if (CP) CP.lastRun.done(); say((STOP ? 'Stopped. ' : 'Done. ') + 'Tap Copy results, then paste it into the chat.'); window.__gpuBlurTest = { done: true, text: text, rawGraphics: gi.raw };
   } catch (e) {
     say('The test stopped: ' + (e && e.message || e)); window.__gpuBlurTest = { done: true, error: String(e && e.message || e) }; $('rep').value = 'gpu-blur device test, build ' + BUILD + '\nThe test stopped: ' + (e && e.message || e);
   }
-  clearTimeout(startTimer); P.run = false; $('go').disabled = false;
+  clearTimeout(startTimer); P.run = false; $('go').disabled = $('quick').disabled = false; $('stop').disabled = true;
 }
-$('go').onclick = function () { P.run = true; main(); };
+$('go').onclick = function () { setQuick(false); P.run = true; main(); };
+$('quick').onclick = function () { setQuick(true); P.run = true; main(); };
+$('stop').onclick = function () { STOP = true; say('Stopping after this round...'); };
 $('copy').onclick = function () { var t = $('rep'); t.focus(); t.select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) {} if (ok) { $('hold').textContent = 'Copied.'; return; }
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(function () { $('hold').textContent = 'Copied.'; }, function () { $('hold').textContent = 'Copy was refused: press and hold the text and choose Copy, or use Save as file.'; });
   else $('hold').textContent = 'Copy was refused: press and hold the text and choose Copy, or use Save as file.'; };
 $('save').onclick = function () { try { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([$('rep').value], { type: 'text/plain' })); a.download = 'gpu-blur-device-test.txt'; document.body.appendChild(a); a.click(); a.remove(); $('hold').textContent = 'Saved.'; } catch (e) { $('hold').textContent = 'Saving was refused: use Copy results instead.'; } };
 if (navigator.share) { $('share').hidden = false; $('share').onclick = function () { navigator.share({ text: $('rep').value }).catch(function () {}); }; }
-if (/auto/.test(hash)) setTimeout(function () { $('go').click(); }, 300);
+if (/auto/.test(hash) || /[?&]auto=quick/.test(location.search)) setTimeout(function () { $(QUICK ? 'quick' : 'go').click(); }, 300);   // #auto (#auto-quick for Quick) or ?auto=quick starts a run without a tap
 })();
 </script></body></html>

@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 1.5.0 · API 1 · 2026-11-26
+- The helpers route starts one helper per real core by default (shared core-plan rule), at most 16; the threads route leaves one core free.
+
 ## 1.4.2 · API 1 · 2026-11-07
 - Small drawn pictures pick the faster way on a phone, and Firefox keeps big drawn results in memory
 
