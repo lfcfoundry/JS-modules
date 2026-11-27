@@ -3,7 +3,7 @@
  * Also keeps many sorted lists (links of every item of a map, posting lists) in one structure. Plain JavaScript, with a WebAssembly path (and a SIMD one) for batches and for decoding everything. No dependencies.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.4.0 (API 2)
+ * Version 2.4.1 (API 2)
  *
  *   var bytes = EliasFano.build(new Uint32Array([3, 8, 8, 20, 400]));   // Uint8Array, about 2 + log2(range / count) bits per value
  *   var list = EliasFano.open(bytes);  list.get(3);  // 20
@@ -915,13 +915,14 @@
     for (i = 1; i < ls.length && m; i++) { var L = ls[i], o = 0; for (j = 0; j < m; j++) if (L.contains(res[j])) res[o++] = res[j]; m = o; }
     return res.slice(0, m);
   }
-  /* pin (since 2.2.0, off by default): a list of 64 to 1,023 values keeps a plain copy of its values (4 bytes a value) and answers lookups from it, 13 to 41% quicker
+  /* pin (since 2.2.0, off by default; tiny and short lists since 2.4.1): a list of 2 to 1,023 values keeps a plain copy of its values (4 bytes a value) and answers lookups from it, 13 to 41% quicker
      in Firefox and WebKitGTK; the compressed list stays as it is (intersect and saving still use it). list.pin() / list.pin(false), or open(bytes, { pin: true }). */
-  var PIN_MIN = 64, PIN_MAX = 1023, PINNED = {
+  var PIN_MIN = 2, PIN_MAX = 1023, PINNED = {
     get: function (i) { if (!(i >= 0 && i < this.length) || i % 1 !== 0) return undefined; return this._pin[i]; },
     nextGEQ: function (x) { if (!(x > 0)) x = 0; if (x > 4294967295) return this.length; if (x % 1 !== 0) x = Math.ceil(x); var a = this._pin, lo = 0, hi = a.length; while (lo < hi) { var m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; },
     nextGEQMany: function (xs, out) {
       var k = xs.length, r = out || new Uint32Array(k), a = this._pin, n = a.length;
+      if (xs instanceof Uint32Array) { for (var j0 = 0; j0 < k; j0++) { var x0 = xs[j0], lo0 = 0, hi0 = n; while (lo0 < hi0) { var m0 = (lo0 + hi0) >> 1; if (a[m0] < x0) lo0 = m0 + 1; else hi0 = m0; } r[j0] = lo0; } return r; }
       for (var j = 0; j < k; j++) { var x = xs[j]; if (!(x > 0)) x = 0; else if (x > 4294967295) { r[j] = n; continue; } else if (x % 1 !== 0) x = Math.ceil(x); var lo = 0, hi = n; while (lo < hi) { var m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } r[j] = lo; }
       return r;
     },
@@ -937,6 +938,8 @@
     return true;
   }
   PP.view = function () { return this.toArray(); }; TP.view = function () { return this.toArray(); };   // no zero-copy path for these kinds: a fresh array
+  TP.pin = pin; TP.pinned = function () { return !!this._pin; };
+  var freeTiny = TP.free; TP.free = function () { if (this._pin) this.pin(false); return freeTiny.call(this); };
   P.pin = pin; PP.pin = pin; P.pinned = PP.pinned = function () { return !!this._pin; };
   var freeFlat = P.free; P.free = PP.free = function () { if (this._pin) this.pin(false); return freeFlat.call(this); };
   // buildAuto / openAuto: a tiny list for 63 values or fewer, a flat list otherwise (longer tiny lists were smaller but 2 to 6 times slower to read); openAuto opens any single list blob, stored lists too
@@ -990,7 +993,7 @@
   }
   return {
     trim: trim, autoTrim: function (on) { AUTO = !!on; }, _memBytes: function () { return mem ? mem.buffer.byteLength : 0; },
-    version: '2.4.0', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
+    version: '2.4.1', api: 2, build: build, open: open, from: function (values) { return open(build(values)); },   /* one call: sorted numbers in, a searchable list out (the same as open(build(values))) */
     buildPartitioned: buildPartitioned, openPartitioned: openPartitioned, buildBlocks: buildBlocks, openBlocks: openBlocks, intersect: intersect, buildLists: buildLists, openLists: openLists, buildTiny: buildTiny, openTiny: openTiny, buildStored: buildStored, openStored: openStored, buildAuto: buildAuto, openAuto: openAuto, ready: function () { return start(); },
     accelerated: function () { return useWasm(); }, simd: function () { return W !== null && simdOn; },
     setSpare: function (on) { spareOn = !!on; if (!spareOn) spare = null; return spareOn; }, setBackend: function (b) { if (b !== 'auto' && b !== 'js' && b !== 'wasm') throw new Error('backend is auto, js or wasm'); backend = b; },
