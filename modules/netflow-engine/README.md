@@ -1,8 +1,8 @@
 # netflow-engine
 
-**Version 2.6.5 · API 2**
+**Version 2.7.0 · API 2**
 
-**Tested in:** Node, Chromium 155, Firefox 158, WebKitGTK 2.52.6
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
 Forged by LFC Foundry. Copyright (c) 2026 LFC Foundry, MIT license.
 
@@ -79,7 +79,7 @@ In Node: `const E = require('./netflow-engine.js'); E.use('layers', require('../
 
 ## WebAssembly
 
-The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items (`force2dTuning`). The flat Distances sweeps also have a two-lanes-at-a-time form (`stressWasm.simd`, on by default where the browser supports it; any size since 2.2.1): two neighbors in the shuffled order that share no item run side by side, so the positions are the same to the last digit; turn it off with `NetflowEngine.stressWasm.simd = false`. Since 2.6.0 the Distances layout of a big Network map also runs these steps in the same program: the search for which pairs of items to fit, an every-pair fit for pieces of up to 4,000 items that keeps hop counts in one byte table and no pair list, and the push-apart that first stretches the picture once and then only revisits items that still touch. Since 2.6.1 the hop counts for that every-pair fit are found from 64 items at once. Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
+The Force and Distances steps have a WebAssembly twin (`forceWasm`, `stressWasm`: each has `on`, `minItems` (150), `calls`, `error`). `stressWasm` also runs Distances 3D from `min3d` (3,000) items, the Closeness rounds from `minClose` (20,000) items and the hash-grid push-apart (counters `calls3`, `closeCalls`, `sparseCalls`); below those sizes the timings did not clearly favor WebAssembly. Flat Force starts from the Distances picture for pieces of 5,000 up to 20,000 items, and since 2.7.0 for dense pieces of any size under 20,000 (`force2dTuning`). The flat Distances sweeps also have a two-lanes-at-a-time form (`stressWasm.simd`, on by default where the browser supports it; any size since 2.2.1): two neighbors in the shuffled order that share no item run side by side, so the positions are the same to the last digit; turn it off with `NetflowEngine.stressWasm.simd = false`. Since 2.6.0 the Distances layout of a big Network map also runs these steps in the same program: the search for which pairs of items to fit, an every-pair fit for pieces of up to 4,000 items that keeps hop counts in one byte table and no pair list, and the push-apart that first stretches the picture once and then only revisits items that still touch. Since 2.6.1 the hop counts for that every-pair fit are found from 64 items at once. Turn one off with `NetflowEngine.forceWasm.on = false`; the plain-JavaScript path gives the same positions to the last digit (a check proves it). The only page-policy addition needed is `'wasm-unsafe-eval'` in `script-src`; nothing else is loosened. Sources are in `wasm/` (`force.c`, `stress.c`); `sh wasm/build.sh` rebuilds both (clang 18 with the wasm32 target and wasm-ld; two builds give the same bytes) and `python3 wasm/embed.py` puts them into `netflow-engine.js`.
 
 ## Speed
 
@@ -162,18 +162,43 @@ First layout in a fresh page, lower is better, median of 3. Quality (crossing li
 
 The libraries do more than this engine (drawing, routing, bundling, hundreds of options), so size is not like for like. Not measured: other graph libraries, tuned options, or real-world data. To rerun: `modules/netflow-engine/bench/compare/README.md`.
 
+### Force since 2.7.0 (real maps, 2026.11.26)
+
+The real-map race below found Force behind Cytoscape on the SBA map and behind d3-force on the dense SEC map. 2.7.0 changes Force so it wins the stress score there while keeping fans of one-link items close to their center item (the look was chosen by the owner from side-by-side pictures):
+
+- On sparse maps (under 4 links per item on average) a link between two hubs pulls harder, so hubs sit closer, and each fan is pulled in to 0.4 of the typical hub-to-hub link.
+- Dense maps start from the Distances picture and take 40 Force rounds instead of 220, then each fan is held to at most one hub-to-hub link.
+- Crowded pictures are stretched before the push-apart, as Distances already did.
+
+Stress, lower is better (same score and maps as below; ungoogled Chromium 156.0.8078.79, Firefox 158.0, WebKitGTK 2.52.6, 3 runs each):
+
+| Map | Items | 2.6.5 | 2.7.0 | Best rival |
+|---|---:|---:|---:|---:|
+| SBA | 300 | 0.162 | 0.146 to 0.148 | Cytoscape 0.144 to 0.148 |
+| SBA | 922 | 0.184 | 0.165 to 0.167 | Cytoscape 0.170 |
+| SEC | 300 | 0.230 to 0.252 | 0.187 | d3-force 0.217 |
+| SEC | 1,000 | 0.184 to 0.191 | 0.174 | d3-force 0.186 |
+| SEC | 2,683 | 0.167 to 0.169 | 0.175 | d3-force 0.187 |
+| Retail | 3,000 | 0.215 to 0.221 | 0.201 to 0.203 | d3-force 0.219 |
+| FHIR | 3,000 | 0.178 to 0.179 | 0.177 | d3-force 0.180 |
+| Retail, FHIR | 300, 1,000 | 0.175 to 0.178 | same | d3-force 0.176 to 0.178 |
+
+- **Speed.** Dense SEC maps take 1.7x to 2.9x less time, and 3,000-item retail 1.9x to 2.3x less. Every other case is level within page-to-page noise, checked again with 5 runs in each direction where a first pass read slower.
+- **Where it is not ahead.** On the 300-item SBA map Cytoscape's score moves from run to run (it starts from random places). 2.7.0 beats it in Chromium and is 0.5% behind in WebKitGTK and 2.4% behind in Firefox. That is a tie at today's fan tightness: the best-scoring picture with its fans pulled in that close scored 0.153. On the 2,683-item SEC map 2.7.0 scores 4 to 5% higher than 2.6.5, still ahead of d3-force.
+- **Look.** Pictures move. Fans stay as close to their center as before, but spread as wedges instead of round clusters, and on dense maps a big hub's fan sits apart from the core. The knobs are in `force2dTuning`; the old Force is `{ spread: 0, linkPow: 0, denseHi: 0, fanTight: 0, fanTightDense: 0 }`.
+
 ### On real maps (2026.11.22)
 
 The comparison above uses generated networks. The same three-way race (`bench/compare`, `REAL=<name>`, maps cut by `bench/compare/prep-real.js`) was run on real maps: SBA awards (awarding agency to state to county to ZIP code, 922 items; the 300-item piece is its busiest part), retail customers to products, SEC filings to tags, and the FHIR training set's resource references (generated patients, owner-approved training data). Each map is the connected piece of 300, 1,000 or 3,000 items found by a walk from its best-connected item, with every link between them. First layout in a fresh page, ungoogled Chromium 156.0.8078.79, Firefox 158.0 and WebKitGTK 2.52.6, 2 runs per case, 30 s limit.
 
 - **Speed holds on every real map.** The engine is 2.2x to 5.2x faster than d3-force, 22x to 57x faster than Cytoscape's cose at 300 items (nothing at 1,000 items or more finished in 30 s except one 922-item case), 327x to 507x faster than ELK's stress layout at 300 items (nothing larger finished), 4.4x to 28x faster than dagre and 3.2x to 45x faster than ELK's layered layout. On the 300-item SEC map (4,834 links) dagre and ELK's layered layout did not finish in 30 s; the engine took 0.9 to 1.1 s.
-- **Where the picture is worse (lower stress is better).** Cytoscape's cose beats the engine on the SBA map: 0.146 against 0.162 at 300 items and 0.170 against 0.184 at 922 items (the engine is 7 to 13% higher), at 22x to 57x the time. On the dense 300-item SEC map the engine is behind d3-force (0.237 against 0.217, 9% higher) and Cytoscape (0.228). It is ahead of d3-force on the SBA map (0.162 against 0.174) and on the larger SEC pieces (0.168 against 0.187 at 2,683 items), and level on the retail and FHIR maps.
+- **Where the picture was worse in 2.6.5 (lower stress is better; 2.7.0 fixed this, see above).** Cytoscape's cose beat the engine on the SBA map: 0.146 against 0.162 at 300 items and 0.170 against 0.184 at 922 items (the engine is 7 to 13% higher), at 22x to 57x the time. On the dense 300-item SEC map the engine is behind d3-force (0.237 against 0.217, 9% higher) and Cytoscape (0.228). It is ahead of d3-force on the SBA map (0.162 against 0.174) and on the larger SEC pieces (0.168 against 0.187 at 2,683 items), and level on the retail and FHIR maps.
 - **Not scored.** Crossing counts for the layered layout are not computed on real maps (no row labels), so only the layered times are real-data figures.
 - **Limits.** The SBA slice is the first 300 MB of the file and holds only 922 items. 3,000-item retail has 111,140 links. WebKitGTK ran the same cases except retail layered at 3,000 items, which neither dagre nor the engine finished there inside the limit. Cases over 30 s in one browser were skipped in the others. Raw results: `js-modules-research/audit-synthetic-claims-2026.11.22/engine-real-maps/`.
 
 ## Size
 
-241 KB as one file, 78 KB gzipped (about 33 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
+252 KB as one file, 82 KB gzipped (about 33 KB of it is the two WebAssembly helpers as text). No dependencies other than the optional add-ons above.
 
 ## Tests
 

@@ -47,7 +47,7 @@ const med = (a) => { a = a.filter((x) => x != null).sort((x, y) => x - y); retur
     const order = c.libs.map((_, i) => c.libs[(i + rep) % c.libs.length]);
     for (const lib of order) {
       const k = key(lib, c.task, c.n); if (skip.has(k) || slow.includes(k) || (ONLY && !ONLY.test(k)) || once.has(k)) continue;
-      const p = await newPage(); await p.goto(`${base}/page.html?lib=${lib}&task=${c.task}&n=${c.n}${REAL ? '&real=' + REAL : ''}`);
+      const p = await newPage(); await p.goto(`${base}/page.html?lib=${lib}&task=${c.task}&n=${c.n}${REAL ? '&real=' + REAL : ''}${lib === 'engine' && process.env.FORCE2 ? '&force2=' + encodeURIComponent(process.env.FORCE2) : ''}`);
       let res = null; const t0 = Date.now();
       while (!res && Date.now() - t0 < LIMIT) { res = await Promise.race([p.evaluate(() => window.__res || null), sleep(LIMIT)]); if (!res) await sleep(100); }
       if (!res) { slow.push(k); console.log(`${k}: did not finish in ${LIMIT / 1000} s`); if (which === 'chromium' || which === 'firefox') { try { b.process().kill('SIGKILL'); } catch (e) {} await sleep(500);
