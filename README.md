@@ -66,9 +66,9 @@ MIT License. Copyright (c) 2026 LFC Foundry. Use, change and sell anything built
 
 Every piece in one place, by name. The tables below give the version, the sizes (readable and gzipped) and what each piece does.
 
-**Modules & Tools (55)**
+**Modules & Tools (56)**
 
-- Device and browser adaptation: [env-probes](modules/env-probes/README.md), [field-report](modules/field-report/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [image-decode](modules/image-decode/README.md), [slow-note](modules/slow-note/README.md)
+- Device and browser adaptation: [core-plan](modules/core-plan/README.md), [env-probes](modules/env-probes/README.md), [field-report](modules/field-report/README.md), [frame-kit](modules/frame-kit/README.md), [fx-governor](modules/fx-governor/README.md), [image-decode](modules/image-decode/README.md), [slow-note](modules/slow-note/README.md)
 - Saving and data safety: [save-kit](modules/save-kit/README.md), [tab-guard](modules/tab-guard/README.md)
 - Games - Looks and effects: [cartoon-3d-kit](modules/cartoon-3d-kit/README.md), [fly-to-mini](modules/fly-to-mini/README.md), [gpu-blur](modules/gpu-blur/README.md), [sprite-baker](modules/sprite-baker/README.md), [stage-curtains](modules/stage-curtains/README.md), [sticker-text](modules/sticker-text/README.md)
 - Games - Controls: [back-close](modules/back-close/README.md), [hold-press](modules/hold-press/README.md), [pad-nav](modules/pad-nav/README.md)
@@ -103,7 +103,7 @@ Grouped by what a piece does. The live page, with demos and a quick finder, is *
 **How to read the tables.** *Version* is the label of the newest release; its first number is the API number, so the same first number means a drop-in copy. *Size* is the file as it sits in the repository (readable, with comments); *Gzipped* is that file compressed. A piece marked *(tool)* is for building and testing: it is not shipped inside a game or story. Story Editor packages are measured on their built `global` file. Every table has the same columns. Minified sizes and lean builds are in each piece's own README. Written by `python3 tools/versions/versions.py sizes`.
 Every piece has a size.
 
-### Modules & Tools (55)
+### Modules & Tools (56)
 
 #### Device and browser adaptation
 
@@ -111,6 +111,7 @@ Make a game behave on slow phones, privacy-focused browsers and power-saving scr
 
 | Name | Version | Size (KB) | Gzipped (KB) | What it does | Demo |
 |---|---|---:|---:|---|---|
+| [core-plan](modules/core-plan/README.md) | 1.0.0 | 4.7 | 2.1 | Picks a safe helper-worker count from the device's threads and memory. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/core-plan/demo.html) |
 | [env-probes](modules/env-probes/README.md) | 1.1.0 | 16.2 | 5.4 | Detects privacy modes that blur timers, scramble canvas reads or block storage. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/env-probes/demo.html) |
 | [field-report](modules/field-report/README.md) | 1.1.1 | 22.7 | 8.0 | Hidden buttons that save a speed report and an error log from a real device. No network. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/field-report/demo.html) |
 | [frame-kit](modules/frame-kit/README.md) | 1.2.1 | 38.9 | 12.1 | Frame pacing for canvas games: smooth frame time, effect governor, job pump, frame meter. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/frame-kit/demo.html) |

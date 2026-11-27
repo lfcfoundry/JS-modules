@@ -223,6 +223,20 @@
       "category": "saving"
     },
     {
+      "id": "core-plan",
+      "version": "1.0.0",
+      "api": 1,
+      "global": "LfcCorePlan",
+      "summary": "Picks a safe number of helper workers from the device's threads and memory (half the threads assumed real cores from 8 up, one kept for the page, at most 8), and remembers which step a crashed run was on.",
+      "short": "Picks a safe helper-worker count from the device's threads and memory.",
+      "file": "modules/core-plan/core-plan.js",
+      "readme": "modules/core-plan/README.md",
+      "demo": "modules/core-plan/demo.html",
+      "dependencies": "none",
+      "formats": "browser global, worker global, CommonJS (module.exports)",
+      "category": "adaptation"
+    },
+    {
       "id": "back-close",
       "version": "1.2.0",
       "api": 1,

@@ -21,6 +21,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [pad-nav](modules/pad-nav/README.md) | 1.1.1 · API 1 | [changelog](modules/pad-nav/CHANGELOG.md) |
 | [image-decode](modules/image-decode/README.md) | 1.2.3 · API 1 | [changelog](modules/image-decode/CHANGELOG.md) |
 | [tab-guard](modules/tab-guard/README.md) | 1.1.1 · API 1 | [changelog](modules/tab-guard/CHANGELOG.md) |
+| [core-plan](modules/core-plan/README.md) | 1.0.0 · API 1 | [changelog](modules/core-plan/CHANGELOG.md) |
 | [back-close](modules/back-close/README.md) | 1.2.0 · API 1 | [changelog](modules/back-close/CHANGELOG.md) |
 | [lzma-decode](modules/lzma-decode/README.md) | 1.7.1 · API 1 | [changelog](modules/lzma-decode/CHANGELOG.md) |
 | [ppmd-decode](modules/ppmd-decode/README.md) | 1.7.0 · API 1 | [changelog](modules/ppmd-decode/CHANGELOG.md) |
@@ -68,6 +69,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-26 · **netflow-sankey** 2.16.0 · API 2: Charts above 150 items stop the order search after three restarts in a row that find nothing better: about 2 times faster at 500 links, same picture on the real flows tried. stall: 0 runs every restart.
 - 2026-11-26 · **netflow-engine** 2.7.0 · API 2: Force pictures score better than Cytoscape and d3-force on real maps and keep fans close to their center; dense maps lay out about 2x faster. Pictures move.
 - 2026-11-26 · **lz4-kit** 1.1.3 · API 1: decompress() without a size is up to 2x faster on data that shrinks more than 8 times: it reads the size the frame records instead of decoding twice.
+- 2026-11-26 · **core-plan** 1.0.0 · API 1: First version: picks a safe number of helper workers from the device's threads and memory, and remembers which step a crashed run was on.
 - 2026-11-22 · **zstd-kit** 1.0.1 · API 1: The encoder's setting search is smaller and quicker to run.
 - 2026-11-22 · **walker-sim** 2.5.0 · API 2: Single-walker trials run faster on sparse graphs.
 - 2026-11-22 · **text-columns** 0.8.1 · API 0: Empty fields skip the substring call: wide text tables parse 15 to 25% faster.
