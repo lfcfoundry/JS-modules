@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.20.1 · API 2 · 2026-11-27
+
+### Quick
+Cheaper decimal check and dictionary lookup in balanced and small modes. Format unchanged.
+
+### Details
+alpParams keeps the last block's (e, f) when all 32 looked-at values are exact in it; encFDict numbers whole-number blocks in a small range with an array instead of a Map (same keys, same codes, same bytes). SEC balanced 1,012,257 to 1,011,518 B; SBA 36,961 to 36,900 B. Browser pack time, medians: SEC 5 to 14% faster in Chromium, 4% in Firefox, 6% in WebKitGTK; SBA about 6% faster in Chromium and level elsewhere; much of it inside noise (about 15%).
+
+### Deep
+Profile of SBA balanced showed encFDict (Map) and the (e, f) search as the JS cost. Both replaced. ALPLAST is reset at every pack so the output stays a function of the input alone. Limits: still 1.2 to 2.5x slower than pcodec-js on SEC and about 14x on SBA (55 vs 4 ms in Firefox); the rest of the cost is the per-block way search in JavaScript (encIntWith about 25% on SBA). Test fix: the Chromium warm({ sample }) check counted the made-up records Chromium's warm() packs when no rows are given, and a pager an earlier test left running; it now uses sample: false as its base. Test-only.
+
 ## 2.20.0 · API 2 · 2026-11-26
 
 ### Quick

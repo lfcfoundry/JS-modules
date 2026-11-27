@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.20.1 · API 2 · 2026-11-27
+- Packs real whole-number and decimal columns a little faster in balanced and small modes: a repeated decimal check and a Map lookup were replaced. Same format; a few bytes smaller on SEC and SBA.
+
 ## 2.20.0 · API 2 · 2026-11-26
 - packAsync's helper pool follows the shared core-plan rule: at most 3 helpers, never more than real cores minus one.
 

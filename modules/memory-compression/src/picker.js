@@ -483,16 +483,18 @@
     var F10 = [], MAXI = 2251799813685248, f64a = new Float64Array(2), u32a = new Uint32Array(f64a.buffer), HI = LE ? 1 : 0, LO = LE ? 0 : 1, i0;
     for (i0 = 0; i0 <= 22; i0++) F10.push(Number('1e' + i0));
     function alpTry(x, e, f) { var d = Math.round(x * F10[e] / F10[f]); if (Math.abs(d) > MAXI) return null; return d * F10[f] / F10[e] === x && !(x === 0 && 1 / x < 0) ? d : null; }
+    var ALPLAST = null;                    // the (e, f) the last block chose: the next block tries it first and keeps it when all 32 looked-at values are exact in it
     function alpParams(a) {                // look at 32 values, rank (e, f) by estimated bits
       var n = a.length, step = Math.max(1, Math.floor(n / 32)), s = [], i, e, f, ex, mn, mx, d, bits, c, bc = 1e18, best = [0, 0], k;
       for (i = 0; i < n && s.length < 32; i += step) s.push(a[i]);
+      if (ALPLAST) { for (k = 0; k < s.length && alpTry(s[k], ALPLAST[0], ALPLAST[1]) !== null; k++); if (k === s.length) return ALPLAST; }
       for (e = 0; e <= 18; e++) for (f = 0; f <= e; f++) {
         ex = 0; mn = Infinity; mx = -Infinity;
         for (k = 0; k < s.length; k++) { d = alpTry(s[k], e, f); if (d === null) ex++; else { if (d < mn) mn = d; if (d > mx) mx = d; } }
         bits = mx >= mn ? Math.log2(mx - mn + 1) : 0; c = (s.length - ex) * bits + ex * 80;
         if (c < bc) { bc = c; best = [e, f]; }
       }
-      return best;
+      return (ALPLAST = best);
     }
     // The distance, in last-place steps, between the bit patterns of two doubles with the same sign: an exact small whole number, or null when it is more than 2^20 away.
     function bitDistance(v, pred) {
@@ -590,12 +592,23 @@
       for (i = 0; i < n; i++) { u32a[HI] = ((front[i] << lowBits) | hiLow[i]) >>> 0; u32a[LO] = lo[i]; out[i] = f64a[0]; }
       return out;
     }
+    function fdWhole(a, n) {                  // {mn, idx}: the block's values are all whole numbers (no -0) in a range of at most 4,194,304, with an array to number the distinct ones in; null otherwise
+      var i, v, mn = Infinity, mx = -Infinity;
+      for (i = 0; i < n; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return null; if (v < mn) mn = v; if (v > mx) mx = v; }
+      if (mx - mn >= 4194304) return null;
+      return { mn: mn, idx: new Uint32Array(mx - mn + 1) };
+    }
     function encFDict(a, depth, opt) {
-      var n = a.length, m = new Map(), i, k, keys, codes, w, sm, step = n > 2048 ? Math.floor(n / 1024) : 0;
+      var n = a.length, m = new Map(), i, k, keys, codes, w, sm, st, lim, idx, mn, x, c, step = n > 2048 ? Math.floor(n / 1024) : 0;
       if (step) { sm = new Set(); for (i = 0; i < n; i += step) sm.add(a[i]); if (sm.size > 0.95 * Math.ceil(n / step)) return null; }       // nearly every sampled value is different: no dictionary will help
+      if (n >= 256 && (st = fdWhole(a, n))) {                                   // since 2.19.3: whole numbers in a small range look their dictionary position up in an array, not a Map; same keys in first-seen order, same codes
+        lim = Math.min(n / 2, 65536); idx = st.idx; mn = st.mn; keys = []; codes = new Float64Array(n);
+        for (i = 0; i < n; i++) { x = a[i] - mn; c = idx[x]; if (c === 0) { if (keys.length + 1 > lim) return null; keys.push(a[i]); c = keys.length; idx[x] = c; } codes[i] = c - 1; }
+      } else {
       for (i = 0; i < n; i++) { k = a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]; if (!m.has(k)) m.set(k, m.size); if (m.size > n / 2 || m.size > 65536) return null; }
       keys = Array.from(m.keys()); codes = new Float64Array(n);
       for (i = 0; i < n; i++) codes[i] = m.get(a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]);
+      }
       w = new Wr(); w.vi(keys.length); for (i = 0; i < keys.length; i++) w.f64(keys[i] === '-0' ? -0 : keys[i]);
       w.bytes(encInts(codes, depth, opt)); return w.out();
     }
@@ -811,8 +824,8 @@
     // pack(values, opts): values is a Float64Array (or any array of numbers). opts.sample (default true): choose each block's top way on a quarter of it, which is much faster;
     // opts.noEntropy: leave out the byte-coded ways (used to give a general compressor something it can still shrink); opts.labels: an array that receives one label per block.
     function pack(values, opts) {
-      KWC = opts && opts.wasm === false ? null : kwGet(); STAT = null;
-      try { return packRun(values, opts); } finally { KWC = null; STAT = null; }
+      KWC = opts && opts.wasm === false ? null : kwGet(); STAT = null; ALPLAST = null;
+      try { return packRun(values, opts); } finally { KWC = null; STAT = null; ALPLAST = null; }
     }
     function alpInner(part) { try { var r = new Rd(part.subarray(1)); r.u8(); r.u8(); r.vi(); return r.u8(); } catch (e) { return -1; } }
     var AUTO_MAX = 100000;
