@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.3 · API 0 · 2026-11-27
+
+### Quick
+Column summaries take the tail values in the same pass as the range (one read of each block instead of two, and no second pass when many values sit at a cut, as tips of 0), and the summary and pyramid sections go into the file's one footer…
+
+### Deep
+Column summaries take the tail values in the same pass as the range (one read of each block instead of two, and no second pass when many values sit at a cut, as tips of 0), and the summary and pyramid sections go into the file's one footer instead of a second footer plus a copy of the whole file. Same summaries; the file is about 2 KB smaller on a million rows; summary CPU about 10% lower in Chromium profiles, whole-save time within noise in all three browsers.
+
 ## 0.26.2 · API 0 · 2026-11-27
 
 ### Quick

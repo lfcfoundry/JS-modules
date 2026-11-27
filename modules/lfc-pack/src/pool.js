@@ -386,8 +386,9 @@
     // pass over each block (blockStats); what is left runs on this thread while every helper has a full queue and after the last block is handed out, so it fills time this thread would wait anyway
     var side = sumJobs(obj, t.n, opts), pr;
     if (V) { var n0 = side.next; side.next = function (early) { if (n0(early)) return true; if (!V.done) { V.run(); return true; } return false; }; }
+    side.inline = !V;   // (views add their section after; they keep the old way)
     pr = packRowsParallel(t.CT, Object.assign({}, opts, { _side: side }));
-    return pr.then(function (b) { return side.done().then(function (x) { return addSections(b, [[SEC_SUMMARY, x.sum], [SEC_PYRAMID, x.pyr]]); }, function () { return b; }); });
+    return pr.then(function (b) { if (side.wrote) return b; return side.done().then(function (x) { return addSections(b, [[SEC_SUMMARY, x.sum], [SEC_PYRAMID, x.pyr]]); }, function () { return b; }); });
   }
   function b34Plain(rows, opts) {   // packRows for a row array; for a column table, the same file from the column blocks with no helpers
     if (!rows.__ct) return packRows(rows, opts);
@@ -477,6 +478,8 @@
         { id: SEC_ZONE, flags: 0, payload: te.encode(JSON.stringify(zone)) },
         { id: SEC_FLAGS, flags: 1, payload: te.encode(JSON.stringify({ exact: false, tail: true })) }
       ].concat(eqs ? [eqs] : [], metaSecs(opts), ctx.shw && ctx.shw.n ? [labelSection(ctx.shw.tabs)] : []);
+      var sd = opts._side, sx = null;   // since 0.26.3 the column summary (20) and pyramids (21) go into this footer when every block is in, instead of a second footer and a copy of the whole file after (addSections)
+      if (sd && sd.inline) { try { sx = sd.payload(); } catch (e) { sx = null; } if (sx) { sd.wrote = true; if (sx.sum) secs.push({ id: SEC_SUMMARY, flags: 0, payload: sx.sum }); if (sx.pyr) secs.push({ id: SEC_PYRAMID, flags: 0, payload: sx.pyr }); } }
       parts.push(writeFooter(S.zfull, secs, true, ctx.shw && ctx.shw.n ? 4 : W3MARK > w30 ? 3 : WMARK > wm0 ? 2 : NMARK > nm0 ? 1 : 0));
       return concat(parts);
     }); }

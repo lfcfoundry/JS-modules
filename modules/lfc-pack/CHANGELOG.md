@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.3 · API 0 · 2026-11-27
+- Less summary work per save; file a little smaller
+
 ## 0.26.2 · API 0 · 2026-11-27
 - Counts at shared values (prices, fares) read right
 
