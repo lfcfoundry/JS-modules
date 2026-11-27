@@ -15,7 +15,7 @@ cp "$PP/node_modules/d3-hierarchy/dist/d3-hierarchy.min.js" "$W/" 2>/dev/null ||
 cp "$PP/node_modules/lzma/src/lzma-d-min.js" "$W/lzmajs.js"; cp "$repo/modules/lzma-decode/lzma-decode-with-wasm.js" "$W/"
 cp "$repo/modules/pcodec-js/pcodec-js-pack.js" "$W/"
 cp "$here/ge-entry.js" "$PP/"; (cd "$PP" && ./node_modules/.bin/esbuild ge-entry.js --bundle --minify --format=iife --outfile="$W/ge.js"); cp "$repo/modules/gif-writer/gif-writer.js" "$W/"
-mkdir -p "$W/lz4r" && cp "$PP/node_modules/lz4js/lz4.js" "$PP/node_modules/lz4js/util.js" "$PP/node_modules/lz4js/xxh32.js" "$PP/node_modules/lz4-wasm/lz4_wasm_bg.wasm" "$W/lz4r/" && sed '1s#.*#let wasm; export function __wbg_set_wasm(v){wasm=v}#' "$PP/node_modules/lz4-wasm/lz4_wasm_bg.js" > "$W/lz4r/lz4_wasm_bg.js"
+[ -d "$PP/gor" ] || git clone -q --depth 1 https://github.com/gorhill/lz4-wasm "$PP/gor"; mkdir -p "$W/lz4r/gor" && cp "$PP/gor/dist/"*.js "$PP/gor/dist/"*.wasm "$W/lz4r/gor/" && cp "$PP/node_modules/lz4js/lz4.js" "$PP/node_modules/lz4js/util.js" "$PP/node_modules/lz4js/xxh32.js" "$PP/node_modules/lz4-wasm/lz4_wasm_bg.wasm" "$W/lz4r/" && sed '1s#.*#let wasm; export function __wbg_set_wasm(v){wasm=v}#' "$PP/node_modules/lz4-wasm/lz4_wasm_bg.js" > "$W/lz4r/lz4_wasm_bg.js"
 cp "$here/page.html" "$W/index.html"
 node "$here/prep-slices.js" && node "$here/prep-layers.js" && node "$here/prep-sankey.js" && node "$here/prep-floats.js" && node "$here/prep-trees.js" && node "$here/prep-lzma.js" && node "$here/prep-fhir.js"
 echo "ready: node tools/real-corpus/run.js chromium csv comp mem graph layers sankey sankeyq zip"
