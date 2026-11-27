@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.2 · API 0 · 2026-11-27
+
+### Quick
+Summary grids list values many rows share (qv), so counts at or near them are no longer 7-21% high on real taxi and retail columns.
+
+### Deep
+Summary grids list values many rows share (qv), so counts at or near them are no longer 7-21% high on real taxi and retail columns. Old readers ignore it.
+
 ## 0.26.1 · API 0 · 2026-11-27
 
 ### Quick

@@ -21,7 +21,18 @@
     for (k = 0; k < QP.length; k++) { e = QP[k]; pos = e[0] * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); v = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; if (e[1]) qt[e[2]] = v; else q[e[2]] = v; }
     q.qt = qt; return q;
   }
-  function qMap(q, f) { var o = q.map(f); if (q.qt) o.qt = q.qt.map(f); return o; }
+  function qMap(q, f) { var o = q.map(f), i; if (q.qt) o.qt = q.qt.map(f); if (q.qv) { o.qv = q.qv.slice(); for (i = 0; i < o.qv.length; i += 3) o.qv[i] = f(o.qv[i]); } return o; }
+  // since 0.26.2, tied values (qv): a value that many rows share has no single rank, and reading counts linearly between grid points put it at one end of its run
+  // (count above a shared price or fare 7 to 21% off on real columns). qv lists [value, values below it, values at or below it] for every value that holds 1/2,048
+  // of the sample or more, estimated from the sample (exact where the tails were read from every value); countAbove / countBelow read those runs. Old readers ignore it.
+  var SUM_TIE = 2048;
+  function qTies(pts, wt, w1, m) {   // [value, weight below, weight at or below] for each run of 2 or more equal kept values holding m / SUM_TIE or more (weights in sample values; wt null: each kept value weighs w1)
+    var o = [], i = 0, j, n = pts.length, run = 0, c, v, lim = m / SUM_TIE;
+    while (i < n) { v = pts[i]; c = wt ? wt[i] : w1; j = i + 1; while (j < n && pts[j] === v) { c += wt ? wt[j] : w1; j++; }
+      if (j - i >= 2 && c >= lim) o.push(v, run, run + c); run += c; i = j; }
+    return o;
+  }
+  function qTiesTo(q, m, tot) { var t = q.qv, i; if (!t) return; for (i = 0; i < t.length; i += 3) { t[i + 1] = Math.round(t[i + 1] / m * tot); t[i + 2] = Math.round(t[i + 2] / m * tot); } }   // weights -> counts of the column's values
   function qSortedArr(s, m) { return qOf(function (r) { return s[r]; }, m); }
   function sumGridIdx(n) { var g = [], k, pos, lo; for (k = 0; k < QP.length; k++) { pos = QP[k][0] * (n - 1); lo = Math.floor(pos); g.push(lo, n - 1 - lo); if (lo + 1 < n) g.push(lo + 1, n - 2 - lo); } g.sort(function (x, y) { return x - y; }); return g.filter(function (x, i) { return x >= 0 && x < n && (i === 0 || x !== g[i - 1]); }); }   // the ranks the grid reads, and their mirror images (a falling column reads them from the end)   // the ranks the grid reads (rising)
   function qCounts(cnt, base, tot) {   // whole numbers counted over [base, base + cnt.length): exact distinct values, or the exact grid
@@ -170,7 +181,7 @@
   function capPut(cap, key, sb) { var c = cap.cols[key] || (cap.cols[key] = {}); c[sb.a] = sb; }
   function qWeighted(parts, m) {   // the grid over m sampled values, from each block's sorted kept values (sv, each standing for svn / sv.length values): exact when every block kept all of its sample
     var runs = [], i, j, b, w, a, c, v, wv, x, y, z, k = 0, cum, tot = 0, pts, wt, t;
-    if (parts.length === 1 && parts[0].sv.length === parts[0].svn) return qSortedArr(parts[0].sv, m);   // one block that kept its whole sample: the grid straight from it (since 0.26.0)
+    if (parts.length === 1 && parts[0].sv.length === parts[0].svn) { t = qSortedArr(parts[0].sv, m); t.qv = qTies(parts[0].sv, null, 1, m); return t; }   // one block that kept its whole sample: the grid straight from it (since 0.26.0)
     for (i = 0; i < parts.length; i++) { b = parts[i]; wv = new Float64Array(b.sv.length).fill(b.svn / b.sv.length); runs.push([b.sv, wv]); }
     while (runs.length > 1) { t = []; for (i = 0; i + 1 < runs.length; i += 2) { a = runs[i]; c = runs[i + 1]; v = new Float64Array(a[0].length + c[0].length); w = new Float64Array(v.length); x = 0; y = 0; z = 0;   // pairwise merges of sorted runs
         while (x < a[0].length && y < c[0].length) { if (a[0][x] <= c[0][y]) { v[z] = a[0][x]; w[z++] = a[1][x++]; } else { v[z] = c[0][y]; w[z++] = c[1][y++]; } }
@@ -178,7 +189,8 @@
       if (i < runs.length) t.push(runs[i]); runs = t; }
     pts = runs[0][0]; wt = runs[0][1]; cum = new Float64Array(pts.length);
     for (i = 0; i < pts.length; i++) { cum[i] = tot + (wt[i] - 1) / 2; tot += wt[i]; }   // the (fractional) rank each kept value stands at (its own rank when it stands for one value)
-    return qOf(function (r) { while (k + 1 < pts.length && cum[k + 1] <= r) k++; if (k + 1 >= pts.length || r <= cum[k]) return pts[k]; var f = (r - cum[k]) / (cum[k + 1] - cum[k]); return pts[k] + f * (pts[k + 1] - pts[k]); }, m);
+    t = qOf(function (r) { while (k + 1 < pts.length && cum[k + 1] <= r) k++; if (k + 1 >= pts.length || r <= cum[k]) return pts[k]; var f = (r - cum[k]) / (cum[k + 1] - cum[k]); return pts[k] + f * (pts[k + 1] - pts[k]); }, m);
+    t.qv = qTies(pts, wt, 0, tot); return t;
   }
   // the blocks' parts merged (null unless they cover rows 0 .. n - 1 exactly once); sc scales values (to epoch milliseconds for dates), fl takes whole milliseconds for min and max
   function sumMerge(cp, n, R, sc, fl) {
@@ -200,7 +212,7 @@
         g.q = qOf(g.asc ? function (x) { return f(gm.get(x)); } : function (x) { return f(gm.get(n - 1 - x)); }, n); }
       else if (cntOk && g.mx - g.mn <= 65536) { var cnt = new Int32Array(g.mx - g.mn + 1), qc; for (i = 0; i < bl.length; i++) { b = bl[i]; if (b.cnt) for (j = 0; j < b.cnt.length; j++) cnt[b.mn - g.mn + j] += b.cnt[j]; }
         qc = qCounts(cnt, g.mn, tot); g.q = sc === 1 ? qc.q : qMap(qc.q, f); if (qc.exact) { g.qExact = true; g.qn = qc.qn; } }
-      else { g.q = qWeighted(runs, m); if (n > SUM_QS) { g.qSample = m; tailExact(g.q, bl, tot); } if (sc !== 1) g.q = qMap(g.q, f); }
+      else { g.q = qWeighted(runs, m); qTiesTo(g.q, m, tot); if (n > SUM_QS) { g.qSample = m; tailExact(g.q, bl, tot); } if (sc !== 1) g.q = qMap(g.q, f); }
     }
     if (R.bin) {   // pyramid bins of the whole column
       var nb = Math.ceil(n / R.bin), pmn = new Float64Array(nb).fill(NaN), pmx = new Float64Array(nb).fill(NaN), pct = new Uint32Array(nb), t, gb, v;
@@ -219,9 +231,20 @@
     for (k = 0; k < need.length; k++) { t = tot - 1 - need[k]; if (t < hn) hr.push(t); else if (need[k] < ln) lr.push(need[k]); }
     hv = walkRanks(hs, hr, -1); lv = walkRanks(ls, lr, 1);
     function at(r) { var t = tot - 1 - r, x; if (t < hn) { x = hv.get(t); if (x !== undefined) return x; } if (r < ln) { x = lv.get(r); if (x !== undefined) return x; } return NaN; }   // the value at rank r of the column, or NaN when it is not held
+    var tq = q.qv, tv;   // tied values out where every value was kept: their counts exact (values above them all held, or values below them all held)
+    if (tq) for (k = 0; k < tq.length; k += 3) { tv = tq[k];
+      if (tv >= th && tv >= ths) { tq[k + 2] = tot - cntPast(hs, tv, 1, false); if (tv > ths) tq[k + 1] = tot - cntPast(hs, tv, 1, true); }
+      else if (tv <= tlo && tv <= tlos) { tq[k + 1] = cntPast(ls, tv, -1, false); if (tv < tlos) tq[k + 2] = cntPast(ls, tv, -1, true); } }
     for (k = 0; k < QP.length; k++) { e = QP[k]; pos = e[0] * (tot - 1); lo = Math.floor(pos); fr = pos - lo;
       v = at(lo); if (v !== v) continue; if (fr > 0 && lo + 1 < tot) { w = at(lo + 1); if (w !== w) continue; v = v + fr * (w - v); }
       if (e[1]) q.qt[e[2]] = v; else q[e[2]] = v; }
+  }
+  function cntPast(runs, v, dir, eq) {   // how many values of the rising runs are > v (dir 1; >= v with eq) or < v (dir -1; <= v with eq)
+    var n = 0, i, a, lo, hi, md, x;
+    for (i = 0; i < runs.length; i++) { a = runs[i]; lo = 0; hi = a.length;
+      if (dir > 0) { while (lo < hi) { md = (lo + hi) >> 1; x = a[md]; if (eq ? x >= v : x > v) hi = md; else lo = md + 1; } n += a.length - lo; }
+      else { while (lo < hi) { md = (lo + hi) >> 1; x = a[md]; if (eq ? x <= v : x < v) lo = md + 1; else hi = md; } n += lo; } }
+    return n;
   }
   function heldPast(runs, t, ts, dir) {   // how many values of the rising runs are >= t and > ts (dir 1), or <= t and < ts (dir -1): binary searches
     var n = 0, i, a, lo, hi, md, x;
@@ -249,7 +272,7 @@
   }
   function putMerged(c, g, type) {   // a merged result into the summary entry; the pyramid rides along (taken off before the entry is written)
     c.type = type; c.nulls = g.nulls; c.min = g.have ? g.min : null; c.max = g.have ? g.max : null; c.sorted = g.have ? (g.asc ? 'asc' : g.desc ? 'desc' : null) : null;
-    if (g.q) { c.q = g.q; if (g.q.qt && !g.qExact) c.qt = g.q.qt; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
+    if (g.q) { c.q = g.q; if (g.q.qt && !g.qExact) c.qt = g.q.qt; if (g.q.qv && g.q.qv.length && !g.qExact) c.qv = g.q.qv; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
     if (g.pyr) c._pyr = g.pyr;
     return c;
   }
@@ -460,6 +483,7 @@
     var c = sumEntry(this, key), q, m, N, k, cnt, lo, hi, a, b, f; if (!c) return null; x = sumX(x); if (x !== x) return null; q = sumGrid(c); m = q.length; N = c.n - c.nulls;
     if (c.qExact) { for (k = 0, cnt = 0; k < m; k++) if (above ? q[k] > x : q[k] < x) cnt += c.qn[k]; return cnt; }
     if (above ? x < q[0] : x > q[m - 1]) return N; if (above ? x >= q[m - 1] : x <= q[0]) return 0;
+    if (c.qv && c.qv.length) return sumCountTies(c, q, N, x, above);
     // the fractional rank r where the grid reaches x: values at ranks 0..floor(r) are <= x (for above), ranks 0..ceil(r)-1 are < x (for below)
     var s = (N - 1) / (m - 1), r;
     if (c.qt && c.qt.length === 2 * SUM_QT) { var G = sumPts(c), P = G.P, V = G.V, M = P.length;   // the same steps over the grid with tail points: the share where the grid reaches x, as a rank
@@ -467,6 +491,20 @@
       lo = 1; hi = M - 1; while (lo < hi) { k = (lo + hi) >> 1; if (V[k] >= x) hi = k; else lo = k + 1; } r = (P[lo - 1] + (x - V[lo - 1]) / (V[lo] - V[lo - 1]) * (P[lo] - P[lo - 1])) * (N - 1); r = Math.round(r * 1e9) / 1e9; return Math.min(N, Math.ceil(r)); }
     if (above) { lo = 0; hi = m - 2; while (lo < hi) { k = (lo + hi + 1) >> 1; if (q[k] <= x) lo = k; else hi = k - 1; } r = (lo + (x - q[lo]) / (q[lo + 1] - q[lo])) * s; r = Math.round(r * 1e9) / 1e9; return N - Math.min(N, Math.floor(r) + 1); }
     lo = 1; hi = m - 1; while (lo < hi) { k = (lo + hi) >> 1; if (q[k] >= x) hi = k; else lo = k + 1; } r = (lo - 1 + (x - q[lo - 1]) / (q[lo] - q[lo - 1])) * s; r = Math.round(r * 1e9) / 1e9; return Math.min(N, Math.ceil(r));
+  }
+  function sumCountTies(c, q, N, x, above) {   // since 0.26.2: the grid as knots [value, first rank, last rank]; a tied value spans its run (from qv), counts read linearly between knots
+    var K = [], t = c.qv, P, V, k, i, j, v, a, b, le, lt, A, B, f;
+    if (c.qt && c.qt.length === 2 * SUM_QT) { var G = sumPts(c); P = G.P; V = G.V; } else { P = []; V = q; for (k = 0; k < q.length; k++) P.push(k / (q.length - 1)); }
+    for (k = 0, i = 0; k < V.length || i < t.length;) {   // merge grid points and tied values by value; grid points inside a tied run fold into it
+      if (i < t.length && (k >= V.length || t[i] <= V[k])) { v = t[i]; K.push([v, t[i + 1], t[i + 2] - 1]); while (k < V.length && V[k] === v) k++; i += 3; }
+      else { v = V[k]; a = P[k] * (N - 1); b = a; while (k + 1 < V.length && V[k + 1] === v) { k++; b = P[k] * (N - 1); } K.push([v, a, b]); k++; } }
+    for (j = 1; j < K.length; j++) { if (K[j][1] < K[j - 1][2]) K[j][1] = K[j - 1][2]; if (K[j][2] < K[j][1]) K[j][2] = K[j][1]; }   // keep ranks rising where an estimate and an exact count meet
+    for (j = 0; j < K.length && K[j][0] < x; j++);
+    if (j < K.length && K[j][0] === x) { lt = K[j][1]; le = K[j][2] + 1; }
+    else if (j === 0) { lt = le = 0; } else if (j === K.length) { lt = le = N; }
+    else { A = K[j - 1]; B = K[j]; f = (x - A[0]) / (B[0] - A[0]); lt = le = A[2] + 1 + f * (B[1] - A[2] - 1); }
+    le = Math.round(le); lt = Math.round(lt); if (le > N) le = N; if (lt < 0) lt = 0;
+    return above ? N - le : lt;
   }
   function sumAttach(s) {
     if (s && Array.isArray(s.cols)) { var d = function (k, fn) { Object.defineProperty(s, k, { value: fn, enumerable: false, configurable: true, writable: true }); };
