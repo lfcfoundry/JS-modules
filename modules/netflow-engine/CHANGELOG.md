@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.7.0 · API 2 · 2026-11-26
+- Force pictures score better than Cytoscape and d3-force on real maps and keep fans close to their center; dense maps lay out about 2x faster. Pictures move.
+
 ## 2.6.5 · API 2 · 2026-11-21
 - Network maps (Distances layout) build in 15% less time in the middle case and up to 49% less on maps under 4,000 items. Items land in different spots than in 2.6.4; stress and link crossings stay within a few percent.
 

@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.7.0 · API 2 · 2026-11-26
+
+### Quick
+Force retuned on the real SBA, SEC, retail and FHIR maps (audit PR 900).
+
+### Deep
+Force retuned on the real SBA, SEC, retail and FHIR maps (audit PR 900). Sparse pieces: hub-to-hub links count as up to 8 springs (linkA 1.3 x (min degree / average)^0.75) and fans are pulled in to 0.4 of the median hub-to-hub link. Dense pieces (4+ links per item): Distances start, 40 Force rounds at start heat 1, fans held to 1 hub-to-hub link. spread 0.6 stretch before push-apart. Stress, 3 browsers: SBA 300 0.162 -> 0.146-0.148 (Cytoscape 0.144-0.148), SBA 922 0.184 -> 0.165-0.167 (Cytoscape 0.170), SEC 300 0.230-0.252 -> 0.187 (d3 0.217), SEC 1,000 0.184-0.191 -> 0.174 (d3 0.186), SEC 2,683 0.167-0.169 -> 0.175 (d3 0.187), retail 3,000 0.215-0.221 -> 0.201-0.203, FHIR 3,000 0.178 -> 0.177; retail/FHIR 300 and 1,000 level. Speed: SEC 1.7-2.9x less time, retail 3,000 1.9-2.3x less, others level (rechecked 5 runs each way). Owner chose the tight-fan look by card from side-by-side pictures. Raw: js-modules-research/audit-fixes-2026.11.26/force-2.7.0/.
+
 ## 2.6.5 · API 2 · 2026-11-21
 
 ### Quick

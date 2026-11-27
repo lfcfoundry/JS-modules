@@ -32,7 +32,9 @@
   // Each runner takes no arguments, lays out the graph and fills P; it may return a promise.
   var RUN = {
     engine: function () {
-      var E = window.NetflowEngine, nodes = ids().map(function (id) { return { id: id, label: id, group: '', valence: '', ghost: false, attrs: {} }; });
+      var E = window.NetflowEngine, tune = Q.get('force2');   // ?force2={"stressMin":1}: try other Force knobs (bench only)
+      if (tune) { var t2 = JSON.parse(tune); for (var tk in t2) E.force2dTuning[tk] = t2[tk]; }
+      var nodes = ids().map(function (id) { return { id: id, label: id, group: '', valence: '', ghost: false, attrs: {} }; });
       var g = { start: 'n0', nodes: nodes, edges: G.edges.map(function (e) { return { from: 'n' + e[0], to: 'n' + e[1], label: '', kind: '', attrs: {} }; }) };
       var L = E.build(g, task === 'layered' ? { view: 'down', fold: false } : { view: 'network', arrange: task });
       var at = {}; L.nodes.forEach(function (o) { at[o.id] = o; });
