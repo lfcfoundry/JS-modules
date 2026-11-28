@@ -709,6 +709,7 @@
     for (i = 0; i < 1024; i++) { x = S[a + i]; L = E[a + i] - x; h = L; for (q = 0; q < L; q++) h = Math.imul(h ^ B[x + q], 16777619); h = (h >>> 21) & 2047;
       for (;;) { j = T[h]; if (j < 0) { T[h] = i; nd++; break; } y = S[a + j]; if (E[a + j] - y === L) { eq = true; for (q = 0; q < L; q++) if (B[x + q] !== B[y + q]) { eq = false; break; } if (eq) break; } h = (h + 1) & 2047; } }
     return nd > 900; }   // the same test on a byte column: fast skips the dictionary count of a column whose first 1,024 values are nearly all different. Valid UTF-8 has exactly as many distinct strings as distinct byte strings, and a column that is not valid throws in utf8Check on either path (since 0.26.10; from the Workbench thread: Wikimedia import 6-7% quicker)
+  var MDC_T = null;
   function manyDistinctDC(dc, a) { var T = MDC_T || (MDC_T = new Int32Array(2048)), nd = 0, i, c, h, ids = dc.ids; T.fill(-1);   // distinct codes first (no text made): never fewer than distinct texts, so 900 or fewer answers without decoding
     for (i = 0; i < 1024; i++) { c = ids[a + i] | 0; h = Math.imul(c, -1640531535) >>> 21; for (;;) { var j = T[h]; if (j < 0) { T[h] = i; nd++; break; } if ((ids[a + j] | 0) === c) break; h = (h + 1) & 2047; } }
     if (nd <= 900) return false;
