@@ -1,6 +1,6 @@
 # elias-fano
 
-**Version 2.4.1 · API 2**
+**Version 3.0.0 · API 3**
 
 **Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6
 
@@ -218,6 +218,23 @@ var keep = list.view().slice(); // or copy it to keep it
 ```
 
 **Batch calls reuse their scratch memory (since 2.2.0):** `getMany`, `nextGEQMany`, `rankMany`, `containsMany`, long `slice` and `intersect` now use one reusable region of WebAssembly memory instead of taking and giving back two pieces on every call. Same answers, and nothing measured slower. Batches of 50 on the real lists take 0.69 to 0.88 of the time on short lists, 0.82 to 0.92 on mid-size lists and 0.84 to 0.96 on long lists, across the three browsers. Batches over 1 MB still take their own memory, and `trim()` drops the region along with the old memory.
+
+## Layouts for long lists (since 3.0.0)
+
+A list of 1,024 values or more now picks one of three layouts when it is built. Shorter lists are byte for byte the same as in 2.4.1.
+
+- **Bitmap:** for strictly increasing lists whose plain bitmap, from the first value, is no bigger than classic Elias-Fano. Lookups count bits, with a rank sample every 512 bits.
+- **Runs:** for strictly increasing lists whose average run of consecutive values is 16 or more. It stores a classic list of run starts and a classic list of counts.
+- **Biased low bits:** for the other long lists. They keep 1 or 2 more low bits than the smallest layout (while that stays 16 or below), so each byte of high bits holds more values and decoding is faster.
+
+`intersect` also uses the layouts. It has word paths for bitmap and run lists, a lopsided walk when one list is 16 times longer or more, stretch-skipping decode, and a SIMD merge.
+
+**Measured:** on the real long lists (retail, geographic, SEC filings, SEC subset, FHIR), files are 0.51 to 0.93x the size of 2.4.1, and 0.47 to 0.87x the size of roaring. Results against the fastest rival builds, as a ratio of time, in Chromium, Firefox and WebKitGTK:
+- **Decode:** 0.66 to 1.13x of BP128.
+- **Lookups:** 0.25 to 0.78x of a plain array.
+- **Intersect:** 0.73 to 0.89x of roaring on geographic, SEC subset and FHIR. Still behind roaring on retail and SEC filings (about 1.0 to 1.3x).
+
+**Compatibility:** 3.0.0 reads every older file. Copies older than 3.0.0 refuse the new long-list layouts, because those copies need header words 11 and up to be 0. To write a file that older copies must read, use `build(values, { classic: true })`, which writes the 2.4 layout. This is why the API number went from 2 to 3.
 
 ## Limits
 - Values are whole numbers from 0 to 4,294,967,295; at most 1,073,741,824 values per list or list set.

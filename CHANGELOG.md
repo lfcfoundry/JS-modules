@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.21.0 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.4.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 3.0.0 · API 3 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.13.1 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.26.13 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
@@ -66,6 +66,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 ## Changes since labels began
 
 - 2026-11-28 · **lfc-pack** 0.26.13 · API 0: Saving columns that hold -0 is much quicker (one such value no longer sends the whole block down the slow text path); same values read back
+- 2026-11-28 · **elias-fano** 3.0.0 · API 3: Long lists (1,024+ values) pick a bitmap, run or denser layout: files 0.51-0.93x the size, faster lookups and intersect. Older copies cannot read them; build(values, { classic: true }) writes the old layout
 - 2026-11-27 · **memory-compression** 2.21.0 · API 2: Running totals and repeating event times pack 15 to 26% smaller (COVID counts and FHIR times now under Pcodec); float columns like SBA pack about 35% faster for 1.6% more bytes. Files using the new ways need 2.21.0 or newer.
 - 2026-11-27 · **memory-compression** 2.20.2 · API 2: Unpacking real number columns is about 25 to 45% faster: the bit reading and the sums now run in the WebAssembly helper. Same files; nothing to change.
 - 2026-11-27 · **memory-compression** 2.20.1 · API 2: Packs real whole-number and decimal columns a little faster in balanced and small modes: a repeated decimal check and a Map lookup were replaced. Same format; a few bytes smaller on SEC and SBA.
