@@ -472,34 +472,53 @@
     var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA2, IS.DELTA, IS.RLE, IS.DICT, IS.LB, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
     // Since 2.19.2 the ways that won for a block are written down as a tree (REC) and the next blocks of the column replay that tree (RPL): each level tries only the way that won there, with no sample trials,
     // and a level whose way does not apply falls back to the full search. Every block still comes out as ordinary bytes any decoder reads; every 32nd block records a new tree.
-    var REC = null, RPL = null;
+    var REC = null, RPL = null, TGEN = 0;
+    // Since 2.23.0 a replayed level whose way does not apply searches again and keeps what it found next to the old way (ALT: the old tree first, then the new one), so the next blocks replay
+    // the new way without a search, and still use the old one whenever it applies. Inside the first tree of an ALT nothing searches (STRICT): it applies at every level or the second tree is used,
+    // the same rule the WebAssembly helper follows, so both give the same bytes.
+    var ALT = 13, STRICT = 0, NOFIT = {};
+    function replayOne(a, nd, depth, opt, sv) {
+      var e = null;
+      if (nd.sch === ALT) {
+        STRICT++; try { e = replayOne(a, nd.kids[0], depth, opt, sv); } catch (x) { if (x !== NOFIT) throw x; e = null; } finally { STRICT--; }
+        return e || replayOne(a, nd.kids[1], depth, opt, sv);
+      }
+      RPL = { node: nd, k: 0 };
+      try { e = encIntWith(nd.sch, a, depth, opt, range(a), 0); } catch (x) { if (x === NOFIT) throw x; e = null; } finally { RPL = sv; }
+      if (!e && STRICT) throw NOFIT;
+      return e;
+    }
     function encInts(a, depth, opt) {
-      var nd, sv, e;
+      var nd, sv, e = null, got, svR, at;
       if (RPL) {
-        nd = RPL.node.kids && RPL.node.kids[RPL.k++]; sv = RPL;
+        at = RPL.k; nd = RPL.node.kids && RPL.node.kids[RPL.k++]; sv = RPL;
         if (nd) {
-          if (KWC && a.length >= 64 && (e = encTreeWasm(a, nd, depth))) return e;        // the whole tree in one WebAssembly call, when every way in it is one the helper knows
-          RPL = { node: nd, k: 0 };
-          try { e = tryInt(nd.sch, a, depth, opt, range(a), 0); } finally { RPL = sv; }
+          if (KWC && a.length >= 64 && (e = encTreeWasm(a, nd, depth, opt.dictGate))) return e;        // the whole tree in one WebAssembly call, when every way in it is one the helper knows
+          e = replayOne(a, nd, depth, opt, sv);
           if (e) return e;
         }
-        RPL = null; try { return encIntsFull(a, depth, opt); } finally { RPL = sv; }
+        if (STRICT) throw NOFIT;
+        if (!sv.node.kids || sv.node.root) { RPL = null; try { return encIntsFull(a, depth, opt); } finally { RPL = sv; } }
+        svR = REC; got = []; RPL = null; REC = got;
+        try { e = encIntsFull(a, depth, opt); } finally { RPL = sv; REC = svR; }
+        if (got[0] && at < sv.node.kids.length) { sv.node.kids[at] = nd ? { sch: ALT, kids: [nd.sch === ALT ? nd.kids[0] : nd, got[0]] } : got[0]; TGEN++; }
+        return e;
       }
       return encIntsFull(a, depth, opt);
     }
     function treeBytes(nd) {      // the tree as bytes for enc_tree (way, number of parts, parts), or null when a way in it is not one the helper knows
       var out = [];
-      function put(x) { if (x.sch !== 1 && x.sch !== 2 && x.sch !== 4 && x.sch !== 8 && x.sch !== 9 && x.sch !== 10 && x.sch !== 11) throw 0; out.push(x.sch, x.kids.length); for (var i = 0; i < x.kids.length; i++) put(x.kids[i]); }
-      if (nd.tb === undefined) { try { put(nd); nd.tb = Uint8Array.from(out); } catch (e) { nd.tb = null; } }
+      function put(x) { if (x.sch < 1 || x.sch > ALT) throw 0; out.push(x.sch, x.kids.length); for (var i = 0; i < x.kids.length; i++) put(x.kids[i]); }
+      if (nd.tb === undefined || nd.tg !== TGEN) { nd.tg = TGEN; try { put(nd); nd.tb = Uint8Array.from(out); } catch (e) { nd.tb = null; } }      // TGEN: a tree that learned a new way is written again
       return nd.tb;
     }
-    function encTreeWasm(a, nd, depth) {
+    function encTreeWasm(a, nd, depth, gate) {
       var kw = KWC, tb = treeBytes(nd), n = a.length, aP, oP, cap, tP, sP, scap, len;
       if (!tb || !kw.x.enc_tree) return null;
-      aP = kw.base; oP = kal(aP + n * 8); cap = n * 10 + 4096; tP = kal(oP + cap); sP = kal(tP + tb.length + 16); scap = n * 40 + 4096;
+      aP = kw.base; oP = kal(aP + n * 8); cap = n * 10 + 4096; tP = kal(oP + cap); sP = kal(tP + tb.length + 16); scap = n * 64 + 1114112;
       if (!kwRoom(sP + scap - kw.base + 64)) return null;
       new Float64Array(kw.mem.buffer, aP, n).set(a); new Uint8Array(kw.mem.buffer, tP, tb.length).set(tb);
-      len = kw.x.enc_tree(aP, n, tP, oP, cap, sP, scap, depth) >>> 0;
+      len = kw.x.enc_tree(aP, n, tP, oP, cap, sP, scap, depth | (gate ? 256 : 0)) >>> 0;
       return len ? new Uint8Array(kw.mem.buffer, oP, len).slice() : null;
     }
     function runWay(way, a, depth, opt, mm, bound, rec) {     // tryInt, with the ways it uses for its parts written down when rec is on
@@ -943,7 +962,7 @@
         if (only && cands[k][0] !== CS.INTS && only.indexOf(cands[k][0]) < 0) continue;
         if (only && opt.lead >= 0 && cands[k][0] !== opt.lead && cands[k][0] !== CS.INTS) continue;      // since 2.21.0: the kind that beat the others by 2% or more on the last block is the only one tried on a block that replays
         if (cands[k][0] === CS.RD && best && best.length < a.length * 6) continue;      // this way cannot be under 6 bytes a value (4 for the back bits, at least 2 for the front)
-        REC = opt.recTpl ? [] : null; RPL = opt.tplNode && opt.tplCS === cands[k][0] ? { node: { kids: opt.tplNode }, k: 0 } : null;
+        REC = opt.recTpl ? [] : null; RPL = opt.tplNode && opt.tplCS === cands[k][0] ? { node: { kids: opt.tplNode, root: true }, k: 0 } : null;
         try { e = cands[k][1](); } catch (err) { e = null; }
         tn = REC; REC = null; RPL = null;
         if (e) szs[cands[k][0]] = e.length;

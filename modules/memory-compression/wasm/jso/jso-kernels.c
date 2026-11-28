@@ -476,7 +476,7 @@ EXPORT int dec_join(const double *d, const double *g, u32 n, double *out) {
 }
 
 /* ---- enc_tree (picker, since 2.19.2): the bytes of one whole-number block for a recorded tree of ways, in one call. Same bytes as encIntWith in src/picker.js for the ways it knows:
- * CONST 1, FOR 2, RLE 4, ENT 8, EG 9, DEC 10, DELTA2 11. tree = for each way: its number, its number of parts, then the parts' trees one after another.
+ * CONST 1, FOR 2, DELTA 3, RLE 4, DICT 5, PFOR 6, DIV 7, ENT 8, EG 9, DEC 10, DELTA2 11, LB 12, and ALT 13 (two trees, see below). tree = for each way: its number, its number of parts, then the parts' trees one after another.
  * Returns the number of bytes written, or 0 when a way does not apply (JavaScript then goes its own way). */
 typedef struct { u8 *p; u8 *end; u8 *sp; u8 *send; int bad; } TW;
 static void tw_b(TW *w, u32 v) { if (w->p < w->end) *w->p++ = (u8)v; else w->bad = 1; }
@@ -506,9 +506,30 @@ static int tw_ans(TW *w, const u8 *syms, u32 n, const u32 *cnt) {
   tw_vi(w, len); for (i = 0; i < len; i++) tw_b(w, tmp[cap - len + i]);
   return 1;
 }
+static int TWG;                 /* 1 inside the streams of DEC, where DICT has its gate (opt.dictGate in picker.js) */
+static void tw_sort(double *t, u32 n) {      /* ascending; insertion sort for short runs, else quicksort on the middle of three */
+  while (n > 24) {
+    double p, x; u32 i = 0, j = n - 1, m = n >> 1;
+    if (t[m] < t[0]) { x = t[m]; t[m] = t[0]; t[0] = x; }
+    if (t[j] < t[0]) { x = t[j]; t[j] = t[0]; t[0] = x; }
+    if (t[j] < t[m]) { x = t[j]; t[j] = t[m]; t[m] = x; }
+    p = t[m];
+    for (;;) { while (t[i] < p) i++; while (p < t[j]) j--; if (i >= j) break; x = t[i]; t[i] = t[j]; t[j] = x; i++; j--; }
+    if (j + 1 < n - j - 1) { tw_sort(t, j + 1); t += j + 1; n -= j + 1; } else { tw_sort(t + j + 1, n - j - 1); n = j + 1; }
+  }
+  { u32 i, k; for (i = 1; i < n; i++) { double x = t[i]; k = i; while (k && t[k - 1] > x) { t[k] = t[k - 1]; k--; } t[k] = x; } }
+}
+static void tw_skip(const u8 **tp) { u32 k = (*tp)[1], i; *tp += 2; for (i = 0; i < k; i++) tw_skip(tp); }
 static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth) {
   u32 sch = (*tp)[0], nk = (*tp)[1], i; double mn, mx; const u8 *t0 = *tp; u8 *sp0 = w->sp; int ok = 0;
   *tp += 2;
+  if (sch == 13) {             /* ALT (since 2.23.0): the first tree if it applies at every level, else the second; picker.js does the same */
+    u8 *p0 = w->p; const u8 *t1 = *tp;
+    if (nk != 2) return 0;
+    if (tw_node(w, a, n, tp, depth) && !w->bad) { tw_skip(tp); return 1; }
+    w->p = p0; w->sp = sp0; w->bad = 0; *tp = t1; tw_skip(tp);
+    return tw_node(w, a, n, tp, depth);
+  }
   if (n == 0) return 0;
   mn = mx = a[0];
   for (i = 1; i < n; i++) { double v = a[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
@@ -539,6 +560,118 @@ static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth) {
     if (!tw_ans(w, syms, n, cnt)) return 0;
     k = (bitsK + 7) / 8; for (i = 0; i < k; i++) tw_b(w, ((const u8 *)o)[i]);
     ok = 1;
+  } else if (sch == 3) {       /* DELTA: the first value, then the zigzag differences as one part */
+    double *d, y, big = 4294967295.0; double dv[65]; u32 nd = 0, lim, found, k, bwy, bwr; double rg = mx - mn;
+    if (depth <= 0 || nk != 1 || n < 4) return 0;
+    d = tw_alloc(w, (n - 1) * 8); if (!d) return 0;
+    y = delta_enc(a, n, d);
+    if (depth < 2) {
+      bwy = y <= 0 ? 0 : 32 - (((u32)(u64)y) ? (u32)__builtin_clz((u32)(u64)y) : 32) + (y > big ? 99 : 0);
+      bwr = rg <= 0 ? 0 : 32 - (((u32)(u64)rg) ? (u32)__builtin_clz((u32)(u64)rg) : 32) + (rg > big ? 99 : 0);
+      if (bwy > bwr) {         /* wider than the values and never repeating: differences cannot help (first 256 differences hold more than 64 different ones) */
+        lim = n - 1 < 256 ? n - 1 : 256; found = 0;
+        for (i = 0; i < lim && !found; i++) { for (k = 0; k < nd; k++) if (dv[k] == d[i]) break; if (k == nd) { dv[nd++] = d[i]; if (nd > 64) found = 1; } }
+        if (found) return 0;
+      }
+    }
+    tw_b(w, 3); tw_zi(w, a[0]);
+    if (!tw_node(w, d, n - 1, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
+  } else if (sch == 6) {       /* PFOR: the low bits of every value packed, the few that do not fit as positions and high parts */
+    u32 hist[34], q, x, bw, cum, np = 0; double *g, *hi; u32 *low; double lim1, pv;
+    if (depth <= 0 || nk != 2 || n < 16) return 0;
+    for (i = 0; i < 34; i++) hist[i] = 0;
+    for (i = 0; i < n; i++) { double xx = a[i] - mn; hist[xx > 4294967295.0 ? 33 : xx <= 0 ? 0 : 32 - (u32)__builtin_clz((u32)xx)]++; }
+    q = (u32)(n * 0.92) + 1; cum = 0; for (bw = 0; bw < 33; bw++) { cum += hist[bw]; if (cum >= q) break; }
+    if (bw >= 32) return 0;
+    x = 0; for (i = bw + 1; i < 34; i++) x += hist[i];
+    if (!x) return 0;
+    lim1 = (double)((u64)1 << bw);
+    low = tw_alloc(w, n * 4); g = tw_alloc(w, x * 8); hi = tw_alloc(w, x * 8); if (!low || !g || !hi) return 0;
+    pv = -1;
+    for (i = 0; i < n; i++) {
+      double xx = a[i] - mn;
+      if (xx > lim1 - 1) { double hq = __builtin_floor(xx / lim1); if (np >= x) return 0; g[np] = (double)i - pv - 1; pv = (double)i; hi[np] = hq; np++; low[i] = (u32)(xx - hq * lim1); }
+      else low[i] = (u32)xx;
+    }
+    tw_b(w, 6); tw_zi(w, mn); tw_b(w, bw); tw_vi(w, np); tw_bits(w, low, n, bw);
+    if (!tw_node(w, g, np, tp, depth - 1)) return 0;
+    if (!tw_node(w, hi, np, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
+  } else if (sch == 5) {       /* DICT (since 2.23.0 here): the sorted different values, then each value's place among them, as in picker.js */
+    double lim = (double)n / 2, *keys, *codes; u32 m = 0, k;
+    if (lim > 65536) lim = 65536;
+    if (depth <= 0 || nk != 2) return 0;
+    if (TWG && n > 512) {        /* the gate of the DEC streams: more than 160 different values in the first 256 */
+      double sv[161]; u32 c = 0, z;
+      for (i = 0; i < 256; i++) { for (z = 0; z < c; z++) if (sv[z] == a[i]) break; if (z == c) { if (c == 160) return 0; sv[c++] = a[i]; } }
+    }
+    if (mx - mn < (65536.0 > n * 16.0 ? 65536.0 : n * 16.0)) {
+      u32 rn = (u32)(mx - mn) + 1, *seen = tw_alloc(w, rn * 4);
+      if (!seen) return 0;
+      for (i = 0; i < rn; i++) seen[i] = 0;
+      for (i = 0; i < n; i++) { u32 x = (u32)(a[i] - mn); if (!seen[x]) { seen[x] = 1; if ((double)++m > lim) return 0; } }
+      keys = tw_alloc(w, m * 8); codes = tw_alloc(w, n * 8); if (!keys || !codes) return 0;
+      for (i = 0, k = 0; i < rn; i++) if (seen[i]) { keys[k] = (double)i + mn; seen[i] = ++k; }
+      for (i = 0; i < n; i++) codes[i] = (double)(seen[(u32)(a[i] - mn)] - 1);
+    } else {
+      double *t = tw_alloc(w, n * 8); u32 lo, hi2, md;
+      if (!t) return 0;
+      for (i = 0; i < n; i++) t[i] = a[i];
+      tw_sort(t, n);
+      for (i = 0; i < n; i++) if (!i || t[i] != t[m - 1]) { t[m++] = t[i]; if ((double)m > lim) return 0; }
+      keys = t; codes = tw_alloc(w, n * 8); if (!codes) return 0;
+      for (i = 0; i < n; i++) { double x = a[i]; lo = 0; hi2 = m; while (lo < hi2) { md = (lo + hi2) >> 1; if (keys[md] < x) lo = md + 1; else hi2 = md; } codes[i] = (double)lo; }
+    }
+    tw_b(w, 5); tw_vi(w, m);
+    if (!tw_node(w, keys, m, tp, depth - 1)) return 0;
+    if (!tw_node(w, codes, n, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
+  } else if (sch == 7) {       /* DIV: the first value, the common factor of the distances to it, then the distances over it */
+    u64 g = 0, x, y, t; double *d, a0 = a[0];
+    if (depth <= 0 || nk != 1) return 0;
+    for (i = 1; i < n && g != 1; i++) { double dx = a[i] - a0; x = (u64)(dx < 0 ? -dx : dx); y = g; while (y) { t = x % y; x = y; y = t; } g = x; }
+    if (g < 2) return 0;
+    d = tw_alloc(w, n * 8); if (!d) return 0;
+    for (i = 0; i < n; i++) d[i] = (a[i] - a0) / (double)g;
+    tw_b(w, 7); tw_zi(w, a0); tw_vi(w, g);
+    if (!tw_node(w, d, n, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
+  } else if (sch == 12) {      /* LB: each value's place in the list of different values by latest use (0: new), then the new values, as in picker.js */
+    u32 sh, sz, msk, q, j = 0, m, nv = 0, tt, lim2; i32 *last, *fw; double *key, *d, *vals; u64 bits;
+    if (depth <= 0 || nk != 2 || n < 256 || mx - mn < 65536) return 0;
+    m = n < 1024 ? n : 1024;
+    last = tw_alloc(w, 2048 * 4); key = tw_alloc(w, 2048 * 8); if (!last || !key) return 0;
+    for (i = 0; i < 2048; i++) last[i] = -1;
+    for (i = 0; i < m; i++) {
+      double x = a[i]; __builtin_memcpy(&bits, &x, 8); q = (u32)((bits * 0x9E3779B97F4A7C15ull) >> 53);
+      while (last[q] >= 0 && key[q] != x) q = (q + 1) & 2047;
+      if (last[q] >= 0) { if (x != a[i - 1]) j++; } else { last[q] = 1; key[q] = x; }
+    }
+    if (j * 3 < m) return 0;
+    sh = 32 - (u32)__builtin_clz(n * 2 - 1); sz = 1u << sh; msk = sz - 1;
+    last = tw_alloc(w, sz * 4); key = tw_alloc(w, sz * 8); fw = tw_alloc(w, (n + 1) * 4); d = tw_alloc(w, n * 8); vals = tw_alloc(w, n * 8);
+    if (!last || !key || !fw || !d || !vals) return 0;
+    for (i = 0; i < sz; i++) last[i] = -1;
+    for (i = 0; i <= n; i++) fw[i] = 0;
+    for (i = 0; i < n; i++) {
+      double x = a[i]; i32 yy; __builtin_memcpy(&bits, &x, 8); q = (u32)((bits * 0x9E3779B97F4A7C15ull) >> (64 - sh)) & msk;
+      while ((yy = last[q]) >= 0 && key[q] != x) q = (q + 1) & msk;
+      if (yy < 0) { vals[nv++] = x; key[q] = x; d[i] = 0; }
+      else {
+        i32 cnt = 0; tt = (u32)yy + 1; lim2 = i;
+        while (tt != lim2) { if (lim2 > tt) { cnt += fw[lim2]; lim2 -= lim2 & (0u - lim2); } else { cnt -= fw[tt]; tt -= tt & (0u - tt); } }
+        d[i] = (double)(cnt + 1);
+        for (tt = (u32)yy + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]--;
+      }
+      for (tt = i + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]++;
+      last[q] = (i32)i;
+    }
+    if ((u64)nv * 5 > (u64)n * 3) return 0;
+    tw_b(w, 12); tw_vi(w, nv);
+    if (!tw_node(w, d, n, tp, depth - 1)) return 0;
+    if (!tw_node(w, vals, nv, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
   } else if (sch == 4) {
     double *vals, *runs; u32 j = 1, m = 0, p; 
     if (depth <= 0 || nk != 2) return 0;
@@ -568,8 +701,7 @@ static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth) {
     q = dec_split(a, n, d, g);
     if (q * 8 < n) return 0;
     tw_b(w, 10);
-    if (!tw_node(w, g, n, tp, depth - 1)) return 0;
-    if (!tw_node(w, d, n, tp, depth - 1)) return 0;
+    { int svg = TWG, ok2; TWG = 1; ok2 = tw_node(w, g, n, tp, depth - 1) && tw_node(w, d, n, tp, depth - 1); TWG = svg; if (!ok2) return 0; }
     return w->bad ? 0 : (w->sp = sp0, 1);
   }
   if (!ok) return 0;
@@ -577,7 +709,7 @@ static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth) {
 }
 EXPORT u32 enc_tree(const double *a, u32 n, const u8 *tree, u8 *out, u32 cap, u8 *scratch, u32 scap, u32 depth) {
   TW w; const u8 *tp = tree;
-  w.p = out; w.end = out + cap; w.sp = scratch; w.send = scratch + scap; w.bad = 0;
+  w.p = out; w.end = out + cap; w.sp = scratch; w.send = scratch + scap; w.bad = 0; TWG = (int)(depth >> 8); depth &= 255;
   if (!tw_node(&w, a, n, &tp, (int)depth) || w.bad) return 0;
   return (u32)(w.p - out);
 }
