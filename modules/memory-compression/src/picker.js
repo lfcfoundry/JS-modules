@@ -239,7 +239,21 @@
       return w.out();
     }
     function egDecode(r, n, out) {
-      var t = readTable(r), rl = r.vi(), syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot), bits = 0, i, c, nb, pos = 0, idx, off, lo, hi, u, tmp, src, bytes;
+      var t = readTable(r), rl = r.vi(), syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot), bits = 0, i, c, nb, pos = 0, idx, off, lo, hi, u, tmp, src, bytes, kw = KWC, sP, bP, oP;
+      if (kw && n >= 1024) {                                                         // since 2.20.2: the bit reading in the WebAssembly helper
+        sP = kw.base; bP = kal(sP + n);
+        if (kwRoom(bP + n * 8 + 64 - kw.base + 64)) {
+          new Uint8Array(kw.mem.buffer, sP, n).set(syms); bits = kw.x.eg_bits(sP, n);
+          if (bits < 0) pfail('bad size class');
+          bytes = Math.ceil(bits / 8); if (!kwRoom(kal(bP + bytes + 16) + n * 8 - kw.base + 64)) bits = -2;
+          else {
+            src = r.bytes(bytes); oP = kal(bP + bytes + 16);
+            new Uint8Array(kw.mem.buffer, bP, bytes + 8).fill(0, bytes).set(src); kw.x.eg_dec(sP, n, bP, oP);
+            out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
+          }
+        }
+        bits = 0;
+      }
       for (i = 0; i < n; i++) { c = syms[i]; if (c > 53) pfail('bad size class'); if (c > 1) bits += c - 1; }
       bytes = Math.ceil(bits / 8); src = r.bytes(bytes); tmp = new Uint32Array(Math.ceil(bytes / 4) + 2); new Uint8Array(tmp.buffer).set(src);
       for (i = 0; i < n; i++) {
@@ -434,21 +448,35 @@
     }
     function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
     function decInts(r, n, depth, into) {
-      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div;
+      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div, q, y, bytes, src;
       if (depth > MAX_DEPTH) pfail('data nested too deep');
       if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
       if (sch === IS.CONST) { out.fill(r.zi()); return out; }
       if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn, into); }
       if (sch === IS.ENT) {
         mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
-        syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot); low = bpRead(r, n, sh); div = Math.pow(2, sh);
+        syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot);
+        if (KWC && n >= 1024 && sh <= 32) {                                         // since 2.20.2: the low bits and the sum in the WebAssembly helper
+          bytes = Math.ceil(n * sh / 8); q = KWC.base; i = kal(q + n); y = kal(i + bytes + 16);
+          if (kwRoom(y + n * 8 + 64 - KWC.base + 64)) {
+            new Uint8Array(KWC.mem.buffer, q, n).set(syms); src = sh ? r.bytes(bytes) : null;
+            new Uint8Array(KWC.mem.buffer, i, bytes + 8).fill(0).set(src || new Uint8Array(0)); KWC.x.ent_dec(q, n, sh, mn, i, y);
+            out.set(new Float64Array(KWC.mem.buffer, y, n)); return out;
+          }
+        }
+        low = bpRead(r, n, sh); div = Math.pow(2, sh);
         for (i = 0; i < n; i++) out[i] = syms[i] * div + low[i] + mn;
         return out;
       }
       if (sch === IS.EG) { if (n < 1) pfail('bad column'); return egDecode(r, n, out); }
       if (sch === IS.DEC) {
         g = decInts(r, n, depth + 1); d = decInts(r, n, depth + 1);
-        for (i = 0; i < n; i++) { k = g[i]; if (!(k >= 0 && k <= 22)) pfail('bad power of ten'); out[i] = d[i] * Math.pow(10, k); }
+        if (KWC && n >= 1024 && (q = KWC.base, i = kal(q + n * 8), y = kal(i + n * 8), kwRoom(kal(y + n * 8) + 64 - KWC.base + 64))) {      // since 2.20.2: the sum in the WebAssembly helper
+          new Float64Array(KWC.mem.buffer, q, n).set(d); new Float64Array(KWC.mem.buffer, i, n).set(g); z = KWC.x.dec_join(q, i, n, y);
+          if (z === 1) pfail('bad power of ten');
+          if (z === 0) { out.set(new Float64Array(KWC.mem.buffer, y, n)); return out; }
+        }
+        for (i = 0; i < n; i++) { k = g[i]; if (!(k >= 0 && k <= 22)) pfail('bad power of ten'); out[i] = d[i] * (F10[k] === undefined ? Math.pow(10, k) : F10[k]); }      // since 2.20.2 the table, not Math.pow: the same numbers, much faster
         return out;
       }
       if (sch === IS.DELTA) {
@@ -460,7 +488,12 @@
       if (sch === IS.RLE) {
         m = r.vi(); if (m > n) pfail('bad run count');
         vals = decInts(r, m, depth + 1); runs = decInts(r, m, depth + 1); o = 0;
-        for (k = 0; k < m; k++) { c = runs[k] + 1; if (!(c >= 1) || o + c > n) pfail('bad run lengths'); out.fill(vals[k], o, o + c); o += c; }
+        if (KWC && n >= 1024 && m >= 64 && (q = KWC.base, i = kal(q + m * 8), y = kal(i + m * 8), kwRoom(kal(y + n * 8) + 64 - KWC.base + 64))) {      // since 2.20.2: the runs in the WebAssembly helper
+          new Float64Array(KWC.mem.buffer, q, m).set(vals); new Float64Array(KWC.mem.buffer, i, m).set(runs);
+          if (KWC.x.rle_dec(q, i, m, n, y) !== 0) pfail('bad run lengths');
+          out.set(new Float64Array(KWC.mem.buffer, y, n)); return out;
+        }
+        for (k = 0; k < m; k++) { c = runs[k] + 1; if (!(c >= 1) || o + c > n) pfail('bad run lengths'); if (c < 12) { z = vals[k]; for (i = o, b = o + c; i < b; i++) out[i] = z; } else out.fill(vals[k], o, o + c); o += c; }      // since 2.20.2: short runs by hand, fill() has a call cost
         if (o !== n) pfail('bad run lengths');
         return out;
       }

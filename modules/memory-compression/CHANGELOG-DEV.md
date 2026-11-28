@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.20.2 · API 2 · 2026-11-27
+
+### Quick
+Faster unpack of whole-number and decimal columns. Format unchanged.
+
+### Details
+Unpack of the Exp-Golomb, entropy, run and decimal-split ways runs in the WebAssembly helper (eg_dec, ent_dec, rle_dec, dec_join), and powers of ten come from a table, not Math.pow. Browser medians, unpack of SEC numbers (413,875 values): Chromium 46 to 25 ms, Firefox 33 to 19 ms, WebKitGTK 40 to 18 ms; the other columns 5 to 25% faster. Pcodec still unpacks 2 to 4 times faster.
+
+### Deep
+Found by the new memory-compression tester (testers/memory-compression-vs-rivals-tester.html): unpack was slower than gzip and Pcodec. Profile of SEC unpack: the decimal split join used Math.pow per value (about half of it), egDecode and the run expansion were JavaScript loops. Output is identical to before for every way (round trip bit for bit; wasm:false path unchanged). Limits: Pcodec unpacks SEC in about 7 ms in all three browsers; ours is 18 to 25 ms.
+
 ## 2.20.1 · API 2 · 2026-11-27
 
 ### Quick
