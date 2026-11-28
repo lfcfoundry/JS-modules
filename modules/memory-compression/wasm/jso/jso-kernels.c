@@ -636,7 +636,7 @@ static __attribute__((noinline)) int tw_more(TW *w, const double *a, u32 n, cons
       while (last[q] >= 0 && key[q] != x) q = (q + 1) & 2047;
       if (last[q] >= 0) { if (x != a[i - 1]) j++; } else { last[q] = 1; key[q] = x; }
     }
-    if (j * 3 < m) return 0;
+    if (j * (mx - mn >= 16777216.0 ? 20 : 3) < m) return 0;      /* values over 24 bits wide: 5% coming back is enough (as picker.js) */
     sh = 32 - (u32)__builtin_clz(n * 2 - 1); sz = 1u << sh; msk = sz - 1;
     last = tw_alloc(w, sz * 4); key = tw_alloc(w, sz * 8); fw = tw_alloc(w, (n + 1) * 4); d = tw_alloc(w, n * 8); vals = tw_alloc(w, n * 8);
     if (!last || !key || !fw || !d || !vals) return 0;
@@ -655,7 +655,8 @@ static __attribute__((noinline)) int tw_more(TW *w, const double *a, u32 n, cons
       for (tt = i + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]++;
       last[q] = (i32)i;
     }
-    if ((u64)nv * 5 > (u64)n * 3) return 0;
+    if (mx - mn >= 16777216.0) { u32 r = 0; for (i = 0; i < n; i++) if (d[i] > 1) r++; if ((u64)r * 20 < n) return 0; }
+    else if ((u64)nv * 5 > (u64)n * 3) return 0;
     tw_b(w, 12); tw_vi(w, nv);
     if (!tw_node(w, d, n, tp, depth - 1)) return 0;
     if (!tw_node(w, vals, nv, tp, depth - 1)) return 0;
@@ -868,7 +869,7 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
       while (last[q] >= 0 && key[q] != x) q = (q + 1) & 2047;
       if (last[q] >= 0) { if (x != a[i - 1]) j++; } else { last[q] = 1; key[q] = x; }
     }
-    if (j * 3 < m) return 0;
+    if (j * (mx - mn >= 16777216.0 ? 20 : 3) < m) return 0;      /* values over 24 bits wide: 5% coming back is enough (as picker.js) */
     sh = 32 - (u32)__builtin_clz(n * 2 - 1); sz = 1u << sh; msk = sz - 1;
     last = tw_alloc(w, sz * 4); key = tw_alloc(w, sz * 8); fw = tw_alloc(w, (n + 1) * 4); d = tw_alloc(w, n * 8); vals = tw_alloc(w, n * 8);
     if (!last || !key || !fw || !d || !vals) return 0;
@@ -887,7 +888,8 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
       for (tt = i + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]++;
       last[q] = (i32)i;
     }
-    if ((u64)nv * 5 > (u64)n * 3) return 0;
+    if (mx - mn >= 16777216.0) { u32 r = 0; for (i = 0; i < n; i++) if (d[i] > 1) r++; if ((u64)r * 20 < n) return 0; }
+    else if ((u64)nv * 5 > (u64)n * 3) return 0;
     tw_b(w, 12); tw_vi(w, nv); t[1] = 2;
     s2 = *so; if (!s2.has) so_set(&s2, ORD_LB, 6);
     PART(d, n, &s2, 0); PART(vals, nv, &s2, 0);

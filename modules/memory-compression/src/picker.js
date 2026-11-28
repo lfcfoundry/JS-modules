@@ -323,7 +323,7 @@
     }
     function egWithTag(a, n, w) { w.bytes(egEncode(a, n)); return w.out(); }
     function encIntWith(sch, a, depth, opt, mm, bound) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
-      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, e1, e2, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen, o2;
+      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, e1, e2, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen, o2, wide;
       w.u8(sch);
       if (sch === IS.RAW) { w.need(n * 8 + 1); for (i = 0; i < n; i++) w.f64(a[i]); return w.out(); }
       if (!mm) mm = range(a);
@@ -378,7 +378,8 @@
           while (hi[q] >= 0 && cum[q] !== x) q = (q + 1) & 2047;
           if (hi[q] >= 0) { if (x !== a[i - 1]) j++; } else { hi[q] = 1; cum[q] = x; }
         }
-        if (j * 3 < m) return null;                                        // under a third of the first values come back after other values (a run of the same value is for RLE): not this way
+        wide = mx - mn >= 16777216;                                        // since 2.23.0: on values over 24 bits wide (times, ids) a short place saves many bits, so this way is tried with 5% coming back instead of a third
+        if (j * (wide ? 20 : 3) < m) return null;                          // under a third of the first values come back after other values (a run of the same value is for RLE): not this way
         d = new Float64Array(n); vals = []; seen = new Int32Array(n + 1);      // seen: a tree of counts that has a 1 at the latest place of every different value so far
         for (sh = 32 - Math.clz32(n * 2 - 1), cum = new Float64Array(1 << sh), hi = new Int32Array(1 << sh).fill(-1), freq = new Uint32Array(cum.buffer, 0, 0), syms = new Float64Array(1), low = new Uint32Array(syms.buffer), div = (1 << sh) - 1, i = 0; i < n; i++) {
           x = a[i]; syms[0] = x; q = (Math.imul(low[0], 0x9E3779B1) ^ Math.imul(low[1] + 0x7F4A7C15, 0x85EBCA6B)) >>> (32 - sh) & div;      // a table of the last place of each value (open addressing)
@@ -388,7 +389,8 @@
           for (t = i + 1; t <= n; t += t & -t) seen[t]++;
           hi[q] = i;
         }
-        if (vals.length * 5 > n * 3) return null;
+        if (wide) { for (i = 0, j = 0; i < n; i++) if (d[i] > 1) j++; if (j * 20 < n) return null; }      // wide: 5% of the whole block
+        else if (vals.length * 5 > n * 3) return null;
         o2 = opt.order ? opt : Object.assign({}, opt, { order: LB_ORDER }); w.vi(vals.length); w.bytes(encInts(d, depth - 1, o2)); w.bytes(encInts(Float64Array.from(vals), depth - 1, o2)); return w.out();
       }
       if (sch === IS.DELTA2) {      // since 2.20.3: the second difference (the change of the change, signed); smooth counts (running totals) shrink about a bit a value more than with one difference
