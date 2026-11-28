@@ -2,6 +2,18 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.7 · API 0 · 2026-11-27
+
+### Quick
+Text columns are checked as UTF-8 in place (utf8Valid) instead of decoding them with a fatal TextDecoder; same files, same errors, quicker packs of non-ASCII text.
+
+### Details
+UTF-8 check of a 5 MB column (median of 15): Chromium 156 4.6 to 1.5 ms (mostly ASCII), 9.2 to 5.7 ms (mixed scripts); Firefox 158 4.0 to 2.0 ms, 8.0 to 8.0 ms; WebKitGTK 2.52.6 6 to 1 ms, 12 to 4 ms.
+Workbench (Wikimedia H4 import, real data): Chromium -9%, Firefox and WebKitGTK -2%. Packed files byte-identical in all 3 browsers.
+
+### Deep
+From the Workbench thread (utf8-check-2026.11.27): utf8Valid, a byte-level well-formed UTF-8 check with the rules of fatal TextDecoder (no overlongs, no surrogates, nothing past U+10FFFF, no truncated tails), ASCII 4 bytes at a time through an aligned Uint32Array view. Used by the text-column encoder's utf8Check and by the byte-column dictionary check. 0 mismatches against fatal TextDecoder over 300,000 random byte strings (biased to lead and continuation bytes, odd offsets). Also tried this round: skipping the summary sample sort for blocks expected to give an exact table (hash Chao1 test on the unsorted sample, cuts by quickselect, lazy sort on failure): byte-identical over 80 files but no gain (Chromium 0%, Firefox taxi +5%, WebKitGTK +1-2%), dropped; the sort is already a radix sort, so the 3 ms per column measured with a native sort does not apply.
+
 ## 0.26.6 · API 0 · 2026-11-27
 
 ### Quick
