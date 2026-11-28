@@ -2,7 +2,7 @@
 
 **Version 2.21.0 · API 2**
 
-**Tested in:** Node round trips only so far; browsers pending
+**Tested in:** not recorded.
 
 ## What it is and how it works
 

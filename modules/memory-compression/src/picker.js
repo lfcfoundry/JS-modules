@@ -447,10 +447,10 @@
       }
       if (opt.sample && n > 4096) {        // choose the top way on a sample, then encode only with it
         s = sampleOf(a); sub = { noEntropy: opt.noEntropy, sample: false }; e = range(s);
-        for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || (order[i] === IS.DICT && depth < 2 && !opt.order)) continue; e = runWay(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0, false); if (e && order[i] === IS.DELTA2) d2 = true; if (e && e.length < bs) { bs = e.length; pick = order[i]; } if (d2 && order[i] === IS.DELTA2 && bs < fs * D2_STOP) break; if (order[i] === IS.FOR && e) fs = e.length; }
+        for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || ((order[i] === IS.DICT || order[i] === IS.DIV) && depth < 2 && !opt.order)) continue; e = runWay(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0, false); if (e && order[i] === IS.DELTA2) d2 = true; if (e && e.length < bs) { bs = e.length; pick = order[i]; } if (d2 && order[i] === IS.DELTA2 && bs < fs * D2_STOP) break; if (order[i] === IS.FOR && e) fs = e.length; }
         if (pick >= 0) { e = runWay(pick, a, depth, opt, mm, 0, rec); if (e) { if (rec) par.push({ sch: e[0], kids: runWay.kids }); return e; } }
       }
-      for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || (order[i] === IS.DICT && depth < 2 && !opt.order)) continue; e = runWay(order[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && order[i] === IS.DELTA2) d2 = true; if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
+      for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || ((order[i] === IS.DICT || order[i] === IS.DIV) && depth < 2 && !opt.order)) continue; e = runWay(order[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && order[i] === IS.DELTA2) d2 = true; if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
       if (!best || best.length > n * 8) { e = runWay(IS.RAW, a, depth, opt, mm, 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }      // plain doubles only when nothing else is smaller
       if (rec && best) par.push({ sch: best[0], kids: bestKids });
       return best;
@@ -646,7 +646,7 @@
       if (mx - mn >= 4194304) return null;
       return { mn: mn, idx: new Uint32Array(mx - mn + 1) };
     }
-    function encFDict(a, depth, opt) {
+    function encFDict(a, depth, opt, bound) {
       var n = a.length, m = new Map(), i, k, keys, codes, w, sm, st, lim, idx, mn, x, c, step = n > 2048 ? Math.floor(n / 1024) : 0;
       if (step) { sm = new Set(); for (i = 0; i < n; i += step) sm.add(a[i]); if (sm.size > 0.95 * Math.ceil(n / step)) return null; }       // nearly every sampled value is different: no dictionary will help
       if (n >= 256 && (st = fdWhole(a, n))) {                                   // since 2.19.3: whole numbers in a small range look their dictionary position up in an array, not a Map; same keys in first-seen order, same codes
@@ -657,6 +657,7 @@
       keys = Array.from(m.keys()); codes = new Float64Array(n);
       for (i = 0; i < n; i++) codes[i] = m.get(a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]);
       }
+      if (bound && keys.length * 8 >= bound) return null;      // since 2.21.0: the table alone is no smaller than the best way so far
       w = new Wr(); w.vi(keys.length); for (i = 0; i < keys.length; i++) w.f64(keys[i] === '-0' ? -0 : keys[i]);
       w.bytes(encInts(codes, depth, opt)); return w.out();
     }
@@ -830,10 +831,10 @@
     function isIntegral(a) { var i, v, st; if (KWC && a.length >= 1024 && (st = statsOf(KWC, a))) return st.ok; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
     function rawDoubles(a) { var w = new Wr(), i; w.need(a.length * 8); for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
     function encChunk(a, depth, opt, only) {      // only: the ways that won earlier blocks of this column; given on most blocks so the others are not tried
-      var cands = [], best = null, bs = -1, k, e, w, tn, bt = null;
+      var cands = [], best = null, bs = -1, k, e, w, tn, bt = null, szs = {}, sec;
       if (isIntegral(a)) cands.push([CS.INTS, function () { return encInts(a, depth, opt); }]);
       else {
-        cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt); }]);
+        cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt, best ? best.length : 0); }]);
         if (!opt.noEntropy) cands.push([CS.PLANES, function () { return encPlanes(a); }]);
         cands.push([CS.RD, function () { return encRD(a, depth, opt); }]);                                  // last: it cannot be under 6 bytes a value, so it is skipped when anything before it is smaller
         cands.push([CS.RAWF, function () { return rawDoubles(a); }]);
@@ -841,12 +842,15 @@
       for (k = 0; k < cands.length; k++) {
         if (cands[k][0] === CS.RAWF) continue;                                    // plain doubles are written last, only when nothing else is smaller
         if (only && cands[k][0] !== CS.INTS && only.indexOf(cands[k][0]) < 0) continue;
+        if (only && opt.lead >= 0 && cands[k][0] !== opt.lead && cands[k][0] !== CS.INTS) continue;      // since 2.21.0: the kind that beat the others by 2% or more on the last block is the only one tried on a block that replays
         if (cands[k][0] === CS.RD && best && best.length < a.length * 6) continue;      // this way cannot be under 6 bytes a value (4 for the back bits, at least 2 for the front)
         REC = opt.recTpl ? [] : null; RPL = opt.tplNode && opt.tplCS === cands[k][0] ? { node: { kids: opt.tplNode }, k: 0 } : null;
         try { e = cands[k][1](); } catch (err) { e = null; }
         tn = REC; REC = null; RPL = null;
+        if (e) szs[cands[k][0]] = e.length;
         if (e && (!best || e.length < best.length)) { best = e; bs = cands[k][0]; bt = tn; }
       }
+      if (!only && best) { opt.lead = -1; sec = 1e18; for (k in szs) if (+k !== bs && szs[k] < sec) sec = szs[k]; if (sec < 1e18 && sec >= best.length * 1.02) opt.lead = bs; }
       if (only && !best) return encChunk(a, depth, opt, null);                          // none of the ways that won before applies to this block: try them all
       if (!best || best.length >= a.length * 8) { best = rawDoubles(a); bs = CS.RAWF; }
       opt.outCS = bs; opt.outTpl = bt;
