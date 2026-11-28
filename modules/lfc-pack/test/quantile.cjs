@@ -76,6 +76,17 @@ const J = require('../lfc-pack.js');
         ok(Math.abs(gb - eb) <= N * 0.0044, key + ' countBelow(' + x + ') ' + gb + ' vs exact ' + eb); }
       for (let t = 0; t < 40; t++) { const x = Math.round(Math.exp(gauss() + 2) * 100) / 100 + 0.001, ea = cntA(x), ga = St.countAbove(key, x); ok(Math.abs(ga - ea) <= N * 0.004, key + ' countAbove between values ' + x + ': ' + ga + ' vs ' + ea); } }
   }
+  { // asked-for shares (qx, since 0.26.4): p95 to p99.75 and p0.25 to p5 read straight from a point; exact inside 1/90.5 of an end, else within the grid's rank error; a file read without qx answers as before
+    const T = 400000, x = new Float64Array(T); for (let i = 0; i < T; i++) x[i] = Math.round(Math.exp(gauss() * 1.1 + 2) * 100) / 100;
+    const f = await J.packColumnsParallel({ sk: x }), S = J.summary(f), c = S.cols[0], v = Float64Array.from(x).sort(), N = v.length;
+    ok(c.qx && c.qx.length === 20, 'qx: 20 points (' + (c.qx ? c.qx.length : 0) + ')');
+    const at = (p) => { const pos = p * (N - 1), lo = Math.floor(pos); return lo + 1 < N ? v[lo] + (pos - lo) * (v[lo + 1] - v[lo]) : v[lo]; };
+    for (const q of [0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05]) for (const p of [q, 1 - q]) {
+      const g = S.quantile('sk', p), ex = at(p), tail = q < 1 / 90.5;
+      ok(tail ? Math.abs(g - ex) <= 1e-9 * Math.abs(ex) : g >= at(Math.max(0, p - 0.0044)) && g <= at(Math.min(1, p + 0.0044)), 'qx quantile(' + p + ') ' + g + ' vs exact ' + ex + (tail ? ' (exact zone)' : '')); }
+    const keep = c.qx; delete c.qx; const g0 = S.quantile('sk', 0.99); c.qx = keep;
+    ok(g0 >= at(0.99 - 0.0044) && g0 <= at(0.99 + 0.0044), 'without qx p99 still within the rank error: ' + g0);
+  }
   console.log(bad ? bad + ' of ' + n + ' quantile checks FAILED' : 'quantile: all ' + n + ' checks pass');
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

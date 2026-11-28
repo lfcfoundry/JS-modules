@@ -2,7 +2,7 @@
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.26.3 (API 0)
+ * Version 0.26.4 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -2750,14 +2750,18 @@
   function sumPos(n) { var p = new Int32Array(SUM_QS), j; for (j = 0; j < SUM_QS; j++) p[j] = sposAt(j, n); return p; }
   // since 0.24.0 the grid also has tail points (qt): the values at shares 2^(-j/2) and 1 - 2^(-j/2) for j = 13 .. 32 (from 1/91 to 1/65,536 from each end), where the 257 even steps are too coarse
   // (the last step is 1/256 of the values, so a 99.9th percentile read between it and the maximum was 80% to 300% off on skewed columns; with the tail points under 3%)
+  // since 0.26.4 also 20 points at the shares people ask for most between the even steps (qx): 1 - p for p95, 96, 97, 97.5, 98, 98.5, 99, 99.25, 99.5, 99.75 and the same from the low end, so those
+  // percentiles read straight from a point (on the real taxi fares p99 read 0.9% low between two tail points; the four inside 1/90.5 of an end are exact like the tail points)
+  var SUM_QX = 10, QXS = [0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05];
   var SUM_QT = 20, QP = (function () { var a = [], k, j; for (k = 0; k < SUM_Q; k++) a.push([k / (SUM_Q - 1), 0, k]); for (j = 0; j < SUM_QT; j++) { a.push([Math.pow(2, -(32 - j) / 2), 1, j]); a.push([1 - Math.pow(2, -(13 + j) / 2), 1, SUM_QT + j]); }
+    for (j = 0; j < SUM_QX; j++) { a.push([QXS[j], 2, j]); a.push([1 - QXS[SUM_QX - 1 - j], 2, SUM_QX + j]); }
     a.sort(function (x, y) { return x[0] - y[0]; }); return a; })();   // every grid share, rising: [p, 0 even step | 1 tail, index]
   function qOf(get, m) {   // the grid from a value-at-rank function over m ranks (asked for in rising order): q (the 257 even steps) with q.qt (2 x SUM_QT tail values: the low tail rising, then the high tail rising)
-    var q = new Array(SUM_Q), qt = new Array(2 * SUM_QT), k, pos, lo, fr, v, e;
-    for (k = 0; k < QP.length; k++) { e = QP[k]; pos = e[0] * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); v = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; if (e[1]) qt[e[2]] = v; else q[e[2]] = v; }
-    q.qt = qt; return q;
+    var q = new Array(SUM_Q), qt = new Array(2 * SUM_QT), qx = new Array(2 * SUM_QX), k, pos, lo, fr, v, e;
+    for (k = 0; k < QP.length; k++) { e = QP[k]; pos = e[0] * (m - 1); lo = Math.floor(pos); fr = pos - lo; v = get(lo); v = fr > 0 && lo + 1 < m ? v + fr * (get(lo + 1) - v) : v; if (e[1] === 1) qt[e[2]] = v; else if (e[1]) qx[e[2]] = v; else q[e[2]] = v; }
+    q.qt = qt; q.qx = qx; return q;
   }
-  function qMap(q, f) { var o = q.map(f), i; if (q.qt) o.qt = q.qt.map(f); if (q.qv) { o.qv = q.qv.slice(); for (i = 0; i < o.qv.length; i += 3) o.qv[i] = f(o.qv[i]); } return o; }
+  function qMap(q, f) { var o = q.map(f), i; if (q.qt) o.qt = q.qt.map(f); if (q.qx) o.qx = q.qx.map(f); if (q.qv) { o.qv = q.qv.slice(); for (i = 0; i < o.qv.length; i += 3) o.qv[i] = f(o.qv[i]); } return o; }
   // since 0.26.2, tied values (qv): a value that many rows share has no single rank, and reading counts linearly between grid points put it at one end of its run
   // (count above a shared price or fare 7 to 21% off on real columns). qv lists [value, values below it, values at or below it] for every value that holds 1/2,048
   // of the sample or more, estimated from the sample (exact where the tails were read from every value); countAbove / countBelow read those runs. Old readers ignore it.
@@ -3001,7 +3005,7 @@
       else if (tv <= tlo && tv <= tlos) { tq[k + 1] = cntPast(ls, tv, -1, false); if (tv < tlos) tq[k + 2] = cntPast(ls, tv, -1, true); } }
     for (k = 0; k < QP.length; k++) { e = QP[k]; pos = e[0] * (tot - 1); lo = Math.floor(pos); fr = pos - lo;
       v = at(lo); if (v !== v) continue; if (fr > 0 && lo + 1 < tot) { w = at(lo + 1); if (w !== w) continue; v = v + fr * (w - v); }
-      if (e[1]) q.qt[e[2]] = v; else q[e[2]] = v; }
+      if (e[1] === 1) q.qt[e[2]] = v; else if (e[1]) { if (q.qx) q.qx[e[2]] = v; } else q[e[2]] = v; }
   }
   function cntPast(runs, v, dir, eq) {   // how many values of the rising runs are > v (dir 1; >= v with eq) or < v (dir -1; <= v with eq)
     var n = 0, i, a, lo, hi, md, x;
@@ -3036,7 +3040,7 @@
   }
   function putMerged(c, g, type) {   // a merged result into the summary entry; the pyramid rides along (taken off before the entry is written)
     c.type = type; c.nulls = g.nulls; c.min = g.have ? g.min : null; c.max = g.have ? g.max : null; c.sorted = g.have ? (g.asc ? 'asc' : g.desc ? 'desc' : null) : null;
-    if (g.q) { c.q = g.q; if (g.q.qt && !g.qExact) c.qt = g.q.qt; if (g.q.qv && g.q.qv.length && !g.qExact) c.qv = g.q.qv; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
+    if (g.q) { c.q = g.q; if (g.q.qt && !g.qExact) c.qt = g.q.qt; if (g.q.qx && !g.qExact) c.qx = g.q.qx; if (g.q.qv && g.q.qv.length && !g.qExact) c.qv = g.q.qv; if (g.qExact) { c.qExact = true; c.qn = g.qn; } if (g.qSample) c.qSample = g.qSample; }
     if (g.pyr) c._pyr = g.pyr;
     return c;
   }
@@ -3079,11 +3083,11 @@
   function sumDateMs(s) { var t = Date.parse((s.charCodeAt(10) === 32 ? s.slice(0, 10) + 'T' + s.slice(11) : s) + (s.charCodeAt(s.length - 1) === 90 ? '' : 'Z')); return t === t ? t : null; }   // read as UTC, as the date columns are
   function sumDateQ(c, a, n, nl, sa, sd) {   // the grid of a date column read from its strings (when the writer left no date numbers): ordered columns at exact ranks, others from up to SUM_QS / 4 parsed values
     var P, sm, j, m, x, t, step;
-    if (!nl && (sa || sd)) { c.q = qOf(sa ? function (r) { return sumDateMs(a[r]); } : function (r) { return sumDateMs(a[n - 1 - r]); }, n); for (j = 0; j < c.q.length; j++) if (c.q[j] === null) { delete c.q; return; } for (j = 0; j < c.q.qt.length; j++) if (c.q.qt[j] === null) { delete c.q; return; } c.qt = c.q.qt; return; }
+    if (!nl && (sa || sd)) { c.q = qOf(sa ? function (r) { return sumDateMs(a[r]); } : function (r) { return sumDateMs(a[n - 1 - r]); }, n); for (j = 0; j < c.q.length; j++) if (c.q[j] === null) { delete c.q; return; } for (j = 0; j < c.q.qt.length; j++) if (c.q.qt[j] === null) { delete c.q; return; } for (j = 0; j < c.q.qx.length; j++) if (c.q.qx[j] === null) { delete c.q; return; } c.qt = c.q.qt; c.qx = c.q.qx; return; }
     if (n <= SUM_QS / 4) { P = null; m = n; } else { P = sumPos(n); m = SUM_QS / 4; }
     sm = new Float64Array(m); step = P ? 4 : 1;
     for (j = 0, x = 0; j < m; j++) { t = a[P ? P[j * step] : j]; if (typeof t === 'string' && (t = sumDateMs(t)) !== null) sm[x++] = t; }
-    if (!x) return; sm = sm.subarray(0, x); sm.sort(); c.q = qSortedArr(sm, x); c.qt = c.q.qt; if (P) c.qSample = x;
+    if (!x) return; sm = sm.subarray(0, x); sm.sort(); c.q = qSortedArr(sm, x); c.qt = c.q.qt; if (c.q.qx) c.qx = c.q.qx; if (P) c.qSample = x;
   }
   function sumMergeU(cp, n, R) { var k0 = Object.keys(cp)[0], u = k0 !== undefined && cp[k0].u; return sumMerge(cp, n, R, u ? 0.001 : 1, !!u); }   // date numbers the writer left: microseconds for six-digit forms
   function sumColumn(key, a, n, cp, R) {   // R: the request (sumReq), or a boolean (quantile grid or not, no pyramid) for tests; cp: the blocks' parts the writer left for this key, if any
@@ -3234,7 +3238,7 @@
   function sumGrid(c) { var q = c.q; if (c.qExact || q[0] === c.min && q[q.length - 1] === c.max || typeof c.min !== 'number') return q; q = q.slice(); q[0] = c.min; q[q.length - 1] = c.max; return q; }   // a sampled grid's ends are the sample's: the true ends are min and max
   function sumX(x) { return x instanceof Date ? x.getTime() : +x; }
   // with tail points (since 0.24.0): the shares and values of every grid point, ends at min and max, read linearly between neighbours (as the even steps are)
-  function sumPts(c) { var q = sumGrid(c), P = [], V = [], k, e; for (k = 0; k < QP.length; k++) { e = QP[k]; P.push(e[0]); V.push(e[1] ? c.qt[e[2]] : q[e[2]]); } return { P: P, V: V }; }
+  function sumPts(c) { var q = sumGrid(c), P = [], V = [], k, e, x = c.qx && c.qx.length === 2 * SUM_QX ? c.qx : null; for (k = 0; k < QP.length; k++) { e = QP[k]; if (e[1] === 2 && !x) continue; P.push(e[0]); V.push(e[1] === 1 ? c.qt[e[2]] : e[1] ? x[e[2]] : q[e[2]]); } return { P: P, V: V }; }   // (qx points only when the file has them)
   function sumQuantile(key, p) {
     var c = sumEntry(this, key), q, m, r, lo, k, run, v, w; if (!c) return null; p = +p; if (!(p >= 0 && p <= 1)) throw new Error('LfcPack: quantile p must be from 0 to 1');
     q = sumGrid(c); m = q.length;
@@ -4802,7 +4806,7 @@
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), pyramids: auto(pyramids, false), graph: auto(graph, false), geo: auto(geo, false), view: auto(view, false), views: auto(views, false), addGraph: auto(function (file, g, table) { return addGraph(bytesOf(file), graphBuild(g, table)); }, true), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n, q) { return sumColumn(k, col, n, undefined, q !== null && typeof q === "object" ? sumReq(n, q.q !== false, q.pyramids) : q !== false); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.26.3', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), pyramids: auto(pyramids, false), graph: auto(graph, false), geo: auto(geo, false), view: auto(view, false), views: auto(views, false), addGraph: auto(function (file, g, table) { return addGraph(bytesOf(file), graphBuild(g, table)); }, true), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n, q) { return sumColumn(k, col, n, undefined, q !== null && typeof q === "object" ? sumReq(n, q.q !== false, q.pyramids) : q !== false); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.26.4', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
