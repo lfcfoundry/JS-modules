@@ -345,7 +345,7 @@
           syms.set(new Uint8Array(KWC.mem.buffer, i, n)); low.set(new Uint32Array(KWC.mem.buffer, y, n)); cnt.set(new Uint32Array(KWC.mem.buffer, x, 256));
         } else for (i = 0; i < n; i++) { x = a[i] - mn; y = Math.floor(x / div); syms[i] = y; low[i] = x - y * div; cnt[y]++; }
         if (bound) {                                                         // a quick estimate first: if the entropy coder cannot get under the best size so far, it is not run
-          x = 0; y = 0; for (i = 0; i < 256; i++) if (cnt[i]) { y++; x -= cnt[i] * Math.log2(cnt[i] / n); }
+          x = 0; y = 0; for (i = 0; i < 256; i++) if (cnt[i]) { y++; x -= cnt[i] * lg2d(cnt[i] / n); }
           if (x / 8 + y * 0.5 + n * sh / 8 > bound) return null;
         }
         freq = normFreq(cnt, n); cum = new Uint16Array(257); for (i = 0; i < 256; i++) cum[i + 1] = cum[i] + freq[i];
@@ -521,8 +521,36 @@
       len = kw.x.enc_tree(aP, n, tP, oP, cap, sP, scap, depth | (gate ? 256 : 0)) >>> 0;
       return len ? new Uint8Array(kw.mem.buffer, oP, len).slice() : null;
     }
+    // Since 2.23.0 the search below runs in the WebAssembly helper (enc_search) with the same bytes and tree of ways, except where it chooses on a sample or uses the ways that won before.
+    var SE_BAIL = 4294967295, SE_MIN = 16, BAIL = {};
+    function lg2d(v) {                     // log2 with + - * / only, the same double as lg2d in the helper (used by the quick size estimate of ENT)
+      var e = 0, s, s2;
+      while (v < 0.7071067811865476) { v *= 2; e -= 1; }
+      while (v >= 1.4142135623730951) { v /= 2; e += 1; }
+      s = (v - 1) / (v + 1); s2 = s * s;
+      return e + s * (2 + s2 * (0.6666666666666666 + s2 * (0.4 + s2 * (0.2857142857142857 + s2 * (0.2222222222222222 + s2 * (0.18181818181818182 + s2 * 0.15384615384615385)))))) * 1.4426950408889634;
+    }
+    function treeOf(t, p) {                // the tree the helper wrote (way, number of parts, parts) as nodes
+      var nd = { sch: t[p.i], kids: [] }, k = t[p.i + 1], j; p.i += 2;
+      for (j = 0; j < k; j++) nd.kids.push(treeOf(t, p));
+      return nd;
+    }
+    function searchWasm(a, depth, opt, way, bound) {      // { e: bytes, node: tree }, null when the way does not apply, or BAIL when JavaScript has to do it
+      var kw = KWC, n = a.length, ord = opt.order || INT_ORDER, aP, oP, cap, tP, rP, dP, sP, scap, len, dw, d;
+      aP = kw.base; cap = n * 8 + 64; oP = kal(aP + n * 8); tP = kal(oP + cap); rP = kal(tP + 128); dP = kal(rP + 16); sP = kal(dP + 16); scap = n * 160 + 2097152;
+      if (!kwRoom(sP + scap - kw.base + 64)) return BAIL;
+      new Float64Array(kw.mem.buffer, aP, n).set(a); new Uint8Array(kw.mem.buffer, rP, ord.length).set(ord);
+      dw = new Int32Array(kw.mem.buffer, dP, 4); dw[0] = opt.decWon ? opt.decWon[0] : -1; dw[1] = opt.decWon ? opt.decWon[1] : -1;
+      len = kw.x.enc_search(aP, n, depth, rP, ord.length, (opt.order ? 1 : 0) | (opt.dictGate ? 2 : 0) | (opt.noEntropy ? 4 : 0) | (opt.sample ? 8 : 0) | (opt.prefer ? 16 : 0) | (REC !== null ? 32 : 0), way, bound, oP, cap, tP, sP, scap, dP) >>> 0;
+      if (len === SE_BAIL) return BAIL;
+      dw = new Int32Array(kw.mem.buffer, dP, 4);
+      if (dw[3]) { d = opt.decWon || (opt.decWon = [-1, -1]); if (dw[3] & 1) d[0] = dw[0]; if (dw[3] & 2) d[1] = dw[1]; }      // what decPick writes down
+      if (!len) return null;
+      return { e: new Uint8Array(kw.mem.buffer, oP, len).slice(), node: treeOf(new Uint8Array(kw.mem.buffer, tP, dw[2]).slice(), { i: 0 }) };
+    }
     function runWay(way, a, depth, opt, mm, bound, rec) {     // tryInt, with the ways it uses for its parts written down when rec is on
-      var sv = REC, kids = null, e;
+      var sv = REC, kids = null, e, r;
+      if (KWC && KWC.x.enc_search && a.length >= SE_MIN && !(opt.sample && a.length > 4096) && (REC = rec ? [] : null, r = searchWasm(a, depth, opt, way, bound), REC = sv, r) !== BAIL) { runWay.kids = rec ? (r ? r.node.kids : null) : null; return r ? r.e : null; }
       if (rec) REC = kids = []; else REC = null;
       try { e = tryInt(way, a, depth, opt, mm, bound); } finally { REC = sv; }
       runWay.kids = kids; return e;
@@ -530,6 +558,7 @@
     function encIntsFull(a, depth, opt) {
       var n = a.length, d2, fs, k, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
+      if (KWC && KWC.x.enc_search && n >= SE_MIN && !(opt.prefer && depth === opt.top) && !(opt.sample && n > 4096 && order.length > 1) && (e = searchWasm(a, depth, opt, 255, 0)) !== BAIL) { if (e && rec) par.push(e.node); return e ? e.e : null; }      // since 2.23.0: the whole search below in one call
       if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
         for (i = 0, k = opt.leadInt >= 0 && opt.prefer.indexOf(opt.leadInt) >= 0 ? [opt.leadInt] : opt.prefer; i < k.length; i++) { e = runWay(k[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
         if (best) { if (rec) par.push({ sch: best[0], kids: bestKids }); return best; }
@@ -838,7 +867,7 @@
       if (Math.min(e2, e3) >= n) return { mode: 0, est: n + 1 };
       return e3 < e2 ? { mode: 3, est: e3 + 1, c: cd.slice() } : { mode: 2, est: e2 + 1, c: cnt.slice() };
     }
-    function encPlanesK(a, kw) {           // the same as encPlanes, with the splitting, counting and entropy coding in the wasm helper; null when its memory cannot be had
+    function encPlanesK(a, kw, bound) {           // the same as encPlanes, with the splitting, counting and entropy coding in the wasm helper; null when its memory cannot be had
       var n = a.length, sub = n > 4096 ? sampleOf(a) : a, m = sub.length, mx = Math.max(n, m), cap = n * 2 + 64, subP = kw.base, aP, plP, dP, cP, fP, oP, end, variant, v0 = [], v1 = [], spm, pms = [], b, i, w, v, pm, c, freq, p, len, body, u8, fq;
       aP = sub === a ? subP : kal(subP + m * 8); plP = kal(aP + (sub === a ? 0 : n * 8) + (sub === a ? m * 8 : 0)); dP = kal(plP + 8 * mx); cP = kal(dP + mx + 16); fP = kal(cP + 2048); oP = kal(fP + 512); end = oP + cap + 16;
       if (!kwRoom(end - kw.base + 64)) return null;
@@ -853,6 +882,10 @@
         if (sub === a) pms.push(spm[b]);
         else if (spm[b].mode === 1) { v = u8[plP + b * n]; for (i = 1; i < n && u8[plP + b * n + i] === v; i++); pms.push(i < n ? planeModeK(kw, plP + b * n, n, cP, dP) : spm[b]); }
         else pms.push(planeModeK(kw, plP + b * n, n, cP, dP));
+      }
+      if (bound) {                         // since 2.23.0: the least these planes can take (an entropy-coded plane is at least its entropy plus the 32-byte table bitmap; the estimate adds at most 132 more) is not under the best so far: skip the coding
+        for (v = 1, b = 0; b < 8; b++) v += pms[b].mode >= 2 ? pms[b].est - 132 : pms[b].est;
+        if (v >= bound * 1.02) return v;      // not within 2% of the best either, so the lead rule in encChunk sees the same answer (it gets this least size)
       }
       fq = new Uint16Array(kw.mem.buffer, fP, 256);
       w = new Wr(); w.u8(variant);
@@ -869,9 +902,9 @@
       }
       return w.out();
     }
-    function encPlanes(a) {
+    function encPlanes(a, bound) {
       var kw = KWC, got;
-      if (kw && a.length >= 1024) { got = encPlanesK(a, kw); if (got) return got; }
+      if (kw && a.length >= 1024) { got = encPlanesK(a, kw, bound); if (got) return got; }
       return encPlanesJS(a);
     }
     function encPlanesJS(a) {                // byte planes of the doubles (like OpenZL's transpose_split); the variant is chosen on a quarter of the block, then each plane's way by estimate
@@ -953,7 +986,7 @@
       if (isIntegral(a)) cands.push([CS.INTS, function () { return encInts(a, depth, opt); }]);
       else {
         cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt, best ? best.length : 0); }]);
-        if (!opt.noEntropy) cands.push([CS.PLANES, function () { return encPlanes(a); }]);
+        if (!opt.noEntropy) cands.push([CS.PLANES, function () { return encPlanes(a, best ? best.length : 0); }]);
         cands.push([CS.RD, function () { return encRD(a, depth, opt); }]);                                  // last: it cannot be under 6 bytes a value, so it is skipped when anything before it is smaller
         cands.push([CS.RAWF, function () { return rawDoubles(a); }]);
       }
@@ -965,6 +998,7 @@
         REC = opt.recTpl ? [] : null; RPL = opt.tplNode && opt.tplCS === cands[k][0] ? { node: { kids: opt.tplNode, root: true }, k: 0 } : null;
         try { e = cands[k][1](); } catch (err) { e = null; }
         tn = REC; REC = null; RPL = null;
+        if (typeof e === 'number') { szs[cands[k][0]] = e; e = null; }      // a way that only says how small it could be at best (PLANES since 2.23.0)
         if (e) szs[cands[k][0]] = e.length;
         if (e && (!best || e.length < best.length)) { best = e; bs = cands[k][0]; bt = tn; }
       }
