@@ -6,7 +6,7 @@
 
 [**Pick a module**](#pick-a-piece) · [**Live demos**](https://lfcfoundry.github.io/JS-modules/demos.html) · [**Changelog**](CHANGELOG.md) · [**Credits**](CREDITS.md)
 
-![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 56](https://img.shields.io/badge/modules%20and%20tools-56-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
+![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 55](https://img.shields.io/badge/modules%20and%20tools-55-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
 
 </div>
 
@@ -192,9 +192,9 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.4.1 | 144.1 | 47.7 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 | 3.4 | 1.4 | Lets a page draw first guesses during an import without slowing it. | — |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.26.5 | 819.6 | 339.0 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.26.6 | 837.7 | 345.5 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.3 | 137.3 | 50.1 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
-| [memory-compression](modules/memory-compression/README.md) | 2.20.2 | 496.3 | 144.3 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.20.1 | 491.9 | 142.9 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.9.0 | 71.5 | 24.3 | Reads CSV and TSV into number and text columns, 2 to 6 times faster than Papa Parse on real files. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 | 500.0 | 154.4 | Zstandard compress and decompress, XXH64 and CRC-32, in WebAssembly. | — |

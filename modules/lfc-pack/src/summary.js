@@ -9,6 +9,7 @@
   var SUM_DATE = /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(\.\d+)?Z?$/;
   // quantile grid (replaces hist unless quantiles: false): SUM_Q values at p = i / 256, linear between ranks. Exact when the column is ordered with no missing values, is whole numbers within SUM_CNT of each
   // other in every block (counted), or has at most SUM_QS values; otherwise read from SUM_QS values at fixed positions (`qSample` says how many). At most SUM_Q different values: those values and their counts (`qExact`, `qn`).
+  var SUM_QE = 4096; function qeOk(d, tot) { return d <= SUM_Q || (d <= SUM_QE && d * 16 <= tot); }   // up to 257 values always (as before 0.26.6); more only while the values repeat 16 times on average, so the table stays a small part of the column   // since 0.26.6 a column with at most this many different values (and a sampled or counted grid) is written as its exact table: every value with its count (qExact)
   var SUM_Q = 257, SUM_QS = 65536, SUM_CNT = 4096, SUM_KEEP = 1025, PYR_BINS = 4096;   // 4,096 bins (since 0.16.0; 2,048 in 0.15.0): netflow-plot draws from bins while there are 2 or more per pixel, so charts up to 2,048 px wide
   function sposAt(j, N) { return Math.min(N - 1, Math.floor((j + (Math.imul(j ^ 0x9E3779B9, 0x85EBCA6B) >>> 0) / 4294967296) * N / SUM_QS)); }   // sample position j of SUM_QS over N > SUM_QS rows: one fixed place in each equal slice, rising with j
   function sumPos(n) { var p = new Int32Array(SUM_QS), j; for (j = 0; j < SUM_QS; j++) p[j] = sposAt(j, n); return p; }
@@ -41,8 +42,8 @@
   function sumGridIdx(n) { var g = [], k, pos, lo; for (k = 0; k < QP.length; k++) { pos = QP[k][0] * (n - 1); lo = Math.floor(pos); g.push(lo, n - 1 - lo); if (lo + 1 < n) g.push(lo + 1, n - 2 - lo); } g.sort(function (x, y) { return x - y; }); return g.filter(function (x, i) { return x >= 0 && x < n && (i === 0 || x !== g[i - 1]); }); }   // the ranks the grid reads, and their mirror images (a falling column reads them from the end)   // the ranks the grid reads (rising)
   function qCounts(cnt, base, tot) {   // whole numbers counted over [base, base + cnt.length): exact distinct values, or the exact grid
     var d = 0, i, vals = [], ns = [], at, run;
-    for (i = 0; i < cnt.length; i++) if (cnt[i]) { d++; if (d <= SUM_Q) { vals.push(base + i); ns.push(cnt[i]); } }
-    if (d <= SUM_Q) return { q: vals, qn: ns, exact: true };
+    for (i = 0; i < cnt.length; i++) if (cnt[i]) { d++; if (d <= SUM_QE) { vals.push(base + i); ns.push(cnt[i]); } }
+    if (qeOk(d, tot)) return { q: vals, qn: ns, exact: true };
     at = 0; run = 0;   // value at rank r: walk the counts forward (ranks are asked for in rising order)
     return { q: qOf(function (r) { while (run + cnt[at] <= r) { run += cnt[at]; at++; } return base + at; }, tot), exact: false };
   }
@@ -53,7 +54,7 @@
   }
   // one block's part (rows a0 .. a0 + c - 1 of the column): r holds the row values (NaN and +-Infinity are missing); one pass for the range, order and pyramid bins, then the few sampled values
   function blockStats(r, c, a0, R) {
-    var N = R.n, bin = R.bin, tl = null, i, x, s, e, lmn, lmx, lc, mn = Infinity, mx = -Infinity, asc = true, desc = true, prev = 0, first = NaN, last = NaN, have = false, nul = 0, t, j, p, G, sv = null, svn = 0, gv = null, cnt = null;
+    var dt = null, dtw = false, z, N = R.n, bin = R.bin, tl = null, i, x, s, e, lmn, lmx, lc, mn = Infinity, mx = -Infinity, asc = true, desc = true, prev = 0, first = NaN, last = NaN, have = false, nul = 0, t, j, p, G, sv = null, svn = 0, gv = null, cnt = null;
     var b0 = bin ? Math.floor(a0 / bin) : 0, nb = bin && c ? Math.floor((a0 + c - 1) / bin) - b0 + 1 : 1, bmn = null, bmx = null, bct = null;
     if (bin) { bmn = new Float64Array(nb); bmx = new Float64Array(nb); bct = new Uint32Array(nb); }
     var ct = R.q && N > SUM_QS ? blockCuts(r, c, a0, N) : null, pre = !!(ct && ct.pre);   // since 0.26.0 a long column's sample is read first (blockCuts)
@@ -83,6 +84,7 @@
       // the sample sorted (since 0.24.0 without the radix sort when it is already in order, rising or falling, or when the block's values were counted: a counting sort over that small range)
       if (asc) { /* in order */ } else if (desc) { if (!pre) sv.reverse(); } else if (pre) { /* sorted before the pass */ } else if (cnt) { var sc = new Int32Array(cnt.length), q2; for (i = 0; i < sv.length; i++) sc[sv[i] - mn]++; for (q2 = 0, i = 0; q2 < sc.length; q2++) for (t = sc[q2]; t > 0; t--) sv[i++] = mn + q2; } else sortF64(sv, mn, mx);
       svn = sv.length;
+      if (N > SUM_QS && !cnt && !asc && !desc && pre) { var f1 = 0, f2 = 0, rl; for (z = 0, j = 0; z < svn; z += rl) { for (rl = 1; z + rl < svn && sv[z + rl] === sv[z]; rl++); j++; if (rl === 1) f1++; else if (rl === 2) f2++; } if (j + f1 * f1 / (2 * (f2 || 1)) <= SUM_QE * 0.75) dtw = sv[svn >> 9]; }   // few different values in the block by the sorted sample (Chao1: different values seen plus singletons^2 / (2 doubletons), at most 3/4 of SUM_QE): the encoder counts every value (numcolc in the number kernel, since 0.26.6)
       if (N > SUM_QS && svn > SUM_KEEP && c < N) { var kp = new Float64Array(SUM_KEEP), z; for (z = 0; z < SUM_KEEP; z++) kp[z] = sv[Math.floor((z + 0.5) * svn / SUM_KEEP)]; sv = kp; }   // a long block keeps SUM_KEEP order statistics of its sample, each the middle one of the svn / SUM_KEEP values it stands for (since 0.24.1; taking the sample's two ends too gave them the weight of a whole slice and read the tails high: p99 1.9% and the 99.9th 12% over on a skewed column, now 0.5% and 2.7%)
       G = R.G; gv = []; for (j = 0; j < G.length; j++) if (G[j] >= a0 && G[j] < a0 + c) gv.push(G[j], r[G[j] - a0]);
       if (ct && ct.cap && !asc && !desc && !cnt) {
@@ -91,7 +93,7 @@
         else tl = blockTails(r, c, ct.th, ct.tlo, ct.cap);
       }   // (a counted block needs none: a column counted in every block has an exact grid)
     }
-    return { a: a0, n: c, nulls: nul, have: have, mn: mn, mx: mx, asc: have && asc, desc: have && desc, first: first, last: last, sv: sv, svn: svn, gv: gv, cnt: cnt, b0: b0, bmn: bmn, bmx: bmx, bct: bct, tl: tl };
+    return { dt: dt, dtw: dtw, a: a0, n: c, nulls: nul, have: have, mn: mn, mx: mx, asc: have && asc, desc: have && desc, first: first, last: last, sv: sv, svn: svn, gv: gv, cnt: cnt, b0: b0, bmn: bmn, bmx: bmx, bct: bct, tl: tl };
   }
   // since 0.26.0: every value in each end of the block, so the grid points in the outer 1/91 of the column (the tail points, and the last two even steps at each end) are read from all values, not the
   // sample (on skewed columns the sample put "count above" 10% to 70% off there). The cuts come from the block's own sorted sample, a little past 1/90.5 of the block, so a block a little heavier
@@ -206,11 +208,40 @@
     return a;
   }
   function sbMoves(sb) {   // a block's summary part's own buffers, moved (not copied) when a helper sends it back (since 0.26.0; the sample alone is 512 KB on a long block)
-    var o = [], l, i, b; if (!sb) return o; l = [sb.sv, sb.cnt, sb.bmn, sb.bmx, sb.bct, sb.tl && sb.tl.hv, sb.tl && sb.tl.lv];
+    var o = [], l, i, b; if (!sb) return o; l = [sb.sv, sb.cnt, sb.bmn, sb.bmx, sb.bct, sb.tl && sb.tl.hv, sb.tl && sb.tl.lv, sb.dt && sb.dt.v, sb.dt && sb.dt.n];
     for (i = 0; i < l.length; i++) { b = l[i] && l[i].buffer; if (b && !(TAILBUF && b === TAILBUF.buffer) && o.indexOf(b) < 0) o.push(b); }
     return o;
   }
   function capPut(cap, key, sb) { var c = cap.cols[key] || (cap.cols[key] = {}); c[sb.a] = sb; }
+  // since 0.26.6: every value of a block counted in a small hash table (keys and counts), or null once it holds more than cap different values; -0 counts as 0
+  var DTK = null, DTC = null;
+  function dtTable() { var T = 1; while (T < 2 * SUM_QE) T <<= 1; if (!DTK || DTK.length !== T) { DTK = new Float64Array(T); DTC = new Int32Array(T); } DTC.fill(0); DTK.fill(NaN); }
+  function dtOut(K, C) { var T = K.length, h, j, k, ov, oc; for (h = 0, j = 0; h < T; h++) { k = K[h]; if (k - k === 0) j++; } ov = new Float64Array(j); oc = new Int32Array(j); for (h = 0, j = 0; h < T; h++) { k = K[h]; if (k - k === 0) { ov[j] = k + 0; oc[j++] = C[h]; } } return { v: ov, n: oc }; }   // finite keys (an infinity got a key) with their counts
+  function blockDistinct(r, c, cap) {   // empty slots hold NaN (no value equals it), so a hit costs one compare; NaN rows are skipped and infinities get keys, left out at the end
+    var M, h, i, x, k, d = 0, K, C; dtTable(); K = DTK; C = DTC; M = K.length - 1;
+    for (i = 0; i < c; i++) { x = r[i]; if (x !== x) continue; h = (Math.imul((x * 1048576) | 0, 0x9E3779B1) >>> 16) & M; k = K[h];
+      while (k !== x) { if (k !== k) { if (++d > cap) return null; K[h] = x; break; } h = (h + 1) & M; k = K[h]; }
+      C[h]++; }
+    return dtOut(K, C);
+  }
+  function allTable(runs) {   // every value was read (each block kept its whole sample): the exact table from the blocks' sorted values, or null
+    var i, n = 0, a, o, t; for (i = 0; i < runs.length; i++) { if (runs[i].sv.length !== runs[i].svn) return null; n += runs[i].svn; }
+    if (runs.length === 1) t = sortedTable(runs[0].sv);
+    else { a = new Float64Array(n); for (i = 0, o = 0; i < runs.length; i++) { a.set(runs[i].sv, o); o += runs[i].svn; } t = sortedTable(sortF64(a)); }
+    return t && qeOk(t.q.length, n) ? t : null;
+  }
+  function dtMerge(bl, tot) {   // every block's table merged (in one typed hash table as the blocks count): { q: values rising, qn: counts } when every block with values has one and they hold few enough values in all, else null
+    var T = 1, M, K, C, i, j, b, t, s = 0, d = 0, h, x, k, ord, q, qn; while (T < 2 * SUM_QE) T <<= 1; M = T - 1; K = new Float64Array(T).fill(NaN); C = new Float64Array(T);
+    for (i = 0; i < bl.length; i++) { b = bl[i]; if (!b.have) continue; t = b.dt; if (!t) return null;
+      for (j = 0; j < t.v.length; j++) { x = t.v[j]; h = (Math.imul((x * 1048576) | 0, 0x9E3779B1) >>> 16) & M; k = K[h];
+        while (k !== x) { if (k !== k) { if (++d > SUM_QE) return null; K[h] = x; break; } h = (h + 1) & M; k = K[h]; }
+        C[h] += t.n[j]; s += t.n[j]; } }
+    if (s !== tot || !d || !qeOk(d, tot)) return null;
+    ord = new Float64Array(d); for (h = 0, j = 0; h < T; h++) if (K[h] === K[h]) ord[j++] = K[h]; sortF64(ord);
+    q = new Array(d); qn = new Array(d); for (j = 0; j < d; j++) { x = ord[j]; h = (Math.imul((x * 1048576) | 0, 0x9E3779B1) >>> 16) & M; while (K[h] !== x) h = (h + 1) & M; q[j] = x; qn[j] = C[h]; }
+    return { q: q, qn: qn };
+  }
+  function sortedTable(a) { var q = [], qn = [], i, n = a.length; for (i = 0; i < n; i++) { if (i && a[i] === a[i - 1]) qn[qn.length - 1]++; else { if (q.length === SUM_QE) return null; q.push(a[i] + 0); qn.push(1); } } return q.length ? { q: q, qn: qn } : null; }   // the exact table of sorted values
   function qWeighted(parts, m) {   // the grid over m sampled values, from each block's sorted kept values (sv, each standing for svn / sv.length values): exact when every block kept all of its sample
     var runs = [], i, j, b, w, a, c, v, wv, x, y, z, k = 0, cum, tot = 0, pts, wt, t;
     if (parts.length === 1 && parts[0].sv.length === parts[0].svn) { t = qSortedArr(parts[0].sv, m); t.qv = qTies(parts[0].sv, null, 1, m); return t; }   // one block that kept its whole sample: the grid straight from it (since 0.26.0)
@@ -227,7 +258,7 @@
   // the blocks' parts merged (null unless they cover rows 0 .. n - 1 exactly once); sc scales values (to epoch milliseconds for dates), fl takes whole milliseconds for min and max
   function sumMerge(cp, n, R, sc, fl) {
     if (!cp) return null;
-    var ks = Object.keys(cp), bl = [], i, j, b, at = 0, p = null, g = { nulls: 0, have: false, mn: Infinity, mx: -Infinity, asc: true, desc: true, first: NaN, last: NaN, q: null }, m = 0, runs = [], cntOk = true, gm, sm, tot;
+    var ex, ks = Object.keys(cp), bl = [], i, j, b, at = 0, p = null, g = { nulls: 0, have: false, mn: Infinity, mx: -Infinity, asc: true, desc: true, first: NaN, last: NaN, q: null }, m = 0, runs = [], cntOk = true, gm, sm, tot;
     for (i = 0; i < ks.length; i++) bl.push(cp[ks[i]]);
     bl.sort(function (x, y) { return x.a - y.a; });
     for (i = 0; i < bl.length; i++) { b = bl[i]; if (b.a !== at || b.u !== bl[0].u) return null; at += b.n; g.nulls += b.nulls; if (!b.have) continue;
@@ -244,6 +275,7 @@
         g.q = qOf(g.asc ? function (x) { return f(gm.get(x)); } : function (x) { return f(gm.get(n - 1 - x)); }, n); }
       else if (cntOk && g.mx - g.mn <= 65536) { var cnt = new Int32Array(g.mx - g.mn + 1), qc; for (i = 0; i < bl.length; i++) { b = bl[i]; if (b.cnt) for (j = 0; j < b.cnt.length; j++) cnt[b.mn - g.mn + j] += b.cnt[j]; }
         qc = qCounts(cnt, g.mn, tot); g.q = sc === 1 ? qc.q : qMap(qc.q, f); if (qc.exact) { g.qExact = true; g.qn = qc.qn; } }
+      else if ((ex = m === tot ? allTable(runs) : dtMerge(bl, tot))) { g.q = sc === 1 ? ex.q : ex.q.map(f); g.qExact = true; g.qn = ex.qn; }   // few different values: the exact table (since 0.26.6)
       else { g.q = qWeighted(runs, m); qTiesTo(g.q, m, tot); if (n > SUM_QS) { g.qSample = m; tailExact(g.q, bl, tot); } if (sc !== 1) g.q = qMap(g.q, f); }
     }
     if (R.bin) {   // pyramid bins of the whole column
@@ -538,10 +570,10 @@
     le = Math.round(le); lt = Math.round(lt); if (le > N) le = N; if (lt < 0) lt = 0;
     return above ? N - le : lt;
   }
-  // since 0.26.5: estimate(key) says whether that key's answers are estimates (a grid read from a sample: true) or exact (every distinct value with its count, or a grid read from every value: false);
+  // since 0.26.5: estimate(key) says whether that key's answers are estimates (true: a grid) or exact (false: every distinct value with its count);
   // exact(key) decodes that one column (nothing else) and answers from all of its values: { n, quantile(p), countAbove(x), countBelow(x) }, the same definitions as the grid's, exact. From summary(bytes)
   // it is the answer object; from open().summary() a Promise of it. Kept per key, so the column is decoded once. null for a key with no number or date entry.
-  function sumIsEst(key) { var c = sumEntry(this, key); return c ? !c.qExact && !!c.qSample : null; }
+  function sumIsEst(key) { var c = sumEntry(this, key); return c ? !c.qExact : null; }   // (since 0.26.6 only an exact table is exact: a grid read from every value still reads between its points)
   function sumExactOf(parts) {
     var n = 0, i, j, a, x, v, sv;
     for (i = 0; i < parts.length; i++) n += parts[i] ? parts[i].length : 0;

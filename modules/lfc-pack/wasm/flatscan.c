@@ -324,15 +324,23 @@ EXPORT("litjoin") u32 litjoin(const u8*in,const double*cval,const u32*clen,const
 static inline u32 vlen64(u64 u){ return (u32)(70-__builtin_clzll(u|1))/7; }   /* bytes of u as a varint (u < 2^56) */
 static inline u8* putv(u8*o,u64 u){   /* one varint as one 8-byte store (the caller keeps 8 spare bytes after the output) */
   if(u<128){ *o=(u8)u; return o+1; }
+  if(u<16384){ u32 w2=(u32)(u&0x7F)|0x80|((u32)(u>>7)<<8); __builtin_memcpy(o,&w2,2); return o+2; }   /* since lfc-pack 0.26.6: two bytes without the general masks (30-40% quicker numcol on prices and amounts, same bytes) */
   u32 k=vlen64(u); u64 w=(u&0x7FULL)|((u<<1)&0x7F00ULL)|((u<<2)&0x7F0000ULL)|((u<<3)&0x7F000000ULL)|((u<<4)&0x7F00000000ULL)|((u<<5)&0x7F0000000000ULL)|((u<<6)&0x7F000000000000ULL)|((u<<7)&0x7F00000000000000ULL);
   w|=0x8080808080808080ULL&((1ULL<<(8*(k-1)))-1); __builtin_memcpy(o,&w,8); return o+k; }
 static inline u64 zz64(i64 x){ return ((u64)x<<1)^(u64)(x>>63); }
-EXPORT("numcol") u32 numcol(const double*b,u32 n,u8*out,double*res,u32 mode){
+// numcolc (since lfc-pack 0.26.6): numcol that also counts how often each value occurs, for the column summary's exact table, in the same pass (the counting overlaps the varint work: about half the cost of a
+// separate pass). C points to { T, W, cap } as u32 then lo as a double at C+16: values in [lo, lo + W) are counted by direct index into dc (W u32, no compare, no probe), the rest in an open-addressing
+// table of T slots (a power of two) keys[h] (doubles) / cnt[h] (0: empty); the window is folded into that table at the end. res[11]: how many different values, or -1 once there are more than cap.
+static inline u32 nd_ins(double x,u32 c,u32 M,double*keys,u32*cnt){ u32 h=(u32)(((u64)(i64)x*0x9E3779B97F4A7C15ULL)>>40)&M; while(cnt[h]&&keys[h]!=x) h=(h+1)&M; u32 nw=!cnt[h]; if(nw) keys[h]=x; cnt[h]+=c; return nw; }
+#define ND_ONE(V,X) if(CNT){ u64 o_=(u64)((V)-L); if(o_<(u64)W) dc[o_]++; else if(!ov){ dd+=nd_ins((X),1,HM,keys,cnt); ov=dd>cap; } }
+static inline __attribute__((always_inline)) u32 numcol_(const double*b,u32 n,u8*out,double*res,u32 mode,const int CNT,const u32*C,double*keys,u32*cnt,u32*dc){
   u32 i; i64 v,pv,mn,mx; u64 la=0,lz=0,lb=0; int mono;
+  u32 T=CNT?C[0]:0, W=CNT?C[1]:0, cap=CNT?C[2]:0, HM=T-1, dd=0, ov=0; i64 L=0;
+  if(CNT){ double lo; __builtin_memcpy(&lo,C+4,8); L=(i64)lo; for(i=0;i<T;i++) cnt[i]=0; for(i=0;i<W;i++) dc[i]=0; }
   if(!n){ res[0]=0; res[1]=1.0/0.0; res[2]=-1.0/0.0; res[3]=-1; res[4]=-1; res[5]=0; res[6]=0; res[7]=0; res[8]=0; res[9]=0; res[10]=0; return 0; }
   u8*Z=out, *D=out+(u64)n*8+8, *M=out+(u64)n*16+16, *z=Z, *d=D, *m=M;
-  pv=(i64)b[0]; mono=pv>=0; mn=mx=pv; z=putv(z,zz64(pv)); d=putv(d,zz64(pv)); if(mono) m=putv(m,(u64)pv);
-  for(i=1;i<n;i++){ v=(i64)b[i]; i64 q=v-pv; mn=v<mn?v:mn; mx=v>mx?v:mx; z=putv(z,zz64(v)); d=putv(d,zz64(q)); if(mono){ if(q<0) mono=0; else m=putv(m,(u64)q); } pv=v; }
+  pv=(i64)b[0]; ND_ONE(pv,b[0]) mono=pv>=0; mn=mx=pv; z=putv(z,zz64(pv)); d=putv(d,zz64(pv)); if(mono) m=putv(m,(u64)pv);
+  for(i=1;i<n;i++){ v=(i64)b[i]; ND_ONE(v,b[i]) i64 q=v-pv; mn=v<mn?v:mn; mx=v>mx?v:mx; z=putv(z,zz64(v)); d=putv(d,zz64(q)); if(mono){ if(q<0) mono=0; else m=putv(m,(u64)q); } pv=v; }
   lz=(u64)(z-Z); lb=(u64)(d-D); la=(u64)(m-M);
   double sa=(double)(mono?la:lz), sb=(double)lb; int hasDz=!mono&&n>1, wa, wb;
   if(mode==1){ wa=1; wb=hasDz; } else { wa=!hasDz||sa<=sb*1.05; wb=hasDz&&sb<=sa*1.05; }
@@ -342,13 +350,27 @@ EXPORT("numcol") u32 numcol(const double*b,u32 n,u8*out,double*res,u32 mode){
     while(bits>0){ *o++=(u8)acc; acc>>=8; bits=bits>8?bits-8:0; } o=o0+(((u64)n*w+7)>>3); }
   res[0]=mono; res[1]=(double)mn; res[2]=(double)mx; res[3]=wa?(double)(mono?la:lz):-1.0; res[4]=wb?(double)lb:-1.0; res[5]=w; res[6]=sa; res[7]=sb;
   res[8]=(double)((mono?M:Z)-out); res[9]=(double)(D-out); res[10]=(double)(M+(u64)n*8+8-out);
+  if(CNT){ for(i=0;i<W&&!ov;i++) if(dc[i]){ i64 x=L+(i64)i; if(++dd>cap) ov=1; else nd_ins((double)x,dc[i],HM,keys,cnt); } res[11]=ov?-1.0:(double)dd; }
   return (u32)(o-out);
 }
+EXPORT("numcol") u32 numcol(const double*b,u32 n,u8*out,double*res,u32 mode){ return numcol_(b,n,out,res,mode,0,0,0,0,0); }
+EXPORT("numcolc") u32 numcolc(const double*b,u32 n,u8*out,double*res,u32 mode,const u32*C,double*keys,u32*cnt,u32*dc){ return numcol_(b,n,out,res,mode,1,C,keys,cnt,dc); }
 // B25b: b21Flags in one pass: res[0] 1 when some value is -0, res[1] 1 when every value is a whole number under 2^50 in size, res[2] 1 when some value is NaN or infinite
 EXPORT("numflags") void numflags(const double*a,u32 n,double*res){
   u32 i,nz=0,ai=1,nf=0; for(i=0;i<n;i++){ double x=a[i]; ai&=(x==__builtin_trunc(x))&(x<1125899906842624.0)&(x>-1125899906842624.0); nz|=(x==0)&(__builtin_signbit(x)!=0); nf|=!(x-x==0); } res[0]=nz; res[1]=ai; res[2]=nf; }
 // scaleints: scaledInts in one pass. b[i] = round(a[i] * sc) (JavaScript Math.round: ties toward +infinity) for every i; returns 1 when each |b[i]| < 2^50 and b[i] / sc == a[i] exactly (what decimalScale's JavaScript check tests), 0 at the first value that fails (b is then incomplete)
 static inline double jsround(double y){ double r=__builtin_floor(y); return (y-r>=0.5)?r+1.0:r; }
+// maxdec (since lfc-pack 0.26.6): decimalScaleW's full pass over a column in one call: res[0] (in and out) the largest digit count after the point seen so far, as decimalsOf finds it (whole numbers below 1e21: 0;
+// magnitudes in [1e-6, 4e6): the first d in 1..9 whose round trip Math.round(x * 10^d) / 10^d gives x back). Stops at the first value it cannot decide that way (returns its index, for decimalsOf in JS), else returns n.
+EXPORT("maxdec") u32 maxdec(const double*a,u32 n,u32 i,double*res){
+  static const double P[10]={1,10,100,1e3,1e4,1e5,1e6,1e7,1e8,1e9}; u32 d=(u32)res[0],k;
+  for(;i<n;i++){ double x=a[i], ax=__builtin_fabs(x);
+    if(ax<1e21&&ax==__builtin_floor(ax)) continue;
+    if(!(ax<4e6&&ax>=1e-6)) break;
+    for(k=1;k<=9;k++){ double v=x*P[k], r=__builtin_floor(v); if(v-r>=0.5) r+=1; if(r/P[k]==x) break; }
+    if(k>9) break; if(k>d) d=k; }
+  res[0]=(double)d; return i;
+}
 EXPORT("scaleints") u32 scaleints(const double*a,u32 n,double sc,double*b){
   u32 i; for(i=0;i<n;i++){ double x=a[i], r=jsround(x*sc); if(!((r<1125899906842624.0)&(r>-1125899906842624.0)&(r/sc==x))) return 0; b[i]=r; } return 1;
 }

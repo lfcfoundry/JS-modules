@@ -2,9 +2,6 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
-## 2.20.2 · API 2 · 2026-11-27
-- Unpacking real number columns is about 25 to 45% faster: the bit reading and the sums now run in the WebAssembly helper. Same files; nothing to change.
-
 ## 2.20.1 · API 2 · 2026-11-27
 - Packs real whole-number and decimal columns a little faster in balanced and small modes: a repeated decimal check and a Map lookup were replaced. Same format; a few bytes smaller on SEC and SBA.
 

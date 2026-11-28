@@ -26,7 +26,7 @@ const J = require('../lfc-pack.js'), assert = require('assert');
     if (c.qExact) ok(JSON.stringify(c.q) === JSON.stringify(dv) && c.qn.reduce((a, b) => a + b, 0) === fin.length && c.qn.every((m, i) => m === fin.filter((x) => x === dv[i]).length), k + ' exact values and counts');
     else { const want = exactQ(srt); ok(c.q.length === 257 && !c.qSample && c.q.every((x, i) => Math.abs(x - want[i]) <= 1e-9 * Math.max(1, Math.abs(want[i]))), k + ' exact grid'); }
   }
-  ok(!by.mix.qExact && !by.mix.qSample && by.mix.q.length === 257 && by.id.q.length === 257 && by.plain.q.length === 257, 'grid kinds');
+  ok(by.mix.qExact && by.mix.q.length === 1000 && by.id.q.length === 257 && by.plain.q.length === 257, 'grid kinds');
   ok(by.id.sorted === 'asc' && by.down.sorted === 'desc' && by.mix.sorted === null, 'sorted flags');
   ok(by.ts.type === 'date' && by.ts.min === Date.parse('2023-11-14T22:13:20Z') && by.ts.max === by.ts.min + (N - 1) * 3000 && by.ts.sorted === 'asc', 'date range ' + JSON.stringify(by.ts));
   ok(by.cat.type === 'text' && by.cat.distinct === 9 && by.cat.top.length === 9 && by.cat.top.reduce((a, t) => a + t[1], 0) === N && by.cat.len[0] === 2 && by.cat.len[1] === 2, 'low-variety text ' + JSON.stringify(by.cat));
@@ -46,9 +46,13 @@ const J = require('../lfc-pack.js'), assert = require('assert');
     const rank = (x) => { let lo = 0, hi = M; while (lo < hi) { const md = (lo + hi) >> 1; if (srt[md] < x) lo = md + 1; else hi = md; } return lo / (M - 1); };
     let worst = 0; c.q.forEach((x, k) => { worst = Math.max(worst, Math.abs(rank(x) - k / 256)); });
     console.log('  sampled grid worst rank error', worst.toFixed(4)); ok(c.qSample === 65536 && c.q.length === 257 && c.q[0] >= c.min && c.q[256] <= c.max && worst < 0.01, 'sampled grid worst rank error ' + worst.toFixed(4)); }
-  // whole numbers within 4,096 of each other are counted exactly, even unordered and long
+  // since 0.26.6: decimals with few different values, unordered and long, get the exact table from the encoder's counts (numcolc), in every block and on helper workers; too many different values stay a grid
+  for (const [D, want] of [[2000, true], [2500, true], [6000, false]]) { const M = 400000, v = new Float64Array(M); let sd = 9; for (let i = 0; i < M; i++) { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; v[i] = ((sd % D) - 500) / 100; }
+    for (const o of [{}, { workers: 1 }]) { const c = J.summary(await J.packColumnsParallel({ v }, o)).cols[0], m = new Map(); for (const x of v) m.set(x, (m.get(x) || 0) + 1); const dv = [...m.keys()].sort((a, b) => a - b);
+      ok(!!c.qExact === want && (!want || (JSON.stringify(c.q) === JSON.stringify(dv) && c.qn.every((k, i) => k === m.get(dv[i])))), 'decimal exact table ' + D + ' values ' + JSON.stringify(o)); } }
+  // whole numbers within 4,096 of each other are counted exactly, even unordered and long (since 0.26.6: 4,000 values repeating 75 times each give the exact table of every value)
   { const M = 300000, v = new Float64Array(M); for (let i = 0; i < M; i++) v[i] = (i * 7919) % 4000; const c = J.summary(await J.packColumnsParallel({ v }, {})).cols[0];
-    ok(!c.qSample && !c.qExact && JSON.stringify(c.q) === JSON.stringify(exactQ(Float64Array.from(v).sort())), 'counted grid'); }
+    ok(!c.qSample && c.qExact && c.q.length === 4000 && c.q.every((x, i) => x === i) && c.qn.every((m) => m === 75), 'counted grid'); }
   // line-chart pyramids (footer section 21): min, max and count of every run of `bin` rows, first and last value; empty bins NaN
   { const M = 100000, up2 = new Float64Array(M), rnd = new Float64Array(M), gap = new Array(M), tsv = new Array(M); let sd = 11;
     for (let i = 0; i < M; i++) { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; up2[i] = i * 2; rnd[i] = i >= 40000 && i < 40100 ? NaN : (sd / 4294967296) * 1000 - 500; gap[i] = i % 3 === 0 || (i >= 60000 && i < 61000) ? null : i * 0.5; tsv[i] = new Date(1.7e12 + i * 60000).toISOString().slice(0, 19); }

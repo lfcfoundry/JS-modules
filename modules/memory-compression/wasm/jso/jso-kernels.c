@@ -383,59 +383,6 @@ EXPORT u32 eg_enc(const double *a, u32 n, u8 *syms, u32 *cnt, u32 *o) {
   return pos;
 }
 
-/* Reading the ways back (since 2.20.2). eg_bits: the number of bits the size classes in syms ask for, or -1 when a class is above 53 (the JavaScript fails the same way). */
-EXPORT int eg_bits(const u8 *syms, u32 n) {
-  u64 bits = 0; u32 i;
-  for (i = 0; i < n; i++) { u32 c = syms[i]; if (c > 53) return -1; if (c > 1) bits += c - 1; }
-  return bits > 0x7FFFFFFFull ? -1 : (int)bits;
-}
-/* eg_dec: out[i] = the number whose size class is syms[i] and whose low bits are the next c - 1 bits of src (src needs 8 spare bytes after its data). Same values as egDecode in picker.js. */
-EXPORT void eg_dec(const u8 *syms, u32 n, const u8 *src, double *out) {
-  u64 pos = 0; u32 i;
-  for (i = 0; i < n; i++) {
-    u32 c = syms[i]; u64 u;
-    if (c < 2) u = c;
-    else {
-      u32 nb = c - 1, by = (u32)(pos >> 3), sh = (u32)(pos & 7); u64 w = 0, lo; u32 k;
-      for (k = 0; k < 8; k++) w |= (u64)src[by + k] << (8 * k);
-      lo = (w >> sh) & (((u64)1 << nb) - 1);
-      u = ((u64)1 << nb) + lo; pos += nb;
-    }
-    out[i] = (u & 1) == 0 ? (double)(u >> 1) : -(double)((u + 1) >> 1);
-  }
-}
-/* ent_dec: out[i] = syms[i] * 2^sh + the next sh bits of src + mn (src needs 8 spare bytes; sh at most 32). */
-EXPORT void ent_dec(const u8 *syms, u32 n, u32 sh, double mn, const u8 *src, double *out) {
-  u64 pos = 0, mask = sh ? (((u64)1 << sh) - 1) : 0; u32 i; double d = (double)((u64)1 << sh);
-  for (i = 0; i < n; i++) {
-    u64 lo = 0;
-    if (sh) {
-      u32 by = (u32)(pos >> 3), sb = (u32)(pos & 7), k; u64 w = 0;
-      for (k = 0; k < 8; k++) w |= (u64)src[by + k] << (8 * k);
-      lo = (w >> sb) & mask; pos += sh;
-    }
-    out[i] = (double)syms[i] * d + (double)lo + mn;
-  }
-}
-
-/* rle_dec: out = vals[k] repeated runs[k] + 1 times, for k = 0 .. m - 1. Returns 0, or 1 when a run is not a whole number of at least 1 or the runs do not add up to n (the JavaScript fails the same way). */
-EXPORT int rle_dec(const double *vals, const double *runs, u32 m, u32 n, double *out) {
-  u32 k, o = 0;
-  for (k = 0; k < m; k++) {
-    double c = runs[k] + 1; u32 ci, j;
-    if (!(c >= 1) || c != __builtin_floor(c) || (double)o + c > (double)n) return 1;
-    ci = (u32)c; { double v = vals[k]; for (j = 0; j < ci; j++) out[o + j] = v; } o += ci;
-  }
-  return o == n ? 0 : 1;
-}
-/* dec_join: out[i] = d[i] * 10^g[i]. Returns 0, 1 when a power is outside 0 .. 22 and 2 when one is not a whole number (the JavaScript then does the sum itself). */
-static const double P10[23] = {1e0,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,1e15,1e16,1e17,1e18,1e19,1e20,1e21,1e22};
-EXPORT int dec_join(const double *d, const double *g, u32 n, double *out) {
-  u32 i;
-  for (i = 0; i < n; i++) { double k = g[i]; if (!(k >= 0 && k <= 22)) return 1; if (k != __builtin_floor(k)) return 2; out[i] = d[i] * P10[(u32)k]; }
-  return 0;
-}
-
 /* ---- enc_tree (picker, since 2.19.2): the bytes of one whole-number block for a recorded tree of ways, in one call. Same bytes as encIntWith in src/picker.js for the ways it knows:
  * CONST 1, FOR 2, RLE 4, ENT 8, EG 9, DEC 10. tree = for each way: its number, its number of parts, then the parts' trees one after another.
  * Returns the number of bytes written, or 0 when a way does not apply (JavaScript then goes its own way). */
