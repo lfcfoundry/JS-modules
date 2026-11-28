@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.8 · API 0 · 2026-11-27
+
+### Quick
+The number encoder keeps its layout candidates as views of wasm memory and copies out only the ones still held after the choice; same files, saves about 2% quicker.
+
+### Details
+Save time vs 0.26.7, same-page swapped A/B (4 pairs; taxi 5 cols 1M rows / retail 2 cols 541,909 rows): Chromium 156 -2.0% / -2.7%, Firefox 158 -2.0% / -0.5%, WebKitGTK 2.52.6 -1.9% / -1.8%. Byte-identical over 145 files.
+
+### Deep
+nkRun(..., vw) returns the V, delta-V and B frames as subarrays of the kernel's memory for numGeneral; nkKeep walks the candidate chain (best and every candidate it replaced) and copies frames still in kernel memory, moving their compression memo entry, before the kernel runs again. Losing frames are never copied (each is about one byte per value). Also tried: branch-free putv and bit-pack store (no gain in Node or browsers).
+
 ## 0.26.7 · API 0 · 2026-11-27
 
 ### Quick
