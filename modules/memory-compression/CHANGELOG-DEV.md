@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.22.0 · API 2 · 2026-11-27
+
+### Quick
+Unpack 25 to 50% faster (whole-block decoder dec_block in WebAssembly, 4-state rANS for streams of 2,048+ symbols). New files need 2.22.0 to open; older files open as before. SBA 1% smaller (no repeat search right after a fresh one).
+
+### Details
+Browser medians vs 2.21.0 (same page, alternating, 21 rounds): SEC unpack 24.7 to 12.7 ms Chromium 156, 23.3 to 16.1 Firefox 158, 19 to 12 WebKitGTK 2.52.6; SBA 4.2 to 2.1 / 3.2 to 2.2 / 3 to 2; COVID confirmed 4.6 to 2.9 / 4.5 to 3.4 / 4 to 2; COVID deaths 6.0 to 3.3 / 4.2 to 3.1 / 4 to 3; retail unit price 15.3 to 9.0 / 12.9 to 9.0 / 12 to 9. Sizes +0.1 to 0.3% (12 bytes per long rANS stream), SBA 37,480 to 37,093.
+
+### Deep
+dec_block: one whole INTS, ALP or FDICT block decoded in one WebAssembly call (ways RAW, CONST, FOR, DELTA, RLE, DICT, PFOR, DIV, ENT, EG, DEC, DELTA2, LB), falling back to the JavaScript decoder for anything it does not handle or that looks damaged. rANS: 4 interleaved states for streams of 2,048 symbols or more, marked by the top bit of the first state (a 1-state stream never sets it), same bytes from WebAssembly and JavaScript; decoder about 3x faster on its own. readTable builds cum/slot only for the JavaScript decoder; ENT and EG decode symbols straight into wasm memory. Pack: a replayed block right after a fresh template no longer triggers a full re-search (SBA 1% smaller). Chromium COVID confirmed pack showed 1.13 in full 5-column runs but 0.96/0.97 alone and order-swapped. Fixed: the 2.21.0 read-only file could not open SBA-like decimal columns (its build strips code its corpus never runs, and the corpus had no such data); min/pack.js now adds the six real tester columns to the corpus.
+
 ## 2.21.0 · API 2 · 2026-11-27
 
 ### Quick

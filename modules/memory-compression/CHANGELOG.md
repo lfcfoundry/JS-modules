@@ -2,6 +2,10 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.22.0 · API 2 · 2026-11-27
+- Unpacking real number columns is 25 to 50% faster: each block now opens in one WebAssembly call, and the entropy decoder reads 4 values at once. Files are 0.1 to 0.3% bigger; older files still open.
+- Fixed: the small open-only file (memory-compression-read.min.js) can open every number column again; in 2.21.0 it failed on some decimal columns, such as SBA loan amounts.
+
 ## 2.21.0 · API 2 · 2026-11-27
 - Running totals and repeating event times pack 15 to 26% smaller (COVID counts and FHIR times now under Pcodec); float columns like SBA pack about 35% faster for 1.6% more bytes. Files using the new ways need 2.21.0 or newer.
 
