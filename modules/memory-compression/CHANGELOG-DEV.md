@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.21.0 · API 2 · 2026-11-27
+
+### Quick
+2.21.0 final: DELTA2 (second difference), LB (recency-place way for repeating values, Fenwick rank), lead-kind and lead-way replay rules, nested DICT/DIV/LB dropped below top level, FDICT table bound.
+
+### Deep
+2.21.0 final: DELTA2 (second difference), LB (recency-place way for repeating values, Fenwick rank), lead-kind and lead-way replay rules, nested DICT/DIV/LB dropped below top level, FDICT table bound. Real FHIR (held-out): obs.time 127244 to 97538 B (Pcodec 102178), obs.issued 142402 to 112657 B (Pcodec 115023).
+
 ## 2.20.2 · API 2 · 2026-11-27
 
 ### Quick
