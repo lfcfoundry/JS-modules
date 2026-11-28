@@ -415,19 +415,19 @@ EXPORT void ent_split(const double *a, u32 n, double mn, u32 sh, u8 *syms, u32 *
 /* EG (picker): size class of each zigzag number in syms (0 to 53), the counts of each class in cnt (256 words), and the bits below the leading one packed into o (zeroed here;
  * the caller leaves n * 2 + 2 words). Returns the number of bits written. The same bytes as egEncode in picker.js. */
 EXPORT u32 eg_enc(const double *a, u32 n, u8 *syms, u32 *cnt, u32 *o) {
-  u32 i, w, pos = 0, top = 1;          /* top: words below it are cleared (since 2.23.0 only the words written, not n * 2 + 2) */
+  u32 i, idx = 0, ab = 0, pos = 0; u64 acc = 0;      /* since 2.23.1: bits gathered in a 64-bit word and stored 32 at a time (same bits; the words after the last one written are cleared up to two) */
   for (i = 0; i < 256; i++) cnt[i] = 0;
-  o[0] = 0; o[1] = 0;
   for (i = 0; i < n; i++) {
     long long x = (long long)a[i]; u64 u = x >= 0 ? ((u64)x << 1) : (((u64)(-x)) << 1) - 1; u32 c = u ? 64 - (u32)__builtin_clzll(u) : 0;
     syms[i] = (u8)c; cnt[c]++;
     if (c > 1) {
-      u64 low = u - (1ULL << (c - 1)); u32 nb = c - 1, nb1 = nb < 32 ? nb : 32, idx, off; u64 t;
-      idx = pos >> 5; off = pos & 31; if (idx + 1 >= top) { o[idx + 1] = 0; top = idx + 2; } t = (u64)(u32)low << off; o[idx] |= (u32)t; o[idx + 1] |= (u32)(t >> 32); pos += nb1;
-      if (nb > 32) { idx = pos >> 5; off = pos & 31; if (idx + 1 >= top) { o[idx + 1] = 0; top = idx + 2; } t = (low >> 32) << off; o[idx] |= (u32)t; o[idx + 1] |= (u32)(t >> 32); pos += nb - 32; }
+      u64 low = u - (1ULL << (c - 1)); u32 nb = c - 1;
+      if (nb > 32) { acc |= (low & 0xFFFFFFFFull) << ab; ab += 32; o[idx++] = (u32)acc; acc >>= 32; ab -= 32; low >>= 32; nb -= 32; pos += 32; }
+      acc |= low << ab; ab += nb; pos += nb;
+      if (ab >= 32) { o[idx++] = (u32)acc; acc >>= 32; ab -= 32; }
     }
   }
-  (void)w;
+  o[idx] = (u32)acc; o[idx + 1] = 0;
   return pos;
 }
 
@@ -489,6 +489,7 @@ EXPORT int dec_join(const double *d, const double *g, u32 n, double *out) {
  * Returns the number of bytes written, or 0 when a way does not apply (JavaScript then goes its own way). */
 typedef struct { u8 *p; u8 *end; u8 *sp; u8 *send; int bad; } TW;
 static void tw_b(TW *w, u32 v) { if (w->p < w->end) *w->p++ = (u8)v; else w->bad = 1; }
+static void tw_cpy(TW *w, const u8 *src, u32 k) { u32 i; if ((u32)(w->end - w->p) < k) { w->bad = 1; w->p = w->end; return; } for (i = 0; i < k; i++) w->p[i] = src[i]; w->p += k; }      /* k bytes at once (since 2.23.1; byte by byte was 9% of a pack) */
 static void tw_vi(TW *w, u64 x) { while (x >= 128) { tw_b(w, (u32)(x & 127) | 128); x >>= 7; } tw_b(w, (u32)x); }
 static void tw_zi(TW *w, double x) { u64 z = x < 0 ? (((u64)(-x)) << 1) - 1 : ((u64)x) << 1; tw_vi(w, z); }
 static void *tw_alloc(TW *w, u32 bytes) { u8 *r = w->sp; bytes = (bytes + 15) & ~15u; if (w->sp + bytes > w->send) { w->bad = 1; return 0; } w->sp += bytes; return r; }
@@ -497,8 +498,13 @@ static u32 tw_bw(double rng) { return rng <= 0 ? 0 : 64 - (u32)__builtin_clzll((
 static void tw_bits(TW *w, const u32 *v, u32 n, u32 nb) {
   u64 acc = 0; u32 cnt = 0, i;
   if (!nb) return;
-  for (i = 0; i < n; i++) { acc |= (u64)v[i] << cnt; cnt += nb; while (cnt >= 8) { tw_b(w, (u32)acc); acc >>= 8; cnt -= 8; } }
-  if (cnt) tw_b(w, (u32)acc);
+  {      /* since 2.23.1: room checked once, 32 bits stored at a time (same bytes) */
+    u64 need = ((u64)n * nb + 7) / 8; u8 *p = w->p; u32 x;
+    if ((u64)(w->end - w->p) < need) { w->bad = 1; w->p = w->end; return; }
+    for (i = 0; i < n; i++) { acc |= (u64)v[i] << cnt; cnt += nb; if (cnt >= 32) { x = (u32)acc; __builtin_memcpy(p, &x, 4); p += 4; acc >>= 32; cnt -= 32; } }
+    while (cnt > 0) { *p++ = (u8)acc; acc >>= 8; cnt = cnt > 8 ? cnt - 8 : 0; }
+    w->p = p;
+  }
 }
 /* the frequency table of 4096 and the rANS bytes of syms, written the way picker.js writes them (bitmap, frequencies minus one, length, bytes) */
 static int tw_ans(TW *w, const u8 *syms, u32 n, const u32 *cnt) {
@@ -508,11 +514,11 @@ static int tw_ans(TW *w, const u8 *syms, u32 n, const u32 *cnt) {
   for (i = 0; i < 256; i++) if (cnt[i]) { u64 q = ((u64)cnt[i] * 4096u) / n; f[i] = (unsigned short)(q < 1 ? 1 : q); tot += f[i]; if (cnt[i] > cnt[big]) big = i; }
   { i32 fb = (i32)f[big] + 4096 - (i32)tot; if (fb < 1) return 0; f[big] = (unsigned short)fb; }
   for (i = 0; i < 256; i++) if (f[i]) bm[i >> 3] |= (u8)(1u << (i & 7));
-  for (i = 0; i < 32; i++) tw_b(w, bm[i]);
+  tw_cpy(w, bm, 32);
   for (i = 0; i < 256; i++) if (f[i]) tw_vi(w, (u32)f[i] - 1);
   tmp = tw_alloc(w, cap); if (!tmp) return 0;
   len = rans_enc(syms, n, f, tmp, cap);
-  tw_vi(w, len); for (i = 0; i < len; i++) tw_b(w, tmp[cap - len + i]);
+  tw_vi(w, len); tw_cpy(w, tmp + cap - len, len);
   return 1;
 }
 static int TWG;                 /* 1 inside the streams of DEC, where DICT has its gate (opt.dictGate in picker.js) */
@@ -560,6 +566,40 @@ static int dict_map(TW *w, const double *a, u32 n, double mn, double mx, double 
   *kp = keys; *cp = codes; return (int)m;
 }
 static void tw_skip(const u8 **tp) { u32 k = (*tp)[1], i; *tp += 2; for (i = 0; i < k; i++) tw_skip(tp); }
+/* LB places (since 2.23.1 one helper for replay and search): pass 1 finds each value's latest earlier place by hash and applies the keep rule
+   (a value coming back that differs from the one before it always has place 2 or more), pass 2 counts places with a Fenwick tree only for kept blocks. */
+static int lb_map(TW *w, const double *a, u32 n, int wide, double **dp, double **vp, u32 *nvp) {
+  u32 sh, sz, msk, q, i, nv = 0, r = 0, tt, lim2; i32 *last, *fw, *pv, yy; double *key, *d, *vals; u64 bits;
+  sh = 32 - (u32)__builtin_clz(n * 2 - 1); sz = 1u << sh; msk = sz - 1;
+  last = tw_alloc(w, sz * 4); key = tw_alloc(w, sz * 8); pv = tw_alloc(w, n * 4);
+  if (!last || !key || !pv) return 0;
+  for (i = 0; i < sz; i++) last[i] = -1;
+  for (i = 0; i < n; i++) {
+    double x = a[i]; __builtin_memcpy(&bits, &x, 8); q = (u32)((bits * 0x9E3779B97F4A7C15ull) >> (64 - sh)) & msk;
+    while ((yy = last[q]) >= 0 && key[q] != x) q = (q + 1) & msk;
+    if (yy < 0) { key[q] = x; nv++; } else if (x != a[i - 1]) r++;
+    pv[i] = yy; last[q] = (i32)i;
+  }
+  if (wide) { if ((u64)r * 20 < n) return 0; }
+  else if ((u64)nv * 5 > (u64)n * 3) return 0;
+  fw = tw_alloc(w, (n + 1) * 4); d = tw_alloc(w, n * 8); vals = tw_alloc(w, nv * 8 + 8);
+  if (!fw || !d || !vals) return 0;
+  for (i = 0; i <= n; i++) fw[i] = 0;
+  nv = 0;
+  for (i = 0; i < n; i++) {
+    yy = pv[i];
+    if (yy < 0) { vals[nv++] = a[i]; d[i] = 0; }
+    else if (yy == (i32)i - 1) { d[i] = 1; for (tt = (u32)yy + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]--; }
+    else {
+      i32 cnt = 0; tt = (u32)yy + 1; lim2 = i;
+      while (tt != lim2) { if (lim2 > tt) { cnt += fw[lim2]; lim2 -= lim2 & (0u - lim2); } else { cnt -= fw[tt]; tt -= tt & (0u - tt); } }
+      d[i] = (double)(cnt + 1);
+      for (tt = (u32)yy + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]--;
+    }
+    for (tt = i + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]++;
+  }
+  *dp = d; *vp = vals; *nvp = nv; return 1;
+}
 static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth);
 /* the ways of enc_tree that are rarer in replays, out of tw_node so its common loop stays small (2.23.0) */
 static __attribute__((noinline)) int tw_more(TW *w, const double *a, u32 n, const u8 **tp, int depth, u32 sch, u32 nk, double mn, double mx, u8 *sp0) {
@@ -626,7 +666,7 @@ static __attribute__((noinline)) int tw_more(TW *w, const double *a, u32 n, cons
     if (!tw_node(w, d, n, tp, depth - 1)) return 0;
     return w->bad ? 0 : (w->sp = sp0, 1);
   } else if (sch == 12) {      /* LB: each value's place in the list of different values by latest use (0: new), then the new values, as in picker.js */
-    u32 sh, sz, msk, q, j = 0, m, nv = 0, tt, lim2; i32 *last, *fw; double *key, *d, *vals; u64 bits;
+    u32 q, j = 0, m, nv = 0; i32 *last; double *key, *d, *vals; u64 bits;
     if (depth <= 0 || nk != 2 || n < 256 || mx - mn < 65536) return 0;
     m = n < 1024 ? n : 1024;
     last = tw_alloc(w, 2048 * 4); key = tw_alloc(w, 2048 * 8); if (!last || !key) return 0;
@@ -637,26 +677,7 @@ static __attribute__((noinline)) int tw_more(TW *w, const double *a, u32 n, cons
       if (last[q] >= 0) { if (x != a[i - 1]) j++; } else { last[q] = 1; key[q] = x; }
     }
     if (j * (mx - mn >= 16777216.0 ? 20 : 3) < m) return 0;      /* values over 24 bits wide: 5% coming back is enough (as picker.js) */
-    sh = 32 - (u32)__builtin_clz(n * 2 - 1); sz = 1u << sh; msk = sz - 1;
-    last = tw_alloc(w, sz * 4); key = tw_alloc(w, sz * 8); fw = tw_alloc(w, (n + 1) * 4); d = tw_alloc(w, n * 8); vals = tw_alloc(w, n * 8);
-    if (!last || !key || !fw || !d || !vals) return 0;
-    for (i = 0; i < sz; i++) last[i] = -1;
-    for (i = 0; i <= n; i++) fw[i] = 0;
-    for (i = 0; i < n; i++) {
-      double x = a[i]; i32 yy; __builtin_memcpy(&bits, &x, 8); q = (u32)((bits * 0x9E3779B97F4A7C15ull) >> (64 - sh)) & msk;
-      while ((yy = last[q]) >= 0 && key[q] != x) q = (q + 1) & msk;
-      if (yy < 0) { vals[nv++] = x; key[q] = x; d[i] = 0; }
-      else {
-        i32 cnt = 0; tt = (u32)yy + 1; lim2 = i;
-        while (tt != lim2) { if (lim2 > tt) { cnt += fw[lim2]; lim2 -= lim2 & (0u - lim2); } else { cnt -= fw[tt]; tt -= tt & (0u - tt); } }
-        d[i] = (double)(cnt + 1);
-        for (tt = (u32)yy + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]--;
-      }
-      for (tt = i + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]++;
-      last[q] = (i32)i;
-    }
-    if (mx - mn >= 16777216.0) { u32 r = 0; for (i = 0; i < n; i++) if (d[i] > 1) r++; if ((u64)r * 20 < n) return 0; }
-    else if ((u64)nv * 5 > (u64)n * 3) return 0;
+    if (!lb_map(w, a, n, mx - mn >= 16777216.0, &d, &vals, &nv)) return 0;
     tw_b(w, 12); tw_vi(w, nv);
     if (!tw_node(w, d, n, tp, depth - 1)) return 0;
     if (!tw_node(w, vals, nv, tp, depth - 1)) return 0;
@@ -702,7 +723,7 @@ static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth) {
     bitsK = eg_enc(a, n, syms, cnt, o);
     tw_b(w, 9);
     if (!tw_ans(w, syms, n, cnt)) return 0;
-    k = (bitsK + 7) / 8; for (i = 0; i < k; i++) tw_b(w, ((const u8 *)o)[i]);
+    k = (bitsK + 7) / 8; tw_cpy(w, (const u8 *)o, k);
     ok = 1;
   } else if (sch == 3 || sch == 5 || sch == 6 || sch == 7 || sch == 12) {
     return tw_more(w, a, n, tp, depth, sch, nk, mn, mx, sp0);
@@ -767,6 +788,14 @@ static double lg2d(double v) {
   s = (v - 1) / (v + 1); s2 = s * s;
   return e + s * (2 + s2 * (0.6666666666666666 + s2 * (0.4 + s2 * (0.2857142857142857 + s2 * (0.2222222222222222 + s2 * (0.18181818181818182 + s2 * 0.15384615384615385)))))) * 1.4426950408889634;
 }
+/* since 2.23.1: a size tw_ans can never go under (bitmap, a byte for each symbol's frequency, the length, the entropy of the counts less 0.001 bit a symbol, which is
+   more than the rANS states can save: each step gains at least log2(4096 / f) - 0.0007 bits, the four starting states give back 8 bits each and cost 32 at the end). */
+static double ans_low(const u32 *cnt, u32 n) {
+  double h = 0, y = 0; u32 i;
+  for (i = 0; i < 256; i++) if (cnt[i]) { y++; h -= cnt[i] * lg2d((double)cnt[i] / n); }
+  h = (h - 0.001 * n) / 8 - 2;
+  return 32 + y + 1 + (h > 0 ? h : 0);
+}
 static u32 se_search(const double *a, u32 n, int depth, const SO *so, u8 **ob, u32 *ol, u8 **tb, u32 *tl);
 /* one part of a way: searched, then its bytes and tree appended; 1, or 0 when the part cannot be written, or -1 to give the level back to JavaScript */
 static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int depth, const SO *so, double bound, double mn, double mx);
@@ -797,7 +826,7 @@ static int se_part(TW *w, u8 *t, u32 *tn, const double *p, u32 m, int depth, con
   if (r == SE_BAIL) return -1;
   if (!r) { GSP = mk; return 0; }
   if (won) { *won = b[0]; SE_DT |= won == &SE_DW[0] ? 1 : 2; }
-  for (i = 0; i < bl; i++) tw_b(w, b[i]);
+  tw_cpy(w, b, bl);
   if (*tn + tl > 120) { GSP = mk; return 0; }
   for (i = 0; i < tl; i++) t[(*tn)++] = tt[i];
   GSP = mk; w->sp = mk;
@@ -808,7 +837,7 @@ static int se_part(TW *w, u8 *t, u32 *tn, const double *p, u32 m, int depth, con
 static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int depth, const SO *so, double bound, double mn, double mx) {
   u32 i; double m1 = -mn > mx ? -mn : mx;
   *tn = 2; t[0] = (u8)sch; t[1] = 0;
-  if (sch == 0) { tw_b(w, 0); for (i = 0; i < n; i++) { u64 u; double v = a[i]; u32 k; __builtin_memcpy(&u, &v, 8); for (k = 0; k < 8; k++) tw_b(w, (u32)(u >> (8 * k)) & 255); } return w->bad ? 0 : 1; }
+  if (sch == 0) { tw_b(w, 0); tw_cpy(w, (const u8 *)a, n * 8);      /* little-endian doubles as they are (wasm is little-endian) */ return w->bad ? 0 : 1; }
   if (sch == 1) { if (mn != mx) return 0; tw_b(w, 1); tw_zi(w, mn); return w->bad ? 0 : 1; }
   if (sch == 2) {
     double rng = mx - mn; u32 bw, *v;
@@ -829,6 +858,7 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
       double x = 0, y = 0;
       for (i = 0; i < 256; i++) if (cnt[i]) { y++; x -= cnt[i] * lg2d((double)cnt[i] / n); }
       if (x / 8 + y * 0.5 + (double)n * sh / 8 > bound) return 0;
+      if (ans_low(cnt, n) + 3 + (double)(((u64)n * sh + 7) / 8) >= bound) return 0;      /* cannot be smaller than the best (since 2.23.1, same choices) */
     }
     tw_b(w, 8); tw_zi(w, mn); tw_b(w, sh);
     if (!tw_ans(w, syms, n, cnt)) return 0;
@@ -839,9 +869,10 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
     if (n < 64 || !(m1 < 2251799813685248.0)) return 0;
     syms = tw_alloc(w, n); o = tw_alloc(w, (n * 2 + 2) * 4); if (!syms || !o) return 0;
     bitsK = eg_enc(a, n, syms, cnt, o);
+    if (bound != 0 && ans_low(cnt, n) + 1 + (double)((bitsK + 7) / 8) >= bound) return 0;      /* cannot be smaller than the best (since 2.23.1, same choices) */
     tw_b(w, 9);
     if (!tw_ans(w, syms, n, cnt)) return 0;
-    k = (bitsK + 7) / 8; for (i = 0; i < k; i++) tw_b(w, ((const u8 *)o)[i]);
+    k = (bitsK + 7) / 8; tw_cpy(w, (const u8 *)o, k);
     return w->bad ? 0 : 1;
   }
   if (depth <= 0) return 0;
@@ -859,7 +890,7 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
     return 1;
   }
   if (sch == 12) {             /* LB, as picker.js (its table is only for finding values; any hash gives the same places) */
-    u32 sh, sz, msk, q, j = 0, m, nv = 0, tt, lim2; i32 *last, *fw; double *key, *d, *vals; u64 bits; SO s2;
+    u32 q, j = 0, m, nv = 0; i32 *last; double *key, *d, *vals; u64 bits; SO s2;
     if (n < 256 || mx - mn < 65536) return 0;
     m = n < 1024 ? n : 1024;
     last = tw_alloc(w, 2048 * 4); key = tw_alloc(w, 2048 * 8); if (!last || !key) return 0;
@@ -870,26 +901,7 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
       if (last[q] >= 0) { if (x != a[i - 1]) j++; } else { last[q] = 1; key[q] = x; }
     }
     if (j * (mx - mn >= 16777216.0 ? 20 : 3) < m) return 0;      /* values over 24 bits wide: 5% coming back is enough (as picker.js) */
-    sh = 32 - (u32)__builtin_clz(n * 2 - 1); sz = 1u << sh; msk = sz - 1;
-    last = tw_alloc(w, sz * 4); key = tw_alloc(w, sz * 8); fw = tw_alloc(w, (n + 1) * 4); d = tw_alloc(w, n * 8); vals = tw_alloc(w, n * 8);
-    if (!last || !key || !fw || !d || !vals) return 0;
-    for (i = 0; i < sz; i++) last[i] = -1;
-    for (i = 0; i <= n; i++) fw[i] = 0;
-    for (i = 0; i < n; i++) {
-      double x = a[i]; i32 yy; __builtin_memcpy(&bits, &x, 8); q = (u32)((bits * 0x9E3779B97F4A7C15ull) >> (64 - sh)) & msk;
-      while ((yy = last[q]) >= 0 && key[q] != x) q = (q + 1) & msk;
-      if (yy < 0) { vals[nv++] = x; key[q] = x; d[i] = 0; }
-      else {
-        i32 cnt = 0; tt = (u32)yy + 1; lim2 = i;
-        while (tt != lim2) { if (lim2 > tt) { cnt += fw[lim2]; lim2 -= lim2 & (0u - lim2); } else { cnt -= fw[tt]; tt -= tt & (0u - tt); } }
-        d[i] = (double)(cnt + 1);
-        for (tt = (u32)yy + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]--;
-      }
-      for (tt = i + 1; tt <= n; tt += tt & (0u - tt)) fw[tt]++;
-      last[q] = (i32)i;
-    }
-    if (mx - mn >= 16777216.0) { u32 r = 0; for (i = 0; i < n; i++) if (d[i] > 1) r++; if ((u64)r * 20 < n) return 0; }
-    else if ((u64)nv * 5 > (u64)n * 3) return 0;
+    if (!lb_map(w, a, n, mx - mn >= 16777216.0, &d, &vals, &nv)) return 0;
     tw_b(w, 12); tw_vi(w, nv); t[1] = 2;
     s2 = *so; if (!s2.has) so_set(&s2, ORD_LB, 6);
     PART(d, n, &s2, 0); PART(vals, nv, &s2, 0);
