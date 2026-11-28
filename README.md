@@ -194,7 +194,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 | 3.4 | 1.4 | Lets a page draw first guesses during an import without slowing it. | — |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.26.5 | 819.6 | 339.0 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.3 | 137.3 | 50.1 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
-| [memory-compression](modules/memory-compression/README.md) | 2.21.0 | 498.6 | 145.0 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
+| [memory-compression](modules/memory-compression/README.md) | 2.21.0 | 504.8 | 147.1 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
 | [text-columns](modules/text-columns/README.md) | 0.9.0 | 71.5 | 24.3 | Reads CSV and TSV into number and text columns, 2 to 6 times faster than Papa Parse on real files. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/text-columns/demo.html) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 | 500.0 | 154.4 | Zstandard compress and decompress, XXH64 and CRC-32, in WebAssembly. | — |

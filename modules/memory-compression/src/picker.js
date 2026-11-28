@@ -165,7 +165,7 @@
     }
 
     // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
-    var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8, EG: 9, DEC: 10, DELTA2: 11 }, MAX_DEPTH = 4;
+    var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8, EG: 9, DEC: 10, DELTA2: 11, LB: 12 }, MAX_DEPTH = 4;
     var STAT = null;                                                              // the smallest, the largest and "all whole numbers" of the block isIntegral just looked at (same array object)
     function statsOf(kw, a) {                                                     // one pass in the wasm helper for a block of 1,024 numbers or more; null when it cannot
       var n = a.length, aP = kw.base, mP = kal(aP + n * 8), ok, mm;
@@ -281,7 +281,7 @@
     }
     function egWithTag(a, n, w) { w.bytes(egEncode(a, n)); return w.out(); }
     function encIntWith(sch, a, depth, opt, mm, bound) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
-      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, e1, e2, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen;
+      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, e1, e2, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen, o2;
       w.u8(sch);
       if (sch === IS.RAW) { w.need(n * 8 + 1); for (i = 0; i < n; i++) w.f64(a[i]); return w.out(); }
       if (!mm) mm = range(a);
@@ -329,11 +329,38 @@
         e1 = decPick(opt, 0, g, depth - 1); e2 = decPick(opt, 1, d, depth - 1);
         w.need(e1.length + e2.length + 2); w.bytes(e1); w.bytes(e2); return w.out();
       }
+      if (sch === IS.LB) {      // since 2.21.0: a value seen before is stored as its place in the list of different values by latest use (newest first, 1 up; 0: a new value, taken from the list of new values); times and ids that come back soon cost a small place, not a dictionary code
+        if (n < 256 || mx - mn < 65536) return null;                       // small ranges are cheap already
+        for (m = Math.min(n, 1024), cum = new Float64Array(2048), hi = new Int32Array(2048).fill(-1), syms = new Float64Array(1), low = new Uint32Array(syms.buffer), i = 0, j = 0; i < m; i++) {      // a small table of what was seen (open addressing)
+          x = a[i]; syms[0] = x; q = (Math.imul(low[0], 0x9E3779B1) ^ Math.imul(low[1] + 0x7F4A7C15, 0x85EBCA6B)) >>> 21;
+          while (hi[q] >= 0 && cum[q] !== x) q = (q + 1) & 2047;
+          if (hi[q] >= 0) { if (x !== a[i - 1]) j++; } else { hi[q] = 1; cum[q] = x; }
+        }
+        if (j * 3 < m) return null;                                        // under a third of the first values come back after other values (a run of the same value is for RLE): not this way
+        d = new Float64Array(n); vals = []; seen = new Int32Array(n + 1);      // seen: a tree of counts that has a 1 at the latest place of every different value so far
+        for (sh = 32 - Math.clz32(n * 2 - 1), cum = new Float64Array(1 << sh), hi = new Int32Array(1 << sh).fill(-1), freq = new Uint32Array(cum.buffer, 0, 0), syms = new Float64Array(1), low = new Uint32Array(syms.buffer), div = (1 << sh) - 1, i = 0; i < n; i++) {
+          x = a[i]; syms[0] = x; q = (Math.imul(low[0], 0x9E3779B1) ^ Math.imul(low[1] + 0x7F4A7C15, 0x85EBCA6B)) >>> (32 - sh) & div;      // a table of the last place of each value (open addressing)
+          while ((y = hi[q]) >= 0 && cum[q] !== x) q = (q + 1) & div;
+          if (y < 0) { vals.push(x); cum[q] = x; }
+          else { for (t = y + 1, j = 0, lim = i; t !== lim;) { if (lim > t) { j += seen[lim]; lim -= lim & -lim; } else { j -= seen[t]; t -= t & -t; } } d[i] = j + 1; for (t = y + 1; t <= n; t += t & -t) seen[t]--; }   // the place: the different values used since this one was last used, plus one
+          for (t = i + 1; t <= n; t += t & -t) seen[t]++;
+          hi[q] = i;
+        }
+        if (vals.length * 5 > n * 3) return null;
+        o2 = opt.order ? opt : Object.assign({}, opt, { order: LB_ORDER }); w.vi(vals.length); w.bytes(encInts(d, depth - 1, o2)); w.bytes(encInts(Float64Array.from(vals), depth - 1, o2)); return w.out();
+      }
       if (sch === IS.DELTA2) {      // since 2.20.3: the second difference (the change of the change, signed); smooth counts (running totals) shrink about a bit a value more than with one difference
         if (n < 16 || !(Math.max(-mn, mx) < 1125899906842624)) return null;
-        d = new Float64Array(n - 2); t = a[1] - a[0]; x = t; hi = 0; low = 0;
-        for (i = 2; i < n; i++) { y = a[i] - a[i - 1]; j = y - x; x = y; hi += bl53(j < 0 ? -j : j); low += bl53(x < 0 ? -x : x); d[i - 2] = j; }
-        if (hi + n * 0.35 > low) return null;                              // not smoother than one difference by about a third of a bit a value: skip
+        t = a[1] - a[0]; d = new Float64Array(n - 2);
+        if (KWC && n >= 1024 && KWC.x.delta2_enc && (q = KWC.base, kwRoom(kal(q + n * 8) + n * 8 - KWC.base + 64))) {      // the second differences and the smoothness check in the WebAssembly helper
+          y = kal(q + n * 8); new Float64Array(KWC.mem.buffer, q, n).set(a); x = KWC.x.delta2_enc(q, n, y);
+          if (x + (n - 2) * 0.35 > 0) return null;
+          d.set(new Float64Array(KWC.mem.buffer, y, n - 2));
+        } else {
+          x = t; hi = 0; low = 0;
+          for (i = 2; i < n; i++) { y = a[i] - a[i - 1]; j = y - x; x = y; hi += bl53(j < 0 ? -j : j); low += bl53(x < 0 ? -x : x); d[i - 2] = j; }
+          if (hi + n * 0.35 > low) return null;                              // not smoother than one difference by about a third of a bit a value: skip
+        }
         w.zi(a[0]); w.zi(t); w.bytes(encInts(d, depth - 1, opt.order ? opt : Object.assign({}, opt, { order: D2_ORDER }))); return w.out();
       }
       if (sch === IS.DELTA) {
@@ -398,8 +425,9 @@
       return out;
     }
     var D2_STOP = 0.8;
-    var D2_ORDER = [IS.CONST, IS.FOR, IS.ENT, IS.EG];       // the second differences of a smooth series are small and spread out: these four are all that is tried on them
-    var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA2, IS.DELTA, IS.RLE, IS.DICT, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
+    var LB_ORDER = [IS.CONST, IS.FOR, IS.DELTA, IS.DIV, IS.ENT, IS.EG];       // the places and the new values of a column with repeats: only these are tried on them
+    var D2_ORDER = [IS.EG];       // the second differences of a smooth series are small and spread out: only the size-class coder is tried on them
+    var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA2, IS.DELTA, IS.RLE, IS.DICT, IS.LB, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
     // Since 2.19.2 the ways that won for a block are written down as a tree (REC) and the next blocks of the column replay that tree (RPL): each level tries only the way that won there, with no sample trials,
     // and a level whose way does not apply falls back to the full search. Every block still comes out as ordinary bytes any decoder reads; every 32nd block records a new tree.
     var REC = null, RPL = null;
@@ -419,7 +447,7 @@
     }
     function treeBytes(nd) {      // the tree as bytes for enc_tree (way, number of parts, parts), or null when a way in it is not one the helper knows
       var out = [];
-      function put(x) { if (x.sch !== 1 && x.sch !== 2 && x.sch !== 4 && x.sch !== 8 && x.sch !== 9 && x.sch !== 10) throw 0; out.push(x.sch, x.kids.length); for (var i = 0; i < x.kids.length; i++) put(x.kids[i]); }
+      function put(x) { if (x.sch !== 1 && x.sch !== 2 && x.sch !== 4 && x.sch !== 8 && x.sch !== 9 && x.sch !== 10 && x.sch !== 11) throw 0; out.push(x.sch, x.kids.length); for (var i = 0; i < x.kids.length; i++) put(x.kids[i]); }
       if (nd.tb === undefined) { try { put(nd); nd.tb = Uint8Array.from(out); } catch (e) { nd.tb = null; } }
       return nd.tb;
     }
@@ -439,25 +467,37 @@
       runWay.kids = kids; return e;
     }
     function encIntsFull(a, depth, opt) {
-      var n = a.length, d2, fs, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
+      var n = a.length, d2, fs, k, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
       if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
-        for (i = 0; i < opt.prefer.length; i++) { e = runWay(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
+        for (i = 0, k = opt.leadInt >= 0 && opt.prefer.indexOf(opt.leadInt) >= 0 ? [opt.leadInt] : opt.prefer; i < k.length; i++) { e = runWay(k[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
         if (best) { if (rec) par.push({ sch: best[0], kids: bestKids }); return best; }
       }
-      if (opt.sample && n > 4096) {        // choose the top way on a sample, then encode only with it
+      if (opt.sample && n > 4096 && order.length > 1) {        // choose the top way on a sample, then encode only with it
         s = sampleOf(a); sub = { noEntropy: opt.noEntropy, sample: false }; e = range(s);
-        for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || ((order[i] === IS.DICT || order[i] === IS.DIV) && depth < 2 && !opt.order)) continue; e = runWay(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0, false); if (e && order[i] === IS.DELTA2) d2 = true; if (e && e.length < bs) { bs = e.length; pick = order[i]; } if (d2 && order[i] === IS.DELTA2 && bs < fs * D2_STOP) break; if (order[i] === IS.FOR && e) fs = e.length; }
-        if (pick >= 0) { e = runWay(pick, a, depth, opt, mm, 0, rec); if (e) { if (rec) par.push({ sch: e[0], kids: runWay.kids }); return e; } }
+        for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || ((order[i] === IS.DICT || order[i] === IS.DIV || order[i] === IS.LB || order[i] === IS.DELTA2) && depth < 2 && !opt.order)) continue; e = runWay(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0, false); if (e && order[i] === IS.DELTA2) d2 = true; if (e && e.length < bs) { bs = e.length; pick = order[i]; } if (d2 && order[i] === IS.DELTA2 && bs < fs * D2_STOP) break; if (order[i] === IS.FOR && e) fs = e.length; }
+        if (pick >= 0) {
+          e = runWay(pick, a, depth, opt, mm, 0, rec);
+          if (e) {
+            bestKids = runWay.kids;
+            if (depth === opt.top) opt.leadInt = -1;
+            if (pick !== IS.LB && order.indexOf(IS.LB) >= 0 && (best = runWay(IS.LB, a, depth, opt, mm, e.length * 2, rec))) {
+              if (best.length < e.length) { if (depth === opt.top && e.length >= best.length * 1.02) opt.leadInt = IS.LB; e = best; bestKids = runWay.kids; }
+              else if (depth === opt.top && best.length >= e.length * 1.02) opt.leadInt = pick;      // since 2.21.0: the one that wins by 2% or more is the only one the replaying blocks try
+            }      // since 2.21.0: a sample sees too many new values to judge this way, so it is tried on the whole block too
+            if (rec) par.push({ sch: e[0], kids: bestKids });
+            return e;
+          }
+        }
       }
-      for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || ((order[i] === IS.DICT || order[i] === IS.DIV) && depth < 2 && !opt.order)) continue; e = runWay(order[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && order[i] === IS.DELTA2) d2 = true; if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
+      for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || ((order[i] === IS.DICT || order[i] === IS.DIV || order[i] === IS.LB || order[i] === IS.DELTA2) && depth < 2 && !opt.order)) continue; e = runWay(order[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && order[i] === IS.DELTA2) d2 = true; if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
       if (!best || best.length > n * 8) { e = runWay(IS.RAW, a, depth, opt, mm, 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }      // plain doubles only when nothing else is smaller
       if (rec && best) par.push({ sch: best[0], kids: bestKids });
       return best;
     }
     function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
     function decInts(r, n, depth, into) {
-      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div, q, y, bytes, src;
+      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div, q, y, bytes, src, seen, x;
       if (depth > MAX_DEPTH) pfail('data nested too deep');
       if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
       if (sch === IS.CONST) { out.fill(r.zi()); return out; }
@@ -486,6 +526,24 @@
           if (z === 0) { out.set(new Float64Array(KWC.mem.buffer, y, n)); return out; }
         }
         for (i = 0; i < n; i++) { k = g[i]; if (!(k >= 0 && k <= 22)) pfail('bad power of ten'); out[i] = d[i] * (F10[k] === undefined ? Math.pow(10, k) : F10[k]); }      // since 2.20.2 the table, not Math.pow: the same numbers, much faster
+        return out;
+      }
+      if (sch === IS.LB) {
+        m = r.vi(); if (!(m >= 1 && m <= n)) pfail('bad lookback column');
+        d = decInts(r, n, depth + 1); vals = decInts(r, m, depth + 1); o = 0;
+        seen = new Int32Array(n + 1); k = 0; lim1 = 1; while (lim1 * 2 <= n) lim1 *= 2;      // k: how many different values so far
+        for (i = 0; i < n; i++) {
+          z = d[i];
+          if (z === 0) { if (o >= m) pfail('bad lookback column'); x = vals[o++]; k++; }
+          else {
+            if (!(z >= 1 && z <= k)) pfail('bad lookback place');
+            for (t = 0, p = 0, q = k - z + 1, y = lim1; y > 0; y >>= 1) if (p + y <= n && seen[p + y] < q) { p += y; q -= seen[p]; }      // the (k - z + 1)th latest place from the left
+            x = out[p]; for (t = p + 1; t <= n; t += t & -t) seen[t]--;
+          }
+          for (t = i + 1; t <= n; t += t & -t) seen[t]++;
+          out[i] = x;
+        }
+        if (o !== m) pfail('bad lookback column');
         return out;
       }
       if (sch === IS.DELTA2) {

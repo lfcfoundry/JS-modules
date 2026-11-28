@@ -250,6 +250,13 @@ EXPORT double delta_enc(const double *a, u32 n, double *d) {
   for (i = 1; i < n; i++) { double x = a[i] - a[i - 1]; x = x < 0 ? -2 * x - 1 : 2 * x; d[i - 1] = x; if (x > y) y = x; }
   return y;
 }
+/* Second differences (signed): d[i - 2] = (a[i] - a[i - 1]) - (a[i - 1] - a[i - 2]) for i = 2 .. n - 1 (n >= 3). Returns the summed bit lengths of the second differences minus those of the first differences from i = 2 on. */
+static u32 bl64(double x) { unsigned long long u; if (x < 0) x = -x; if (x < 1) return 0; u = (unsigned long long)x; return 64 - (u32)__builtin_clzll(u); }
+EXPORT double delta2_enc(const double *a, u32 n, double *d) {
+  u32 i; double x = a[1] - a[0], y, j, s = 0;
+  for (i = 2; i < n; i++) { y = a[i] - a[i - 1]; j = y - x; x = y; d[i - 2] = j; s += (double)bl64(j) - (double)bl64(x); }
+  return s;
+}
 /* The reverse: out[0] = c0 and out[i + 1] = out[i] + unzigzag(d[i]) for i = 0 .. m - 1 (z % 2 is true for odd and for fractions, like the JavaScript). */
 EXPORT void delta_dec(const double *d, u32 m, double c0, double *out) {
   u32 i; double c = c0; out[0] = c;
@@ -437,7 +444,7 @@ EXPORT int dec_join(const double *d, const double *g, u32 n, double *out) {
 }
 
 /* ---- enc_tree (picker, since 2.19.2): the bytes of one whole-number block for a recorded tree of ways, in one call. Same bytes as encIntWith in src/picker.js for the ways it knows:
- * CONST 1, FOR 2, RLE 4, ENT 8, EG 9, DEC 10. tree = for each way: its number, its number of parts, then the parts' trees one after another.
+ * CONST 1, FOR 2, RLE 4, ENT 8, EG 9, DEC 10, DELTA2 11. tree = for each way: its number, its number of parts, then the parts' trees one after another.
  * Returns the number of bytes written, or 0 when a way does not apply (JavaScript then goes its own way). */
 typedef struct { u8 *p; u8 *end; u8 *sp; u8 *send; int bad; } TW;
 static void tw_b(TW *w, u32 v) { if (w->p < w->end) *w->p++ = (u8)v; else w->bad = 1; }
@@ -510,6 +517,14 @@ static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth) {
     tw_b(w, 4); tw_vi(w, m);
     if (!tw_node(w, vals, m, tp, depth - 1)) return 0;
     if (!tw_node(w, runs, m, tp, depth - 1)) return 0;
+    return w->bad ? 0 : (w->sp = sp0, 1);
+  } else if (sch == 11) {      /* DELTA2 (since 2.21.0): the second differences, with the same smoothness check as picker.js */
+    double *d, m1 = -mn > mx ? -mn : mx;
+    if (depth <= 0 || nk != 1 || n < 16 || !(m1 < 1125899906842624.0)) return 0;
+    d = tw_alloc(w, n * 8); if (!d) return 0;
+    if (delta2_enc(a, n, d) + (double)(n - 2) * 0.35 > 0) return 0;
+    tw_b(w, 11); tw_zi(w, a[0]); tw_zi(w, a[1] - a[0]);
+    if (!tw_node(w, d, n - 2, tp, depth - 1)) return 0;
     return w->bad ? 0 : (w->sp = sp0, 1);
   } else if (sch == 10) {
     double *g, *d; u32 j = 0, m = n < 256 ? n : 256, q = 0;

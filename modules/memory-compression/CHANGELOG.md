@@ -3,7 +3,7 @@
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
 ## 2.21.0 · API 2 · 2026-11-27
-- Running totals pack 15 to 26% smaller (COVID counts now under Pcodec); float columns like SBA pack 25 to 35% faster for 1.6% more bytes. Files using the new way need 2.21.0 or newer.
+- Running totals and repeating event times pack 15 to 26% smaller (COVID counts and FHIR times now under Pcodec); float columns like SBA pack about 35% faster for 1.6% more bytes. Files using the new ways need 2.21.0 or newer.
 
 ## 2.20.2 · API 2 · 2026-11-27
 - Unpacking real number columns is about 25 to 45% faster: the bit reading and the sums now run in the WebAssembly helper. Same files; nothing to change.

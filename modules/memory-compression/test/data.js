@@ -11,6 +11,12 @@
   var WORDS = 'flow budget route energy water grid supply demand storage hub depot plant station yard link bridge pump valve tank'.split(' ');
 
   var sets = {
+    // observations whose time (whole seconds, in ms) comes back soon after other times: the way a real encounter log repeats them
+    'event-times': function (n) {
+      var r = rng(23), out = [], i, pool = [], k;
+      for (i = 0; i < n; i++) { if (pool.length < 6 || r() < 0.14) pool.push(1.4e12 + Math.floor(r() * 3e8) * 1000); k = pool.length - 1 - Math.floor(r() * r() * pool.length); out.push({ t: pool[k], v: Math.floor(r() * 300), enc: k % 4096 }); }
+      return out;
+    },
     // 300,000 link objects as a laid-out network keeps them: ids, a few decimals, noisy computed coordinates, a color, a kind
     'nfm-links': function (n) {
       var r = rng(11), out = [], i, f, t, kinds = ['flow', 'ref', 'dep', 'alias'];

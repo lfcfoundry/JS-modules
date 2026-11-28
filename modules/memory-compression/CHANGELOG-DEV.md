@@ -5,10 +5,10 @@ What changed in each version, newest first, for developers, in three depths: Qui
 ## 2.21.0 · API 2 · 2026-11-27
 
 ### Quick
-(same as before)
+2.21.0 final: DELTA2 (second difference), LB (recency-place way for repeating values, Fenwick rank), lead-kind and lead-way replay rules, nested DICT/DIV/LB dropped below top level, FDICT table bound.
 
 ### Deep
-(same as before)
+2.21.0 final: DELTA2 (second difference), LB (recency-place way for repeating values, Fenwick rank), lead-kind and lead-way replay rules, nested DICT/DIV/LB dropped below top level, FDICT table bound. Real FHIR (held-out): obs.time 127244 to 97538 B (Pcodec 102178), obs.issued 142402 to 112657 B (Pcodec 115023).
 
 ## 2.20.2 · API 2 · 2026-11-27
 
