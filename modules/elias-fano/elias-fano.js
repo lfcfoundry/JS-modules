@@ -179,7 +179,7 @@
     var out = u8.slice(op, op + L.total); release(vp, n * 4); release(op, L.total); return out;
   }
   function buildFlat(values, bias, dense) { var n = values.length; return n > 0 && useWasm() ? buildWasm(values, bias, dense) : buildJS(values, bias, dense); }
-  // 3.0.0: lists of LONG values or more get the faster layouts (a bitmap where it is no bigger, else 2 more low bits); opts.classic keeps the 2.4 layout (smallest Elias-Fano, readable by 2.4)
+  // 3.0.0: lists of LONG values or more get the faster layouts (a bitmap where it is no bigger, runs, else 1 more low bit); opts.classic keeps the 2.4 layout (smallest Elias-Fano, readable by 2.4)
   function pickLayout(values, strict, opts) {
     var n = values.length; if (n < LONG || (opts && opts.classic)) return [0, 0];
     var maxv = values[n - 1], lo = lowBits(n, maxv);
@@ -189,7 +189,7 @@
       if (cR < cB && cR < cE && n >= RUN_MIN * ro.R) return [0, 2];   // runs only when the average run is 16 values or more: shorter runs slow lookups and decode
       if (cB <= cE) return [0, 1];
     }
-    return [lo + 2 <= 16 ? 2 : lo + 1 <= 16 ? 1 : 0, 0];
+    return [lo + 1 <= 16 ? 1 : 0, 0];   // 1 more low bit: nearly all of the decode gain of 2 (0.82-0.84x vs 2.4.1) at +0.2% size; 2 more bits cost 5% size and 5-20% on lookups
   }
   function build(values, opts) {
     var strict = check(values), m = pickLayout(values, strict, opts);
@@ -234,7 +234,8 @@
     k--; var s = S._getJS(k), c = C._getJS(k), cn = k + 1 < R ? C._getJS(k + 1) : n;
     return x - s < cn - c ? c + (x - s) : cn;
   };
-  P._getJS = function (i) { if (this._dense === 2) { var k = this._C._nextJS(i + 1) - 1; return this._S._getJS(k) + (i - this._C._getJS(k)); } var hh = this._sel1(i) - (i & this._dm); return this._base + hh * this._pw + this._lowAt(i); };
+  P._getJS = function (i) { if (this._dense) return this._getDJS(i); return (this._sel1(i) - i) * this._pw + this._lowAt(i); };   // flat lists as in 2.4.1 (one check)
+  P._getDJS = function (i) { if (this._dense === 2) { var k = this._C._nextJS(i + 1) - 1; return this._S._getJS(k) + (i - this._C._getJS(k)); } return this._base + this._sel1(i); };
   // since 2.1.3, as in ef.c: a long run of equal values is crossed by galloping over values instead of bit by bit (the zero search gives up after 8 words, the bucket scan after 8 values)
   P._gallop = function (lo, x) { var n = this.length, hi = lo, step = 1, mid; while (hi < n && this._getJS(hi) < x) { lo = hi + 1; hi = lo + step; step *= 2; } if (hi > n) hi = n; while (lo < hi) { mid = lo + ((hi - lo) >>> 1); if (this._getJS(mid) < x) lo = mid + 1; else hi = mid; } return lo; };
   P._sel0b = function (j) {   // as _sel0, but -1 once the search passes 8 words (a long run of equal values)
@@ -251,8 +252,7 @@
   };
   P._nextJS = function (x) {
     var n = this.length; if (n === 0 || x > this._maxv) return n;
-    if (this._dense === 2) return this._runsNextJS(x);
-    if (this._dense) return this._denseNextJS(x);
+    if (this._dense) return this._dense === 2 ? this._runsNextJS(x) : this._denseNextJS(x);
     var pw = this._pw, h = Math.floor(x / pw), xl = x - h * pw, i, sp, H = this._hi, steps = 0;
     if (h === 0) { i = 0; sp = 0; }
     else { var pz = this._sel0b(h - 1); if (pz < 0) { i = this._gallop(this._s0[(h - 1) >>> this._s0s] - (((h - 1) >>> this._s0s) << this._s0s), h * pw); sp = i + h; } else { i = pz - (h - 1); sp = pz + 1; } }

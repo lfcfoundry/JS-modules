@@ -225,7 +225,7 @@ A list of 1,024 values or more now picks one of three layouts when it is built. 
 
 - **Bitmap:** for strictly increasing lists whose plain bitmap, from the first value, is no bigger than classic Elias-Fano. Lookups count bits, with a rank sample every 512 bits.
 - **Runs:** for strictly increasing lists whose average run of consecutive values is 16 or more. It stores a classic list of run starts and a classic list of counts.
-- **Biased low bits:** for the other long lists. They keep 1 or 2 more low bits than the smallest layout (while that stays 16 or below), so each byte of high bits holds more values and decoding is faster.
+- **One more low bit:** for the other long lists. They keep 1 more low bit than the smallest layout (while that stays 16 or below), so each byte of high bits holds more values and decoding is faster, for about 0.2% more size. Files with 2 more low bits (written by research builds) still read.
 
 `intersect` also uses the layouts. It has word paths for bitmap and run lists, a lopsided walk when one list is 16 times longer or more, stretch-skipping decode, and a SIMD merge.
 
