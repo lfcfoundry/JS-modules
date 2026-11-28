@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.23.1 · API 2 · 2026-11-28
+
+### Quick
+Pack cost cut in the WebAssembly writer and search, same bytes as 2.23.0 on every tested column (52 real columns, 1,000 random blocks; JavaScript and WebAssembly byte-identical).
+
+### Deep
+Pack cost cut in the WebAssembly writer and search, same bytes as 2.23.0 on every tested column (52 real columns, 1,000 random blocks; JavaScript and WebAssembly byte-identical). Bulk byte copies (tw_cpy), bit packing 32 bits at a time (tw_bits, eg_enc), the LB keep rule checked before its Fenwick counting pass (lb_map), and a provable lower bound on rANS size that skips EG and ENT encodes that cannot beat the best way so far (entropy of the counts less 0.001 bit a symbol, which is more than rANS states can save). Browser medians, pack time vs 2.23.0 (same page, alternating, 11 rounds), Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: FHIR proc.end 0.68 / 0.76 / 0.83; proc.start 0.75 / 0.78 / 1.00; med.authored 0.74 / 0.76 / 1.00; cond.onset 0.65 / 0.69 / 1.00; enc.time 0.71 / 0.71 / 1.00; SEC 0.94 / 0.93 / 0.97; SBA 0.94 / 0.92 / 0.95-1.00 (rerun, 31 rounds); retail unit price 0.69 / 0.94 / 0.90; COVID deaths 0.85 / 0.86 / 0.88; held-out ZIP 0.86 / 0.85 / 1.00; held-out invoice date 0.97 / 0.97 / 0.93. WebKitGTK times are whole milliseconds. Against 2.22.0 on FHIR dates: med.authored, cond.onset, cond.recorded, enc.time and dr.issued 0.28 to 1.08; proc.end still 1.27 / 1.41 / 1.33 (was 1.8 to 2.1).
+
 ## 2.23.0 · API 2 · 2026-11-28
 
 ### Quick
