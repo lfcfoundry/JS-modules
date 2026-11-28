@@ -164,13 +164,34 @@ EXPORT u32 fsst_decode_col(const u8 *codes, const u32 *coff, u32 n, u8 *out, u32
 /* ---- the number picker's loops (src/picker.js): rANS, byte planes, bit packing. Same bytes and same numbers as the JavaScript there. ----
  * Every function works on memory the caller filled; none keeps anything between calls except the two rANS tables (one stream at a time). */
 #define RS_RL (1u << 23)
-static unsigned short rs_cum[257]; static u8 rs_slot[4096];
+#define RI_MIN 2048u   /* streams of this many symbols or more use 4 states (12 bytes more, decodes about 2x faster) */
+static unsigned short rs_cum[257]; static u8 rs_slot[4096] __attribute__((aligned(8))); static u32 rs_f[256];
 /* Decodes n bytes from a rANS stream. freq: 256 frequencies that add up to 4096 (JavaScript checked). delta: 1 when the bytes are differences (running sum is applied). Returns 0, or -1 for a cut stream. */
 EXPORT int rans_dec(const u8 *src, u32 len, u32 n, const unsigned short *freq, u8 *out, int delta) {
   u32 i, s, c = 0, q, x, p = 4, m;
   if (len < 4) return -1;
-  for (s = 0; s < 256; s++) { u32 f = freq[s]; rs_cum[s] = (unsigned short)c; for (q = 0; q < f && c + q < 4096; q++) rs_slot[c + q] = (u8)s; c += f; }
+  for (s = 0; s < 256; s++) {             /* the slot table, filled 8 bytes at a time where a symbol's run allows it */
+    u32 f = freq[s], e; rs_f[s] = f; rs_cum[s] = (unsigned short)c; e = c + f > 4096 ? 4096 : c + f; q = c;
+    if (e - q >= 16) { u64 rep = 0x0101010101010101ULL * s; for (; q & 7; q++) rs_slot[q] = (u8)s; for (; q + 8 <= e; q += 8) *(u64 *)(rs_slot + q) = rep; }
+    for (; q < e; q++) rs_slot[q] = (u8)s;
+    c += f;
+  }
   rs_cum[256] = (unsigned short)c;
+  if (src[3] & 0x80) {                    /* since 2.22.0: 4 states take turns (value i uses state i % 4), so 4 values decode side by side; a 1-state stream never sets this bit */
+    u32 xs[4], j; if (len < 16) return -1;
+    for (j = 0; j < 4; j++) xs[j] = (u32)src[4 * j] | ((u32)src[4 * j + 1] << 8) | ((u32)src[4 * j + 2] << 16) | ((u32)src[4 * j + 3] << 24);
+    xs[0] &= 0x7FFFFFFFu; p = 16;
+    /* no branches in the loop: a state needs at most 2 new bytes (it is at least 2^11 after a step), each taken by a select; reads past the end see a 0 and are caught after the loop */
+#define RI_STEP(J, I) { u32 xx = xs[J], b; m = xx & 4095; s = rs_slot[m]; out[I] = (u8)s; xx = (u32)rs_f[s] * (xx >> 12) + m - rs_cum[s]; \
+      b = xx < RS_RL; xx = b ? (xx << 8) | src[p < len ? p : len - 1] : xx; p += b; \
+      b = xx < RS_RL; xx = b ? (xx << 8) | src[p < len ? p : len - 1] : xx; p += b; xs[J] = xx; }
+    for (i = 0; i + 4 <= n; i += 4) { RI_STEP(0, i) RI_STEP(1, i + 1) RI_STEP(2, i + 2) RI_STEP(3, i + 3) }
+    for (; i < n; i++) RI_STEP(i & 3, i)
+#undef RI_STEP
+    if (p > len) return -1;
+    if (delta) for (i = 1; i < n; i++) out[i] = (u8)(out[i - 1] + out[i]);
+    return 0;
+  }
   x = (u32)src[0] | ((u32)src[1] << 8) | ((u32)src[2] << 16) | ((u32)src[3] << 24);
   for (i = 0; i < n; i++) {
     u64 t;
@@ -186,6 +207,17 @@ EXPORT int rans_dec(const u8 *src, u32 len, u32 n, const unsigned short *freq, u
 EXPORT u32 rans_enc(const u8 *src, u32 n, const unsigned short *freq, u8 *out, u32 cap) {
   unsigned short cum[257]; u32 s, c = 0, p = cap, x = RS_RL, i, k;
   for (s = 0; s < 256; s++) { cum[s] = (unsigned short)c; c += freq[s]; }
+  if (n >= RI_MIN) {                      /* 4 states taking turns, written so the decoder reads them first (state 0 carries the 4-state mark in its top bit) */
+    u32 xs[4] = { RS_RL, RS_RL, RS_RL, RS_RL }, j;
+    for (i = n; i-- > 0;) {
+      u32 f, xm, q, xx; j = i & 3; xx = xs[j];
+      s = src[i]; f = freq[s]; xm = (2048u << 8) * f;
+      while (xx >= xm) { out[--p] = (u8)xx; xx >>= 8; }
+      q = xx / f; k = xx - q * f; xs[j] = (q << 12) + k + cum[s];
+    }
+    for (j = 4; j-- > 0;) { u32 v = xs[j] | (j ? 0u : 0x80000000u); for (k = 4; k-- > 0;) out[--p] = (u8)(v >> (8 * k)); }
+    return cap - p;
+  }
   for (i = n; i-- > 0;) {
     u32 f, xm, q;
     s = src[i]; f = freq[s]; xm = (2048u << 8) * f;
@@ -548,4 +580,145 @@ EXPORT u32 enc_tree(const double *a, u32 n, const u8 *tree, u8 *out, u32 cap, u8
   w.p = out; w.end = out + cap; w.sp = scratch; w.send = scratch + scap; w.bad = 0;
   if (!tw_node(&w, a, n, &tp, (int)depth) || w.bad) return 0;
   return (u32)(w.p - out);
+}
+
+/* ---- dec_block (since 2.22.0): one whole block of the picker (whole numbers, or decimals as ALP) decoded in one call, the reverse of enc_tree, for the ways
+ * RAW 0, CONST 1, FOR 2, DELTA 3, RLE 4, DICT 5, PFOR 6, DIV 7, ENT 8, EG 9, DEC 10 and DELTA2 11. The same numbers as decChunk in src/picker.js. Returns 1, or 0 for anything
+ * it does not handle or that looks damaged; the JavaScript then decodes that block itself (and reports damage the usual way). src needs 16 spare bytes after len. */
+typedef struct { const u8 *b; u32 p, len; u8 *sp, *send; int bad; } TR;
+static void tr_cpy(void *d, const void *s, u32 k) { u8 *o = (u8 *)d; const u8 *q = (const u8 *)s; u32 j; for (j = 0; j < k; j++) o[j] = q[j]; }
+static u32 tr_u8(TR *r) { if (r->p >= r->len) { r->bad = 1; return 0; } return r->b[r->p++]; }
+static double tr_vi(TR *r) { double x = 0, m = 1; u32 c, k = 0; do { if (r->p >= r->len || k++ >= 8) { r->bad = 1; return 0; } c = r->b[r->p++]; x += (double)(c & 127) * m; m *= 128; } while (c & 128); return x; }
+static double tr_zi(TR *r) { double z = tr_vi(r); int odd = z < 9007199254740992.0 ? (int)((u64)z & 1) : 0; return odd ? -(z + 1) / 2 : z / 2; }
+static const u8 *tr_bytes(TR *r, double k) { const u8 *o; if (!(k >= 0) || (double)r->p + k > (double)r->len) { r->bad = 1; return 0; } o = r->b + r->p; r->p += (u32)k; return o; }
+static void *tr_alloc(TR *r, double bytes) { u8 *o = r->sp; u32 b; if (!(bytes >= 0) || bytes > 268435456.0) { r->bad = 1; return 0; } b = ((u32)bytes + 15) & ~15u; if (r->sp + b > r->send) { r->bad = 1; return 0; } r->sp += b; return o; }
+static int tr_table(TR *r, unsigned short *freq) {
+  const u8 *bm = tr_bytes(r, 32); u32 i, tot = 0; if (!bm) return -1;
+  for (i = 0; i < 256; i++) { freq[i] = 0; if ((bm[i >> 3] >> (i & 7)) & 1) { double v = tr_vi(r) + 1; if (r->bad || v > 4096) return -1; tot += (u32)v; if (tot > 4096) return -1; freq[i] = (unsigned short)v; } }
+  return tot == 4096 ? 0 : -1;
+}
+static u8 *tr_rans(TR *r, u32 n, const unsigned short *freq) {       /* the symbols of one rANS stream (length, then bytes) */
+  double rl = tr_vi(r); const u8 *s; u8 *o;
+  if (r->bad) return 0; s = tr_bytes(r, rl); o = (u8 *)tr_alloc(r, n + 16); if (!s || !o) return 0;
+  if (rans_dec(s, (u32)rl, n, freq, o, 0) < 0) { r->bad = 1; return 0; }
+  return o;
+}
+static int dec_i(TR *r, u32 n, int depth, double *out) {
+  u32 sch, i; double mn, m, c, b, g; double *d, *e;
+  if (depth > 4 || r->bad) return -1;
+  sch = tr_u8(r); if (r->bad) return -1;
+  switch (sch) {
+    case 0: { const u8 *s = tr_bytes(r, (double)n * 8); if (!s) return -1; tr_cpy(out, s, n * 8); return 0; }
+    case 1: mn = tr_zi(r); if (r->bad) return -1; for (i = 0; i < n; i++) out[i] = mn; return 0;
+    case 2: case 6: {
+      u32 bw; double ne = 0; const u8 *s;
+      mn = tr_zi(r); bw = tr_u8(r); if (sch == 6) ne = tr_vi(r);
+      if (r->bad || bw > (sch == 6 ? 31u : 32u) || ne > n) return -1;
+      if (!bw) { for (i = 0; i < n; i++) out[i] = mn; }
+      else { s = tr_bytes(r, __builtin_ceil((double)n * bw / 8)); if (!s) return -1; bp_unpack(s, n, bw, mn, out); }
+      if (sch == 6 && ne > 0) {
+        u32 k, nn = (u32)ne; double p = -1, lim = (double)((u64)1 << bw);
+        d = (double *)tr_alloc(r, ne * 8); e = (double *)tr_alloc(r, ne * 8);
+        if (!d || !e || dec_i(r, nn, depth + 1, d) || dec_i(r, nn, depth + 1, e)) return -1;
+        for (k = 0; k < nn; k++) { p += d[k] + 1; if (!(p >= 0 && p < n) || p != __builtin_floor(p)) return -1; out[(u32)p] += e[k] * lim; }
+      }
+      return 0;
+    }
+    case 3:
+      if (n < 1) return -1;
+      c = tr_zi(r); d = (double *)tr_alloc(r, (double)n * 8); if (r->bad || !d || dec_i(r, n - 1, depth + 1, d)) return -1;
+      delta_dec(d, n - 1, c, out); return 0;
+    case 4:
+      m = tr_vi(r); if (r->bad || m > n) return -1;
+      d = (double *)tr_alloc(r, m * 8); e = (double *)tr_alloc(r, m * 8);
+      if (!d || !e || dec_i(r, (u32)m, depth + 1, d) || dec_i(r, (u32)m, depth + 1, e)) return -1;
+      return rle_dec(d, e, (u32)m, n, out) ? -1 : 0;
+    case 5:
+      m = tr_vi(r); if (r->bad || m > n || m > 65536) return -1;
+      d = (double *)tr_alloc(r, m * 8); e = (double *)tr_alloc(r, (double)n * 8);
+      if (!d || !e || dec_i(r, (u32)m, depth + 1, d) || dec_i(r, n, depth + 1, e)) return -1;
+      for (i = 0; i < n; i++) { c = e[i]; if (!(c >= 0 && c < m) || c != __builtin_floor(c)) return -1; out[i] = d[(u32)c]; }
+      return 0;
+    case 7:
+      b = tr_zi(r); g = tr_vi(r); if (r->bad || dec_i(r, n, depth + 1, out)) return -1;
+      for (i = 0; i < n; i++) out[i] = out[i] * g + b;
+      return 0;
+    case 8: case 9: {
+      unsigned short freq[256]; u32 sh = 0; const u8 *s; u8 *sy;
+      if (sch == 8) { mn = tr_zi(r); sh = tr_u8(r); if (r->bad || sh > 32) return -1; } else if (n < 1) return -1;
+      if (tr_table(r, freq)) return -1;
+      sy = tr_rans(r, n, freq); if (!sy) return -1;
+      if (sch == 8) { s = sh ? tr_bytes(r, __builtin_ceil((double)n * sh / 8)) : r->b + r->p; if (!s) return -1; ent_dec(sy, n, sh, mn, s, out); return 0; }
+      { int bits = eg_bits(sy, n); if (bits < 0) return -1; s = tr_bytes(r, __builtin_ceil((double)bits / 8)); if (!s) return -1; eg_dec(sy, n, s, out); return 0; }
+    }
+    case 10:
+      d = (double *)tr_alloc(r, (double)n * 8); e = (double *)tr_alloc(r, (double)n * 8);
+      if (!d || !e || dec_i(r, n, depth + 1, e) || dec_i(r, n, depth + 1, d)) return -1;
+      return dec_join(d, e, n, out) ? -1 : 0;
+    case 12: {                            /* LB: place in the list of different values by latest use (Fenwick counts of the latest places), as in decInts */
+      i32 *seen; u32 k = 0, o = 0, lim1 = 1, t, pp, y; int qq; double x = 0, z;
+      m = tr_vi(r); if (r->bad || !(m >= 1 && m <= n)) return -1;
+      d = (double *)tr_alloc(r, (double)n * 8); e = (double *)tr_alloc(r, m * 8); seen = (i32 *)tr_alloc(r, ((double)n + 1) * 4);
+      if (!d || !e || !seen || dec_i(r, n, depth + 1, d) || dec_i(r, (u32)m, depth + 1, e)) return -1;
+      for (t = 0; t <= n; t++) seen[t] = 0;
+      while (lim1 * 2 <= n) lim1 *= 2;
+      for (i = 0; i < n; i++) {
+        z = d[i];
+        if (z == 0) { if (o >= (u32)m) return -1; x = e[o++]; k++; }
+        else {
+          if (!(z >= 1 && z <= k) || z != __builtin_floor(z)) return -1;
+          for (pp = 0, qq = (int)(k - (u32)z + 1), y = lim1; y > 0; y >>= 1) if (pp + y <= n && seen[pp + y] < qq) { pp += y; qq -= seen[pp]; }
+          x = out[pp]; for (t = pp + 1; t <= n; t += t & (0u - t)) seen[t]--;
+        }
+        for (t = i + 1; t <= n; t += t & (0u - t)) seen[t]++;
+        out[i] = x;
+      }
+      return o == (u32)m ? 0 : -1;
+    }
+    case 11:
+      if (n < 3) return -1;
+      c = tr_zi(r); b = tr_zi(r); d = (double *)tr_alloc(r, (double)n * 8); if (r->bad || !d || dec_i(r, n - 2, depth + 1, d)) return -1;
+      out[0] = c; c += b; out[1] = c;
+      for (i = 2; i < n; i++) { b += d[i - 2]; c += b; out[i] = c; }
+      return 0;
+  }
+  return -1;
+}
+EXPORT int dec_block(const u8 *src, u32 len, u32 n, double *out, u8 *scratch, u32 scap) {
+  TR r; u32 id, i;
+  r.b = src; r.p = 0; r.len = len; r.sp = scratch; r.send = scratch + scap; r.bad = 0;
+  id = tr_u8(&r);
+  if (id == 0) return dec_i(&r, n, 0, out) || r.bad ? 0 : 1;
+  if (id == 4) {                          /* FDICT: a table of doubles, then the codes */
+    double m = tr_vi(&r), *keys, *codes; u32 mm;
+    if (r.bad || m > n || m > 65536) return 0;
+    mm = (u32)m; keys = (double *)tr_alloc(&r, m * 8); codes = (double *)tr_alloc(&r, (double)n * 8); if (!keys || !codes) return 0;
+    { const u8 *s = tr_bytes(&r, m * 8); if (!s) return 0; tr_cpy(keys, s, mm * 8); }
+    if (dec_i(&r, n, 1, codes)) return 0;
+    for (i = 0; i < n; i++) { double c = codes[i]; if (!(c >= 0 && c < m) || c != __builtin_floor(c)) return 0; out[i] = keys[(u32)c]; }
+    return r.bad ? 0 : 1;
+  }
+  if (id == 1) {
+    u32 e = tr_u8(&r), f = tr_u8(&r); double ne = tr_vi(&r), *ints, *gp, *nr, p = -1; u32 k, nn;
+    if (r.bad || e > 22 || f > e || ne > n) return 0;
+    ints = out; if (dec_i(&r, n, 1, ints)) return 0;
+    for (i = 0; i < n; i++) out[i] = ints[i] * P10[f] / P10[e];
+    if (ne > 0) {
+      nn = (u32)ne; gp = (double *)tr_alloc(&r, ne * 8); nr = (double *)tr_alloc(&r, ne * 8);
+      if (!gp || !nr || dec_i(&r, nn, 1, gp) || dec_i(&r, nn, 1, nr)) return 0;
+      for (k = 0; k < nn; k++) { p += gp[k] + 1; if (!(p >= 0 && p < n) || p != __builtin_floor(p)) return 0; gp[k] = p; }
+      for (k = 0; k < nn; k++) {
+        double cc = nr[k]; u32 q = (u32)gp[k];
+        if (cc == 0) { const u8 *s = tr_bytes(&r, 8); if (!s) return 0; tr_cpy(out + q, s, 8); }
+        else {
+          double z, dist; u64 bits;
+          if (!(cc >= 1 && cc <= 2097153) || cc != __builtin_floor(cc)) return 0;
+          z = cc - 1; dist = ((u64)z & 1) ? -(z + 1) / 2 : z / 2;
+          tr_cpy(&bits, out + q, 8); bits += (u64)(long long)dist; tr_cpy(out + q, &bits, 8);
+        }
+      }
+    }
+    return r.bad ? 0 : 1;
+  }
+  return 0;
 }

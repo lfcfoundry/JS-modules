@@ -96,7 +96,7 @@
     }
 
     // ---------------------------------------------------------------- rANS entropy coding of bytes (static table, 12-bit frequencies)
-    var SB = 12, M = 1 << SB, RL = 1 << 23;
+    var SB = 12, M = 1 << SB, RL = 1 << 23, RI_MIN = 2048;
     function ransEncode(syms, freq, cum) {                     // the bytes (a view; use them before the next call); wasm helper for 1,024 symbols and up
       var kw = KWC, n = syms.length, sP, fP, oP, cap, len;
       if (kw && n >= 1024) {
@@ -112,6 +112,7 @@
     function ransEncodeJS(syms, freq, cum) {
       var out = new Uint8Array(syms.length * 2 + 64), p = out.length, x = RL, i, s, f, xm, q, k, xmax = new Float64Array(256), inv = new Float64Array(256);
       for (s = 0; s < 256; s++) if (freq[s]) { xmax[s] = ((RL >>> SB) << 8) * freq[s]; inv[s] = 1 / freq[s]; }
+      if (syms.length >= RI_MIN) return ransEncodeJS4(syms, freq, cum, out, xmax, inv);      // since 2.22.0: 4 states for long streams (its own function, so this one stays small for the JIT)
       for (i = syms.length - 1; i >= 0; i--) {
         s = syms[i]; f = freq[s]; xm = xmax[s];
         while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
@@ -122,7 +123,21 @@
       for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255;
       return out.subarray(p);
     }
-    function ransDecode(bytes, n, freq, cum, slot) {
+    function ransEncodeJS4(syms, freq, cum, out, xmax, inv) {      // 4 states taking turns, the same bytes as the wasm helper's rans_enc
+      var p = out.length, x, i, s, f, xm, q, k;
+      var xs = [RL, RL, RL, RL], j;
+      for (i = syms.length - 1; i >= 0; i--) {
+        j = i & 3; x = xs[j]; s = syms[i]; f = freq[s]; xm = xmax[s];
+        while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
+        q = (x * inv[s]) | 0; k = x - q * f;
+        if (k >= f) { q++; k -= f; } else if (k < 0) { q--; k += f; }
+        xs[j] = (q << SB) + k + cum[s];
+      }
+      for (j = 3; j >= 0; j--) { x = j ? xs[j] : (xs[0] | 0x80000000) >>> 0; for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255; }
+      return out.subarray(p);
+    }
+    function ransDecode(bytes, n, tb) {
+      var freq = tb.freq;
       var kw = KWC, len = bytes.length, sP, fP, oP, out;
       if (kw && n >= 1024 && len >= 4 && len <= n * 2 + 64) {
         sP = kw.base; fP = kal(sP + len + 16); oP = kal(fP + 512);
@@ -132,11 +147,12 @@
           out = new Uint8Array(n); out.set(new Uint8Array(kw.mem.buffer, oP, n)); return out;
         }
       }
-      return ransDecodeJS(bytes, n, freq, cum, slot);
+      fillTable(tb); return ransDecodeJS(bytes, n, freq, tb.cum, tb.slot);
     }
     function ransDecodeJS(bytes, n, freq, cum, slot) {
       var out = new Uint8Array(n), len = bytes.length, p = 4, x, i, m, s;
       if (len < 4) pfail('bad entropy data');
+      if (bytes[3] & 128) return ransDecodeJS4(bytes, n, freq, cum, slot, out);      // 4 states taking turns; a 1-state stream never sets this bit
       x = (bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24) >>> 0;
       for (i = 0; i < n; i++) {
         m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
@@ -156,12 +172,37 @@
       for (i = 0; i < 256; i++) if (freq[i]) bm[i >> 3] |= 1 << (i & 7);
       w.bytes(bm); for (i = 0; i < 256; i++) if (freq[i]) w.vi(freq[i] - 1);
     }
+    function ransDecodeJS4(bytes, n, freq, cum, slot, out) {      // value i uses state i % 4
+      var len = bytes.length, p, x, i, m, s;
+      if (len < 16) pfail('bad entropy data');
+      var xs = new Uint32Array(4), j;
+      for (j = 0; j < 4; j++) xs[j] = (bytes[4 * j] | bytes[4 * j + 1] << 8 | bytes[4 * j + 2] << 16 | bytes[4 * j + 3] << 24) >>> 0;
+      xs[0] &= 0x7FFFFFFF; p = 16;
+      for (i = 0; i < n; i++) {
+        j = i & 3; x = xs[j]; m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
+        while (x < RL) { if (p >= len) pfail('bad entropy data'); x = ((x << 8) | bytes[p++]) >>> 0; }
+        xs[j] = x;
+      }
+      return out;
+    }
     function readTable(r) {              // the frequency table, checked: it must add up to exactly 4096
-      var bm = r.bytes(32), freq = new Uint16Array(256), cum = new Uint16Array(257), slot = new Uint8Array(M), i, tot = 0, v;
+      var bm = r.bytes(32), freq = new Uint16Array(256), i, tot = 0, v;
       for (i = 0; i < 256; i++) if ((bm[i >> 3] >> (i & 7)) & 1) { v = r.vi() + 1; tot += v; if (tot > M) pfail('bad frequencies'); freq[i] = v; }
       if (tot !== M) pfail('bad frequencies');
+      return { freq: freq, cum: null, slot: null };      // since 2.22.0 the cum and slot tables are made only when the plain JavaScript decoder needs them (the wasm helper makes its own)
+    }
+    function fillTable(tb) {
+      if (tb.slot) return tb;
+      var freq = tb.freq, cum = new Uint16Array(257), slot = new Uint8Array(M), i;
       for (i = 0; i < 256; i++) { cum[i + 1] = cum[i] + freq[i]; slot.fill(i, cum[i], cum[i + 1]); }
-      return { freq: freq, cum: cum, slot: slot };
+      tb.cum = cum; tb.slot = slot; return tb;
+    }
+    function ransInto(kw, bytes, n, tb, dP, scP) {     // decodes straight into the helper's memory at dP (scP: scratch room for the stream and the table); false when it does not fit
+      var len = bytes.length, fP = kal(scP + len + 16);
+      if (len < 4 || len > n * 2 + 64 || !kwRoom(fP + 512 - kw.base + 64)) return false;
+      new Uint8Array(kw.mem.buffer, scP, len).set(bytes); new Uint16Array(kw.mem.buffer, fP, 256).set(tb.freq);
+      if (kw.x.rans_dec(scP, len, n, fP, dP, 0) < 0) pfail('bad entropy data');
+      return true;
     }
 
     // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
@@ -239,11 +280,11 @@
       return w.out();
     }
     function egDecode(r, n, out) {
-      var t = readTable(r), rl = r.vi(), syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot), bits = 0, i, c, nb, pos = 0, idx, off, lo, hi, u, tmp, src, bytes, kw = KWC, sP, bP, oP;
-      if (kw && n >= 1024) {                                                         // since 2.20.2: the bit reading in the WebAssembly helper
+      var t = readTable(r), rl = r.vi(), rb = r.bytes(rl), syms = null, bits = 0, i, c, nb, pos = 0, idx, off, lo, hi, u, tmp, src, bytes, kw = KWC, sP, bP, oP;
+      if (kw && n >= 1024) {                                                         // since 2.20.2: the bit reading in the WebAssembly helper; since 2.22.0 the size classes are decoded straight into its memory
         sP = kw.base; bP = kal(sP + n);
-        if (kwRoom(bP + n * 8 + 64 - kw.base + 64)) {
-          new Uint8Array(kw.mem.buffer, sP, n).set(syms); bits = kw.x.eg_bits(sP, n);
+        if (kwRoom(bP + n * 8 + 64 - kw.base + 64) && ransInto(kw, rb, n, t, sP, kal(sP + n * 24 + 4096))) {
+          bits = kw.x.eg_bits(sP, n);
           if (bits < 0) pfail('bad size class');
           bytes = Math.ceil(bits / 8); if (!kwRoom(kal(bP + bytes + 16) + n * 8 - kw.base + 64)) bits = -2;
           else {
@@ -254,6 +295,7 @@
         }
         bits = 0;
       }
+      syms = ransDecode(rb, n, t);
       for (i = 0; i < n; i++) { c = syms[i]; if (c > 53) pfail('bad size class'); if (c > 1) bits += c - 1; }
       bytes = Math.ceil(bits / 8); src = r.bytes(bytes); tmp = new Uint32Array(Math.ceil(bytes / 4) + 2); new Uint8Array(tmp.buffer).set(src);
       for (i = 0; i < n; i++) {
@@ -497,23 +539,22 @@
     }
     function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
     function decInts(r, n, depth, into) {
-      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div, q, y, bytes, src, seen, x;
+      var sch = r.u8(), out = into || new Float64Array(n), rb, i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div, q, y, bytes, src, seen, x;
       if (depth > MAX_DEPTH) pfail('data nested too deep');
       if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
       if (sch === IS.CONST) { out.fill(r.zi()); return out; }
       if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn, into); }
       if (sch === IS.ENT) {
-        mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
-        syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot);
-        if (KWC && n >= 1024 && sh <= 32) {                                         // since 2.20.2: the low bits and the sum in the WebAssembly helper
+        mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi(); rb = r.bytes(rl);
+        if (KWC && n >= 1024 && sh <= 32) {                                         // since 2.20.2: the low bits and the sum in the WebAssembly helper; since 2.22.0 the symbols are decoded straight into its memory
           bytes = Math.ceil(n * sh / 8); q = KWC.base; i = kal(q + n); y = kal(i + bytes + 16);
-          if (kwRoom(y + n * 8 + 64 - KWC.base + 64)) {
-            new Uint8Array(KWC.mem.buffer, q, n).set(syms); src = sh ? r.bytes(bytes) : null;
+          if (kwRoom(y + n * 8 + 64 - KWC.base + 64) && ransInto(KWC, rb, n, t, q, kal(y + n * 8 + 64))) {
+            src = sh ? r.bytes(bytes) : null;
             new Uint8Array(KWC.mem.buffer, i, bytes + 8).fill(0).set(src || new Uint8Array(0)); KWC.x.ent_dec(q, n, sh, mn, i, y);
             out.set(new Float64Array(KWC.mem.buffer, y, n)); return out;
           }
         }
-        low = bpRead(r, n, sh); div = Math.pow(2, sh);
+        syms = ransDecode(rb, n, t); low = bpRead(r, n, sh); div = Math.pow(2, sh);
         for (i = 0; i < n; i++) out[i] = syms[i] * div + low[i] + mn;
         return out;
       }
@@ -842,7 +883,7 @@
         if (tot !== M) pfail('bad frequencies');
         rl = r.vi(); sub = r.bytes(rl);
         if (rl > cap) {                                                                     // longer than any packer here writes: the plain way
-          t = tablesOf(fq); v = ransDecode(sub, n, t.freq, t.cum, t.slot);
+          t = tablesOf(fq); v = ransDecode(sub, n, t);
           if (mode === 3) for (i = 1; i < n; i++) v[i] = (v[i - 1] + v[i]) & 255;
           u8.set(v, dst); continue;
         }
@@ -871,7 +912,7 @@
         if (mode === 1) { planes.push(new Uint8Array(n).fill(r.u8())); continue; }
         if (mode === 0) { planes.push(r.bytes(n).slice()); continue; }
         if (mode !== 2 && mode !== 3) pfail('bad column');
-        t = readTable(r); rl = r.vi(); p = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot);
+        t = readTable(r); rl = r.vi(); p = ransDecode(r.bytes(rl), n, t);
         if (mode === 3) for (i = 1; i < n; i++) p[i] = (p[i - 1] + p[i]) & 255;
         planes.push(p);
       }
@@ -915,7 +956,17 @@
       w = new Wr(); w.need(best.length + 1); w.u8(bs); w.bytes(best); return w.out();
     }
     function into1(out, at, n, got) { if (got.buffer !== out.buffer || got.byteOffset !== out.byteOffset + at * 8) out.set(got, at); }      // a block that was not decoded in place is copied in
+    function decBlockWasm(r, n, into) {      // since 2.22.0: the whole block in one WebAssembly call (dec_block); null when the helper does not handle it (the JavaScript below then does)
+      var kw = KWC, len = r.b.length - r.p, sP, oP, scP, scap, m, out;
+      if (!kw || !kw.x.dec_block || n < 1024) return null;
+      sP = kw.base; oP = kal(sP + len + 32); scP = kal(oP + n * 8); scap = n * 96 + 65536;
+      if (!kwRoom(scP + scap - kw.base + 64)) return null;
+      m = new Uint8Array(kw.mem.buffer, sP, len + 16); m.set(r.b.subarray(r.p)); m.fill(0, len);
+      if (!kw.x.dec_block(sP, len, n, oP, scP, scap)) return null;
+      out = into || new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
+    }
     function decChunk(r, n, into) {
+      var fast = decBlockWasm(r, n, into); if (fast) return fast;
       var id = r.u8(), out, i;
       if (id === CS.INTS) return decInts(r, n, 0, into);
       if (id === CS.ALP) return decALP(r, n, 0, into);
@@ -941,7 +992,7 @@
     var AUTO_MAX = 100000;
     function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
-      var autoQ = !!(opts && opts.auto), stable = false, stableD = false, prevBpn = 0, blk, qk, tplNode = null, tplCS = -1, tplMiss = 0, tplOff = false;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
+      var autoQ = !!(opts && opts.auto), stable = false, stableD = false, prevBpn = 0, blk, qk, tplNode = null, tplCS = -1, tplMiss = 0, tplOff = false, tplK = 0;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       if (autoQ && opts.tplIn && opts.tplIn.node) { tplNode = opts.tplIn.node; tplCS = opts.tplIn.cs; won = opts.tplIn.won.slice(); wonInts = opts.tplIn.wonInts.slice(); k = 1; stable = opts.tplIn.stable; stableD = opts.tplIn.stableD; }      // since 2.19.2: the ways a first pack on this column's first 8,192 numbers found, so the first block is not searched again
       w.vi(n); w.vi(CHUNK);
@@ -952,8 +1003,8 @@
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
         o.recTpl = autoQ && !tplOff && (full || !tplNode); o.tplNode = autoQ && !tplOff && !full ? tplNode : null; o.tplCS = tplCS;      // since 2.19.2: a full block writes down the way that won at each level, the others replay it
         part = encChunk(blk, 2, o, full ? null : won);
-        if (autoQ && !tplOff && (full || !tplNode) && o.outTpl) { tplNode = o.outTpl; tplCS = o.outCS; }
-        else if (autoQ && !full && tplNode && prevBpn > 0 && part.length / blk.length > prevBpn * 1.6) { o = Object.assign({}, o, { prefer: null, recTpl: true, tplNode: null }); part = encChunk(blk, 2, o, null); if (o.outTpl && ++tplMiss < 3) { tplNode = o.outTpl; tplCS = o.outCS; } else { tplNode = null; tplOff = true; } }      // a replayed block 25% bigger than the one before: try every way again   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
+        if (autoQ && !tplOff && (full || !tplNode) && o.outTpl) { tplNode = o.outTpl; tplCS = o.outCS; tplK = k; }
+        else if (autoQ && !full && tplNode && tplK !== k - 1 && prevBpn > 0 && part.length / blk.length > prevBpn * 1.6) { o = Object.assign({}, o, { prefer: null, recTpl: true, tplNode: null }); part = encChunk(blk, 2, o, null); if (o.outTpl && ++tplMiss < 3) { tplNode = o.outTpl; tplCS = o.outCS; tplK = k; } else { tplNode = null; tplOff = true; } }      // a replayed block 25% bigger than the one before: try every way again   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
         if (autoQ && !full && stable && prevBpn > 0 && part.length / blk.length > prevBpn * 99) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stable = false; }
         else if (autoQ && !full && stableD && prevBpn > 0 && part.length / blk.length > prevBpn * 1.5) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stableD = false; }   // since 2.19.0: a decimal column trusts the first blocks too (every 32nd block tries all), until a block comes out 1.5 times bigger   // a block far worse than the one before: try every way again and stop skipping
         prevBpn = part.length / blk.length;
