@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.4 · API 0 · 2026-11-27
+
+### Quick
+Summary grids keep 20 points at the shares asked for most (qx: p95, 96, 97, 97.5, 98, 98.5, 99, 99.25, 99.5, 99.75 and the low-end mirror).
+
+### Deep
+Summary grids keep 20 points at the shares asked for most (qx: p95, 96, 97, 97.5, 98, 98.5, 99, 99.25, 99.5, 99.75 and the low-end mirror). On real taxi and retail columns those percentiles went from up to 12% off (32% for retail quantity p1) to exact, except two in the sampled middle within the grid's rank error. 31 to 65 bytes more per number column. Old readers ignore qx.
+
 ## 0.26.3 · API 0 · 2026-11-27
 
 ### Quick
