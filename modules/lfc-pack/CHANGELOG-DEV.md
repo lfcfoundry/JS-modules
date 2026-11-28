@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.5 · API 0 · 2026-11-27
+
+### Quick
+summary() and open().summary() gain estimate(key) (true when a key's answers come from a sampled grid) and exact(key), which decodes only that column and answers quantile, countAbove and countBelow exactly (kept per key; a Promise from ope…
+
+### Deep
+summary() and open().summary() gain estimate(key) (true when a key's answers come from a sampled grid) and exact(key), which decodes only that column and answers quantile, countAbove and countBelow exactly (kept per key; a Promise from open()). Real taxi fares: count above 70 reads 13,901 from the grid, 14,453 (true) from exact. Saves and files unchanged.
+
 ## 0.26.4 · API 0 · 2026-11-27
 
 ### Quick

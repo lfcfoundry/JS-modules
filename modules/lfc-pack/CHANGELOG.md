@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.5 · API 0 · 2026-11-27
+- summary: estimate(key) and exact(key) for exact answers
+
 ## 0.26.4 · API 0 · 2026-11-27
 - p95 to p99.75 (and p0.25 to p5) read exact
 
