@@ -1030,6 +1030,33 @@ EXPORT u32 enc_search(const double *a, u32 n, u32 depth, const u8 *ord, u32 nord
   return len;
 }
 
+/* ---- fdict_map (since 2.23.0): the dictionary of a block of doubles for encFDict in picker.js: keys in first-seen order (by bit pattern, so -0 is its own key) and each value's code.
+ * Returns the number of keys; -2 when encFDict gives up (a sample of every step-th value is 95% different, or more than lim keys); -3 when a NaN is in the block (JavaScript then does it).
+ * tab: 2 * size words of scratch, size a power of two at least 2 * n. */
+EXPORT int fdict_map(const double *a, u32 n, u32 step, double lim, double *keys, double *codes, u64 *tab, u32 size) {
+  u32 i, m = 0, msk = size - 1, q, cnt = 0, *code = (u32 *)(tab + size);
+  for (i = 0; i < size; i++) code[i] = 0;
+  if (step) {                            /* the sampled values first (the table is then cleared) */
+    u32 ns = 0;
+    for (i = 0; i < n; i += step) {
+      u64 b; double v = a[i]; if (v != v) return -3; __builtin_memcpy(&b, &v, 8);
+      q = (u32)((b * 0x9E3779B97F4A7C15ull) >> 40) & msk; ns++;
+      while (code[q] && tab[q] != b) q = (q + 1) & msk;
+      if (!code[q]) { code[q] = 1; tab[q] = b; cnt++; }
+    }
+    if ((double)cnt > 0.95 * (double)ns) return -2;
+    for (i = 0; i < size; i++) code[i] = 0;
+  }
+  for (i = 0; i < n; i++) {
+    u64 b; double v = a[i]; if (v != v) return -3; __builtin_memcpy(&b, &v, 8);
+    q = (u32)((b * 0x9E3779B97F4A7C15ull) >> 40) & msk;
+    while (code[q] && tab[q] != b) q = (q + 1) & msk;
+    if (!code[q]) { if ((double)(m + 1) > lim) return -2; tab[q] = b; keys[m++] = v; code[q] = m; }
+    codes[i] = (double)(code[q] - 1);
+  }
+  return (int)m;
+}
+
 /* ---- dec_block (since 2.22.0): one whole block of the picker (whole numbers, or decimals as ALP) decoded in one call, the reverse of enc_tree, for the ways
  * RAW 0, CONST 1, FOR 2, DELTA 3, RLE 4, DICT 5, PFOR 6, DIV 7, ENT 8, EG 9, DEC 10 and DELTA2 11. The same numbers as decChunk in src/picker.js. Returns 1, or 0 for anything
  * it does not handle or that looks damaged; the JavaScript then decodes that block itself (and reports damage the usual way). src needs 16 spare bytes after len. */

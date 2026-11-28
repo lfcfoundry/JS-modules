@@ -793,8 +793,19 @@
       if (mx - mn >= 4194304) return null;
       return { mn: mn, idx: new Uint32Array(mx - mn + 1) };
     }
+    function fdictWasm(a, n, step) {       // { keys, codes } from fdict_map, false when encFDict gives up, null when JavaScript has to do it (a NaN, or no memory)
+      var kw = KWC, size = 1 << (32 - Math.clz32(n * 2 - 1)), aP = kw.base, kP = kal(aP + n * 8), cP = kal(kP + n * 8), tP = kal(cP + n * 8), m;
+      if (!kwRoom(tP + size * 12 - kw.base + 64)) return null;
+      new Float64Array(kw.mem.buffer, aP, n).set(a);
+      m = kw.x.fdict_map(aP, n, step, Math.min(n / 2, 65536), kP, cP, tP, size);
+      if (m === -2) return false;
+      if (m < 0) return null;
+      return { keys: new Float64Array(kw.mem.buffer, kP, m).slice(), codes: new Float64Array(kw.mem.buffer, cP, n).slice() };
+    }
     function encFDict(a, depth, opt, bound) {
       var n = a.length, m = new Map(), i, k, keys, codes, w, sm, st, lim, idx, mn, x, c, step = n > 2048 ? Math.floor(n / 1024) : 0;
+      if (KWC && n >= 1024 && KWC.x.fdict_map && (x = fdictWasm(a, n, step)) !== null) { if (x === false) return null; keys = x.keys; codes = x.codes; }      // since 2.23.0: the same keys and codes from the helper
+      else {
       if (step) { sm = new Set(); for (i = 0; i < n; i += step) sm.add(a[i]); if (sm.size > 0.95 * Math.ceil(n / step)) return null; }       // nearly every sampled value is different: no dictionary will help
       if (n >= 256 && (st = fdWhole(a, n))) {                                   // since 2.19.3: whole numbers in a small range look their dictionary position up in an array, not a Map; same keys in first-seen order, same codes
         lim = Math.min(n / 2, 65536); idx = st.idx; mn = st.mn; keys = []; codes = new Float64Array(n);
@@ -803,6 +814,7 @@
       for (i = 0; i < n; i++) { k = a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]; if (!m.has(k)) m.set(k, m.size); if (m.size > n / 2 || m.size > 65536) return null; }
       keys = Array.from(m.keys()); codes = new Float64Array(n);
       for (i = 0; i < n; i++) codes[i] = m.get(a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]);
+      }
       }
       if (bound && keys.length * 8 >= bound) return null;      // since 2.21.0: the table alone is no smaller than the best way so far
       w = new Wr(); w.vi(keys.length); for (i = 0; i < keys.length; i++) w.f64(keys[i] === '-0' ? -0 : keys[i]);
