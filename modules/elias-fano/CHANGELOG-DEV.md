@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 3.0.0 · API 3 · 2026-11-28
+
+### Quick
+Bitmap, run and biased-low-bit layouts for lists of 1,024+ values; SIMD intersect with word paths, lopsided walk, stretch skipping, trim decode and wider merge. The writer keeps 1 extra low bit (readers also accept 2): at the part-5 gate, 2 extra bits cost 5-20% on lookups and 5% size on a 1M list with repeats; with 1, the research race gives nextGEQ js 0.93-1.04x, nextGEQMany 1.04x, get 1.00x, decode 0.85x, size 1.002x of 2.4.1. Also at the gate: the first list's pointer was the __heap_base WebAssembly.Global object (bug older than 2.4.1), so single nextGEQ/get calls on it took a slow conversion; now +__heap_base (single wasm nextGEQ 0.43-0.60x, get 0.34-0.55x of 2.4.1). ef_next_many batches the first low-bit reads of 8 queries on biased lists only (classic lists keep the old loop), and _lowAt uses shifts while the bit position fits 32 bits. Part-5 same-page gate (1M list with repeats, 3 browsers): nothing more than 5% slower (worst Chromium nextGEQ js +4.3%, noisy).
+
+### Deep
+Bitmap, run and biased-low-bit layouts for lists of 1,024+ values; SIMD intersect with word paths, lopsided walk, stretch skipping, trim decode and wider merge. Real long lists, 3 browsers: size 0.51-0.93x of 2.4.1 (0.47-0.87x roaring), decode 0.66-1.13x BP128, lookups 0.25-0.78x plain array, intersect 0.73-0.89x roaring on geographic/SEC subset/FHIR, 1.0-1.3x behind on retail/SEC. Owner approved 11.28 8:42 AM (card said 2.5.0; major follows API 3). layouts.js 96,480 checks.
+
 ## 2.4.1 · API 2 · 2026-11-27
 
 ### Quick

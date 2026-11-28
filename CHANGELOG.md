@@ -30,7 +30,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [clip-writer](modules/clip-writer/README.md) | 1.4.0 · API 1 | [changelog](modules/clip-writer/CHANGELOG.md) |
 | [zip-open](modules/zip-open/README.md) | 1.21.0 · API 1 | [changelog](modules/zip-open/CHANGELOG.md) |
 | [memory-compression](modules/memory-compression/README.md) | 2.23.1 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
-| [elias-fano](modules/elias-fano/README.md) | 2.4.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
+| [elias-fano](modules/elias-fano/README.md) | 3.0.0 · API 3 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.13.1 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
 | [lfc-pack](modules/lfc-pack/README.md) | 0.26.13 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
@@ -68,6 +68,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 - 2026-11-28 · **memory-compression** 2.23.1 · API 2: Packing is faster with the same bytes: FHIR date columns up to 35% faster than 2.23.0 and other number columns up to 30% faster, none slower. Most FHIR date columns now pack faster than in 2.22.0 while staying 2 to 22% smaller.
 - 2026-11-28 · **memory-compression** 2.23.0 · API 2: Packing number columns is 20 to 50% faster in all three test browsers (SBA loan amounts about twice as fast); no column packs slower than in 2.22.0. Files are the same size (SBA 13 bytes bigger) and open in 2.22.0 too. Date and time columns where values come back later (such as FHIR medication and condition dates) pack 2 to 22% smaller, now under Pcodec, for slower packing on those columns (1.5 to 2.4 times).
 - 2026-11-28 · **lfc-pack** 0.26.13 · API 0: Saving columns that hold -0 is much quicker (one such value no longer sends the whole block down the slow text path); same values read back
+- 2026-11-28 · **elias-fano** 3.0.0 · API 3: Long lists (1,024+ values) pick a bitmap, run or denser layout: files 0.51-0.93x the size, faster lookups and intersect. Older copies cannot read them; build(values, { classic: true }) writes the old layout
 - 2026-11-27 · **memory-compression** 2.22.0 · API 2: Unpacking real number columns is 25 to 50% faster: each block now opens in one WebAssembly call, and the entropy decoder reads 4 values at once. Files are 0.1 to 0.3% bigger; older files still open. Fixed: the small open-only file (memory-compression-read.min.js) can open every number column again; in 2.21.0 it failed on some decimal columns, such as SBA loan amounts.
 - 2026-11-27 · **memory-compression** 2.21.0 · API 2: Running totals and repeating event times pack 15 to 26% smaller (COVID counts and FHIR times now under Pcodec); float columns like SBA pack about 35% faster for 1.6% more bytes. Files using the new ways need 2.21.0 or newer.
 - 2026-11-27 · **memory-compression** 2.20.2 · API 2: Unpacking real number columns is about 25 to 45% faster: the bit reading and the sums now run in the WebAssembly helper. Same files; nothing to change.

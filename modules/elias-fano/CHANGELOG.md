@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 3.0.0 · API 3 · 2026-11-28
+- Long lists (1,024+ values) pick a bitmap, run or denser layout: files 0.51-0.93x the size, faster lookups and intersect. Older copies cannot read them; build(values, { classic: true }) writes the old layout
+
 ## 2.4.1 · API 2 · 2026-11-27
 - pin() now also works on tiny, stored and short lists (2 to 1,023 values), for faster lookups in Firefox and WebKitGTK; off by default.
 
