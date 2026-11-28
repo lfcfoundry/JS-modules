@@ -6,7 +6,7 @@
 
 [**Pick a module**](#pick-a-piece) · [**Live demos**](https://lfcfoundry.github.io/JS-modules/demos.html) · [**Changelog**](CHANGELOG.md) · [**Credits**](CREDITS.md)
 
-![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 55](https://img.shields.io/badge/modules%20and%20tools-55-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
+![license MIT](https://img.shields.io/badge/license-MIT-blue) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![modules and tools 56](https://img.shields.io/badge/modules%20and%20tools-56-informational) ![WebAssembly first](https://img.shields.io/badge/WebAssembly-first-654ff0)
 
 </div>
 
