@@ -192,7 +192,7 @@ Keep a one-file app small and light: smaller data in memory, smaller pages on th
 |---|---|---:|---:|---|---|
 | [elias-fano](modules/elias-fano/README.md) | 2.4.1 | 144.1 | 47.7 | Packs sorted number lists small and searches them without unpacking. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/elias-fano/demo.html) |
 | [guess-gate](modules/guess-gate/README.md) | 1.0.2 | 3.4 | 1.4 | Lets a page draw first guesses during an import without slowing it. | — |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.26.9 | 841.1 | 346.7 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.26.10 | 841.2 | 346.8 | Packs NDJSON into small column files and reads the rows back, exactly if you ask. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/lfc-pack/demo.html) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.3 | 137.3 | 50.1 | LZ4 blocks and frames in WebAssembly, built from fixed release 1.11.1. | — |
 | [memory-compression](modules/memory-compression/README.md) | 2.21.0 | 504.8 | 147.1 | Keeps big arrays, bytes and lists of objects packed in memory and brings them back exactly. | [Demo](https://lfcfoundry.github.io/JS-modules/modules/memory-compression/demo.html) |
 | [single-file-tools](tools/single-file-tools/README.md) *(tool)* | 1.3.0 | 28.7 | 10.8 | Font subsetting, safe inline-SVG tightening and a Zopfli self-extracting packer. | — |
