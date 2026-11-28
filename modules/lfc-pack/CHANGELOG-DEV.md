@@ -2,6 +2,20 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.6 · API 0 · 2026-11-27
+
+### Quick
+Exact value tables (qExact, qn) now cover up to 4,096 different values when each repeats 16 times or more on average; saves are 0 to 8% faster than 0.26.5 despite the extra work. Files and data otherwise unchanged; old readers read them.
+
+### Details
+qExact up to 4,096 values (was 257) when values repeat 16x on average; the encoder's wasm pass counts them (numcolc).
+Save time vs 0.26.5, same-page swapped A/B (4 pairs, taxi 5 cols 1M rows / retail 2 cols 541,909 rows): Chromium 156 0% / -4%, Firefox 158 -1% / -8%, WebKitGTK 2.52.6 -3% / -3%.
+Offsets: 2-byte varint fast path (number encoder 30-40% quicker, same bytes), decimal-digit check in wasm (maxdec), decimal columns read in place by the kernel.
+Taxi fare, tip, distance and retail price, quantity now exact; files +0.3% (taxi) to +0.6% (retail) for the tables.
+
+### Deep
+Exact value tables at no save cost. Counting runs inside numcol's loop (numcolc: direct-index window of 32,768 from a low sample value, open hash of 8,192 for the rest, folded at the end), only for blocks whose sorted sample gives a Chao1 estimate of at most 3,072 different values. A separate counting pass cost about 2 ns per value in every browser (store-forwarding bound: even a bare counter increment costs that), which alone put saves at +4 to +6%; fused it costs about 1 ns. Offsets with byte-identical files (68 test files compared): putv 2-byte fast path (numcol 12.1 to 6.9 ns per value on taxi fares), maxdec in wasm for decimalScaleW's full pass (retail price paid about 5 ms of JS per save), and nkRun reading DS_INTS in place instead of copying. Tried and dropped: numsum (copy plus wasm summary pass, +11-15% Firefox/WebKitGTK), JS counting fused into blockStats (+9-26% Chromium), NaN-sentinel JS hash (+20% WebKitGTK), run-length and 4-lane counters (no gain). Timing method: two iframes in one page, alternating saves, slots swapped between runs (A/A bias about 3%). Single-thread taxi CPU cost +1.5% Chromium, 0% Firefox before the offsets.
+
 ## 0.26.5 · API 0 · 2026-11-27
 
 ### Quick
