@@ -32,7 +32,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 | [memory-compression](modules/memory-compression/README.md) | 2.20.2 · API 2 | [changelog](modules/memory-compression/CHANGELOG.md) |
 | [elias-fano](modules/elias-fano/README.md) | 2.4.1 · API 2 | [changelog](modules/elias-fano/CHANGELOG.md) |
 | [graph-walk](modules/graph-walk/README.md) | 0.13.1 · API 0 | [changelog](modules/graph-walk/CHANGELOG.md) |
-| [lfc-pack](modules/lfc-pack/README.md) | 0.26.8 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
+| [lfc-pack](modules/lfc-pack/README.md) | 0.26.9 · API 0 | [changelog](modules/lfc-pack/CHANGELOG.md) |
 | [zstd-kit](modules/zstd-kit/README.md) | 1.0.1 · API 1 | [changelog](modules/zstd-kit/CHANGELOG.md) |
 | [lz4-kit](modules/lz4-kit/README.md) | 1.1.3 · API 1 | [changelog](modules/lz4-kit/CHANGELOG.md) |
 | [text-columns](modules/text-columns/README.md) | 0.9.0 · API 0 | [changelog](modules/text-columns/CHANGELOG.md) |
@@ -67,6 +67,7 @@ How to read a label: `1.2.3 · API 1`. The API number goes up only when someone 
 
 - 2026-11-27 · **memory-compression** 2.20.2 · API 2: Unpacking real number columns is about 25 to 45% faster: the bit reading and the sums now run in the WebAssembly helper. Same files; nothing to change.
 - 2026-11-27 · **memory-compression** 2.20.1 · API 2: Packs real whole-number and decimal columns a little faster in balanced and small modes: a repeated decimal check and a Map lookup were replaced. Same format; a few bytes smaller on SEC and SBA.
+- 2026-11-27 · **lfc-pack** 0.26.9 · API 0: Reading number columns is quicker (about 4-42% depending on browser and file); files unchanged
 - 2026-11-27 · **lfc-pack** 0.26.8 · API 0: Saving number columns is a little quicker (about 2%); files unchanged
 - 2026-11-27 · **lfc-pack** 0.26.7 · API 0: Packing text with accented or non-Latin characters is quicker (the UTF-8 check no longer builds a string); files unchanged
 - 2026-11-27 · **lfc-pack** 0.26.6 · API 0: summary: exact value tables (every value with its count) for columns of up to 4,096 different values that repeat, with saves no slower
