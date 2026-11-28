@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.20.1 · API 2**
+**Version 2.20.2 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6: round trip bit for bit on SEC, SBA and covid floats; module browser test page passes in all three; not run on devices
+**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6: unpack equals the original bit for bit on SEC, SBA, covid, retail and 7 made-up shapes; not run on devices
 
 ## What it is and how it works
 
