@@ -52,8 +52,8 @@ __attribute__((export_name("datefmt"))) u32 datefmt(const double* ms, u32 n, u32
 // decV (since lfc-pack 0.26.9): varint number columns ('V' kind) read straight from their bytes: mode 0 zigzag values, 1 rising values as plain differences (mono), 2 zigzag differences (delta);
 // out[i] = value / sc (sc == 1: no divide). The same doubles as colV in flat.js. Returns 0, or 1 when the bytes run out, a varint is longer than 8 bytes or a value or running sum leaves +-2^53
 // (the caller then takes the JS path, which reports the damage as before). in needs 8 readable bytes past len.
-__attribute__((export_name("decV"))) u32 decV(const u8* in, u32 len, u32 n, u32 mode, double sc, double* out) {
-  const u64 LIM = 9007199254740992ull; u32 i, p = 0; long long s = 0;
+static inline __attribute__((always_inline)) u32 decV_(const u8* in, u32 len, u32 n, u32 mode, double sc, double* out, int* o32, const int tr) {   // o32 != 0 and sc == 1: whole numbers that all fit 32 bits are also written there as int32, and 2 is returned
+  const u64 LIM = 9007199254740992ull; u32 i, p = 0; long long s = 0, lo = 0, hi = 0;
   for (i = 0; i < n; i++) {
     u64 u, c; if (p >= len) return 1;
     c = in[p++]; u = c & 127;
@@ -65,7 +65,12 @@ __attribute__((export_name("decV"))) u32 decV(const u8* in, u32 len, u32 n, u32 
     if (mode == 1) { s += (long long)u; if (s > (long long)LIM) return 1; v = s; }
     else { long long z = (u & 1) ? -(long long)((u + 1) >> 1) : (long long)(u >> 1);
       if (mode == 2) { s += z; if (s > (long long)LIM || s < -(long long)LIM) return 1; v = s; } else v = z; }
+    if (tr) { if (v < lo) lo = v; if (v > hi) hi = v; }
     out[i] = sc == 1.0 ? (double)v : (double)v / sc;
   }
+  if (tr && lo >= -2147483648ll && hi <= 2147483647ll) { for (i = 0; i < n; i++) o32[i] = (int)out[i]; return 2; }
   return 0;
+}
+__attribute__((export_name("decV"))) u32 decV(const u8* in, u32 len, u32 n, u32 mode, double sc, double* out, int* o32) {   // o32 != 0 and sc == 1: whole numbers that all fit 32 bits are also written there as int32, and 2 is returned
+  return (o32 && sc == 1.0) ? decV_(in, len, n, mode, 1.0, out, o32, 1) : decV_(in, len, n, mode, sc, out, 0, 0);
 }

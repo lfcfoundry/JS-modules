@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.11 · API 0 · 2026-11-27
+
+### Quick
+decV writes int32 directly when every value fits (no JS narrow pass).
+
+### Deep
+decV writes int32 directly when every value fits (no JS narrow pass). unpackColumns vs 0.26.10 swapped A/B taxi/retail: Chromium -0.3/-16.5%, Firefox +1.0/-19.7%, WebKitGTK -1.9/-15.1%. Output and array types identical in 3 browsers (64 columns).
+
 ## 0.26.10 · API 0 · 2026-11-27
 
 ### Quick
