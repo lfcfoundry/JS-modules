@@ -145,10 +145,10 @@ void ef_get_many(const u8 *b, const u32 *idx, u32 *out, u32 k) {
 void ef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) {
   // 8 at a time like ef_get_many: the sample reads and the first word reads of all 8 overlap
   OPEN(b)
-  u32 j = 0, X[8], P[8]; u64 C[8];
+  u32 j = 0, X[8], P[8], I[8], S[8]; u64 C[8], XL[8], F[8];
   if (dense == 2) { for (; j < k; j++) { u32 v; out[j] = runsNextV(b, xs[j], &v); } return; }
   if (dense) { for (; j < k; j++) out[j] = denseNext(b, xs[j]); return; }
-  if (n > 0) for (; j + 8 <= k; j += 8) {
+  if (n > 0 && !rd32(b, 44)) for (; j + 8 <= k; j += 8) {
     for (u32 q = 0; q < 8; q++) X[q] = xs[j + q];
     for (u32 q = 0; q < 8; q++) { u32 h = (u32)((u64)X[q] >> l); P[q] = (h == 0 || X[q] > maxv) ? 0 : s0[(h - 1) >> s0s]; }
     for (u32 q = 0; q < 8; q++) C[q] = ~H[P[q] >> 6];
@@ -164,6 +164,33 @@ void ef_next_many(const u8 *b, const u32 *xs, u32 *out, u32 k) {
         else { u32 pz = w * 64 + sel64(cur, rem); i = pz - (h - 1); sp = pz + 1; } }
       steps = 0;
       while (i < n) { if (!((H[sp >> 6] >> (sp & 63)) & 1)) break; if (lowAt(low, l, i) >= xl) break; if (++steps >= SCAN_STEPS) { i = gallop(b, i + 1, n, x); break; } i++; sp++; }
+      out[j + q] = i;
+    }
+  }
+  if (n > 0 && rd32(b, 44)) for (; j + 8 <= k; j += 8) {
+    for (u32 q = 0; q < 8; q++) X[q] = xs[j + q];
+    for (u32 q = 0; q < 8; q++) { u32 h = (u32)((u64)X[q] >> l); P[q] = (h == 0 || X[q] > maxv) ? 0 : s0[(h - 1) >> s0s]; }
+    for (u32 q = 0; q < 8; q++) C[q] = ~H[P[q] >> 6];
+    for (u32 q = 0; q < 8; q++) {
+      u32 x = X[q], h = (u32)((u64)x >> l), i, sp;
+      if (x > maxv) { out[j + q] = n; continue; }
+      u64 xl = (u64)x & mask(l);
+      u32 steps = 0, far = 0;
+      if (h == 0) { i = 0; sp = 0; }
+      else { u32 jj = h - 1, p = P[q], rem = jj - ((jj >> s0s) << s0s), w = p >> 6, c; u64 cur = C[q] & (~0ULL << (p & 63));
+        while (rem >= (c = POP(cur))) { rem -= c; cur = ~H[++w]; if (++steps > SEL_WORDS) { far = 1; break; } }
+        if (far) { i = gallop(b, p - ((jj >> s0s) << s0s), n, (u32)((u64)h << l)); sp = i + h; }
+        else { u32 pz = w * 64 + sel64(cur, rem); i = pz - (h - 1); sp = pz + 1; } }
+      I[q] = i; S[q] = sp; XL[q] = xl;   // biased layouts (about 1 value per bucket): the bucket scans run below, after all 8 first low reads are issued
+    }
+    for (u32 q = 0; q < 8; q++) if (X[q] <= maxv && I[q] < n) F[q] = lowAt(low, l, I[q]);
+    for (u32 q = 0; q < 8; q++) {
+      if (X[q] > maxv) continue;
+      u32 i = I[q], sp = S[q], steps = 0; u64 xl = XL[q];
+      if (i < n && ((H[sp >> 6] >> (sp & 63)) & 1) && F[q] < xl) {
+        i++; sp++;
+        while (i < n) { if (!((H[sp >> 6] >> (sp & 63)) & 1)) break; if (lowAt(low, l, i) >= xl) break; if (++steps >= SCAN_STEPS - 1) { i = gallop(b, i + 1, n, X[q]); break; } i++; sp++; }
+      }
       out[j + q] = i;
     }
   }
