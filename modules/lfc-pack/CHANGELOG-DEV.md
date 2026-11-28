@@ -2,6 +2,51 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.9 · API 0 · 2026-11-27
+
+### Quick
+Varint number frames of 4,096+ values decode in the bdec wasm kernel (decV) instead of JS colV.
+
+### Deep
+Varint number frames of 4,096+ values decode in the bdec wasm kernel (decV) instead of JS colV. unpackColumns vs 0.26.8, swapped same-page A/B, taxi/retail: Chromium 156 -10.4%/-41.6%, Firefox 158 -5.4%/-25.6%, WebKitGTK 2.52.6 -3.6%/-12.3%. Output byte-identical to 0.26.8 in 3 browsers (64 columns) and 126 Node reads; quantile 245 and exact-table 56 browser checks pass.
+
+## 0.26.8 · API 0 · 2026-11-27
+
+### Quick
+The number encoder keeps its layout candidates as views of wasm memory and copies out only the ones still held after the choice; same files, saves about 2% quicker.
+
+### Details
+Save time vs 0.26.7, same-page swapped A/B (4 pairs; taxi 5 cols 1M rows / retail 2 cols 541,909 rows): Chromium 156 -2.0% / -2.7%, Firefox 158 -2.0% / -0.5%, WebKitGTK 2.52.6 -1.9% / -1.8%. Byte-identical over 145 files.
+
+### Deep
+nkRun(..., vw) returns the V, delta-V and B frames as subarrays of the kernel's memory for numGeneral; nkKeep walks the candidate chain (best and every candidate it replaced) and copies frames still in kernel memory, moving their compression memo entry, before the kernel runs again. Losing frames are never copied (each is about one byte per value). Also tried: branch-free putv and bit-pack store (no gain in Node or browsers).
+
+## 0.26.7 · API 0 · 2026-11-27
+
+### Quick
+Text columns are checked as UTF-8 in place (utf8Valid) instead of decoding them with a fatal TextDecoder; same files, same errors, quicker packs of non-ASCII text.
+
+### Details
+UTF-8 check of a 5 MB column (median of 15): Chromium 156 4.6 to 1.5 ms (mostly ASCII), 9.2 to 5.7 ms (mixed scripts); Firefox 158 4.0 to 2.0 ms, 8.0 to 8.0 ms; WebKitGTK 2.52.6 6 to 1 ms, 12 to 4 ms.
+Workbench (Wikimedia H4 import, real data): Chromium -9%, Firefox and WebKitGTK -2%. Packed files byte-identical in all 3 browsers.
+
+### Deep
+From the Workbench thread (utf8-check-2026.11.27): utf8Valid, a byte-level well-formed UTF-8 check with the rules of fatal TextDecoder (no overlongs, no surrogates, nothing past U+10FFFF, no truncated tails), ASCII 4 bytes at a time through an aligned Uint32Array view. Used by the text-column encoder's utf8Check and by the byte-column dictionary check. 0 mismatches against fatal TextDecoder over 300,000 random byte strings (biased to lead and continuation bytes, odd offsets). Also tried this round: skipping the summary sample sort for blocks expected to give an exact table (hash Chao1 test on the unsorted sample, cuts by quickselect, lazy sort on failure): byte-identical over 80 files but no gain (Chromium 0%, Firefox taxi +5%, WebKitGTK +1-2%), dropped; the sort is already a radix sort, so the 3 ms per column measured with a native sort does not apply.
+
+## 0.26.6 · API 0 · 2026-11-27
+
+### Quick
+Exact value tables (qExact, qn) now cover up to 4,096 different values when each repeats 16 times or more on average; saves are 0 to 8% faster than 0.26.5 despite the extra work. Files and data otherwise unchanged; old readers read them.
+
+### Details
+qExact up to 4,096 values (was 257) when values repeat 16x on average; the encoder's wasm pass counts them (numcolc).
+Save time vs 0.26.5, same-page swapped A/B (4 pairs, taxi 5 cols 1M rows / retail 2 cols 541,909 rows): Chromium 156 0% / -4%, Firefox 158 -1% / -8%, WebKitGTK 2.52.6 -3% / -3%.
+Offsets: 2-byte varint fast path (number encoder 30-40% quicker, same bytes), decimal-digit check in wasm (maxdec), decimal columns read in place by the kernel.
+Taxi fare, tip, distance and retail price, quantity now exact; files +0.3% (taxi) to +0.6% (retail) for the tables.
+
+### Deep
+Exact value tables at no save cost. Counting runs inside numcol's loop (numcolc: direct-index window of 32,768 from a low sample value, open hash of 8,192 for the rest, folded at the end), only for blocks whose sorted sample gives a Chao1 estimate of at most 3,072 different values. A separate counting pass cost about 2 ns per value in every browser (store-forwarding bound: even a bare counter increment costs that), which alone put saves at +4 to +6%; fused it costs about 1 ns. Offsets with byte-identical files (68 test files compared): putv 2-byte fast path (numcol 12.1 to 6.9 ns per value on taxi fares), maxdec in wasm for decimalScaleW's full pass (retail price paid about 5 ms of JS per save), and nkRun reading DS_INTS in place instead of copying. Tried and dropped: numsum (copy plus wasm summary pass, +11-15% Firefox/WebKitGTK), JS counting fused into blockStats (+9-26% Chromium), NaN-sentinel JS hash (+20% WebKitGTK), run-length and 4-lane counters (no gain). Timing method: two iframes in one page, alternating saves, slots swapped between runs (A/A bias about 3%). Single-thread taxi CPU cost +1.5% Chromium, 0% Firefox before the offsets.
+
 ## 0.26.5 · API 0 · 2026-11-27
 
 ### Quick

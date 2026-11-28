@@ -236,11 +236,14 @@
     var st = Math.max(1, Math.floor(n / 512)), d, i, q, pass, sc, X, mem;
     for (pass = 0; pass < 2; pass++) {
       d = 0;
-      for (i = 0; i < n; i += pass ? 1 : st) { q = decimalsOf(v[i]); if (q < 0 || q > 9) return 0; if (q > d) d = q; }
+      if (pass && K.x.maxdec) {   // since 0.26.6 the full pass runs in the kernel (maxdec: the same digit counts as decimalsOf); values it cannot decide come back here one at a time
+        K = nkLoad(v, n); var dr = new Float64Array(K.x.memory.buffer, (K.heap + n * 8 + 7) & ~7, 1);   // the kernel's result slot, free until numcol
+        for (i = 0; i < n; i++) { dr[0] = d; i = K.x.maxdec(K.heap, n, i, dr.byteOffset); d = dr[0]; if (i >= n) break; q = decimalsOf(v[i]); if (q < 0 || q > 9) return 0; if (q > d) d = q; } }
+      else for (i = 0; i < n; i += pass ? 1 : st) { q = decimalsOf(v[i]); if (q < 0 || q > 9) return 0; if (q > d) d = q; }
       sc = Math.pow(10, d);
       if (d) {
         K = nkLoad(v, n); mem = K.x.memory; X = (K.heap + n * 40 + 512 + 7) & ~7;
-        if (X + n * 8 > mem.buffer.byteLength) mem.grow(Math.ceil((X + n * 8 - mem.buffer.byteLength) / 65536));
+        if (X + n * 8 + 229536 > mem.buffer.byteLength) mem.grow(Math.ceil((X + n * 8 + 229536 - mem.buffer.byteLength) / 65536));   // + numcolc's tables past them (nkRun reads them in place)
         if (K.x.scaleints(K.heap, n, sc, X)) { DS_INTS = new Float64Array(mem.buffer, X, n); return sc; }
       }
       if (pass === 0 && st === 1) return 0;
@@ -489,11 +492,11 @@
   }
   // the V and B candidates of a number column held as scaled whole numbers (base), by the general writer's rules: the delta form only when its varints are not clearly longer (5%), the bit-packed form when the range is under 2^24
   function numGeneral(cand, bestOf, base, n, scale) {
-    if (n >= NK_MIN) { var R = nkRun(base, n, 0), a = R.a, dd = R.d, bb = R.b, mn0 = R.mn, w0 = R.w;
+    if (n >= NK_MIN) { var R = nkRun(base, n, 0, NKD.want && !NKD.res ? scale : 0, true), a = R.a, dd = R.d, bb = R.b, mn0 = R.mn, w0 = R.w;
       if (a) cand('V', { mono: R.mono, scale: scale }, [a]);
       if (dd) cand('V', { mono: false, scale: scale, delta: true }, [dd]);
       if (bb) cand('B', { mn: mn0, w: w0, scale: scale }, [bb]);
-      return; }
+      nkKeep(bestOf(), (a || dd || bb || {}).buffer); return; }
     numStats(base, n, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2], d = numFirst(base, n, mono), dz2 = null, sa = 0, sb = 0;
     if (!mono && n > 1) { dz2 = numDeltaZz(base, n); sa = vlenSum(d, n); sb = vlenSum(dz2, n); }
     if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, n)]);
@@ -621,7 +624,10 @@
       u += (c & 127) << 7; c = b[p++]; if (c < 128) { u += c << 14; out[i] = ((u >>> 1) ^ -(u & 1)) / sc; continue; }
       u += (c & 127) << 14; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = unzz(u) / sc; }
     return out; }
-  function colV(frames, n, p) { var i, u, o; if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+  // since 0.26.9: a long varint column decoded in bdec.wasm (decV: the same doubles, about 4x quicker than the JS loop); damaged bytes fall back to the JS path below, which reports them
+  function colVw(b, n, p) { var X = n >= 4096 ? bdx() : null; if (!X || !X.decV) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b);
+    if (X.decV(L.at[0], b.length, n, p.mono ? 1 : p.delta ? 2 : 0, p.scale, L.at[1])) return null; return new Float64Array(X.memory.buffer, L.at[1], n).slice(); }
+  function colV(frames, n, p) { var i, u, o; if ((u = colVw(frames[0], n, p))) return p.scale !== 1 ? u : narrow(u); if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
   // B51: an all-ASCII string column without 0 chars written straight to its bytes (values joined by 0 bytes), with no joined string and no TextEncoder pass; null at the first other char (the join path then decides). The same bytes as te.encode(v.join('\0')).
   // Chromium and WebKitGTK only: there TextEncoder on the joined text is the slow part (Chromium 156 about 4 ms per MB); Firefox encodes fast and keeps the join path
   var STR_ASCII = !GECKO;
@@ -1116,7 +1122,7 @@
     if (!(S3_OK && NL > 1)) return null;
     for (i = 0; i < NL; i++) len += E[i] - S[i];
     o = new Uint8Array(len + NL - 1); for (i = 0; i < NL; i++) { if (i) o[p++] = 0; o.set(B.subarray(S[i], E[i]), p); p += E[i] - S[i]; }
-    if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(o); } catch (er) { return null; } }
+    if ((hi & 128) && !utf8Valid(o)) return null;
     try { id = hash(o, 'xxh64'); } catch (e2) { return null; }
     return { j: o, id: id, n: NL };
   }
@@ -1190,7 +1196,7 @@
       codes[i] = c;
     }
     function joinOf(idx, cnt) { var len = 0, j, p = 0, o; for (j = 0; j < cnt; j++) len += E[a + idx(j)] - S[a + idx(j)]; o = new Uint8Array(len + (cnt ? cnt - 1 : 0)); for (j = 0; j < cnt; j++) { if (j) o[p++] = 0; var x = S[a + idx(j)], y = E[a + idx(j)]; if (y - x > 16) { o.set(B.subarray(x, y), p); p += y - x; } else while (x < y) o[p++] = B[x++]; } return o; }
-    function utf8Check(u) { if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(u); } catch (er) { throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); } } }
+    function utf8Check(u) { if ((hi & 128) && !utf8Valid(u)) throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); }
     function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
     var nl = lab.length;
     if (stop || nl * 4 > n || nl >= 65536) { var all = KL ? bkJoin(bk, KL, null, n) : joinOf(function (j) { return j; }, n); utf8Check(all); cand('s', {}, dlOf([all], nl)); return settle(zs, level, best); }
@@ -1201,6 +1207,21 @@
     cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
     cand('D', { w: wd, wide: false }, [lb, bitpack(ca, wd)], { distinct: nl });
     return settle(zs, level, best);
+  }
+  // Well-formed UTF-8 (the same bytes TextDecoder fatal accepts: no overlongs, no surrogates, nothing past U+10FFFF), checked in place: no string is made (since 0.26.7; from the Workbench thread: Wikimedia H4 import 9% quicker in Chromium). ASCII runs go 4 bytes at a time.
+  function utf8Valid(u) {
+    var n = u.length, i = 0, w = null, c, c1, c2, c3;
+    if (n >= 64) { var off = u.byteOffset; w = (off & 3) === 0 ? new Uint32Array(u.buffer, off, n >> 2) : null; }
+    while (i < n) {
+      c = u[i];
+      if (c < 128) { if (w && (i & 3) === 0) { var k = i >> 2, m = w.length; while (k < m && (w[k] & 0x80808080) === 0) k++; i = k << 2; if (i >= n) break; c = u[i]; if (c < 128) { i++; continue; } } else { i++; continue; } }
+      if (c < 0xC2) return false;
+      if (c < 0xE0) { if (i + 1 >= n || (u[i + 1] & 0xC0) !== 0x80) return false; i += 2; continue; }
+      if (c < 0xF0) { if (i + 2 >= n) return false; c1 = u[i + 1]; c2 = u[i + 2]; if ((c1 & 0xC0) !== 0x80 || (c2 & 0xC0) !== 0x80 || (c === 0xE0 && c1 < 0xA0) || (c === 0xED && c1 > 0x9F)) return false; i += 3; continue; }
+      if (c < 0xF5) { if (i + 3 >= n) return false; c1 = u[i + 1]; c2 = u[i + 2]; c3 = u[i + 3]; if ((c1 & 0xC0) !== 0x80 || (c2 & 0xC0) !== 0x80 || (c3 & 0xC0) !== 0x80 || (c === 0xF0 && c1 < 0x90) || (c === 0xF4 && c1 > 0x8F)) return false; i += 4; continue; }
+      return false;
+    }
+    return true;
   }
   var B28_MIN = 8192;
   // B74p6: a Float64Array column with NaN (an empty cell) becomes the numbers-and-nulls state the row loop builds ({ nb: the numbers, np: null plane, m, c }), in one pass: the same bytes as a plain array with nulls, without the generic path (7-9x slower in Chromium and Firefox)
@@ -1223,13 +1244,14 @@
     var e, fl = null, zn = null, i, mn, mx, c21, sb = null, rr, k;
     if (sq && pre === 1) sb = blockStats(a, a.length, sq.a0, sq.R);
     else if (sq && pre === 2) { rr = new Float64Array(a.c); for (i = 0, k = 0; i < a.c; i++) rr[i] = a.np && (a.np[i >> 3] >> (i & 7) & 1) ? NaN : a.nb[k++]; sb = blockStats(rr, a.c, sq.a0, sq.R); }
+    NKD.want = !!sb && sb.dtw === sb.dtw && sb.dtw !== false; NKD.lo = NKD.want ? sb.dtw : 0; NKD.res = null;
     if (pre === 1) fl = pf || b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
     if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
     if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
     else if (pre === 3) e = a.ts ? tsCol(a.bc, a.a0, a.c, zs, level, tm21, key) : a.dc ? byteColDict(a.bc, a.a0, a.c, zs, level, tm21, key) : byteCol(a.bc, a.a0, a.c, zs, level, tm21, key);
     else if (pre === 1) e = settle(zs, level, encodeColumn0(a, zs, level, tm21, undefined, key, fl));
     else e = encodeColumn(a, zs, level, tm21, undefined, key);
-    NK_BUF = null;
+    NK_BUF = null; if (NKD.res && sb) sb.dt = NKD.res; NKD.want = false; NKD.res = null;
     if (e.t === 'N' && (e.p.t === 'V' || e.p.t === 'B' || e.p.t === 'F') && e.nn.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === e.nn) { mn = NKZ.mn; mx = NKZ.mx; i = e.nn.length; } else i = 0; for (; i < e.nn.length; i++) { if (e.nn[i] < mn) mn = e.nn[i]; if (e.nn[i] > mx) mx = e.nn[i]; } zn = [mn, mx, e.n]; }
     if ((e.t === 'V' || e.t === 'B' || e.t === 'F') && a.length) { mn = Infinity; mx = -Infinity; if (NKZ.v === a) { mn = NKZ.mn; mx = NKZ.mx; i = a.length; } else i = 0; for (; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; } zn = [mn, mx, a.length]; }
     return { e: e, zn: zn, sb: sb };
@@ -1260,21 +1282,39 @@
   }
   var NK_SRC = null, NK_N = -1, NK_BUF = null, NK_OFF = -1, NKZ = { v: null, mn: 0, mx: 0 };   // the array (and length) now in the kernel's input, and the last kernel column's min and max in its own units (for the zone maps)
   function nkLoad(a, n) {
-    var K = nkw(), mem = K.x.memory, need = K.heap + n * 35 + 256, have = mem.buffer.byteLength;
+    var K = nkw(), mem = K.x.memory, need = K.heap + n * 35 + 256 + 229536, have = mem.buffer.byteLength;   // + room for numcolc's value table (keys 64 KB, counts 32 KB, plus numcolc's window 128 KB) so it never grows memory under a live view
     if (need > have) mem.grow(Math.ceil((need - have) / 65536));
     if (a !== NK_SRC || n !== NK_N) {   // B25d: the same typed array memory (a view of it) is not copied again; the cache is cleared after each column
       if (a.buffer !== undefined && a.buffer === NK_BUF && a.byteOffset === NK_OFF && n === NK_N) NK_SRC = a;
       else { new Float64Array(mem.buffer, K.heap, n).set(n === a.length ? a : a.subarray(0, n)); NK_SRC = a; NK_N = n; NK_BUF = a.buffer !== undefined ? a.buffer : null; NK_OFF = a.byteOffset; } }
     return K;
   }
+  var NKD = { want: false, lo: 0, res: null };   // since 0.26.6: one column's value counts for the summary's exact table, counted by the kernel in its encoding pass (numcolc); lo: a low value of the block's sorted sample (the start of the direct-count window)
+  function nkKeep(c, buf) {   // the candidates kept (best and the chain behind it): frames still in the kernel's memory (nkRun views) copied out, with their compression memo, before the kernel runs again
+    var q, f, g, m, z; if (!buf) return;
+    for (; c; c = c.next) {   // every candidate still referenced (best, then each one it replaced)
+      for (q = 0; q < c.fr.length; q++) { f = c.fr[q]; if (f.buffer !== buf) continue; g = f.slice(); m = Z_MEMO && Z_MEMO.get(f); if (m) Z_MEMO.set(g, m); c.fr[q] = g;
+        if (c.z) for (z = 0; z < c.z.length; z++) if (c.z[z][1] === f) c.z[z][1] = g; } }
+  }
   function nkFlags(a, m) { var K = nkLoad(a, m), resP = K.heap + m * 8; K.x.numflags(K.heap, m, resP); var r = new Float64Array(K.x.memory.buffer, resP, 3); return { nz: r[0], ai: r[1], nf: r[2] }; }
-  function nkRun(base, n, mode) {   // -> NKR filled: the stats and the candidate frames (copies)
-    var K = nkLoad(base, n), x = K.x, mem = x.memory, inP = K.heap, resP = inP + n * 8, outP = resP + 128;
-    var tot = x.numcol(inP, n, outP, resP, mode), r = new Float64Array(mem.buffer, resP, 11), u = new Uint8Array(mem.buffer, outP, tot), A = r[3], B = r[4], oa = r[8], od = r[9], ob = r[10];
+  function nkRun(base, n, mode, csc, vw) {   // vw (since 0.26.8): the frames as views of the kernel's memory, for numGeneral, which copies only the ones it keeps (nkKeep)
+     // -> NKR filled: the stats and the candidate frames (copies); csc (since 0.26.6): the column's scale when the summary wants every value's count (NKD.res)
+    var K = nkw(), x = K.x, mem = x.memory, inP, resP, outP, tot, cP, kP, nP, dP, j, h, d;
+    if (base.buffer === mem.buffer && base.byteOffset >= K.heap + n * 35 + 256 && base.byteOffset + n * 8 + 229536 <= mem.buffer.byteLength) inP = base.byteOffset;   // since 0.26.6: whole numbers decimalScaleW left in the kernel's memory are read where they are (no copy to the heap)
+    else { K = nkLoad(base, n); inP = K.heap; }
+    resP = K.heap + n * 8; outP = resP + 128;
+    if (csc && x.numcolc) { cP = (Math.max(K.heap + n * 35 + 256, inP + n * 8) + 7) & ~7; kP = cP + 32; nP = kP + 8 * 8192; dP = nP + 4 * 8192;   // nkLoad keeps this room
+      j = new Uint32Array(mem.buffer, cP, 3); j[0] = 8192; j[1] = 32768; j[2] = SUM_QE; new Float64Array(mem.buffer, cP + 16, 1)[0] = Math.round(NKD.lo * csc) - 256 || 0;
+      tot = x.numcolc(inP, n, outP, resP, mode, cP, kP, nP, dP); d = new Float64Array(mem.buffer, resP, 12)[11];
+      if (d > 0) { var ks = new Float64Array(mem.buffer, kP, 8192), cs = new Uint32Array(mem.buffer, nP, 8192), ov = new Float64Array(d), oc = new Int32Array(d);
+        for (h = 0, j = 0; h < 8192; h++) if (cs[h]) { ov[j] = ks[h] / csc; oc[j++] = cs[h]; }
+        NKD.res = { v: ov, n: oc }; } }
+    else tot = x.numcol(inP, n, outP, resP, mode);
+    var r = new Float64Array(mem.buffer, resP, 11), u = new Uint8Array(mem.buffer, outP, tot), A = r[3], B = r[4], oa = r[8], od = r[9], ob = r[10];
     NKR.mono = r[0] === 1; NKR.mn = r[1]; NKR.mx = r[2]; NKR.w = r[5];
-    NKR.a = A >= 0 ? u.slice(oa, oa + A) : null;
-    NKR.d = B >= 0 ? u.slice(od, od + B) : null;
-    NKR.b = NKR.w ? u.slice(ob, tot) : null;
+    NKR.a = A >= 0 ? (vw ? u.subarray(oa, oa + A) : u.slice(oa, oa + A)) : null;
+    NKR.d = B >= 0 ? (vw ? u.subarray(od, od + B) : u.slice(od, od + B)) : null;
+    NKR.b = NKR.w ? (vw ? u.subarray(ob, tot) : u.slice(ob, tot)) : null;
     NK_SRC = null; NK_BUF = null;   // the input is only reused between a column's flags and its kernel call
     return NKR;
   }

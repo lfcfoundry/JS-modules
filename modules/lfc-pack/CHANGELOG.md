@@ -2,6 +2,18 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.9 · API 0 · 2026-11-27
+- Reading number columns is quicker (about 4-42% depending on browser and file); files unchanged
+
+## 0.26.8 · API 0 · 2026-11-27
+- Saving number columns is a little quicker (about 2%); files unchanged
+
+## 0.26.7 · API 0 · 2026-11-27
+- Packing text with accented or non-Latin characters is quicker (the UTF-8 check no longer builds a string); files unchanged
+
+## 0.26.6 · API 0 · 2026-11-27
+- summary: exact value tables (every value with its count) for columns of up to 4,096 different values that repeat, with saves no slower
+
 ## 0.26.5 · API 0 · 2026-11-27
 - summary: estimate(key) and exact(key) for exact answers
 
