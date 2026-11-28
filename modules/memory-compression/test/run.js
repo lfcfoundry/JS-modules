@@ -138,7 +138,7 @@ t('fast paths for uniform rows fall back cleanly when a row does not fit', funct
   var shared = { v: 1 }; rows = many(40, function () { return { s: shared }; }); rt(rows, { refs: true }, 'refs mode takes the general path');
 });
 t('data sets: all of them, both modes, exact', function () {
-  var N = { 'nfm-links': 4000, 'nfm-nodes': 3000, 'api-users': 3000, 'geojson': 800, 'events': 4000, 'small': 400, 'irregular': 1500 };
+  var N = { 'nfm-links': 4000, 'nfm-nodes': 3000, 'api-users': 3000, 'geojson': 800, 'events': 4000, 'small': 400, 'irregular': 1500, 'event-times': 3000 };
   Object.keys(D.sets).forEach(function (name) { var d = D.sets[name](N[name]); ['fast', 'small'].forEach(function (m) { var p = rt(d, { mode: m }, name + ' ' + m); assert(p.length < JSON.stringify(d).length, name + ' ' + m + ' should be smaller than JSON'); }); });
 });
 t('smaller than JSON on the data sets, by a wide margin where the data is regular', function () {
