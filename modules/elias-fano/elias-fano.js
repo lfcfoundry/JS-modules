@@ -87,7 +87,7 @@
     try { simdOn = WebAssembly.validate(SIMD_PROBE) && !!WASM_SIMD_B64; } catch (e) { simdOn = false; }
     var bytes = b64bytes(simdOn ? WASM_SIMD_B64 : WASM_B64);
     readyPromise = WebAssembly.instantiate(bytes, {}).then(function (r) {
-      MOD = r.module; var x = r.instance.exports; mem = x.memory; views(); heapEnd = x.__heap_base; blocks = []; W = x; return true;
+      MOD = r.module; var x = r.instance.exports; mem = x.memory; views(); heapEnd = +x.__heap_base; blocks = []; W = x; return true;   // + : the export is a WebAssembly.Global; as a pointer it made every call on the first list in memory convert an object (about 1.6x slower)
     }, function () { W = null; return false; });
     return readyPromise;
   }
@@ -1057,7 +1057,7 @@
     if (!W || !MOD || typeof WeakRef !== 'function') return null;   // without WeakRef the compacted lists cannot be found again, so the memory stays
     var before = mem.buffer.byteLength, old = u8, x = new WebAssembly.Instance(MOD, {}).exports, moved = [];
     LIVE.forEach(function (ref) { var l = ref.deref(); if (!l || !l._wm || l._gen !== GEN || l.bytes) { LIVE.delete(ref); if (l) l._ref = null; return; } moved.push(l); });
-    GEN++; SCR = 0; SCRN = 0; VIEW = 0; VIEWN = 0; W = x; mem = x.memory; views(); heapEnd = x.__heap_base; blocks = [];
+    GEN++; SCR = 0; SCRN = 0; VIEW = 0; VIEWN = 0; W = x; mem = x.memory; views(); heapEnd = +x.__heap_base; blocks = [];
     moved.forEach(function (l) { var p = alloc(l._blen); u8.set(old.subarray(l._ptr, l._ptr + l._blen), p); l._ptr = p; l._gen = GEN; });
     return { before: before, after: mem.buffer.byteLength, moved: moved.length };
   }
