@@ -523,10 +523,10 @@
     }
     // Since 2.23.0 the search below runs in the WebAssembly helper (enc_search) with the same bytes and tree of ways, except where it chooses on a sample or uses the ways that won before.
     var SE_BAIL = 4294967295, SE_MIN = 16, BAIL = {};
-    function lg2d(v) {                     // log2 with + - * / only, the same double as lg2d in the helper (used by the quick size estimate of ENT)
-      var e = 0, s, s2;
-      while (v < 0.7071067811865476) { v *= 2; e -= 1; }
-      while (v >= 1.4142135623730951) { v /= 2; e += 1; }
+    function lg2d(v) {                     // log2 from the exponent bits and + - * / only, the same double as lg2d in the helper (used by the quick size estimate of ENT)
+      var e, s, s2, hi;
+      f64a[0] = v; hi = u32a[HI]; e = ((hi >>> 20) & 2047) - 1023; u32a[HI] = (hi & 0x800FFFFF) | 0x3FF00000; v = f64a[0];      // v = m * 2^e with m in [1, 2) (v > 0 and normal here)
+      if (v >= 1.4142135623730951) { v /= 2; e += 1; }
       s = (v - 1) / (v + 1); s2 = s * s;
       return e + s * (2 + s2 * (0.6666666666666666 + s2 * (0.4 + s2 * (0.2857142857142857 + s2 * (0.2222222222222222 + s2 * (0.18181818181818182 + s2 * 0.15384615384615385)))))) * 1.4426950408889634;
     }
@@ -991,7 +991,8 @@
 
     // ---------------------------------------------------------------- one block of numbers, and a whole column
     var CS = { INTS: 0, ALP: 1, RD: 2, RAWF: 3, FDICT: 4, PLANES: 5 }, CHUNK = 8192, NAMES = ['INTS', 'ALP', 'RD', 'RAWF', 'FDICT', 'PLANES'];
-    function isIntegral(a) { var i, v, st; if (KWC && a.length >= 1024 && (st = statsOf(KWC, a))) return st.ok; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
+    function isIntegral(a) { var i, v, st; for (i = 0; i < 8 && i < a.length; i++) { v = a[i]; if (Math.floor(v) !== v) return false; }      // since 2.23.0: a decimal among the first values answers at once
+      if (KWC && a.length >= 1024 && (st = statsOf(KWC, a))) return st.ok; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
     function rawDoubles(a) { var w = new Wr(), i; w.need(a.length * 8); for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
     function encChunk(a, depth, opt, only) {      // only: the ways that won earlier blocks of this column; given on most blocks so the others are not tried
       var cands = [], best = null, bs = -1, k, e, w, tn, bt = null, szs = {}, sec;
