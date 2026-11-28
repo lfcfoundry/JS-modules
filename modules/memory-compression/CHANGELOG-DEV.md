@@ -2,6 +2,36 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.23.1 · API 2 · 2026-11-28
+
+### Quick
+Pack cost cut in the WebAssembly writer and search, same bytes as 2.23.0 on every tested column (52 real columns, 1,000 random blocks; JavaScript and WebAssembly byte-identical).
+
+### Deep
+Pack cost cut in the WebAssembly writer and search, same bytes as 2.23.0 on every tested column (52 real columns, 1,000 random blocks; JavaScript and WebAssembly byte-identical). Bulk byte copies (tw_cpy), bit packing 32 bits at a time (tw_bits, eg_enc), the LB keep rule checked before its Fenwick counting pass (lb_map), and a provable lower bound on rANS size that skips EG and ENT encodes that cannot beat the best way so far (entropy of the counts less 0.001 bit a symbol, which is more than rANS states can save). Browser medians, pack time vs 2.23.0 (same page, alternating, 11 rounds), Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: FHIR proc.end 0.68 / 0.76 / 0.83; proc.start 0.75 / 0.78 / 1.00; med.authored 0.74 / 0.76 / 1.00; cond.onset 0.65 / 0.69 / 1.00; enc.time 0.71 / 0.71 / 1.00; SEC 0.94 / 0.93 / 0.97; SBA 0.94 / 0.92 / 0.95-1.00 (rerun, 31 rounds); retail unit price 0.69 / 0.94 / 0.90; COVID deaths 0.85 / 0.86 / 0.88; held-out ZIP 0.86 / 0.85 / 1.00; held-out invoice date 0.97 / 0.97 / 0.93. WebKitGTK times are whole milliseconds. Against 2.22.0 on FHIR dates: med.authored, cond.onset, cond.recorded, enc.time and dr.issued 0.28 to 1.08; proc.end still 1.27 / 1.41 / 1.33 (was 1.8 to 2.1).
+
+## 2.23.0 · API 2 · 2026-11-28
+
+### Quick
+Pack 20 to 50% faster: the whole way search runs in WebAssembly (enc_search), replay covers DELTA, DICT, PFOR, DIV and LB, and a replayed part that stops fitting keeps both ways (ALT). Same bytes as 2.22.0 except SBA (+13 bytes) and wide date columns with repeats (2 to 22% smaller, LB tried at 5% repeats). New files open in 2.22.0.
+
+### Details
+Browser medians, pack time vs 2.22.0 (same page, alternating, 11 rounds), Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: SBA 0.55 / 0.63 / 0.50; retail unit price 0.60 / 0.59 / 0.72; SEC 0.92 / 0.90 / 0.84; COVID confirmed 0.67 / 0.72 / 0.71; COVID deaths 0.54 / 0.71 / 0.68. Held-out retail and SBA columns (never used for tuning): 0.50 to 1.00, none slower. FHIR training dates (Chromium): medication authored 27,250 to 21,207 B (Pcodec 21,522), condition onset 16,585 to 14,594 (Pcodec 16,291), report effective 57,745 to 50,844, procedure start 76,910 to 70,920; pack 1.03 to 2.37x slower on those columns only (1.5 to 6.4 ms). Unpack unchanged. Against Pcodec (pcodec-js level 8, Chromium) pack: SEC 1.15x, SBA 3.9x, retail unit price 2.4x, COVID deaths 1.6x, COVID confirmed 0.92x.
+
+### Deep
+enc_search (WebAssembly) mirrors encIntsFull and encIntWith for every way and order (INT, LB, DELTA2, the two DEC streams), with the same bound gates (ENT with lg2d, a log2 from + - * / only, so JavaScript and WebAssembly agree to the bit), decPick's last-way rule, and the sampled choice below the top level; it answers bail for the top level's sampled choice and the ways that won before. Replay (enc_tree) handles DELTA, DICT, PFOR, DIV and LB; ALT (tree node 13, internal only, never written to files) keeps the old tree first and a fresh one second when a replayed part stops fitting. Kernels: rANS encoder by reciprocal multiply, dec_split in doubles, eg_enc clears only what it writes, bl64 from exponent bits, block_stats with floor, fdict_map for float dictionaries, DICT by hash table then only the different values sorted (sorting all values was 3x slower on SBA county codes). PLANES skipped when its least size is 2% over the best. LB on values over 24 bits wide: tried when 5% of the first 1,024 values come back (was a third) and kept when 5% of the block does (was: at most 60% different); narrower columns keep the old rule. WebAssembly stack 4 KB to 256 KB (recursive search); wasm 38 KB to 59 KB. Tests: wasm and JavaScript byte-identical on tester, held-out and FHIR columns; exact round trips; 300 random dictionary blocks; kernels against the 2.21.0 and 2.22.0 helpers on random data; 2.22.0 opens every new file (52 of 52). Tried and dropped: early stop for byte planes, choosing a block's kind on a sample (SBA 6% bigger), trying every kind on every block (2x slower on decimals), 32,768-value blocks (SBA +33 to 114%).
+
+## 2.22.0 · API 2 · 2026-11-27
+
+### Quick
+Unpack 25 to 50% faster (whole-block decoder dec_block in WebAssembly, 4-state rANS for streams of 2,048+ symbols). New files need 2.22.0 to open; older files open as before. SBA 1% smaller (no repeat search right after a fresh one).
+
+### Details
+Browser medians vs 2.21.0 (same page, alternating, 21 rounds): SEC unpack 24.7 to 12.7 ms Chromium 156, 23.3 to 16.1 Firefox 158, 19 to 12 WebKitGTK 2.52.6; SBA 4.2 to 2.1 / 3.2 to 2.2 / 3 to 2; COVID confirmed 4.6 to 2.9 / 4.5 to 3.4 / 4 to 2; COVID deaths 6.0 to 3.3 / 4.2 to 3.1 / 4 to 3; retail unit price 15.3 to 9.0 / 12.9 to 9.0 / 12 to 9. Sizes +0.1 to 0.3% (12 bytes per long rANS stream), SBA 37,480 to 37,093.
+
+### Deep
+dec_block: one whole INTS, ALP or FDICT block decoded in one WebAssembly call (ways RAW, CONST, FOR, DELTA, RLE, DICT, PFOR, DIV, ENT, EG, DEC, DELTA2, LB), falling back to the JavaScript decoder for anything it does not handle or that looks damaged. rANS: 4 interleaved states for streams of 2,048 symbols or more, marked by the top bit of the first state (a 1-state stream never sets it), same bytes from WebAssembly and JavaScript; decoder about 3x faster on its own. readTable builds cum/slot only for the JavaScript decoder; ENT and EG decode symbols straight into wasm memory. Pack: a replayed block right after a fresh template no longer triggers a full re-search (SBA 1% smaller). Chromium COVID confirmed pack was 1.11 to 1.26x slower after SEC and SBA in the same page (an old-vs-old control gave 0.96, and removing each change in turn did not help); the 4-state JavaScript coders were moved into functions of their own so ransEncodeJS stays small for the JIT, after which it measured 0.99 and 1.02. Fixed: the 2.21.0 read-only file could not open SBA-like decimal columns (its build strips code its corpus never runs, and the corpus had no such data); min/pack.js now adds the six real tester columns to the corpus.
+
 ## 2.21.0 · API 2 · 2026-11-27
 
 ### Quick

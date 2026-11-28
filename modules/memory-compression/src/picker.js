@@ -96,7 +96,7 @@
     }
 
     // ---------------------------------------------------------------- rANS entropy coding of bytes (static table, 12-bit frequencies)
-    var SB = 12, M = 1 << SB, RL = 1 << 23;
+    var SB = 12, M = 1 << SB, RL = 1 << 23, RI_MIN = 2048;
     function ransEncode(syms, freq, cum) {                     // the bytes (a view; use them before the next call); wasm helper for 1,024 symbols and up
       var kw = KWC, n = syms.length, sP, fP, oP, cap, len;
       if (kw && n >= 1024) {
@@ -112,6 +112,7 @@
     function ransEncodeJS(syms, freq, cum) {
       var out = new Uint8Array(syms.length * 2 + 64), p = out.length, x = RL, i, s, f, xm, q, k, xmax = new Float64Array(256), inv = new Float64Array(256);
       for (s = 0; s < 256; s++) if (freq[s]) { xmax[s] = ((RL >>> SB) << 8) * freq[s]; inv[s] = 1 / freq[s]; }
+      if (syms.length >= RI_MIN) return ransEncodeJS4(syms, freq, cum, out, xmax, inv);      // since 2.22.0: 4 states for long streams (its own function, so this one stays small for the JIT)
       for (i = syms.length - 1; i >= 0; i--) {
         s = syms[i]; f = freq[s]; xm = xmax[s];
         while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
@@ -122,7 +123,21 @@
       for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255;
       return out.subarray(p);
     }
-    function ransDecode(bytes, n, freq, cum, slot) {
+    function ransEncodeJS4(syms, freq, cum, out, xmax, inv) {      // 4 states taking turns, the same bytes as the wasm helper's rans_enc
+      var p = out.length, x, i, s, f, xm, q, k;
+      var xs = [RL, RL, RL, RL], j;
+      for (i = syms.length - 1; i >= 0; i--) {
+        j = i & 3; x = xs[j]; s = syms[i]; f = freq[s]; xm = xmax[s];
+        while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
+        q = (x * inv[s]) | 0; k = x - q * f;
+        if (k >= f) { q++; k -= f; } else if (k < 0) { q--; k += f; }
+        xs[j] = (q << SB) + k + cum[s];
+      }
+      for (j = 3; j >= 0; j--) { x = j ? xs[j] : (xs[0] | 0x80000000) >>> 0; for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255; }
+      return out.subarray(p);
+    }
+    function ransDecode(bytes, n, tb) {
+      var freq = tb.freq;
       var kw = KWC, len = bytes.length, sP, fP, oP, out;
       if (kw && n >= 1024 && len >= 4 && len <= n * 2 + 64) {
         sP = kw.base; fP = kal(sP + len + 16); oP = kal(fP + 512);
@@ -132,11 +147,12 @@
           out = new Uint8Array(n); out.set(new Uint8Array(kw.mem.buffer, oP, n)); return out;
         }
       }
-      return ransDecodeJS(bytes, n, freq, cum, slot);
+      fillTable(tb); return ransDecodeJS(bytes, n, freq, tb.cum, tb.slot);
     }
     function ransDecodeJS(bytes, n, freq, cum, slot) {
       var out = new Uint8Array(n), len = bytes.length, p = 4, x, i, m, s;
       if (len < 4) pfail('bad entropy data');
+      if (bytes[3] & 128) return ransDecodeJS4(bytes, n, freq, cum, slot, out);      // 4 states taking turns; a 1-state stream never sets this bit
       x = (bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24) >>> 0;
       for (i = 0; i < n; i++) {
         m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
@@ -156,12 +172,37 @@
       for (i = 0; i < 256; i++) if (freq[i]) bm[i >> 3] |= 1 << (i & 7);
       w.bytes(bm); for (i = 0; i < 256; i++) if (freq[i]) w.vi(freq[i] - 1);
     }
+    function ransDecodeJS4(bytes, n, freq, cum, slot, out) {      // value i uses state i % 4
+      var len = bytes.length, p, x, i, m, s;
+      if (len < 16) pfail('bad entropy data');
+      var xs = new Uint32Array(4), j;
+      for (j = 0; j < 4; j++) xs[j] = (bytes[4 * j] | bytes[4 * j + 1] << 8 | bytes[4 * j + 2] << 16 | bytes[4 * j + 3] << 24) >>> 0;
+      xs[0] &= 0x7FFFFFFF; p = 16;
+      for (i = 0; i < n; i++) {
+        j = i & 3; x = xs[j]; m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
+        while (x < RL) { if (p >= len) pfail('bad entropy data'); x = ((x << 8) | bytes[p++]) >>> 0; }
+        xs[j] = x;
+      }
+      return out;
+    }
     function readTable(r) {              // the frequency table, checked: it must add up to exactly 4096
-      var bm = r.bytes(32), freq = new Uint16Array(256), cum = new Uint16Array(257), slot = new Uint8Array(M), i, tot = 0, v;
+      var bm = r.bytes(32), freq = new Uint16Array(256), i, tot = 0, v;
       for (i = 0; i < 256; i++) if ((bm[i >> 3] >> (i & 7)) & 1) { v = r.vi() + 1; tot += v; if (tot > M) pfail('bad frequencies'); freq[i] = v; }
       if (tot !== M) pfail('bad frequencies');
+      return { freq: freq, cum: null, slot: null };      // since 2.22.0 the cum and slot tables are made only when the plain JavaScript decoder needs them (the wasm helper makes its own)
+    }
+    function fillTable(tb) {
+      if (tb.slot) return tb;
+      var freq = tb.freq, cum = new Uint16Array(257), slot = new Uint8Array(M), i;
       for (i = 0; i < 256; i++) { cum[i + 1] = cum[i] + freq[i]; slot.fill(i, cum[i], cum[i + 1]); }
-      return { freq: freq, cum: cum, slot: slot };
+      tb.cum = cum; tb.slot = slot; return tb;
+    }
+    function ransInto(kw, bytes, n, tb, dP, scP) {     // decodes straight into the helper's memory at dP (scP: scratch room for the stream and the table); false when it does not fit
+      var len = bytes.length, fP = kal(scP + len + 16);
+      if (len < 4 || len > n * 2 + 64 || !kwRoom(fP + 512 - kw.base + 64)) return false;
+      new Uint8Array(kw.mem.buffer, scP, len).set(bytes); new Uint16Array(kw.mem.buffer, fP, 256).set(tb.freq);
+      if (kw.x.rans_dec(scP, len, n, fP, dP, 0) < 0) pfail('bad entropy data');
+      return true;
     }
 
     // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
@@ -239,11 +280,11 @@
       return w.out();
     }
     function egDecode(r, n, out) {
-      var t = readTable(r), rl = r.vi(), syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot), bits = 0, i, c, nb, pos = 0, idx, off, lo, hi, u, tmp, src, bytes, kw = KWC, sP, bP, oP;
-      if (kw && n >= 1024) {                                                         // since 2.20.2: the bit reading in the WebAssembly helper
+      var t = readTable(r), rl = r.vi(), rb = r.bytes(rl), syms = null, bits = 0, i, c, nb, pos = 0, idx, off, lo, hi, u, tmp, src, bytes, kw = KWC, sP, bP, oP;
+      if (kw && n >= 1024) {                                                         // since 2.20.2: the bit reading in the WebAssembly helper; since 2.22.0 the size classes are decoded straight into its memory
         sP = kw.base; bP = kal(sP + n);
-        if (kwRoom(bP + n * 8 + 64 - kw.base + 64)) {
-          new Uint8Array(kw.mem.buffer, sP, n).set(syms); bits = kw.x.eg_bits(sP, n);
+        if (kwRoom(bP + n * 8 + 64 - kw.base + 64) && ransInto(kw, rb, n, t, sP, kal(sP + n * 24 + 4096))) {
+          bits = kw.x.eg_bits(sP, n);
           if (bits < 0) pfail('bad size class');
           bytes = Math.ceil(bits / 8); if (!kwRoom(kal(bP + bytes + 16) + n * 8 - kw.base + 64)) bits = -2;
           else {
@@ -254,6 +295,7 @@
         }
         bits = 0;
       }
+      syms = ransDecode(rb, n, t);
       for (i = 0; i < n; i++) { c = syms[i]; if (c > 53) pfail('bad size class'); if (c > 1) bits += c - 1; }
       bytes = Math.ceil(bits / 8); src = r.bytes(bytes); tmp = new Uint32Array(Math.ceil(bytes / 4) + 2); new Uint8Array(tmp.buffer).set(src);
       for (i = 0; i < n; i++) {
@@ -281,7 +323,7 @@
     }
     function egWithTag(a, n, w) { w.bytes(egEncode(a, n)); return w.out(); }
     function encIntWith(sch, a, depth, opt, mm, bound) {      // bytes, or null when this way does not apply (mm: the smallest and largest value, when the caller already has them)
-      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, e1, e2, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen, o2;
+      var n = a.length, w = new Wr(), mn, mx, rng, bw, res, i, mm, d, g, e1, e2, x, y, t, vals, runs, j, m, keys, codes, q, lim, pos, hi, low, sh, div, syms, cnt, freq, cum, rb, hist, seen, o2, wide;
       w.u8(sch);
       if (sch === IS.RAW) { w.need(n * 8 + 1); for (i = 0; i < n; i++) w.f64(a[i]); return w.out(); }
       if (!mm) mm = range(a);
@@ -303,7 +345,7 @@
           syms.set(new Uint8Array(KWC.mem.buffer, i, n)); low.set(new Uint32Array(KWC.mem.buffer, y, n)); cnt.set(new Uint32Array(KWC.mem.buffer, x, 256));
         } else for (i = 0; i < n; i++) { x = a[i] - mn; y = Math.floor(x / div); syms[i] = y; low[i] = x - y * div; cnt[y]++; }
         if (bound) {                                                         // a quick estimate first: if the entropy coder cannot get under the best size so far, it is not run
-          x = 0; y = 0; for (i = 0; i < 256; i++) if (cnt[i]) { y++; x -= cnt[i] * Math.log2(cnt[i] / n); }
+          x = 0; y = 0; for (i = 0; i < 256; i++) if (cnt[i]) { y++; x -= cnt[i] * lg2d(cnt[i] / n); }
           if (x / 8 + y * 0.5 + n * sh / 8 > bound) return null;
         }
         freq = normFreq(cnt, n); cum = new Uint16Array(257); for (i = 0; i < 256; i++) cum[i + 1] = cum[i] + freq[i];
@@ -336,7 +378,8 @@
           while (hi[q] >= 0 && cum[q] !== x) q = (q + 1) & 2047;
           if (hi[q] >= 0) { if (x !== a[i - 1]) j++; } else { hi[q] = 1; cum[q] = x; }
         }
-        if (j * 3 < m) return null;                                        // under a third of the first values come back after other values (a run of the same value is for RLE): not this way
+        wide = mx - mn >= 16777216;                                        // since 2.23.0: on values over 24 bits wide (times, ids) a short place saves many bits, so this way is tried with 5% coming back instead of a third
+        if (j * (wide ? 20 : 3) < m) return null;                          // under a third of the first values come back after other values (a run of the same value is for RLE): not this way
         d = new Float64Array(n); vals = []; seen = new Int32Array(n + 1);      // seen: a tree of counts that has a 1 at the latest place of every different value so far
         for (sh = 32 - Math.clz32(n * 2 - 1), cum = new Float64Array(1 << sh), hi = new Int32Array(1 << sh).fill(-1), freq = new Uint32Array(cum.buffer, 0, 0), syms = new Float64Array(1), low = new Uint32Array(syms.buffer), div = (1 << sh) - 1, i = 0; i < n; i++) {
           x = a[i]; syms[0] = x; q = (Math.imul(low[0], 0x9E3779B1) ^ Math.imul(low[1] + 0x7F4A7C15, 0x85EBCA6B)) >>> (32 - sh) & div;      // a table of the last place of each value (open addressing)
@@ -346,7 +389,8 @@
           for (t = i + 1; t <= n; t += t & -t) seen[t]++;
           hi[q] = i;
         }
-        if (vals.length * 5 > n * 3) return null;
+        if (wide) { for (i = 0, j = 0; i < n; i++) if (d[i] > 1) j++; if (j * 20 < n) return null; }      // wide: 5% of the whole block
+        else if (vals.length * 5 > n * 3) return null;
         o2 = opt.order ? opt : Object.assign({}, opt, { order: LB_ORDER }); w.vi(vals.length); w.bytes(encInts(d, depth - 1, o2)); w.bytes(encInts(Float64Array.from(vals), depth - 1, o2)); return w.out();
       }
       if (sch === IS.DELTA2) {      // since 2.20.3: the second difference (the change of the change, signed); smooth counts (running totals) shrink about a bit a value more than with one difference
@@ -430,38 +474,85 @@
     var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA2, IS.DELTA, IS.RLE, IS.DICT, IS.LB, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
     // Since 2.19.2 the ways that won for a block are written down as a tree (REC) and the next blocks of the column replay that tree (RPL): each level tries only the way that won there, with no sample trials,
     // and a level whose way does not apply falls back to the full search. Every block still comes out as ordinary bytes any decoder reads; every 32nd block records a new tree.
-    var REC = null, RPL = null;
+    var REC = null, RPL = null, TGEN = 0;
+    // Since 2.23.0 a replayed level whose way does not apply searches again and keeps what it found next to the old way (ALT: the old tree first, then the new one), so the next blocks replay
+    // the new way without a search, and still use the old one whenever it applies. Inside the first tree of an ALT nothing searches (STRICT): it applies at every level or the second tree is used,
+    // the same rule the WebAssembly helper follows, so both give the same bytes.
+    var ALT = 13, STRICT = 0, NOFIT = {};
+    function replayOne(a, nd, depth, opt, sv) {
+      var e = null;
+      if (nd.sch === ALT) {
+        STRICT++; try { e = replayOne(a, nd.kids[0], depth, opt, sv); } catch (x) { if (x !== NOFIT) throw x; e = null; } finally { STRICT--; }
+        return e || replayOne(a, nd.kids[1], depth, opt, sv);
+      }
+      RPL = { node: nd, k: 0 };
+      try { e = encIntWith(nd.sch, a, depth, opt, range(a), 0); } catch (x) { if (x === NOFIT) throw x; e = null; } finally { RPL = sv; }
+      if (!e && STRICT) throw NOFIT;
+      return e;
+    }
     function encInts(a, depth, opt) {
-      var nd, sv, e;
+      var nd, sv, e = null, got, svR, at;
       if (RPL) {
-        nd = RPL.node.kids && RPL.node.kids[RPL.k++]; sv = RPL;
+        at = RPL.k; nd = RPL.node.kids && RPL.node.kids[RPL.k++]; sv = RPL;
         if (nd) {
-          if (KWC && a.length >= 64 && (e = encTreeWasm(a, nd, depth))) return e;        // the whole tree in one WebAssembly call, when every way in it is one the helper knows
-          RPL = { node: nd, k: 0 };
-          try { e = tryInt(nd.sch, a, depth, opt, range(a), 0); } finally { RPL = sv; }
+          if (KWC && a.length >= 64 && (e = encTreeWasm(a, nd, depth, opt.dictGate))) return e;        // the whole tree in one WebAssembly call, when every way in it is one the helper knows
+          e = replayOne(a, nd, depth, opt, sv);
           if (e) return e;
         }
-        RPL = null; try { return encIntsFull(a, depth, opt); } finally { RPL = sv; }
+        if (STRICT) throw NOFIT;
+        if (!sv.node.kids || sv.node.root) { RPL = null; try { return encIntsFull(a, depth, opt); } finally { RPL = sv; } }
+        svR = REC; got = []; RPL = null; REC = got;
+        try { e = encIntsFull(a, depth, opt); } finally { RPL = sv; REC = svR; }
+        if (got[0] && at < sv.node.kids.length) { sv.node.kids[at] = nd ? { sch: ALT, kids: [nd.sch === ALT ? nd.kids[0] : nd, got[0]] } : got[0]; TGEN++; }
+        return e;
       }
       return encIntsFull(a, depth, opt);
     }
     function treeBytes(nd) {      // the tree as bytes for enc_tree (way, number of parts, parts), or null when a way in it is not one the helper knows
       var out = [];
-      function put(x) { if (x.sch !== 1 && x.sch !== 2 && x.sch !== 4 && x.sch !== 8 && x.sch !== 9 && x.sch !== 10 && x.sch !== 11) throw 0; out.push(x.sch, x.kids.length); for (var i = 0; i < x.kids.length; i++) put(x.kids[i]); }
-      if (nd.tb === undefined) { try { put(nd); nd.tb = Uint8Array.from(out); } catch (e) { nd.tb = null; } }
+      function put(x) { if (x.sch < 1 || x.sch > ALT) throw 0; out.push(x.sch, x.kids.length); for (var i = 0; i < x.kids.length; i++) put(x.kids[i]); }
+      if (nd.tb === undefined || nd.tg !== TGEN) { nd.tg = TGEN; try { put(nd); nd.tb = Uint8Array.from(out); } catch (e) { nd.tb = null; } }      // TGEN: a tree that learned a new way is written again
       return nd.tb;
     }
-    function encTreeWasm(a, nd, depth) {
+    function encTreeWasm(a, nd, depth, gate) {
       var kw = KWC, tb = treeBytes(nd), n = a.length, aP, oP, cap, tP, sP, scap, len;
       if (!tb || !kw.x.enc_tree) return null;
-      aP = kw.base; oP = kal(aP + n * 8); cap = n * 10 + 4096; tP = kal(oP + cap); sP = kal(tP + tb.length + 16); scap = n * 40 + 4096;
+      aP = kw.base; oP = kal(aP + n * 8); cap = n * 10 + 4096; tP = kal(oP + cap); sP = kal(tP + tb.length + 16); scap = n * 64 + 1114112;
       if (!kwRoom(sP + scap - kw.base + 64)) return null;
       new Float64Array(kw.mem.buffer, aP, n).set(a); new Uint8Array(kw.mem.buffer, tP, tb.length).set(tb);
-      len = kw.x.enc_tree(aP, n, tP, oP, cap, sP, scap, depth) >>> 0;
+      len = kw.x.enc_tree(aP, n, tP, oP, cap, sP, scap, depth | (gate ? 256 : 0)) >>> 0;
       return len ? new Uint8Array(kw.mem.buffer, oP, len).slice() : null;
     }
+    // Since 2.23.0 the search below runs in the WebAssembly helper (enc_search) with the same bytes and tree of ways, except where it chooses on a sample or uses the ways that won before.
+    var SE_BAIL = 4294967295, SE_MIN = 16, BAIL = {};
+    function lg2d(v) {                     // log2 from the exponent bits and + - * / only, the same double as lg2d in the helper (used by the quick size estimate of ENT)
+      var e, s, s2, hi;
+      f64a[0] = v; hi = u32a[HI]; e = ((hi >>> 20) & 2047) - 1023; u32a[HI] = (hi & 0x800FFFFF) | 0x3FF00000; v = f64a[0];      // v = m * 2^e with m in [1, 2) (v > 0 and normal here)
+      if (v >= 1.4142135623730951) { v /= 2; e += 1; }
+      s = (v - 1) / (v + 1); s2 = s * s;
+      return e + s * (2 + s2 * (0.6666666666666666 + s2 * (0.4 + s2 * (0.2857142857142857 + s2 * (0.2222222222222222 + s2 * (0.18181818181818182 + s2 * 0.15384615384615385)))))) * 1.4426950408889634;
+    }
+    function treeOf(t, p) {                // the tree the helper wrote (way, number of parts, parts) as nodes
+      var nd = { sch: t[p.i], kids: [] }, k = t[p.i + 1], j; p.i += 2;
+      for (j = 0; j < k; j++) nd.kids.push(treeOf(t, p));
+      return nd;
+    }
+    function searchWasm(a, depth, opt, way, bound) {      // { e: bytes, node: tree }, null when the way does not apply, or BAIL when JavaScript has to do it
+      var kw = KWC, n = a.length, ord = opt.order || INT_ORDER, aP, oP, cap, tP, rP, dP, sP, scap, len, dw, d;
+      aP = kw.base; cap = n * 8 + 64; oP = kal(aP + n * 8); tP = kal(oP + cap); rP = kal(tP + 128); dP = kal(rP + 16); sP = kal(dP + 16); scap = n * 160 + 2097152;
+      if (!kwRoom(sP + scap - kw.base + 64)) return BAIL;
+      new Float64Array(kw.mem.buffer, aP, n).set(a); new Uint8Array(kw.mem.buffer, rP, ord.length).set(ord);
+      dw = new Int32Array(kw.mem.buffer, dP, 4); dw[0] = opt.decWon ? opt.decWon[0] : -1; dw[1] = opt.decWon ? opt.decWon[1] : -1;
+      len = kw.x.enc_search(aP, n, depth, rP, ord.length, (opt.order ? 1 : 0) | (opt.dictGate ? 2 : 0) | (opt.noEntropy ? 4 : 0) | (opt.sample ? 8 : 0) | (opt.prefer ? 16 : 0) | (REC !== null ? 32 : 0), way, bound, oP, cap, tP, sP, scap, dP) >>> 0;
+      if (len === SE_BAIL) return BAIL;
+      dw = new Int32Array(kw.mem.buffer, dP, 4);
+      if (dw[3]) { d = opt.decWon || (opt.decWon = [-1, -1]); if (dw[3] & 1) d[0] = dw[0]; if (dw[3] & 2) d[1] = dw[1]; }      // what decPick writes down
+      if (!len) return null;
+      return { e: new Uint8Array(kw.mem.buffer, oP, len).slice(), node: treeOf(new Uint8Array(kw.mem.buffer, tP, dw[2]).slice(), { i: 0 }) };
+    }
     function runWay(way, a, depth, opt, mm, bound, rec) {     // tryInt, with the ways it uses for its parts written down when rec is on
-      var sv = REC, kids = null, e;
+      var sv = REC, kids = null, e, r;
+      if (KWC && KWC.x.enc_search && a.length >= SE_MIN && (REC = rec ? [] : null, r = searchWasm(a, depth, opt, way, bound), REC = sv, r) !== BAIL) { runWay.kids = rec ? (r ? r.node.kids : null) : null; return r ? r.e : null; }
       if (rec) REC = kids = []; else REC = null;
       try { e = tryInt(way, a, depth, opt, mm, bound); } finally { REC = sv; }
       runWay.kids = kids; return e;
@@ -469,6 +560,7 @@
     function encIntsFull(a, depth, opt) {
       var n = a.length, d2, fs, k, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
+      if (KWC && KWC.x.enc_search && n >= SE_MIN && !(opt.prefer && depth === opt.top) && !(opt.sample && n > 4096 && order.length > 1 && depth === opt.top) && (e = searchWasm(a, depth, opt, 255, 0)) !== BAIL) { if (e && rec) par.push(e.node); return e ? e.e : null; }      // since 2.23.0: the whole search below in one call
       if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
         for (i = 0, k = opt.leadInt >= 0 && opt.prefer.indexOf(opt.leadInt) >= 0 ? [opt.leadInt] : opt.prefer; i < k.length; i++) { e = runWay(k[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
         if (best) { if (rec) par.push({ sch: best[0], kids: bestKids }); return best; }
@@ -497,23 +589,22 @@
     }
     function tryInt(sch, a, depth, opt, mm, bound) { try { return encIntWith(sch, a, depth, opt, mm, bound); } catch (e) { return null; } }
     function decInts(r, n, depth, into) {
-      var sch = r.u8(), out = into || new Float64Array(n), i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div, q, y, bytes, src, seen, x;
+      var sch = r.u8(), out = into || new Float64Array(n), rb, i, mn, bw, res, d, c, z, g, b, m, vals, runs, o, k, keys, codes, ne, low, gaps, hi, lim1, p, sh, t, syms, rl, div, q, y, bytes, src, seen, x;
       if (depth > MAX_DEPTH) pfail('data nested too deep');
       if (sch === IS.RAW) { for (i = 0; i < n; i++) out[i] = r.f64(); return out; }
       if (sch === IS.CONST) { out.fill(r.zi()); return out; }
       if (sch === IS.FOR) { mn = r.zi(); bw = r.u8(); return bpReadF(r, n, bw, mn, into); }
       if (sch === IS.ENT) {
-        mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi();
-        syms = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot);
-        if (KWC && n >= 1024 && sh <= 32) {                                         // since 2.20.2: the low bits and the sum in the WebAssembly helper
+        mn = r.zi(); sh = r.u8(); if (sh > 40) pfail('bad shift'); t = readTable(r); rl = r.vi(); rb = r.bytes(rl);
+        if (KWC && n >= 1024 && sh <= 32) {                                         // since 2.20.2: the low bits and the sum in the WebAssembly helper; since 2.22.0 the symbols are decoded straight into its memory
           bytes = Math.ceil(n * sh / 8); q = KWC.base; i = kal(q + n); y = kal(i + bytes + 16);
-          if (kwRoom(y + n * 8 + 64 - KWC.base + 64)) {
-            new Uint8Array(KWC.mem.buffer, q, n).set(syms); src = sh ? r.bytes(bytes) : null;
+          if (kwRoom(y + n * 8 + 64 - KWC.base + 64) && ransInto(KWC, rb, n, t, q, kal(y + n * 8 + 64))) {
+            src = sh ? r.bytes(bytes) : null;
             new Uint8Array(KWC.mem.buffer, i, bytes + 8).fill(0).set(src || new Uint8Array(0)); KWC.x.ent_dec(q, n, sh, mn, i, y);
             out.set(new Float64Array(KWC.mem.buffer, y, n)); return out;
           }
         }
-        low = bpRead(r, n, sh); div = Math.pow(2, sh);
+        syms = ransDecode(rb, n, t); low = bpRead(r, n, sh); div = Math.pow(2, sh);
         for (i = 0; i < n; i++) out[i] = syms[i] * div + low[i] + mn;
         return out;
       }
@@ -704,8 +795,19 @@
       if (mx - mn >= 4194304) return null;
       return { mn: mn, idx: new Uint32Array(mx - mn + 1) };
     }
+    function fdictWasm(a, n, step) {       // { keys, codes } from fdict_map, false when encFDict gives up, null when JavaScript has to do it (a NaN, or no memory)
+      var kw = KWC, size = 1 << (32 - Math.clz32(n * 2 - 1)), aP = kw.base, kP = kal(aP + n * 8), cP = kal(kP + n * 8), tP = kal(cP + n * 8), m;
+      if (!kwRoom(tP + size * 12 - kw.base + 64)) return null;
+      new Float64Array(kw.mem.buffer, aP, n).set(a);
+      m = kw.x.fdict_map(aP, n, step, Math.min(n / 2, 65536), kP, cP, tP, size);
+      if (m === -2) return false;
+      if (m < 0) return null;
+      return { keys: new Float64Array(kw.mem.buffer, kP, m).slice(), codes: new Float64Array(kw.mem.buffer, cP, n).slice() };
+    }
     function encFDict(a, depth, opt, bound) {
       var n = a.length, m = new Map(), i, k, keys, codes, w, sm, st, lim, idx, mn, x, c, step = n > 2048 ? Math.floor(n / 1024) : 0;
+      if (KWC && n >= 1024 && KWC.x.fdict_map && (x = fdictWasm(a, n, step)) !== null) { if (x === false) return null; keys = x.keys; codes = x.codes; }      // since 2.23.0: the same keys and codes from the helper
+      else {
       if (step) { sm = new Set(); for (i = 0; i < n; i += step) sm.add(a[i]); if (sm.size > 0.95 * Math.ceil(n / step)) return null; }       // nearly every sampled value is different: no dictionary will help
       if (n >= 256 && (st = fdWhole(a, n))) {                                   // since 2.19.3: whole numbers in a small range look their dictionary position up in an array, not a Map; same keys in first-seen order, same codes
         lim = Math.min(n / 2, 65536); idx = st.idx; mn = st.mn; keys = []; codes = new Float64Array(n);
@@ -714,6 +816,7 @@
       for (i = 0; i < n; i++) { k = a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]; if (!m.has(k)) m.set(k, m.size); if (m.size > n / 2 || m.size > 65536) return null; }
       keys = Array.from(m.keys()); codes = new Float64Array(n);
       for (i = 0; i < n; i++) codes[i] = m.get(a[i] === 0 && 1 / a[i] < 0 ? '-0' : a[i]);
+      }
       }
       if (bound && keys.length * 8 >= bound) return null;      // since 2.21.0: the table alone is no smaller than the best way so far
       w = new Wr(); w.vi(keys.length); for (i = 0; i < keys.length; i++) w.f64(keys[i] === '-0' ? -0 : keys[i]);
@@ -778,7 +881,7 @@
       if (Math.min(e2, e3) >= n) return { mode: 0, est: n + 1 };
       return e3 < e2 ? { mode: 3, est: e3 + 1, c: cd.slice() } : { mode: 2, est: e2 + 1, c: cnt.slice() };
     }
-    function encPlanesK(a, kw) {           // the same as encPlanes, with the splitting, counting and entropy coding in the wasm helper; null when its memory cannot be had
+    function encPlanesK(a, kw, bound) {           // the same as encPlanes, with the splitting, counting and entropy coding in the wasm helper; null when its memory cannot be had
       var n = a.length, sub = n > 4096 ? sampleOf(a) : a, m = sub.length, mx = Math.max(n, m), cap = n * 2 + 64, subP = kw.base, aP, plP, dP, cP, fP, oP, end, variant, v0 = [], v1 = [], spm, pms = [], b, i, w, v, pm, c, freq, p, len, body, u8, fq;
       aP = sub === a ? subP : kal(subP + m * 8); plP = kal(aP + (sub === a ? 0 : n * 8) + (sub === a ? m * 8 : 0)); dP = kal(plP + 8 * mx); cP = kal(dP + mx + 16); fP = kal(cP + 2048); oP = kal(fP + 512); end = oP + cap + 16;
       if (!kwRoom(end - kw.base + 64)) return null;
@@ -793,6 +896,10 @@
         if (sub === a) pms.push(spm[b]);
         else if (spm[b].mode === 1) { v = u8[plP + b * n]; for (i = 1; i < n && u8[plP + b * n + i] === v; i++); pms.push(i < n ? planeModeK(kw, plP + b * n, n, cP, dP) : spm[b]); }
         else pms.push(planeModeK(kw, plP + b * n, n, cP, dP));
+      }
+      if (bound) {                         // since 2.23.0: the least these planes can take (an entropy-coded plane is at least its entropy plus the 32-byte table bitmap; the estimate adds at most 132 more) is not under the best so far: skip the coding
+        for (v = 1, b = 0; b < 8; b++) v += pms[b].mode >= 2 ? pms[b].est - 132 : pms[b].est;
+        if (v >= bound * 1.02) return v;      // not within 2% of the best either, so the lead rule in encChunk sees the same answer (it gets this least size)
       }
       fq = new Uint16Array(kw.mem.buffer, fP, 256);
       w = new Wr(); w.u8(variant);
@@ -809,9 +916,9 @@
       }
       return w.out();
     }
-    function encPlanes(a) {
+    function encPlanes(a, bound) {
       var kw = KWC, got;
-      if (kw && a.length >= 1024) { got = encPlanesK(a, kw); if (got) return got; }
+      if (kw && a.length >= 1024) { got = encPlanesK(a, kw, bound); if (got) return got; }
       return encPlanesJS(a);
     }
     function encPlanesJS(a) {                // byte planes of the doubles (like OpenZL's transpose_split); the variant is chosen on a quarter of the block, then each plane's way by estimate
@@ -842,7 +949,7 @@
         if (tot !== M) pfail('bad frequencies');
         rl = r.vi(); sub = r.bytes(rl);
         if (rl > cap) {                                                                     // longer than any packer here writes: the plain way
-          t = tablesOf(fq); v = ransDecode(sub, n, t.freq, t.cum, t.slot);
+          t = tablesOf(fq); v = ransDecode(sub, n, t);
           if (mode === 3) for (i = 1; i < n; i++) v[i] = (v[i - 1] + v[i]) & 255;
           u8.set(v, dst); continue;
         }
@@ -871,7 +978,7 @@
         if (mode === 1) { planes.push(new Uint8Array(n).fill(r.u8())); continue; }
         if (mode === 0) { planes.push(r.bytes(n).slice()); continue; }
         if (mode !== 2 && mode !== 3) pfail('bad column');
-        t = readTable(r); rl = r.vi(); p = ransDecode(r.bytes(rl), n, t.freq, t.cum, t.slot);
+        t = readTable(r); rl = r.vi(); p = ransDecode(r.bytes(rl), n, t);
         if (mode === 3) for (i = 1; i < n; i++) p[i] = (p[i - 1] + p[i]) & 255;
         planes.push(p);
       }
@@ -886,14 +993,15 @@
 
     // ---------------------------------------------------------------- one block of numbers, and a whole column
     var CS = { INTS: 0, ALP: 1, RD: 2, RAWF: 3, FDICT: 4, PLANES: 5 }, CHUNK = 8192, NAMES = ['INTS', 'ALP', 'RD', 'RAWF', 'FDICT', 'PLANES'];
-    function isIntegral(a) { var i, v, st; if (KWC && a.length >= 1024 && (st = statsOf(KWC, a))) return st.ok; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
+    function isIntegral(a) { var i, v, st; for (i = 0; i < 8 && i < a.length; i++) { v = a[i]; if (Math.floor(v) !== v) return false; }      // since 2.23.0: a decimal among the first values answers at once
+      if (KWC && a.length >= 1024 && (st = statsOf(KWC, a))) return st.ok; for (i = 0; i < a.length; i++) { v = a[i]; if (!(Math.abs(v) < MAXI) || Math.floor(v) !== v || (v === 0 && 1 / v < 0)) return false; } return true; }
     function rawDoubles(a) { var w = new Wr(), i; w.need(a.length * 8); for (i = 0; i < a.length; i++) w.f64(a[i]); return w.out(); }
     function encChunk(a, depth, opt, only) {      // only: the ways that won earlier blocks of this column; given on most blocks so the others are not tried
       var cands = [], best = null, bs = -1, k, e, w, tn, bt = null, szs = {}, sec;
       if (isIntegral(a)) cands.push([CS.INTS, function () { return encInts(a, depth, opt); }]);
       else {
         cands.push([CS.ALP, function () { return encALP(a, depth, opt); }]); cands.push([CS.FDICT, function () { return encFDict(a, depth, opt, best ? best.length : 0); }]);
-        if (!opt.noEntropy) cands.push([CS.PLANES, function () { return encPlanes(a); }]);
+        if (!opt.noEntropy) cands.push([CS.PLANES, function () { return encPlanes(a, best ? best.length : 0); }]);
         cands.push([CS.RD, function () { return encRD(a, depth, opt); }]);                                  // last: it cannot be under 6 bytes a value, so it is skipped when anything before it is smaller
         cands.push([CS.RAWF, function () { return rawDoubles(a); }]);
       }
@@ -902,9 +1010,10 @@
         if (only && cands[k][0] !== CS.INTS && only.indexOf(cands[k][0]) < 0) continue;
         if (only && opt.lead >= 0 && cands[k][0] !== opt.lead && cands[k][0] !== CS.INTS) continue;      // since 2.21.0: the kind that beat the others by 2% or more on the last block is the only one tried on a block that replays
         if (cands[k][0] === CS.RD && best && best.length < a.length * 6) continue;      // this way cannot be under 6 bytes a value (4 for the back bits, at least 2 for the front)
-        REC = opt.recTpl ? [] : null; RPL = opt.tplNode && opt.tplCS === cands[k][0] ? { node: { kids: opt.tplNode }, k: 0 } : null;
+        REC = opt.recTpl ? [] : null; RPL = opt.tplNode && opt.tplCS === cands[k][0] ? { node: { kids: opt.tplNode, root: true }, k: 0 } : null;
         try { e = cands[k][1](); } catch (err) { e = null; }
         tn = REC; REC = null; RPL = null;
+        if (typeof e === 'number') { szs[cands[k][0]] = e; e = null; }      // a way that only says how small it could be at best (PLANES since 2.23.0)
         if (e) szs[cands[k][0]] = e.length;
         if (e && (!best || e.length < best.length)) { best = e; bs = cands[k][0]; bt = tn; }
       }
@@ -915,7 +1024,17 @@
       w = new Wr(); w.need(best.length + 1); w.u8(bs); w.bytes(best); return w.out();
     }
     function into1(out, at, n, got) { if (got.buffer !== out.buffer || got.byteOffset !== out.byteOffset + at * 8) out.set(got, at); }      // a block that was not decoded in place is copied in
+    function decBlockWasm(r, n, into) {      // since 2.22.0: the whole block in one WebAssembly call (dec_block); null when the helper does not handle it (the JavaScript below then does)
+      var kw = KWC, len = r.b.length - r.p, sP, oP, scP, scap, m, out;
+      if (!kw || !kw.x.dec_block || n < 1024) return null;
+      sP = kw.base; oP = kal(sP + len + 32); scP = kal(oP + n * 8); scap = n * 96 + 65536;
+      if (!kwRoom(scP + scap - kw.base + 64)) return null;
+      m = new Uint8Array(kw.mem.buffer, sP, len + 16); m.set(r.b.subarray(r.p)); m.fill(0, len);
+      if (!kw.x.dec_block(sP, len, n, oP, scP, scap)) return null;
+      out = into || new Float64Array(n); out.set(new Float64Array(kw.mem.buffer, oP, n)); return out;
+    }
     function decChunk(r, n, into) {
+      var fast = decBlockWasm(r, n, into); if (fast) return fast;
       var id = r.u8(), out, i;
       if (id === CS.INTS) return decInts(r, n, 0, into);
       if (id === CS.ALP) return decALP(r, n, 0, into);
@@ -941,7 +1060,7 @@
     var AUTO_MAX = 100000;
     function packRun(values, opts) {
       var a = values instanceof Float64Array ? values : Float64Array.from(values), n = a.length, o = { sample: !(opts && opts.sample === false), noEntropy: !!(opts && opts.noEntropy), quick: !!(opts && opts.quick) }, w = new Wr(), i, part, k = 0, won = [], wonInts = [], full, H = opts && opts.hint;
-      var autoQ = !!(opts && opts.auto), stable = false, stableD = false, prevBpn = 0, blk, qk, tplNode = null, tplCS = -1, tplMiss = 0, tplOff = false;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
+      var autoQ = !!(opts && opts.auto), stable = false, stableD = false, prevBpn = 0, blk, qk, tplNode = null, tplCS = -1, tplMiss = 0, tplOff = false, tplK = 0;   // opts.auto (2.8.0, on by default from the JSO layer): a whole-number column of up to AUTO_MAX values tries every way on its first block only
       if (H) { k = H.k || 0; won = H.won || (H.won = []); wonInts = H.wonInts || (H.wonInts = []); }       // opts.hint: what won for this column in earlier packs; a pack then counts on as if its blocks came after those
       if (autoQ && opts.tplIn && opts.tplIn.node) { tplNode = opts.tplIn.node; tplCS = opts.tplIn.cs; won = opts.tplIn.won.slice(); wonInts = opts.tplIn.wonInts.slice(); k = 1; stable = opts.tplIn.stable; stableD = opts.tplIn.stableD; }      // since 2.19.2: the ways a first pack on this column's first 8,192 numbers found, so the first block is not searched again
       w.vi(n); w.vi(CHUNK);
@@ -952,8 +1071,8 @@
         o.prefer = full || !wonInts.length ? null : wonInts; o.top = 2;
         o.recTpl = autoQ && !tplOff && (full || !tplNode); o.tplNode = autoQ && !tplOff && !full ? tplNode : null; o.tplCS = tplCS;      // since 2.19.2: a full block writes down the way that won at each level, the others replay it
         part = encChunk(blk, 2, o, full ? null : won);
-        if (autoQ && !tplOff && (full || !tplNode) && o.outTpl) { tplNode = o.outTpl; tplCS = o.outCS; }
-        else if (autoQ && !full && tplNode && prevBpn > 0 && part.length / blk.length > prevBpn * 1.6) { o = Object.assign({}, o, { prefer: null, recTpl: true, tplNode: null }); part = encChunk(blk, 2, o, null); if (o.outTpl && ++tplMiss < 3) { tplNode = o.outTpl; tplCS = o.outCS; } else { tplNode = null; tplOff = true; } }      // a replayed block 25% bigger than the one before: try every way again   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
+        if (autoQ && !tplOff && (full || !tplNode) && o.outTpl) { tplNode = o.outTpl; tplCS = o.outCS; tplK = k; }
+        else if (autoQ && !full && tplNode && tplK !== k - 1 && prevBpn > 0 && part.length / blk.length > prevBpn * 1.6) { o = Object.assign({}, o, { prefer: null, recTpl: true, tplNode: null }); part = encChunk(blk, 2, o, null); if (o.outTpl && ++tplMiss < 3) { tplNode = o.outTpl; tplCS = o.outCS; tplK = k; } else { tplNode = null; tplOff = true; } }      // a replayed block 25% bigger than the one before: try every way again   // a block tries every way for the first blocks and every 8th (every 32nd for a whole-number column under opts.auto); the rest try only the ways that have won before
         if (autoQ && !full && stable && prevBpn > 0 && part.length / blk.length > prevBpn * 99) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stable = false; }
         else if (autoQ && !full && stableD && prevBpn > 0 && part.length / blk.length > prevBpn * 1.5) { part = encChunk(blk, 2, o = Object.assign({}, o, { prefer: null }), null); stableD = false; }   // since 2.19.0: a decimal column trusts the first blocks too (every 32nd block tries all), until a block comes out 1.5 times bigger   // a block far worse than the one before: try every way again and stop skipping
         prevBpn = part.length / blk.length;
