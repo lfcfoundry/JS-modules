@@ -75,7 +75,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
  * lfc-pack.js: JSON archive format LFC-pack (.json.lfc): blocks of rows, each field stored as columns, zstd inside, a footer with zone maps.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 0.26.6 (API 0)
+ * Version 0.26.7 (API 0)
  *
  * Needs WebAssembly (zstd, the tokenizer and the string deduplicator are compiled from C; page policy 'wasm-unsafe-eval' and nothing else). No other dependency, one file.
  * Contains zstd 1.5.7 (BSD-3-Clause, Meta Platforms), compiled to wasm32; see NOTICE-zstd.txt next to this file.
@@ -1966,7 +1966,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     if (!(S3_OK && NL > 1)) return null;
     for (i = 0; i < NL; i++) len += E[i] - S[i];
     o = new Uint8Array(len + NL - 1); for (i = 0; i < NL; i++) { if (i) o[p++] = 0; o.set(B.subarray(S[i], E[i]), p); p += E[i] - S[i]; }
-    if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(o); } catch (er) { return null; } }
+    if ((hi & 128) && !utf8Valid(o)) return null;
     try { id = hash(o, 'xxh64'); } catch (e2) { return null; }
     return { j: o, id: id, n: NL };
   }
@@ -2040,7 +2040,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       codes[i] = c;
     }
     function joinOf(idx, cnt) { var len = 0, j, p = 0, o; for (j = 0; j < cnt; j++) len += E[a + idx(j)] - S[a + idx(j)]; o = new Uint8Array(len + (cnt ? cnt - 1 : 0)); for (j = 0; j < cnt; j++) { if (j) o[p++] = 0; var x = S[a + idx(j)], y = E[a + idx(j)]; if (y - x > 16) { o.set(B.subarray(x, y), p); p += y - x; } else while (x < y) o[p++] = B[x++]; } return o; }
-    function utf8Check(u) { if (hi & 128) { if (!BC_UTF8) BC_UTF8 = new TextDecoder('utf-8', { fatal: true }); try { BC_UTF8.decode(u); } catch (er) { throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); } } }
+    function utf8Check(u) { if ((hi & 128) && !utf8Valid(u)) throw new Error('LfcPack: text column "' + key + '" is not valid UTF-8'); }
     function cand(t, p, frames, st) { best = addCand(zs, level, best, t, p, frames, n, st); }
     var nl = lab.length;
     if (stop || nl * 4 > n || nl >= 65536) { var all = KL ? bkJoin(bk, KL, null, n) : joinOf(function (j) { return j; }, n); utf8Check(all); cand('s', {}, dlOf([all], nl)); return settle(zs, level, best); }
@@ -2051,6 +2051,21 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
     cand('D', { w: 0, wide: nl > 256 }, [lb, cb], { distinct: nl });
     cand('D', { w: wd, wide: false }, [lb, bitpack(ca, wd)], { distinct: nl });
     return settle(zs, level, best);
+  }
+  // Well-formed UTF-8 (the same bytes TextDecoder fatal accepts: no overlongs, no surrogates, nothing past U+10FFFF), checked in place: no string is made (since 0.26.7; from the Workbench thread: Wikimedia H4 import 9% quicker in Chromium). ASCII runs go 4 bytes at a time.
+  function utf8Valid(u) {
+    var n = u.length, i = 0, w = null, c, c1, c2, c3;
+    if (n >= 64) { var off = u.byteOffset; w = (off & 3) === 0 ? new Uint32Array(u.buffer, off, n >> 2) : null; }
+    while (i < n) {
+      c = u[i];
+      if (c < 128) { if (w && (i & 3) === 0) { var k = i >> 2, m = w.length; while (k < m && (w[k] & 0x80808080) === 0) k++; i = k << 2; if (i >= n) break; c = u[i]; if (c < 128) { i++; continue; } } else { i++; continue; } }
+      if (c < 0xC2) return false;
+      if (c < 0xE0) { if (i + 1 >= n || (u[i + 1] & 0xC0) !== 0x80) return false; i += 2; continue; }
+      if (c < 0xF0) { if (i + 2 >= n) return false; c1 = u[i + 1]; c2 = u[i + 2]; if ((c1 & 0xC0) !== 0x80 || (c2 & 0xC0) !== 0x80 || (c === 0xE0 && c1 < 0xA0) || (c === 0xED && c1 > 0x9F)) return false; i += 3; continue; }
+      if (c < 0xF5) { if (i + 3 >= n) return false; c1 = u[i + 1]; c2 = u[i + 2]; c3 = u[i + 3]; if ((c1 & 0xC0) !== 0x80 || (c2 & 0xC0) !== 0x80 || (c3 & 0xC0) !== 0x80 || (c === 0xF0 && c1 < 0x90) || (c === 0xF4 && c1 > 0x8F)) return false; i += 4; continue; }
+      return false;
+    }
+    return true;
   }
   var B28_MIN = 8192;
   // B74p6: a Float64Array column with NaN (an empty cell) becomes the numbers-and-nulls state the row loop builds ({ nb: the numbers, np: null plane, m, c }), in one pass: the same bytes as a plain array with nulls, without the generic path (7-9x slower in Chromium and Firefox)
@@ -4946,7 +4961,7 @@ html :focus-visible{outline:3px solid var(--lfc-accent);outline-offset:2px}
       .then(function (ok) { return ok === true; }, function () { return false; });
     return warmP;
   }
-  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), pyramids: auto(pyramids, false), graph: auto(graph, false), geo: auto(geo, false), view: auto(view, false), views: auto(views, false), addGraph: auto(function (file, g, table) { return addGraph(bytesOf(file), graphBuild(g, table)); }, true), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n, q) { return sumColumn(k, col, n, undefined, q !== null && typeof q === "object" ? sumReq(n, q.q !== false, q.pyramids) : q !== false); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.26.6', apiVersion: 0 };
+  var api = { _waStats: function () { var z = S.zdec; return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: z && z.outCap ? z.outCap() : 0, inCap: z && z.inCap ? z.inCap() : 0, mem: z ? z.memBuf().byteLength : 0, arena: ARENA.buf ? ARENA.buf.byteLength : 0 }; }, _wa: function (on, est) { WA_ON = !!on; if (est != null) WA.est = est; arenaDrop(); return { restarts: WA.restarts, moved: WA.moved, want: WA.want, outCap: S.zdec && S.zdec.outCap ? S.zdec.outCap() : 0, inCap: S.zdec && S.zdec.inCap ? S.zdec.inCap() : 0, mem: S.zdec ? S.zdec.memBuf().byteLength : 0 }; }, _arena: function (on, ms) { ARENA_ON = !!on; if (ms != null) ARENA_MS = ms; arenaDrop(); return ARENA_ON; }, _arenaBytes: function () { return ARENA.buf ? ARENA.buf.byteLength : 0; }, trim: trim, clearCache: clearCache, cacheLimit: cacheLimit, cacheBytes: cacheBytes, _trimPacker: trimPacker, _helperTrimMs: function (ms) { HELPER_TRIM_MS = ms; }, _autoTrimMs: function (ms) { AUTO_TRIM_MS = ms; if (S.idle) { clearTimeout(S.idle); S.idle = null; } }, hash: hash, aggregate: auto(aggregate, false), unpackColumns: auto(unpackColumns, false), summary: auto(summary, false), pyramids: auto(pyramids, false), graph: auto(graph, false), geo: auto(geo, false), view: auto(view, false), views: auto(views, false), addGraph: auto(function (file, g, table) { return addGraph(bytesOf(file), graphBuild(g, table)); }, true), _addSection: function (b, id, p) { need(true); return addSection(b, id, p); }, _sumCol: function (k, col, n, q) { return sumColumn(k, col, n, undefined, q !== null && typeof q === "object" ? sumReq(n, q.q !== false, q.pyramids) : q !== false); }, packRows: auto(packRows, true), packTables: auto(function (x, o) { return o && o.base ? packDelta(x, o) : packTables(x, o); }, true), unpackTables: auto(unpackTables, false), pool: function (o) { return init({ readOnly: true }).then(function () { return makePool(o); }); }, _job: function (m) { return runJob(m); }, init: init, pack: auto(pack, true), packRowsParallel: packRowsParallel, packColumnsParallel: packColumnsParallel, unpackColumnsParallel: unpackColumnsParallel, unpackRowsParallel: unpackRowsParallel, packParallel: packParallel, packParallelStream: packParallelStream, warmPack: warmPack, warm: warm, packStream: packStream, packBlock: packBlock, unpack: auto(unpack, false), info: auto(info, false), metadata: auto(metadata, false), unpackRows: auto(unpackRows, false), open: open, stats: auto(stats, false), unpackText: auto(unpackText, false), version: '0.26.7', apiVersion: 0 };
 // Copyright (c) 2026 LFC Foundry. MIT License. Source part of lfc-pack.js (joined by build.py).
 
   // ================================================================ delta saves v2 (prototype, off by default): packTables(x, { base }) / unpackTables(file, { base })
