@@ -733,8 +733,8 @@ EXPORT u32 enc_tree(const double *a, u32 n, const u8 *tree, u8 *out, u32 cap, u8
 }
 
 /* ---- enc_search (since 2.23.0): the search of encIntsFull in src/picker.js (every way of the order, the smallest wins, the parts of a way searched the same way), in one call,
- * with the same bytes and the same tree of ways. JavaScript keeps the cases this does not do: a level that would choose its way on a sample (more than 4,096 numbers with
- * opts.sample), and the ways that won before (opts.prefer); the call then answers SE_BAIL and JavaScript does that level itself. */
+ * with the same bytes and the same tree of ways. JavaScript keeps the cases this does not do: the top level when it chooses its way on a sample (more than 4,096 numbers with
+ * opts.sample; levels below it do that here) and the ways that won before (opts.prefer); the call then answers SE_BAIL and JavaScript does that level itself. */
 typedef struct { u8 ord[16]; u32 nord; int has, gate, noent, samp, prefer, rec; } SO;
 static const u8 ORD_INT[13] = {1, 2, 11, 3, 4, 5, 12, 6, 7, 8, 9, 10, 0}, ORD_LB[6] = {1, 2, 3, 7, 8, 9}, ORD_D2[1] = {9}, ORD_DEC0[5] = {1, 2, 8, 4, 5}, ORD_DEC1[5] = {2, 6, 5, 8, 9};
 #define SE_BAIL 0xFFFFFFFFu
@@ -988,7 +988,43 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
 static u32 se_search(const double *a, u32 n, int depth, const SO *so, u8 **ob, u32 *ol, u8 **tb, u32 *tl) {
   u32 cap = n * 8 + 64, i, bl = 0, btl = 0, ctl, d2 = 0, have = 0; double mn, mx; u8 *bb, *cb, *bt, *ct, *x; TW w; int r;
   if (n == 0) return 0;
-  if (so->samp && n > 4096 && so->nord > 1) return SE_BAIL;
+  { u32 nf = so->nord; for (i = 0; i < so->nord; i++) if (so->ord[i] == 8 && so->noent) nf--;
+  if (so->samp && n > 4096 && nf > 1) {      /* since 2.23.0 here (below the top level): the way is chosen on a sample, as sampleOf and encIntsFull in picker.js */
+    u32 sl = (u32)((double)n * 0.25 / 4), k, j, ns, pick = 255, sd2 = 0, hasfs = 0, bl2, tl2, r; double bs = 1e18, fs = 0, *s; u8 *mk0 = GSP, *b, *tt; SO sub; i32 dw0 = SE_DW[0], dw1 = SE_DW[1]; u32 dt = SE_DT;
+    if (sl < 64) sl = 64;
+    ns = sl * 4; s = g_alloc(ns * 8); if (!s) return SE_BAIL;
+    for (k = 0; k < 4; k++) { u32 from = (u32)((double)(n - sl) * (double)k / 3); for (j = 0; j < sl; j++) s[k * sl + j] = a[from + j]; }
+    for (j = 0; j < 13; j++) sub.ord[j] = ORD_INT[j];
+    sub.nord = 13; sub.has = 0; sub.gate = 0; sub.noent = so->noent; sub.samp = 0; sub.prefer = 0; sub.rec = 0;
+    for (i = 0; i < so->nord; i++) {
+      u32 sch = so->ord[i]; u8 *mk = GSP;
+      if (sch == 0 || (sch == 3 && sd2) || ((sch == 5 || sch == 7 || sch == 12 || sch == 11) && depth < 2 && !so->has) || (sch == 8 && so->noent)) continue;
+      r = se_one(sch, s, ns, depth, &sub, bs < 1e18 ? bs : 0, &b, &bl2, &tt, &tl2);
+      GSP = mk;
+      if (r == SE_BAIL) { SE_DW[0] = dw0; SE_DW[1] = dw1; SE_DT = dt; return SE_BAIL; }
+      if (r && sch == 11) sd2 = 1;
+      if (r && (double)r < bs) { bs = r; pick = sch; }
+      if (sd2 && sch == 11 && hasfs && bs < fs * 0.8) break;
+      if (sch == 2 && r) { fs = r; hasfs = 1; }
+    }
+    SE_DW[0] = dw0; SE_DW[1] = dw1; SE_DT = dt; GSP = mk0;      /* what the sample's DEC streams wrote down is thrown away, as the sub options in picker.js are */
+    if (pick != 255) {
+      r = se_one(pick, a, n, depth, so, 0, &b, &bl2, &tt, &tl2);
+      if (r == SE_BAIL) return SE_BAIL;
+      if (r) {
+        u32 haslb = 0;
+        for (i = 0; i < so->nord; i++) if (so->ord[i] == 12) haslb = 1;
+        if (pick != 12 && haslb) {
+          u8 *b2, *t2; u32 bl3, tl3, r2 = se_one(12, a, n, depth, so, (double)r * 2, &b2, &bl3, &t2, &tl3);
+          if (r2 == SE_BAIL) return SE_BAIL;
+          if (r2 && r2 < r) { b = b2; tt = t2; r = r2; tl2 = tl3; }
+        }
+        *ob = b; *ol = r; *tb = tt; *tl = tl2;
+        return r;
+      }
+      GSP = mk0;
+    }
+  } }
   mn = mx = a[0]; for (i = 1; i < n; i++) { double v = a[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
   bb = g_alloc(cap); cb = g_alloc(cap); bt = g_alloc(128); ct = g_alloc(128);
   if (!bb || !cb || !bt || !ct) return SE_BAIL;

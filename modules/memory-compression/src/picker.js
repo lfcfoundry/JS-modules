@@ -550,7 +550,7 @@
     }
     function runWay(way, a, depth, opt, mm, bound, rec) {     // tryInt, with the ways it uses for its parts written down when rec is on
       var sv = REC, kids = null, e, r;
-      if (KWC && KWC.x.enc_search && a.length >= SE_MIN && !(opt.sample && a.length > 4096) && (REC = rec ? [] : null, r = searchWasm(a, depth, opt, way, bound), REC = sv, r) !== BAIL) { runWay.kids = rec ? (r ? r.node.kids : null) : null; return r ? r.e : null; }
+      if (KWC && KWC.x.enc_search && a.length >= SE_MIN && (REC = rec ? [] : null, r = searchWasm(a, depth, opt, way, bound), REC = sv, r) !== BAIL) { runWay.kids = rec ? (r ? r.node.kids : null) : null; return r ? r.e : null; }
       if (rec) REC = kids = []; else REC = null;
       try { e = tryInt(way, a, depth, opt, mm, bound); } finally { REC = sv; }
       runWay.kids = kids; return e;
@@ -558,7 +558,7 @@
     function encIntsFull(a, depth, opt) {
       var n = a.length, d2, fs, k, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
-      if (KWC && KWC.x.enc_search && n >= SE_MIN && !(opt.prefer && depth === opt.top) && !(opt.sample && n > 4096 && order.length > 1) && (e = searchWasm(a, depth, opt, 255, 0)) !== BAIL) { if (e && rec) par.push(e.node); return e ? e.e : null; }      // since 2.23.0: the whole search below in one call
+      if (KWC && KWC.x.enc_search && n >= SE_MIN && !(opt.prefer && depth === opt.top) && !(opt.sample && n > 4096 && order.length > 1 && depth === opt.top) && (e = searchWasm(a, depth, opt, 255, 0)) !== BAIL) { if (e && rec) par.push(e.node); return e ? e.e : null; }      // since 2.23.0: the whole search below in one call
       if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
         for (i = 0, k = opt.leadInt >= 0 && opt.prefer.indexOf(opt.leadInt) >= 0 ? [opt.leadInt] : opt.prefer; i < k.length; i++) { e = runWay(k[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
         if (best) { if (rec) par.push({ sch: best[0], kids: bestKids }); return best; }
