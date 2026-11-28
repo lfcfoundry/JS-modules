@@ -528,6 +528,37 @@ static void tw_sort(double *t, u32 n) {      /* ascending; insertion sort for sh
   }
   { u32 i, k; for (i = 1; i < n; i++) { double x = t[i]; k = i; while (k && t[k - 1] > x) { t[k] = t[k - 1]; k--; } t[k] = x; } }
 }
+/* the dictionary of DICT: the sorted different values (keys) and each value's place among them (codes), as in picker.js; the number of keys, or -1 when there are more than lim
+ * (or no scratch). A table by value when the range is small next to n (clearing it costs); else a hash table, then only the different values sorted (since 2.23.0; sorting all n was 3x slower). */
+static int dict_map(TW *w, const double *a, u32 n, double mn, double mx, double lim, double **kp, double **cp) {
+  u32 i, m = 0, k; double *keys, *codes;
+  if (mx - mn <= 4.0 * n + 4096) {
+    u32 rn = (u32)(mx - mn) + 1, *seen = tw_alloc(w, rn * 4);
+    if (!seen) return -1;
+    for (i = 0; i < rn; i++) seen[i] = 0;
+    for (i = 0; i < n; i++) { u32 x = (u32)(a[i] - mn); if (!seen[x]) { seen[x] = 1; if ((double)++m > lim) return -1; } }
+    keys = tw_alloc(w, m * 8); codes = tw_alloc(w, n * 8); if (!keys || !codes) return -1;
+    for (i = 0, k = 0; i < rn; i++) if (seen[i]) { keys[k] = (double)i + mn; seen[i] = ++k; }
+    for (i = 0; i < n; i++) codes[i] = (double)(seen[(u32)(a[i] - mn)] - 1);
+  } else {
+    u32 size = 16, msk, q, lo, hi2, md, *slot, *at; u64 *tab;
+    while (size < 2 * n) size <<= 1;
+    msk = size - 1; tab = tw_alloc(w, size * 8); slot = tw_alloc(w, size * 4); at = tw_alloc(w, n * 4); keys = tw_alloc(w, ((u32)lim + 1) * 8); codes = tw_alloc(w, n * 8);
+    if (!tab || !slot || !at || !keys || !codes) return -1;
+    for (i = 0; i < size; i++) slot[i] = 0;
+    for (i = 0; i < n; i++) {
+      u64 b; double v = a[i]; if (v == 0) v = 0; __builtin_memcpy(&b, &v, 8);      /* -0 and 0 are one key, as in a Map */
+      q = (u32)((b * 0x9E3779B97F4A7C15ull) >> 40) & msk;
+      while (slot[q] && tab[q] != b) q = (q + 1) & msk;
+      if (!slot[q]) { if ((double)(m + 1) > lim) return -1; tab[q] = b; keys[m++] = v; slot[q] = 1; }
+      at[i] = q;
+    }
+    tw_sort(keys, m);
+    for (q = 0; q < size; q++) if (slot[q]) { double x; __builtin_memcpy(&x, &tab[q], 8); lo = 0; hi2 = m; while (lo < hi2) { md = (lo + hi2) >> 1; if (keys[md] < x) lo = md + 1; else hi2 = md; } slot[q] = lo + 1; }
+    for (i = 0; i < n; i++) codes[i] = (double)(slot[at[i]] - 1);
+  }
+  *kp = keys; *cp = codes; return (int)m;
+}
 static void tw_skip(const u8 **tp) { u32 k = (*tp)[1], i; *tp += 2; for (i = 0; i < k; i++) tw_skip(tp); }
 static int tw_node(TW *w, const double *a, u32 n, const u8 **tp, int depth);
 /* the ways of enc_tree that are rarer in replays, out of tw_node so its common loop stays small (2.23.0) */
@@ -579,23 +610,7 @@ static __attribute__((noinline)) int tw_more(TW *w, const double *a, u32 n, cons
       double sv[161]; u32 c = 0, z;
       for (i = 0; i < 256; i++) { for (z = 0; z < c; z++) if (sv[z] == a[i]) break; if (z == c) { if (c == 160) return 0; sv[c++] = a[i]; } }
     }
-    if (mx - mn < (65536.0 > n * 16.0 ? 65536.0 : n * 16.0) && mx - mn <= 4.0 * n + 4096) {      /* a table by value only when it is small next to n (clearing it costs); the sorted path gives the same keys and codes */
-      u32 rn = (u32)(mx - mn) + 1, *seen = tw_alloc(w, rn * 4);
-      if (!seen) return 0;
-      for (i = 0; i < rn; i++) seen[i] = 0;
-      for (i = 0; i < n; i++) { u32 x = (u32)(a[i] - mn); if (!seen[x]) { seen[x] = 1; if ((double)++m > lim) return 0; } }
-      keys = tw_alloc(w, m * 8); codes = tw_alloc(w, n * 8); if (!keys || !codes) return 0;
-      for (i = 0, k = 0; i < rn; i++) if (seen[i]) { keys[k] = (double)i + mn; seen[i] = ++k; }
-      for (i = 0; i < n; i++) codes[i] = (double)(seen[(u32)(a[i] - mn)] - 1);
-    } else {
-      double *t = tw_alloc(w, n * 8); u32 lo, hi2, md;
-      if (!t) return 0;
-      for (i = 0; i < n; i++) t[i] = a[i];
-      tw_sort(t, n);
-      for (i = 0; i < n; i++) if (!i || t[i] != t[m - 1]) { t[m++] = t[i]; if ((double)m > lim) return 0; }
-      keys = t; codes = tw_alloc(w, n * 8); if (!codes) return 0;
-      for (i = 0; i < n; i++) { double x = a[i]; lo = 0; hi2 = m; while (lo < hi2) { md = (lo + hi2) >> 1; if (keys[md] < x) lo = md + 1; else hi2 = md; } codes[i] = (double)lo; }
-    }
+    { int r = dict_map(w, a, n, mn, mx, lim, &keys, &codes); if (r < 0) return 0; m = (u32)r; }
     tw_b(w, 5); tw_vi(w, m);
     if (!tw_node(w, keys, m, tp, depth - 1)) return 0;
     if (!tw_node(w, codes, n, tp, depth - 1)) return 0;
@@ -939,23 +954,7 @@ static int se_way(TW *w, u8 *t, u32 *tn, u32 sch, const double *a, u32 n, int de
       double sv[161]; u32 c = 0, z;
       for (i = 0; i < 256; i++) { for (z = 0; z < c; z++) if (sv[z] == a[i]) break; if (z == c) { if (c == 160) return 0; sv[c++] = a[i]; } }
     }
-    if (mx - mn < (65536.0 > n * 16.0 ? 65536.0 : n * 16.0) && mx - mn <= 4.0 * n + 4096) {      /* a table by value only when it is small next to n (clearing it costs); the sorted path gives the same keys and codes */
-      u32 rn = (u32)(mx - mn) + 1, *seen = tw_alloc(w, rn * 4);
-      if (!seen) return 0;
-      for (i = 0; i < rn; i++) seen[i] = 0;
-      for (i = 0; i < n; i++) { u32 x = (u32)(a[i] - mn); if (!seen[x]) { seen[x] = 1; if ((double)++m > lim) return 0; } }
-      keys = tw_alloc(w, m * 8); codes = tw_alloc(w, n * 8); if (!keys || !codes) return 0;
-      for (i = 0, k = 0; i < rn; i++) if (seen[i]) { keys[k] = (double)i + mn; seen[i] = ++k; }
-      for (i = 0; i < n; i++) codes[i] = (double)(seen[(u32)(a[i] - mn)] - 1);
-    } else {
-      double *tt = tw_alloc(w, n * 8); u32 lo, hi2, md;
-      if (!tt) return 0;
-      for (i = 0; i < n; i++) tt[i] = a[i];
-      tw_sort(tt, n);
-      for (i = 0; i < n; i++) if (!i || tt[i] != tt[m - 1]) { tt[m++] = tt[i]; if ((double)m > lim) return 0; }
-      keys = tt; codes = tw_alloc(w, n * 8); if (!codes) return 0;
-      for (i = 0; i < n; i++) { double x = a[i]; lo = 0; hi2 = m; while (lo < hi2) { md = (lo + hi2) >> 1; if (keys[md] < x) lo = md + 1; else hi2 = md; } codes[i] = (double)lo; }
-    }
+    { int r = dict_map(w, a, n, mn, mx, lim, &keys, &codes); if (r < 0) return 0; m = (u32)r; }
     tw_b(w, 5); tw_vi(w, m); t[1] = 2;
     PART(keys, m, so, 0); PART(codes, n, so, 0);
     return 1;
