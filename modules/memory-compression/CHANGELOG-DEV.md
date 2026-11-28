@@ -2,6 +2,17 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.23.0 · API 2 · 2026-11-28
+
+### Quick
+Pack 20 to 50% faster: the whole way search runs in WebAssembly (enc_search), replay covers DELTA, DICT, PFOR, DIV and LB, and a replayed part that stops fitting keeps both ways (ALT). Same bytes as 2.22.0 except SBA (+13 bytes) and wide date columns with repeats (2 to 22% smaller, LB tried at 5% repeats). New files open in 2.22.0.
+
+### Details
+Browser medians, pack time vs 2.22.0 (same page, alternating, 11 rounds), Chromium 156 / Firefox 158 / WebKitGTK 2.52.6: SBA 0.55 / 0.63 / 0.50; retail unit price 0.60 / 0.59 / 0.72; SEC 0.92 / 0.90 / 0.84; COVID confirmed 0.67 / 0.72 / 0.71; COVID deaths 0.54 / 0.71 / 0.68. Held-out retail and SBA columns (never used for tuning): 0.50 to 1.00, none slower. FHIR training dates (Chromium): medication authored 27,250 to 21,207 B (Pcodec 21,522), condition onset 16,585 to 14,594 (Pcodec 16,291), report effective 57,745 to 50,844, procedure start 76,910 to 70,920; pack 1.03 to 2.37x slower on those columns only (1.5 to 6.4 ms). Unpack unchanged. Against Pcodec (pcodec-js level 8, Chromium) pack: SEC 1.15x, SBA 3.9x, retail unit price 2.4x, COVID deaths 1.6x, COVID confirmed 0.92x.
+
+### Deep
+enc_search (WebAssembly) mirrors encIntsFull and encIntWith for every way and order (INT, LB, DELTA2, the two DEC streams), with the same bound gates (ENT with lg2d, a log2 from + - * / only, so JavaScript and WebAssembly agree to the bit), decPick's last-way rule, and the sampled choice below the top level; it answers bail for the top level's sampled choice and the ways that won before. Replay (enc_tree) handles DELTA, DICT, PFOR, DIV and LB; ALT (tree node 13, internal only, never written to files) keeps the old tree first and a fresh one second when a replayed part stops fitting. Kernels: rANS encoder by reciprocal multiply, dec_split in doubles, eg_enc clears only what it writes, bl64 from exponent bits, block_stats with floor, fdict_map for float dictionaries, DICT by hash table then only the different values sorted (sorting all values was 3x slower on SBA county codes). PLANES skipped when its least size is 2% over the best. LB on values over 24 bits wide: tried when 5% of the first 1,024 values come back (was a third) and kept when 5% of the block does (was: at most 60% different); narrower columns keep the old rule. WebAssembly stack 4 KB to 256 KB (recursive search); wasm 38 KB to 59 KB. Tests: wasm and JavaScript byte-identical on tester, held-out and FHIR columns; exact round trips; 300 random dictionary blocks; kernels against the 2.21.0 and 2.22.0 helpers on random data; 2.22.0 opens every new file (52 of 52). Tried and dropped: early stop for byte planes, choosing a block's kind on a sample (SBA 6% bigger), trying every kind on every block (2x slower on decimals), 32,768-value blocks (SBA +33 to 114%).
+
 ## 2.22.0 · API 2 · 2026-11-27
 
 ### Quick
