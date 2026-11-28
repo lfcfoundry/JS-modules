@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.13 · API 0 · 2026-11-28
+
+### Quick
+b28Col stores -0 as 0 on the column path (what the text path always stored) instead of B26_BAIL.
+
+### Deep
+b28Col stores -0 as 0 on the column path (what the text path always stored) instead of B26_BAIL. Real exoplanets file (703 cols x 4,579 rows, 15 cells of -0 in one column) packBlock with Workbench Save options vs 0.26.12, swapped A/B: Chromium -85.9%, Firefox -83.9%, WebKitGTK -84.5%. Rows read back identical in 3 browsers; file 22% smaller (Node). New test negzero.cjs.
+
 ## 0.26.12 · API 0 · 2026-11-27
 
 ### Quick
