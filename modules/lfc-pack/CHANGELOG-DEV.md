@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.9 · API 0 · 2026-11-27
+
+### Quick
+Varint number frames of 4,096+ values decode in the bdec wasm kernel (decV) instead of JS colV.
+
+### Deep
+Varint number frames of 4,096+ values decode in the bdec wasm kernel (decV) instead of JS colV. unpackColumns vs 0.26.8, swapped same-page A/B, taxi/retail: Chromium 156 -10.4%/-41.6%, Firefox 158 -5.4%/-25.6%, WebKitGTK 2.52.6 -3.6%/-12.3%. Output byte-identical to 0.26.8 in 3 browsers (64 columns) and 126 Node reads; quantile 245 and exact-table 56 browser checks pass.
+
 ## 0.26.8 · API 0 · 2026-11-27
 
 ### Quick

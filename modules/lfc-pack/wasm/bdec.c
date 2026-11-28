@@ -49,3 +49,23 @@ __attribute__((export_name("datefmt"))) u32 datefmt(const double* ms, u32 n, u32
   }
   return 0;
 }
+// decV (since lfc-pack 0.26.9): varint number columns ('V' kind) read straight from their bytes: mode 0 zigzag values, 1 rising values as plain differences (mono), 2 zigzag differences (delta);
+// out[i] = value / sc (sc == 1: no divide). The same doubles as colV in flat.js. Returns 0, or 1 when the bytes run out, a varint is longer than 8 bytes or a value or running sum leaves +-2^53
+// (the caller then takes the JS path, which reports the damage as before). in needs 8 readable bytes past len.
+__attribute__((export_name("decV"))) u32 decV(const u8* in, u32 len, u32 n, u32 mode, double sc, double* out) {
+  const u64 LIM = 9007199254740992ull; u32 i, p = 0; long long s = 0;
+  for (i = 0; i < n; i++) {
+    u64 u, c; if (p >= len) return 1;
+    c = in[p++]; u = c & 127;
+    if (c & 128) { c = in[p++]; u |= (c & 127) << 7;
+      if (c & 128) { c = in[p++]; u |= (c & 127) << 14;
+        if (c & 128) { u32 sh = 21; do { if (sh > 49) return 1; c = in[p++]; u |= (c & 127) << sh; sh += 7; } while (c & 128); } } }
+    if (p > len || u > LIM) return 1;
+    long long v;
+    if (mode == 1) { s += (long long)u; if (s > (long long)LIM) return 1; v = s; }
+    else { long long z = (u & 1) ? -(long long)((u + 1) >> 1) : (long long)(u >> 1);
+      if (mode == 2) { s += z; if (s > (long long)LIM || s < -(long long)LIM) return 1; v = s; } else v = z; }
+    out[i] = sc == 1.0 ? (double)v : (double)v / sc;
+  }
+  return 0;
+}
