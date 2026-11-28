@@ -2,6 +2,30 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.12 · API 0 · 2026-11-27
+
+### Quick
+decBi: 'B' columns with scale 1 whose range fits int32 unpack in wasm straight to Int32Array, also in WebKit.
+
+### Deep
+decBi: 'B' columns with scale 1 whose range fits int32 unpack in wasm straight to Int32Array, also in WebKit. unpackColumns vs 0.26.11 swapped A/B taxi/retail: Chromium -11.5/+0.6%, Firefox -15.4/0.0%, WebKitGTK -20.4/+2.3% (retail untouched, timer-limited). Output identical in 3 browsers (64 columns); full suite passes.
+
+## 0.26.11 · API 0 · 2026-11-27
+
+### Quick
+decV writes int32 directly when every value fits (no JS narrow pass).
+
+### Deep
+decV writes int32 directly when every value fits (no JS narrow pass). unpackColumns vs 0.26.10 swapped A/B taxi/retail: Chromium -0.3/-16.5%, Firefox +1.0/-19.7%, WebKitGTK -1.9/-15.1%. Output and array types identical in 3 browsers (64 columns).
+
+## 0.26.10 · API 0 · 2026-11-27
+
+### Quick
+manyDistinctBC returns the exact distinct byte count (no 1,024-string decode); utf8Valid word path at any offset.
+
+### Deep
+manyDistinctBC returns the exact distinct byte count (no 1,024-string decode); utf8Valid word path at any offset. From the Workbench thread (Wikimedia import -6/-7/-6% Chromium/Firefox/WebKitGTK, byte-identical). packBlock 3 text cols 65,536 rows swapped A/B vs 0.26.9: Chromium -3.2%, Firefox -7.1%, WebKitGTK -1.3%. 72 Node packBlock cases identical; utf8Valid = fatal TextDecoder on 300,000 random inputs.
+
 ## 0.26.9 · API 0 · 2026-11-27
 
 ### Quick

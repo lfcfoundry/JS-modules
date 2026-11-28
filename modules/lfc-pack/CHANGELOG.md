@@ -2,6 +2,15 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.12 · API 0 · 2026-11-27
+- Reading bit-packed whole-number columns is quicker (taxi file 11-20%); files unchanged
+
+## 0.26.11 · API 0 · 2026-11-27
+- Reading whole-number columns is quicker again (about 15-20% on the retail file); files unchanged
+
+## 0.26.10 · API 0 · 2026-11-27
+- Packing text given as bytes is quicker (about 1-7%, more on nearly-distinct columns); files unchanged
+
 ## 0.26.9 · API 0 · 2026-11-27
 - Reading number columns is quicker (about 4-42% depending on browser and file); files unchanged
 

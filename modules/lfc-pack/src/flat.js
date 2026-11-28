@@ -625,9 +625,10 @@
       u += (c & 127) << 14; m = 2097152; do { c = b[p++]; u += (c & 127) * m; m *= 128; } while (c & 128); out[i] = unzz(u) / sc; }
     return out; }
   // since 0.26.9: a long varint column decoded in bdec.wasm (decV: the same doubles, about 4x quicker than the JS loop); damaged bytes fall back to the JS path below, which reports them
-  function colVw(b, n, p) { var X = n >= 4096 ? bdx() : null; if (!X || !X.decV) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b);
-    if (X.decV(L.at[0], b.length, n, p.mono ? 1 : p.delta ? 2 : 0, p.scale, L.at[1])) return null; return new Float64Array(X.memory.buffer, L.at[1], n).slice(); }
-  function colV(frames, n, p) { var i, u, o; if ((u = colVw(frames[0], n, p))) return p.scale !== 1 ? u : narrow(u); if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
+  function colVw(b, n, p) { var X = n >= 4096 ? bdx() : null; if (!X || !X.decV) return null; var w = p.scale === 1, L = bdLay(w ? [b.length, n * 8, n * 4] : [b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b);
+    var r = X.decV(L.at[0], b.length, n, p.mono ? 1 : p.delta ? 2 : 0, p.scale, L.at[1], w ? L.at[2] : 0);   // 2: whole numbers that fit 32 bits, also written as int32 (what narrow gives), so no JS pass over them
+    if (r === 2) return new Int32Array(X.memory.buffer, L.at[2], n).slice(); if (r) return null; return new Float64Array(X.memory.buffer, L.at[1], n).slice(); }
+  function colV(frames, n, p) { var i, u, o; if ((u = colVw(frames[0], n, p))) return u; if (!p.mono && !p.delta && n >= 16384) { u = colZZ(frames[0], n, p.scale); return p.scale !== 1 ? u : narrow(u); } u = unvarints(frames[0], n); if (p.mono) { var s = 0; for (i = 0; i < n; i++) { s += u[i]; u[i] = s; } if (s > 9007199254740992) throw new Error('damaged block: number column out of range'); } else if (p.delta) { var s2 = 0; for (i = 0; i < n; i++) { s2 += unzz(u[i]); if (s2 > 9007199254740992 || s2 < -9007199254740992) throw new Error('damaged block: number column out of range'); u[i] = s2; } } else for (i = 0; i < n; i++) u[i] = unzz(u[i]); if (p.scale !== 1) { for (i = 0; i < n; i++) u[i] /= p.scale; return u; } return narrow(u); }
   // B51: an all-ASCII string column without 0 chars written straight to its bytes (values joined by 0 bytes), with no joined string and no TextEncoder pass; null at the first other char (the join path then decides). The same bytes as te.encode(v.join('\0')).
   // Chromium and WebKitGTK only: there TextEncoder on the joined text is the slow part (Chromium 156 about 4 ms per MB); Firefox encodes fast and keeps the join path
   var STR_ASCII = !GECKO;
@@ -705,11 +706,10 @@
   var FAST_ON = false, FLT = 1, FSK = 1;   // FLT: the zstd level of text columns under fast; FSK: skip the dictionary count of nearly-distinct columns
   function manyDistinct(v) { var s = new Set(), i; for (i = 0; i < 1024; i++) s.add(v[i]); return s.size > 900; }
   var MDB_T = null;
-  function manyDistinctBC(B, S, E, a) { var T = MDB_T || (MDB_T = new Int32Array(2048)), nd = 0, i, j, h, x, y, L, q, eq, hb = 0, c; T.fill(-1);   // distinct byte strings first (no text made); only more than 900 decodes, as before (equal bytes decode equal, so the byte count is never lower)
-    for (i = 0; i < 1024; i++) { x = S[a + i]; L = E[a + i] - x; h = L; for (q = 0; q < L; q++) { c = B[x + q]; hb |= c; h = Math.imul(h ^ c, 16777619); } h = (h >>> 21) & 2047;
+  function manyDistinctBC(B, S, E, a) { var T = MDB_T || (MDB_T = new Int32Array(2048)), nd = 0, i, j, h, x, y, L, q, eq; T.fill(-1);   // distinct byte strings, counted exactly (bytes compared, not only hashes); no text is made
+    for (i = 0; i < 1024; i++) { x = S[a + i]; L = E[a + i] - x; h = L; for (q = 0; q < L; q++) h = Math.imul(h ^ B[x + q], 16777619); h = (h >>> 21) & 2047;
       for (;;) { j = T[h]; if (j < 0) { T[h] = i; nd++; break; } y = S[a + j]; if (E[a + j] - y === L) { eq = true; for (q = 0; q < L; q++) if (B[x + q] !== B[y + q]) { eq = false; break; } if (eq) break; } h = (h + 1) & 2047; } }
-    if (nd <= 900 || hb < 128) return nd > 900;   // all ASCII: equal text exactly when equal bytes, so the byte count is the answer
-    var s = new Set(); for (i = 0; i < 1024; i++) s.add(td.decode(B.subarray(S[a + i], E[a + i]))); return s.size > 900; }   // the same test on a byte column: fast skips the dictionary count of a column whose first 1,024 values are nearly all different
+    return nd > 900; }   // the same test on a byte column: fast skips the dictionary count of a column whose first 1,024 values are nearly all different. Valid UTF-8 has exactly as many distinct strings as distinct byte strings, and a column that is not valid throws in utf8Check on either path (since 0.26.10; from the Workbench thread: Wikimedia import 6-7% quicker)
   var MDC_T = null;
   function manyDistinctDC(dc, a) { var T = MDC_T || (MDC_T = new Int32Array(2048)), nd = 0, i, c, h, ids = dc.ids; T.fill(-1);   // distinct codes first (no text made): never fewer than distinct texts, so 900 or fewer answers without decoding
     for (i = 0; i < 1024; i++) { c = ids[a + i] | 0; h = Math.imul(c, -1640531535) >>> 21; for (;;) { var j = T[h]; if (j < 0) { T[h] = i; nd++; break; } if ((ids[a + j] | 0) === c) break; h = (h + 1) & 2047; } }
@@ -752,7 +752,10 @@
   function bdPut(u8, at, b) { u8.set(b, at); u8.fill(0, at + b.length, at + b.length + 8); }
   // CP2-1 (research): a null-plane number column read with nulls: 'NaN' expands straight from the wasm output, skipping one full-size copy
   var CP2_1 = true;
-  function colBw(b, n, p, view) { var X = bdx(); if (!X || p.w > 24) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b); X.decB(L.at[0], n, p.w, p.mn, p.scale, L.at[1]); var f = new Float64Array(X.memory.buffer, L.at[1], n); return view ? f : f.slice(); }   // view: a live view of wasm memory, valid only until the next bdec call (CP2-1)
+  function bdIntOk(p) { return p.scale === 1 && p.w <= 24 && p.mn === (p.mn | 0) && p.mn + (Math.pow(2, p.w) - 1) <= 2147483647; }   // every value of a scale-1 'B' column fits 32 bits (mn .. mn + 2^w - 1)
+  function colBw(b, n, p, view) { var X = bdx(); if (!X || p.w > 24) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b);
+    if (!view && bdIntOk(p) && X.decBi) { X.decBi(L.at[0], n, p.w, p.mn, L.at[1]); return new Int32Array(X.memory.buffer, L.at[1], n).slice(); }   // since 0.26.12: every value fits 32 bits, so the int32 narrow would give, written in wasm
+    X.decB(L.at[0], n, p.w, p.mn, p.scale, L.at[1]); var f = new Float64Array(X.memory.buffer, L.at[1], n); return view ? f : f.slice(); }   // view: a live view of wasm memory, valid only until the next bdec call (CP2-1)
   // B42 nulls: 'NaN' (name picked by the owner 11.14): a block's columns entry where every number column has one value per row: a number column (typed, or a list of only numbers and nulls) becomes a Float64Array (typed columns of one kind keep their kind when no row is empty), with NaN for null and for rows that lack the key; other columns are left as they are
   function intoSlot(a, k, off, n) { if (!(a instanceof Float64Array)) throw new Error('LfcPack: into.' + k + ' must be a Float64Array'); if (off + n > a.length) throw new Error('LfcPack: into.' + k + ' holds ' + a.length + ' values but the file needs ' + (off + n)); return a.subarray(off, off + n); }
   function nanCols(e) {
@@ -766,7 +769,7 @@
   }
   // B44 (research): files carry per-column XXH64 checks by default (as { check: 'xxh64' } did), so a read of a few columns checks only those; { check: 'crc32' } keeps the old whole-block-only table
   var B44_DEFAULT = true; function chkX(o) { return o && o.check ? o.check === 'xxh64' : B44_DEFAULT; }
-  function colB(frames, n, p, tgt) { if (BD_DEC && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p, tgt ? 1 : 0); if (ow) { if (tgt) { tgt.set(ow); return tgt; } return p.scale === 1 ? narrow(ow) : ow; } } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
+  function colB(frames, n, p, tgt) { if ((BD_DEC || (!tgt && bdIntOk(p))) && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p, tgt ? 1 : 0); if (ow) { if (tgt) { tgt.set(ow); return tgt; } return p.scale === 1 && !(ow instanceof Int32Array) ? narrow(ow) : ow; } } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
   function colD(frames, n, p) { var i, u, o; var lab = p.sh ? labsOf(p.sh) : tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
 
@@ -1210,11 +1213,14 @@
   }
   // Well-formed UTF-8 (the same bytes TextDecoder fatal accepts: no overlongs, no surrogates, nothing past U+10FFFF), checked in place: no string is made (since 0.26.7; from the Workbench thread: Wikimedia H4 import 9% quicker in Chromium). ASCII runs go 4 bytes at a time.
   function utf8Valid(u) {
-    var n = u.length, i = 0, w = null, c, c1, c2, c3;
-    if (n >= 64) { var off = u.byteOffset; w = (off & 3) === 0 ? new Uint32Array(u.buffer, off, n >> 2) : null; }
+    var n = u.length, i = 0, w = null, wb = 0, off = u.byteOffset, c, c1, c2, c3, k, m;
+    if (n >= 64) { wb = off & ~3; w = new Uint32Array(u.buffer, wb, (off + n - wb) >> 2); }   // whole words of the buffer: an ASCII run is read 4 bytes at a time whatever the view's offset
     while (i < n) {
       c = u[i];
-      if (c < 128) { if (w && (i & 3) === 0) { var k = i >> 2, m = w.length; while (k < m && (w[k] & 0x80808080) === 0) k++; i = k << 2; if (i >= n) break; c = u[i]; if (c < 128) { i++; continue; } } else { i++; continue; } }
+      if (c < 128) {
+        if (w !== null && ((off + i) & 3) === 0) { k = (off + i - wb) >> 2; m = w.length; while (k < m && (w[k] & 0x80808080) === 0) k++; i = (k << 2) + wb - off; if (i >= n) break; c = u[i]; if (c < 128) { i++; continue; } }
+        else { i++; continue; }
+      }
       if (c < 0xC2) return false;
       if (c < 0xE0) { if (i + 1 >= n || (u[i + 1] & 0xC0) !== 0x80) return false; i += 2; continue; }
       if (c < 0xF0) { if (i + 2 >= n) return false; c1 = u[i + 1]; c2 = u[i + 2]; if ((c1 & 0xC0) !== 0x80 || (c2 & 0xC0) !== 0x80 || (c === 0xE0 && c1 < 0xA0) || (c === 0xED && c1 > 0x9F)) return false; i += 3; continue; }
