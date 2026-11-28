@@ -752,7 +752,10 @@
   function bdPut(u8, at, b) { u8.set(b, at); u8.fill(0, at + b.length, at + b.length + 8); }
   // CP2-1 (research): a null-plane number column read with nulls: 'NaN' expands straight from the wasm output, skipping one full-size copy
   var CP2_1 = true;
-  function colBw(b, n, p, view) { var X = bdx(); if (!X || p.w > 24) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b); X.decB(L.at[0], n, p.w, p.mn, p.scale, L.at[1]); var f = new Float64Array(X.memory.buffer, L.at[1], n); return view ? f : f.slice(); }   // view: a live view of wasm memory, valid only until the next bdec call (CP2-1)
+  function bdIntOk(p) { return p.scale === 1 && p.w <= 24 && p.mn === (p.mn | 0) && p.mn + (Math.pow(2, p.w) - 1) <= 2147483647; }   // every value of a scale-1 'B' column fits 32 bits (mn .. mn + 2^w - 1)
+  function colBw(b, n, p, view) { var X = bdx(); if (!X || p.w > 24) return null; var L = bdLay([b.length, n * 8]), buf = bdMem(L.end); bdPut(new Uint8Array(buf), L.at[0], b);
+    if (!view && bdIntOk(p) && X.decBi) { X.decBi(L.at[0], n, p.w, p.mn, L.at[1]); return new Int32Array(X.memory.buffer, L.at[1], n).slice(); }   // since 0.26.12: every value fits 32 bits, so the int32 narrow would give, written in wasm
+    X.decB(L.at[0], n, p.w, p.mn, p.scale, L.at[1]); var f = new Float64Array(X.memory.buffer, L.at[1], n); return view ? f : f.slice(); }   // view: a live view of wasm memory, valid only until the next bdec call (CP2-1)
   // B42 nulls: 'NaN' (name picked by the owner 11.14): a block's columns entry where every number column has one value per row: a number column (typed, or a list of only numbers and nulls) becomes a Float64Array (typed columns of one kind keep their kind when no row is empty), with NaN for null and for rows that lack the key; other columns are left as they are
   function intoSlot(a, k, off, n) { if (!(a instanceof Float64Array)) throw new Error('LfcPack: into.' + k + ' must be a Float64Array'); if (off + n > a.length) throw new Error('LfcPack: into.' + k + ' holds ' + a.length + ' values but the file needs ' + (off + n)); return a.subarray(off, off + n); }
   function nanCols(e) {
@@ -766,7 +769,7 @@
   }
   // B44 (research): files carry per-column XXH64 checks by default (as { check: 'xxh64' } did), so a read of a few columns checks only those; { check: 'crc32' } keeps the old whole-block-only table
   var B44_DEFAULT = true; function chkX(o) { return o && o.check ? o.check === 'xxh64' : B44_DEFAULT; }
-  function colB(frames, n, p, tgt) { if (BD_DEC && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p, tgt ? 1 : 0); if (ow) { if (tgt) { tgt.set(ow); return tgt; } return p.scale === 1 ? narrow(ow) : ow; } } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
+  function colB(frames, n, p, tgt) { if ((BD_DEC || (!tgt && bdIntOk(p))) && n >= 256 && p.w <= 24) { var ow = colBw(frames[0], n, p, tgt ? 1 : 0); if (ow) { if (tgt) { tgt.set(ow); return tgt; } return p.scale === 1 && !(ow instanceof Int32Array) ? narrow(ow) : ow; } } var i, u, o; var bu = bitunpack(frames[0], n, p.w); o = new Float64Array(n); for (i = 0; i < n; i++) o[i] = (bu[i] + p.mn) / p.scale; return p.scale === 1 ? narrow(o) : o; }
   function colT(frames, n, p) { var i, u, o; var tb = bitunpack(frames[0], n, 1); o = new Array(n); for (i = 0; i < n; i++) o[i] = tb[i] === 1; return o; }
   function colD(frames, n, p) { var i, u, o; var lab = p.sh ? labsOf(p.sh) : tdr.decode(frames[0]).split('\0'), cd = p.w ? bitunpack(frames[1], n, p.w) : p.wide ? new Uint16Array(frames[1].buffer.slice(frames[1].byteOffset, frames[1].byteOffset + n * 2)) : frames[1]; o = new Array(n); for (i = 0; i < n; i++) o[i] = lab[cd[i]]; return o; }
 

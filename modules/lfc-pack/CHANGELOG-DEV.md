@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.12 · API 0 · 2026-11-27
+
+### Quick
+decBi: 'B' columns with scale 1 whose range fits int32 unpack in wasm straight to Int32Array, also in WebKit.
+
+### Deep
+decBi: 'B' columns with scale 1 whose range fits int32 unpack in wasm straight to Int32Array, also in WebKit. unpackColumns vs 0.26.11 swapped A/B taxi/retail: Chromium -11.5/+0.6%, Firefox -15.4/0.0%, WebKitGTK -20.4/+2.3% (retail untouched, timer-limited). Output identical in 3 browsers (64 columns); full suite passes.
+
 ## 0.26.11 · API 0 · 2026-11-27
 
 ### Quick

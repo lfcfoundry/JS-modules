@@ -10,6 +10,11 @@ __attribute__((export_name("decB"))) void decB(const u8* in, u32 n, u32 w, doubl
   if (sc == 1.0) { for (i = 0; i < n; i++) { out[i] = (double)((ld64(in + (bp >> 3)) >> (bp & 7)) & mask) + mn; bp += w; } return; }
   for (i = 0; i < n; i++) { out[i] = ((double)((ld64(in + (bp >> 3)) >> (bp & 7)) & mask) + mn) / sc; bp += w; }
 }
+// decBi: the same values as int32 (scale 1, and the caller checked mn .. mn + 2^w - 1 fits 32 bits): what narrow gives, with no double pass
+__attribute__((export_name("decBi"))) void decBi(const u8* in, u32 n, u32 w, int mn, int* out) {
+  u64 mask = (1ull << w) - 1, bp = 0; u32 i;
+  for (i = 0; i < n; i++) { out[i] = (int)((ld64(in + (bp >> 3)) >> (bp & 7)) & mask) + mn; bp += w; }
+}
 // acc[0] += sum of codes (exact below 2^53, the caller checks), acc[1] += count; np = 0: no null plane (n values), else n rows with bit 1 = null
 __attribute__((export_name("sumI"))) void sumI(const u8* in, const u8* np, u32 n, u32 w, double* acc) {
   u64 mask = (1ull << w) - 1, bp = 0, s = 0; u32 i, c = 0;
