@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 2.23.1 · API 2 · 2026-11-28
+- Packing is faster with the same bytes: FHIR date columns up to 35% faster than 2.23.0 and other number columns up to 30% faster, none slower. Most FHIR date columns now pack faster than in 2.22.0 while staying 2 to 22% smaller.
+
 ## 2.23.0 · API 2 · 2026-11-28
 - Packing number columns is 20 to 50% faster in all three test browsers (SBA loan amounts about twice as fast); no column packs slower than in 2.22.0. Files are the same size (SBA 13 bytes bigger) and open in 2.22.0 too.
 - Date and time columns where values come back later (such as FHIR medication and condition dates) pack 2 to 22% smaller, now under Pcodec, for slower packing on those columns (1.5 to 2.4 times).
