@@ -492,11 +492,11 @@
   }
   // the V and B candidates of a number column held as scaled whole numbers (base), by the general writer's rules: the delta form only when its varints are not clearly longer (5%), the bit-packed form when the range is under 2^24
   function numGeneral(cand, bestOf, base, n, scale) {
-    if (n >= NK_MIN) { var R = nkRun(base, n, 0, NKD.want && !NKD.res ? scale : 0), a = R.a, dd = R.d, bb = R.b, mn0 = R.mn, w0 = R.w;
+    if (n >= NK_MIN) { var R = nkRun(base, n, 0, NKD.want && !NKD.res ? scale : 0, true), a = R.a, dd = R.d, bb = R.b, mn0 = R.mn, w0 = R.w;
       if (a) cand('V', { mono: R.mono, scale: scale }, [a]);
       if (dd) cand('V', { mono: false, scale: scale, delta: true }, [dd]);
       if (bb) cand('B', { mn: mn0, w: w0, scale: scale }, [bb]);
-      return; }
+      nkKeep(bestOf(), (a || dd || bb || {}).buffer); return; }
     numStats(base, n, NST); var mono = NST[0] === 1, mn = NST[1], mx = NST[2], d = numFirst(base, n, mono), dz2 = null, sa = 0, sb = 0;
     if (!mono && n > 1) { dz2 = numDeltaZz(base, n); sa = vlenSum(d, n); sb = vlenSum(dz2, n); }
     if (!dz2 || sa <= sb * 1.05) cand('V', { mono: mono, scale: scale }, [varintsT(d, n)]);
@@ -1287,8 +1287,15 @@
     return K;
   }
   var NKD = { want: false, lo: 0, res: null };   // since 0.26.6: one column's value counts for the summary's exact table, counted by the kernel in its encoding pass (numcolc); lo: a low value of the block's sorted sample (the start of the direct-count window)
+  function nkKeep(c, buf) {   // the candidates kept (best and the chain behind it): frames still in the kernel's memory (nkRun views) copied out, with their compression memo, before the kernel runs again
+    var q, f, g, m, z; if (!buf) return;
+    for (; c; c = c.next) {   // every candidate still referenced (best, then each one it replaced)
+      for (q = 0; q < c.fr.length; q++) { f = c.fr[q]; if (f.buffer !== buf) continue; g = f.slice(); m = Z_MEMO && Z_MEMO.get(f); if (m) Z_MEMO.set(g, m); c.fr[q] = g;
+        if (c.z) for (z = 0; z < c.z.length; z++) if (c.z[z][1] === f) c.z[z][1] = g; } }
+  }
   function nkFlags(a, m) { var K = nkLoad(a, m), resP = K.heap + m * 8; K.x.numflags(K.heap, m, resP); var r = new Float64Array(K.x.memory.buffer, resP, 3); return { nz: r[0], ai: r[1], nf: r[2] }; }
-  function nkRun(base, n, mode, csc) {   // -> NKR filled: the stats and the candidate frames (copies); csc (since 0.26.6): the column's scale when the summary wants every value's count (NKD.res)
+  function nkRun(base, n, mode, csc, vw) {   // vw (since 0.26.8): the frames as views of the kernel's memory, for numGeneral, which copies only the ones it keeps (nkKeep)
+     // -> NKR filled: the stats and the candidate frames (copies); csc (since 0.26.6): the column's scale when the summary wants every value's count (NKD.res)
     var K = nkw(), x = K.x, mem = x.memory, inP, resP, outP, tot, cP, kP, nP, dP, j, h, d;
     if (base.buffer === mem.buffer && base.byteOffset >= K.heap + n * 35 + 256 && base.byteOffset + n * 8 + 229536 <= mem.buffer.byteLength) inP = base.byteOffset;   // since 0.26.6: whole numbers decimalScaleW left in the kernel's memory are read where they are (no copy to the heap)
     else { K = nkLoad(base, n); inP = K.heap; }
@@ -1302,9 +1309,9 @@
     else tot = x.numcol(inP, n, outP, resP, mode);
     var r = new Float64Array(mem.buffer, resP, 11), u = new Uint8Array(mem.buffer, outP, tot), A = r[3], B = r[4], oa = r[8], od = r[9], ob = r[10];
     NKR.mono = r[0] === 1; NKR.mn = r[1]; NKR.mx = r[2]; NKR.w = r[5];
-    NKR.a = A >= 0 ? u.slice(oa, oa + A) : null;
-    NKR.d = B >= 0 ? u.slice(od, od + B) : null;
-    NKR.b = NKR.w ? u.slice(ob, tot) : null;
+    NKR.a = A >= 0 ? (vw ? u.subarray(oa, oa + A) : u.slice(oa, oa + A)) : null;
+    NKR.d = B >= 0 ? (vw ? u.subarray(od, od + B) : u.slice(od, od + B)) : null;
+    NKR.b = NKR.w ? (vw ? u.subarray(ob, tot) : u.slice(ob, tot)) : null;
     NK_SRC = null; NK_BUF = null;   // the input is only reused between a column's flags and its kernel call
     return NKR;
   }

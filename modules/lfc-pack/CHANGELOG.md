@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.8 · API 0 · 2026-11-27
+- Saving number columns is a little quicker (about 2%); files unchanged
+
 ## 0.26.7 · API 0 · 2026-11-27
 - Packing text with accented or non-Latin characters is quicker (the UTF-8 check no longer builds a string); files unchanged
 
