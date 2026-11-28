@@ -87,6 +87,20 @@ const J = require('../lfc-pack.js');
     const keep = c.qx; delete c.qx; const g0 = S.quantile('sk', 0.99); c.qx = keep;
     ok(g0 >= at(0.99 - 0.0044) && g0 <= at(0.99 + 0.0044), 'without qx p99 still within the rank error: ' + g0);
   }
+  { // estimate(key) and exact(key) (since 0.26.5): exact answers from the decoded column, the same as an exact sort; open().summary().exact gives a Promise of the same
+    const T = 300000, x = new Float64Array(T); for (let i = 0; i < T; i++) x[i] = i % 97 === 0 ? NaN : (r() < 0.05 ? 70 : Math.round(Math.exp(gauss() + 2) * 100) / 100);
+    const w = Int32Array.from({ length: T }, (_, i) => i % 5);
+    const f = await J.packColumnsParallel({ x, w }), S = J.summary(f), v = Float64Array.from(x.filter((y) => y === y)).sort(), N = v.length;
+    ok(S.estimate('x') === true && S.estimate('w') === false && S.estimate('nope') === null, 'estimate(): sampled true, counted false, missing null');
+    const E = S.exact('x'), Ew = S.exact('w');
+    ok(E.n === N && S.exact('x') === E, 'exact(): n ' + E.n + ' vs ' + N + ', kept per key');
+    const at = (p) => { const pos = p * (N - 1), lo = Math.floor(pos); return lo + 1 < N ? v[lo] + (pos - lo) * (v[lo + 1] - v[lo]) : v[lo]; };
+    const ca = (y) => v.length - v.findLastIndex((z) => z <= y) - 1, cb = (y) => v.findLastIndex((z) => z < y) + 1;
+    for (const p of [0, 0.01, 0.25, 0.5, 0.9, 0.95, 0.99, 1]) ok(E.quantile(p) === at(p), 'exact quantile(' + p + ') ' + E.quantile(p) + ' vs ' + at(p));
+    for (const y of [0.5, 5, 9.95, 70, 70.01, 150, 1e9]) { ok(E.countAbove(y) === ca(y), 'exact countAbove(' + y + ') ' + E.countAbove(y) + ' vs ' + ca(y)); ok(E.countBelow(y) === cb(y), 'exact countBelow(' + y + ')'); }
+    ok(Ew.countAbove(2) === T * 2 / 5 && Ew.quantile(0.5) === 2, 'exact on a whole-number column');
+    const Eo = await (await J.open(f)).summary().exact('x'); ok(Eo.countAbove(70) === ca(70) && Eo.n === N, 'open().summary().exact(): ' + Eo.countAbove(70));
+  }
   console.log(bad ? bad + ' of ' + n + ' quantile checks FAILED' : 'quantile: all ' + n + ' checks pass');
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

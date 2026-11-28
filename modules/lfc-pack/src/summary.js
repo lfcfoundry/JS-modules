@@ -538,9 +538,29 @@
     le = Math.round(le); lt = Math.round(lt); if (le > N) le = N; if (lt < 0) lt = 0;
     return above ? N - le : lt;
   }
-  function sumAttach(s) {
-    if (s && Array.isArray(s.cols)) { var d = function (k, fn) { Object.defineProperty(s, k, { value: fn, enumerable: false, configurable: true, writable: true }); };
-      d('quantile', sumQuantile); d('countAbove', function (key, x) { return sumCount.call(this, key, x, true); }); d('countBelow', function (key, x) { return sumCount.call(this, key, x, false); }); }
+  // since 0.26.5: estimate(key) says whether that key's answers are estimates (a grid read from a sample: true) or exact (every distinct value with its count, or a grid read from every value: false);
+  // exact(key) decodes that one column (nothing else) and answers from all of its values: { n, quantile(p), countAbove(x), countBelow(x) }, the same definitions as the grid's, exact. From summary(bytes)
+  // it is the answer object; from open().summary() a Promise of it. Kept per key, so the column is decoded once. null for a key with no number or date entry.
+  function sumIsEst(key) { var c = sumEntry(this, key); return c ? !c.qExact && !!c.qSample : null; }
+  function sumExactOf(parts) {
+    var n = 0, i, j, a, x, v, sv;
+    for (i = 0; i < parts.length; i++) n += parts[i] ? parts[i].length : 0;
+    sv = new Float64Array(n); n = 0;
+    for (i = 0; i < parts.length; i++) { a = parts[i]; if (!a) continue; for (j = 0; j < a.length; j++) { x = a[j]; v = typeof x === 'number' ? x : typeof x === 'string' ? sumDateMs(x) : x instanceof Date ? x.getTime() : NaN; if (v !== null && v - v === 0) sv[n++] = v; } }
+    sv = sv.subarray(0, n); sortF64(sv); var N = n;
+    function past(x, eq) { var lo = 0, hi = N, m; while (lo < hi) { m = (lo + hi) >> 1; if (eq ? sv[m] <= x : sv[m] < x) lo = m + 1; else hi = m; } return lo; }   // values < x (<= x with eq)
+    return { n: N,
+      quantile: function (p) { p = +p; if (!(p >= 0 && p <= 1)) throw new Error('LfcPack: quantile p must be from 0 to 1'); if (!N) return null; var r = p * (N - 1), lo = Math.floor(r); return r === lo || lo + 1 >= N ? sv[lo] : sv[lo] + (r - lo) * (sv[lo + 1] - sv[lo]); },
+      countAbove: function (x) { x = sumX(x); return x !== x ? null : N - past(x, true); },
+      countBelow: function (x) { x = sumX(x); return x !== x ? null : past(x, false); } };
+  }
+  function sumAttach(s, colOf) {   // colOf(key): the column's values as a list of arrays (or a Promise of one), for exact()
+    if (s && Array.isArray(s.cols)) { var d = function (k, fn) { Object.defineProperty(s, k, { value: fn, enumerable: false, configurable: true, writable: true }); }, ex = {};
+      d('quantile', sumQuantile); d('countAbove', function (key, x) { return sumCount.call(this, key, x, true); }); d('countBelow', function (key, x) { return sumCount.call(this, key, x, false); });
+      d('estimate', sumIsEst);
+      d('exact', function (key) { var c = sumEntry(this, key), p; if (!c || !colOf) return null; if (ex[key]) return ex[key];
+        p = colOf(key); return (ex[key] = p && typeof p.then === 'function' ? p.then(function (l) { return (ex[key] = sumExactOf(l)); }) : sumExactOf(p)); }); }
     return s;
   }
-  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? sumAttach(JSON.parse(tdr.decode(s))) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded
+  function sumColsOf(bytes) { return function (k) { return unpackColumns(bytes, { keys: [k], nulls: 'NaN' }).map(function (e) { return e.cols[k]; }); }; }
+  function summary(bytes) { var s = readFooter(S.zdec, bytes).sec[SEC_SUMMARY]; return s ? sumAttach(JSON.parse(tdr.decode(s)), sumColsOf(bytes)) : null; }   // the column summary the file carries (footer section 20), or null; nothing is decoded
