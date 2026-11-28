@@ -2,6 +2,9 @@
 
 What changed in each version, newest first, in plain words. The full details (numbers, test runs, browsers) are kept privately by the maintainers. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.13 · API 0 · 2026-11-28
+- Saving columns that hold -0 is much quicker (one such value no longer sends the whole block down the slow text path); same values read back
+
 ## 0.26.12 · API 0 · 2026-11-27
 - Reading bit-packed whole-number columns is quicker (taxi file 11-20%); files unchanged
 

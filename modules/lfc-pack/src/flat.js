@@ -1246,12 +1246,14 @@
         if (c21.a !== null) c21.a.push(x); else if (typeof x === 'number') { c21.nb[c21.m++] = x; c21.c++; } else if (x === null) { if (c21.np === null) c21.np = new Uint8Array(pb); c21.np[c21.c >> 3] |= 1 << (c21.c & 7); c21.c++; } else { c21.a = b21Generic(c21); c21.a.push(x); c21.nb = null; } } }
   }
   // one column of the general flat writer, as writeFlatBlock0 encodes it: pre 1 = a typed number column, 2 = numbers and nulls ({ nb, np, m, c }), else a generic array; -> { e, zn: zone entry [min, max, count] or null }
+  function nz0(pre, a) { var v = pre === 2 ? a.nb.slice(0, a.m) : new a.constructor(a), i; for (i = 0; i < v.length; i++) if (v[i] === 0) v[i] = 0; return pre === 2 ? { a: a.a, nb: v, np: a.np, m: a.m, c: a.c } : v; }   // a copy with every -0 made 0 (the caller's arrays are never changed)
   function b28Col(pre, a, key, zs, level, tm21, chk26, pf, sq) {   // sq (since 0.15.0): { a0, R } when the save wants this block's part of the column summary (blockStats), read before the column is encoded
     var e, fl = null, zn = null, i, mn, mx, c21, sb = null, rr, k;
     if (sq && pre === 1) sb = blockStats(a, a.length, sq.a0, sq.R);
     else if (sq && pre === 2) { rr = new Float64Array(a.c); for (i = 0, k = 0; i < a.c; i++) rr[i] = a.np && (a.np[i >> 3] >> (i & 7) & 1) ? NaN : a.nb[k++]; sb = blockStats(rr, a.c, sq.a0, sq.R); }
     NKD.want = !!sb && sb.dtw === sb.dtw && sb.dtw !== false; NKD.lo = NKD.want ? sb.dtw : 0; NKD.res = null;
     if (pre === 1) fl = pf || b21Flags(a, a.length); else if (pre === 2) fl = b21Flags(a.nb, a.m);
+    if (chk26 && fl && fl.nz && !fl.nf && (pre === 1 || pre === 2)) return b28Col(pre, nz0(pre, a), key, zs, level, tm21, chk26, undefined, sq);   // since 0.26.13: -0 is stored as 0, as the text path (JSON) always did, instead of sending the whole block down the text path
     if (chk26 && fl && (fl.nz || fl.nf)) throw B26_BAIL;
     if (pre === 2) { c21 = a; NN_FLAGS[0] = fl.nz; NN_FLAGS[1] = fl.ai; e = nullNumBest({ nn: c21.nb.subarray(0, c21.m), pl: c21.np, m: c21.m, nz: fl.nz, ai: fl.ai }, null, c21.c, zs, level, tm21, key); if (!e) e = encodeColumn(b21Generic(c21), zs, level, tm21, undefined, key); a = []; }
     else if (pre === 3) e = a.ts ? tsCol(a.bc, a.a0, a.c, zs, level, tm21, key) : a.dc ? byteColDict(a.bc, a.a0, a.c, zs, level, tm21, key) : byteCol(a.bc, a.a0, a.c, zs, level, tm21, key);
