@@ -112,18 +112,7 @@
     function ransEncodeJS(syms, freq, cum) {
       var out = new Uint8Array(syms.length * 2 + 64), p = out.length, x = RL, i, s, f, xm, q, k, xmax = new Float64Array(256), inv = new Float64Array(256);
       for (s = 0; s < 256; s++) if (freq[s]) { xmax[s] = ((RL >>> SB) << 8) * freq[s]; inv[s] = 1 / freq[s]; }
-      if (syms.length >= RI_MIN) {                          // since 2.22.0: 4 states taking turns, the same bytes as the wasm helper's rans_enc
-        var xs = [RL, RL, RL, RL], j;
-        for (i = syms.length - 1; i >= 0; i--) {
-          j = i & 3; x = xs[j]; s = syms[i]; f = freq[s]; xm = xmax[s];
-          while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
-          q = (x * inv[s]) | 0; k = x - q * f;
-          if (k >= f) { q++; k -= f; } else if (k < 0) { q--; k += f; }
-          xs[j] = (q << SB) + k + cum[s];
-        }
-        for (j = 3; j >= 0; j--) { x = j ? xs[j] : (xs[0] | 0x80000000) >>> 0; for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255; }
-        return out.subarray(p);
-      }
+      if (syms.length >= RI_MIN) return ransEncodeJS4(syms, freq, cum, out, xmax, inv);      // since 2.22.0: 4 states for long streams (its own function, so this one stays small for the JIT)
       for (i = syms.length - 1; i >= 0; i--) {
         s = syms[i]; f = freq[s]; xm = xmax[s];
         while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
@@ -132,6 +121,19 @@
         x = (q << SB) + k + cum[s];
       }
       for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255;
+      return out.subarray(p);
+    }
+    function ransEncodeJS4(syms, freq, cum, out, xmax, inv) {      // 4 states taking turns, the same bytes as the wasm helper's rans_enc
+      var p = out.length, x, i, s, f, xm, q, k;
+      var xs = [RL, RL, RL, RL], j;
+      for (i = syms.length - 1; i >= 0; i--) {
+        j = i & 3; x = xs[j]; s = syms[i]; f = freq[s]; xm = xmax[s];
+        while (x >= xm) { out[--p] = x & 255; x = x >>> 8; }
+        q = (x * inv[s]) | 0; k = x - q * f;
+        if (k >= f) { q++; k -= f; } else if (k < 0) { q--; k += f; }
+        xs[j] = (q << SB) + k + cum[s];
+      }
+      for (j = 3; j >= 0; j--) { x = j ? xs[j] : (xs[0] | 0x80000000) >>> 0; for (k = 3; k >= 0; k--) out[--p] = (x >>> (8 * k)) & 255; }
       return out.subarray(p);
     }
     function ransDecode(bytes, n, tb) {
@@ -150,18 +152,7 @@
     function ransDecodeJS(bytes, n, freq, cum, slot) {
       var out = new Uint8Array(n), len = bytes.length, p = 4, x, i, m, s;
       if (len < 4) pfail('bad entropy data');
-      if (bytes[3] & 128) {                                 // 4 states taking turns (value i uses state i % 4); a 1-state stream never sets this bit
-        if (len < 16) pfail('bad entropy data');
-        var xs = new Uint32Array(4), j;
-        for (j = 0; j < 4; j++) xs[j] = (bytes[4 * j] | bytes[4 * j + 1] << 8 | bytes[4 * j + 2] << 16 | bytes[4 * j + 3] << 24) >>> 0;
-        xs[0] &= 0x7FFFFFFF; p = 16;
-        for (i = 0; i < n; i++) {
-          j = i & 3; x = xs[j]; m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
-          while (x < RL) { if (p >= len) pfail('bad entropy data'); x = ((x << 8) | bytes[p++]) >>> 0; }
-          xs[j] = x;
-        }
-        return out;
-      }
+      if (bytes[3] & 128) return ransDecodeJS4(bytes, n, freq, cum, slot, out);      // 4 states taking turns; a 1-state stream never sets this bit
       x = (bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24) >>> 0;
       for (i = 0; i < n; i++) {
         m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
@@ -180,6 +171,19 @@
       var bm = new Uint8Array(32), i;
       for (i = 0; i < 256; i++) if (freq[i]) bm[i >> 3] |= 1 << (i & 7);
       w.bytes(bm); for (i = 0; i < 256; i++) if (freq[i]) w.vi(freq[i] - 1);
+    }
+    function ransDecodeJS4(bytes, n, freq, cum, slot, out) {      // value i uses state i % 4
+      var len = bytes.length, p, x, i, m, s;
+      if (len < 16) pfail('bad entropy data');
+      var xs = new Uint32Array(4), j;
+      for (j = 0; j < 4; j++) xs[j] = (bytes[4 * j] | bytes[4 * j + 1] << 8 | bytes[4 * j + 2] << 16 | bytes[4 * j + 3] << 24) >>> 0;
+      xs[0] &= 0x7FFFFFFF; p = 16;
+      for (i = 0; i < n; i++) {
+        j = i & 3; x = xs[j]; m = x & (M - 1); s = slot[m]; out[i] = s; x = freq[s] * (x >>> SB) + m - cum[s];
+        while (x < RL) { if (p >= len) pfail('bad entropy data'); x = ((x << 8) | bytes[p++]) >>> 0; }
+        xs[j] = x;
+      }
+      return out;
     }
     function readTable(r) {              // the frequency table, checked: it must add up to exactly 4096
       var bm = r.bytes(32), freq = new Uint16Array(256), i, tot = 0, v;
