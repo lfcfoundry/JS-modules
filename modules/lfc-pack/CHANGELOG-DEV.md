@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 0.26.10 · API 0 · 2026-11-27
+
+### Quick
+manyDistinctBC returns the exact distinct byte count (no 1,024-string decode); utf8Valid word path at any offset.
+
+### Deep
+manyDistinctBC returns the exact distinct byte count (no 1,024-string decode); utf8Valid word path at any offset. From the Workbench thread (Wikimedia import -6/-7/-6% Chromium/Firefox/WebKitGTK, byte-identical). packBlock 3 text cols 65,536 rows swapped A/B vs 0.26.9: Chromium -3.2%, Firefox -7.1%, WebKitGTK -1.3%. 72 Node packBlock cases identical; utf8Valid = fatal TextDecoder on 300,000 random inputs.
+
 ## 0.26.9 · API 0 · 2026-11-27
 
 ### Quick
