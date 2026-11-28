@@ -2,6 +2,14 @@
 
 What changed in each version, newest first, for developers, in three depths: Quick (what changed and whether old code breaks), Details (API, numbers with the browser named, how to upgrade) and Deep (design reasons, tests, what was tried). Users read CHANGELOG.md. The API number goes up only when someone using an older copy could be affected.
 
+## 2.21.0 · API 2 · 2026-11-27
+
+### Quick
+2.21.0: new second-difference way (DELTA2) for whole numbers, found because the first difference is zigzagged and a second delta could not see smooth growth.
+
+### Deep
+2.21.0: new second-difference way (DELTA2) for whole numbers, found because the first difference is zigzagged and a second delta could not see smooth growth. Child search limited to CONST, FOR, ENT, EG. Gate: second differences must be about a third of a bit a value smaller. Nested dictionary tries dropped at depth below 2 (same or smaller bytes, faster). COVID confirmed 208917 to 175372 B, deaths 105108 to 77853 B (Pcodec 182533 and 86308); SBA and SEC bytes unchanged.
+
 ## 2.20.2 · API 2 · 2026-11-27
 
 ### Quick

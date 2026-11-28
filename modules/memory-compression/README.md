@@ -1,8 +1,8 @@
 # memory-compression
 
-**Version 2.20.2 · API 2**
+**Version 2.21.0 · API 2**
 
-**Tested in:** ungoogled Chromium 156, Firefox 158, WebKitGTK 2.52.6: unpack equals the original bit for bit on SEC, SBA, covid, retail and 7 made-up shapes; not run on devices
+**Tested in:** Node round trips only so far; browsers pending
 
 ## What it is and how it works
 

@@ -2,7 +2,7 @@
  * memory-compression.js: keep big data packed in memory (bytes, typed arrays, big lists of plain JavaScript objects) and bring it back exactly, fast. One file.
  * Part of JS-modules, https://github.com/lfcfoundry/JS-modules
  * Copyright (c) 2026 LFC Foundry. MIT License (see LICENSE at the repository root).
- * Version 2.20.2 (API 2)
+ * Version 2.21.0 (API 2)
  *
  * What it gives you (plain JavaScript, no dependencies, works offline, one file; sets MemoryCompression, and MemoryCompressionJSO as the object layer alone)
  *  - pack(value) / unpack(bytes) / view(bytes) on MemoryCompression choose the layer by themselves: bytes and typed arrays go through the packing core (as memory-compression 1.x did),
@@ -1269,7 +1269,7 @@
     }
 
     // ---------------------------------------------------------------- whole numbers (a Float64Array of whole numbers, each below 2^52 in size)
-    var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8, EG: 9, DEC: 10 }, MAX_DEPTH = 4;
+    var IS = { RAW: 0, CONST: 1, FOR: 2, DELTA: 3, RLE: 4, DICT: 5, PFOR: 6, DIV: 7, ENT: 8, EG: 9, DEC: 10, DELTA2: 11 }, MAX_DEPTH = 4;
     var STAT = null;                                                              // the smallest, the largest and "all whole numbers" of the block isIntegral just looked at (same array object)
     function statsOf(kw, a) {                                                     // one pass in the wasm helper for a block of 1,024 numbers or more; null when it cannot
       var n = a.length, aP = kw.base, mP = kal(aP + n * 8), ok, mm;
@@ -1433,6 +1433,13 @@
         e1 = decPick(opt, 0, g, depth - 1); e2 = decPick(opt, 1, d, depth - 1);
         w.need(e1.length + e2.length + 2); w.bytes(e1); w.bytes(e2); return w.out();
       }
+      if (sch === IS.DELTA2) {      // since 2.20.3: the second difference (the change of the change, signed); smooth counts (running totals) shrink about a bit a value more than with one difference
+        if (n < 16 || !(Math.max(-mn, mx) < 1125899906842624)) return null;
+        d = new Float64Array(n - 2); t = a[1] - a[0]; x = t; hi = 0; low = 0;
+        for (i = 2; i < n; i++) { y = a[i] - a[i - 1]; j = y - x; x = y; hi += bl53(j < 0 ? -j : j); low += bl53(x < 0 ? -x : x); d[i - 2] = j; }
+        if (hi + n * 0.35 > low) return null;                              // not smoother than one difference by about a third of a bit a value: skip
+        w.zi(a[0]); w.zi(t); w.bytes(encInts(d, depth - 1, opt.order ? opt : Object.assign({}, opt, { order: D2_ORDER }))); return w.out();
+      }
       if (sch === IS.DELTA) {
         if (n < 4) return null;
         d = new Float64Array(n - 1); y = deltaOf(a, n, d);
@@ -1494,7 +1501,9 @@
       for (s = 0; s < k; s++) { from = Math.floor((n - len) * s / (k - 1)); out.set(a.subarray(from, from + len), s * len); }
       return out;
     }
-    var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA, IS.RLE, IS.DICT, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
+    var D2_STOP = 0.8;
+    var D2_ORDER = [IS.CONST, IS.FOR, IS.ENT, IS.EG];       // the second differences of a smooth series are small and spread out: these four are all that is tried on them
+    var INT_ORDER = [IS.CONST, IS.FOR, IS.DELTA2, IS.DELTA, IS.RLE, IS.DICT, IS.PFOR, IS.DIV, IS.ENT, IS.EG, IS.DEC, IS.RAW];
     // Since 2.19.2 the ways that won for a block are written down as a tree (REC) and the next blocks of the column replay that tree (RPL): each level tries only the way that won there, with no sample trials,
     // and a level whose way does not apply falls back to the full search. Every block still comes out as ordinary bytes any decoder reads; every 32nd block records a new tree.
     var REC = null, RPL = null;
@@ -1534,7 +1543,7 @@
       runWay.kids = kids; return e;
     }
     function encIntsFull(a, depth, opt) {
-      var n = a.length, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
+      var n = a.length, d2, fs, order = opt.order || INT_ORDER, pick = -1, s, bs = 1e18, e, best = null, bestKids = null, i, sub, mm = range(a), rec = REC !== null, par = REC;
       if (opt.noEntropy) order = order.filter(function (x) { return x !== IS.ENT; });
       if (opt.prefer && depth === opt.top) {          // most blocks of a column pick the way that won the blocks before; only that way is tried (every 8th block tries all)
         for (i = 0; i < opt.prefer.length; i++) { e = runWay(opt.prefer[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
@@ -1542,10 +1551,10 @@
       }
       if (opt.sample && n > 4096) {        // choose the top way on a sample, then encode only with it
         s = sampleOf(a); sub = { noEntropy: opt.noEntropy, sample: false }; e = range(s);
-        for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = runWay(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0, false); if (e && e.length < bs) { bs = e.length; pick = order[i]; } }
+        for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || (order[i] === IS.DICT && depth < 2 && !opt.order)) continue; e = runWay(order[i], s, depth, sub, null, bs < 1e18 ? bs : 0, false); if (e && order[i] === IS.DELTA2) d2 = true; if (e && e.length < bs) { bs = e.length; pick = order[i]; } if (d2 && order[i] === IS.DELTA2 && bs < fs * D2_STOP) break; if (order[i] === IS.FOR && e) fs = e.length; }
         if (pick >= 0) { e = runWay(pick, a, depth, opt, mm, 0, rec); if (e) { if (rec) par.push({ sch: e[0], kids: runWay.kids }); return e; } }
       }
-      for (i = 0; i < order.length; i++) { if (order[i] === IS.RAW) continue; e = runWay(order[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
+      for (i = 0, d2 = false; i < order.length; i++) { if (order[i] === IS.RAW || (order[i] === IS.DELTA && d2) || (order[i] === IS.DICT && depth < 2 && !opt.order)) continue; e = runWay(order[i], a, depth, opt, mm, best ? best.length : 0, rec); if (e && order[i] === IS.DELTA2) d2 = true; if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }
       if (!best || best.length > n * 8) { e = runWay(IS.RAW, a, depth, opt, mm, 0, rec); if (e && (!best || e.length < best.length)) { best = e; bestKids = runWay.kids; } }      // plain doubles only when nothing else is smaller
       if (rec && best) par.push({ sch: best[0], kids: bestKids });
       return best;
@@ -1581,6 +1590,12 @@
           if (z === 0) { out.set(new Float64Array(KWC.mem.buffer, y, n)); return out; }
         }
         for (i = 0; i < n; i++) { k = g[i]; if (!(k >= 0 && k <= 22)) pfail('bad power of ten'); out[i] = d[i] * (F10[k] === undefined ? Math.pow(10, k) : F10[k]); }      // since 2.20.2 the table, not Math.pow: the same numbers, much faster
+        return out;
+      }
+      if (sch === IS.DELTA2) {
+        if (n < 3) pfail('bad column');
+        c = r.zi(); b = r.zi(); d = decInts(r, n - 2, depth + 1); out[0] = c; c += b; out[1] = c;
+        for (i = 2; i < n; i++) { b += d[i - 2]; c += b; out[i] = c; }
         return out;
       }
       if (sch === IS.DELTA) {
